@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+/**
+ * Terminal WebSocket hook - LEGACY WRAPPER
+ *
+ * This hook provides backward compatibility for code using the old useTerminalWS API.
+ * It wraps the new MobX State Tree (MST) store internally.
+ *
+ * For new code, prefer using `useTerminalStore` from '@/stores' directly.
+ */
 import type { Terminal as XTerm } from '@xterm/xterm'
-import { uploadImage } from '@/lib/upload'
-import { log } from '@/lib/logger'
+import { useTerminalStore } from '@/stores'
+import type { ITerminal, ITab } from '@/stores'
 
-// Types matching server/types.ts
+// Types matching server/types.ts - exported for backward compatibility
 export type TerminalStatus = 'running' | 'exited' | 'error'
 
 export interface TabInfo {
@@ -27,26 +34,12 @@ export interface TerminalInfo {
   positionInTab?: number
 }
 
-type ServerMessage =
-  | { type: 'terminal:created'; payload: { terminal: TerminalInfo; isNew: boolean } }
-  | { type: 'terminal:output'; payload: { terminalId: string; data: string } }
-  | { type: 'terminal:exit'; payload: { terminalId: string; exitCode: number } }
-  | { type: 'terminal:attached'; payload: { terminalId: string; buffer: string } }
-  | { type: 'terminal:bufferCleared'; payload: { terminalId: string } }
-  | { type: 'terminals:list'; payload: { terminals: TerminalInfo[] } }
-  | { type: 'terminal:error'; payload: { terminalId?: string; error: string } }
-  | { type: 'terminal:renamed'; payload: { terminalId: string; name: string } }
-  | { type: 'terminal:destroyed'; payload: { terminalId: string } }
-  | { type: 'terminal:tabAssigned'; payload: { terminalId: string; tabId: string | null; positionInTab: number } }
-  | { type: 'tab:created'; payload: { tab: TabInfo } }
-  | { type: 'tab:updated'; payload: { tabId: string; name?: string; directory?: string | null } }
-  | { type: 'tab:deleted'; payload: { tabId: string } }
-  | { type: 'tab:reordered'; payload: { tabId: string; position: number } }
-  | { type: 'tabs:list'; payload: { tabs: TabInfo[] } }
-
 interface UseTerminalWSOptions {
+  /** @deprecated Options are now configured via StoreProvider */
   url?: string
+  /** @deprecated Options are now configured via StoreProvider */
   reconnectInterval?: number
+  /** @deprecated Options are now configured via StoreProvider */
   maxReconnectAttempts?: number
 }
 
@@ -92,592 +85,80 @@ interface UseTerminalWSReturn {
   setupImagePaste: (container: HTMLElement, terminalId: string) => () => void
 }
 
-// Construct WebSocket URL based on current location
-// In dev: Vite proxies /ws to the backend
-// In production: Same origin
-function getDefaultWsUrl(): string {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${window.location.host}/ws/terminal`
+/**
+ * Convert MST terminal to TerminalInfo for backward compatibility
+ */
+function toTerminalInfo(terminal: ITerminal): TerminalInfo {
+  return {
+    id: terminal.id,
+    name: terminal.name,
+    cwd: terminal.cwd,
+    status: terminal.status,
+    exitCode: terminal.exitCode,
+    cols: terminal.cols,
+    rows: terminal.rows,
+    createdAt: terminal.createdAt,
+    tabId: terminal.tabId ?? undefined,
+    positionInTab: terminal.positionInTab,
+  }
 }
 
-export function useTerminalWS(options: UseTerminalWSOptions = {}): UseTerminalWSReturn {
-  const {
-    url = getDefaultWsUrl(),
-    reconnectInterval = 2000,
-    maxReconnectAttempts = 10,
-  } = options
+/**
+ * Convert MST tab to TabInfo for backward compatibility
+ */
+function toTabInfo(tab: ITab): TabInfo {
+  return {
+    id: tab.id,
+    name: tab.name,
+    position: tab.position,
+    directory: tab.directory ?? undefined,
+    createdAt: tab.createdAt,
+  }
+}
 
-  const [terminals, setTerminals] = useState<TerminalInfo[]>([])
-  const [terminalsLoaded, setTerminalsLoaded] = useState(false)
-  const [tabs, setTabs] = useState<TabInfo[]>([])
-  const [connected, setConnected] = useState(false)
-
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectAttemptsRef = useRef(0)
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const xtermMapRef = useRef<Map<string, XTerm>>(new Map())
-  const newTerminalIdsRef = useRef<Set<string>>(new Set())
-  const onAttachedCallbacksRef = useRef<Map<string, () => void>>(new Map())
-  const connectRef = useRef<() => void>(() => {})
-  const lastFocusedTerminalRef = useRef<string | null>(null)
-  const wasConnectedRef = useRef(false)
-
-  const send = useCallback((message: object) => {
-    const msgType = (message as { type?: string }).type
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      log.ws.debug('send', { type: msgType })
-      wsRef.current.send(JSON.stringify(message))
-    } else {
-      // Log dropped messages - this helps diagnose timing issues
-      log.ws.warn('send dropped (WebSocket not open)', {
-        type: msgType,
-        readyState: wsRef.current?.readyState ?? 'no socket',
-      })
-    }
-  }, [])
-
-  const handleMessage = useCallback((event: MessageEvent) => {
-    try {
-      const message: ServerMessage = JSON.parse(event.data)
-
-      switch (message.type) {
-        // Terminal messages
-        case 'terminals:list':
-          log.ws.info('terminals:list received', {
-            count: message.payload.terminals.length,
-            terminals: message.payload.terminals.map((t) => ({
-              id: t.id,
-              name: t.name,
-              cwd: t.cwd,
-              tabId: t.tabId,
-            })),
-          })
-          setTerminals(message.payload.terminals)
-          setTerminalsLoaded(true)
-          break
-
-        case 'terminal:created':
-          log.ws.debug('terminal:created received', {
-            terminalId: message.payload.terminal.id,
-            isNew: message.payload.isNew,
-            cwd: message.payload.terminal.cwd,
-          })
-          // Deduplicate: only add if not already present (prevents duplicates from multiple WS clients)
-          setTerminals((prev) => {
-            if (prev.some((t) => t.id === message.payload.terminal.id)) {
-              log.ws.debug('terminal:created skipped (already exists)', {
-                terminalId: message.payload.terminal.id,
-              })
-              return prev
-            }
-            return [...prev, message.payload.terminal]
-          })
-          if (message.payload.isNew) {
-            newTerminalIdsRef.current.add(message.payload.terminal.id)
-            log.ws.debug('added to newTerminalIds', {
-              terminalId: message.payload.terminal.id,
-              newSize: newTerminalIdsRef.current.size,
-              contents: Array.from(newTerminalIdsRef.current),
-            })
-          }
-          break
-
-        case 'terminal:output': {
-          const xterm = xtermMapRef.current.get(message.payload.terminalId)
-          log.ws.info('terminal:output', {
-            terminalId: message.payload.terminalId,
-            hasXterm: !!xterm,
-            dataLen: message.payload.data.length,
-          })
-          if (xterm) {
-            xterm.write(message.payload.data)
-          } else {
-            log.ws.warn('terminal:output but no xterm', { terminalId: message.payload.terminalId })
-          }
-          break
-        }
-
-        case 'terminal:attached': {
-          log.ws.info('terminal:attached received', {
-            terminalId: message.payload.terminalId,
-            hasXterm: xtermMapRef.current.has(message.payload.terminalId),
-            bufferLength: message.payload.buffer?.length ?? 0,
-            hasCallback: onAttachedCallbacksRef.current.has(message.payload.terminalId),
-          })
-          const xterm = xtermMapRef.current.get(message.payload.terminalId)
-          if (xterm) {
-            // Reset terminal to clean state before replaying buffer
-            // This prevents corrupted escape sequences from persisting
-            xterm.reset()
-            if (message.payload.buffer) {
-              log.ws.info('writing buffer to xterm', {
-                terminalId: message.payload.terminalId,
-                bufferLength: message.payload.buffer.length,
-              })
-              xterm.write(message.payload.buffer)
-            }
-          } else {
-            log.ws.warn('terminal:attached but no xterm in map', {
-              terminalId: message.payload.terminalId,
-            })
-          }
-          // Call onAttached callback if registered
-          const callback = onAttachedCallbacksRef.current.get(message.payload.terminalId)
-          if (callback) {
-            log.ws.info('calling onAttached callback', { terminalId: message.payload.terminalId })
-            onAttachedCallbacksRef.current.delete(message.payload.terminalId)
-            callback()
-          } else {
-            log.ws.warn('terminal:attached but no callback registered', {
-              terminalId: message.payload.terminalId,
-            })
-          }
-          break
-        }
-
-        case 'terminal:bufferCleared': {
-          const xterm = xtermMapRef.current.get(message.payload.terminalId)
-          if (xterm) {
-            // Full terminal reset - clears screen and resets state
-            xterm.reset()
-          }
-          break
-        }
-
-        case 'terminal:exit':
-          setTerminals((prev) =>
-            prev.map((t) =>
-              t.id === message.payload.terminalId
-                ? { ...t, status: 'exited' as const, exitCode: message.payload.exitCode }
-                : t
-            )
-          )
-          break
-
-        case 'terminal:error':
-          log.ws.error('Terminal error', { error: message.payload.error })
-          break
-
-        case 'terminal:renamed':
-          setTerminals((prev) =>
-            prev.map((t) =>
-              t.id === message.payload.terminalId
-                ? { ...t, name: message.payload.name }
-                : t
-            )
-          )
-          break
-
-        case 'terminal:destroyed':
-          xtermMapRef.current.delete(message.payload.terminalId)
-          setTerminals((prev) => prev.filter((t) => t.id !== message.payload.terminalId))
-          break
-
-        case 'terminal:tabAssigned':
-          setTerminals((prev) =>
-            prev.map((t) =>
-              t.id === message.payload.terminalId
-                ? {
-                    ...t,
-                    tabId: message.payload.tabId ?? undefined,
-                    positionInTab: message.payload.positionInTab,
-                  }
-                : t
-            )
-          )
-          break
-
-        // Tab messages
-        case 'tabs:list':
-          setTabs(message.payload.tabs)
-          break
-
-        case 'tab:created':
-          log.ws.debug('tab:created received', {
-            tabId: message.payload.tab.id,
-            name: message.payload.tab.name,
-          })
-          // Deduplicate: only add if not already present (prevents duplicates from multiple WS clients)
-          setTabs((prev) => {
-            if (prev.some((t) => t.id === message.payload.tab.id)) {
-              log.ws.debug('tab:created skipped (already exists)', {
-                tabId: message.payload.tab.id,
-              })
-              return prev
-            }
-            return [...prev, message.payload.tab].sort((a, b) => a.position - b.position)
-          })
-          break
-
-        case 'tab:updated':
-          setTabs((prev) =>
-            prev.map((t) => {
-              if (t.id !== message.payload.tabId) return t
-              return {
-                ...t,
-                ...(message.payload.name !== undefined && { name: message.payload.name }),
-                ...(message.payload.directory !== undefined && {
-                  directory: message.payload.directory ?? undefined,
-                }),
-              }
-            })
-          )
-          break
-
-        case 'tab:deleted':
-          setTabs((prev) => prev.filter((t) => t.id !== message.payload.tabId))
-          break
-
-        case 'tab:reordered':
-          setTabs((prev) =>
-            prev
-              .map((t) =>
-                t.id === message.payload.tabId ? { ...t, position: message.payload.position } : t
-              )
-              .sort((a, b) => a.position - b.position)
-          )
-          break
-      }
-    } catch (error) {
-      log.ws.error('Failed to parse WebSocket message', { error: String(error) })
-    }
-  }, [])
-
-  const connect = useCallback(() => {
-    // Prevent double connections from React Strict Mode
-    const ws = wsRef.current
-    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
-      return
-    }
-
-    const newWs = new WebSocket(url)
-    wsRef.current = newWs
-
-    newWs.onopen = () => {
-      setConnected(true)
-      reconnectAttemptsRef.current = 0
-    }
-
-    newWs.onmessage = handleMessage
-
-    newWs.onclose = () => {
-      setConnected(false)
-      setTerminalsLoaded(false)
-      // Only clear ref if this is still the current WebSocket
-      if (wsRef.current === newWs) {
-        wsRef.current = null
-      }
-
-      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-        reconnectAttemptsRef.current++
-        reconnectTimeoutRef.current = setTimeout(() => connectRef.current(), reconnectInterval)
-      }
-    }
-
-    newWs.onerror = () => {}
-  }, [url, reconnectInterval, maxReconnectAttempts, handleMessage])
-
-  // Keep ref in sync for recursive calls
-  connectRef.current = connect
-
-  useEffect(() => {
-    connect()
-
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-      }
-      const ws = wsRef.current
-      if (ws) {
-        // Don't close WebSocket if it's still connecting - this causes
-        // "WebSocket is closed before the connection is established" errors in WebKit.
-        // Let it naturally complete or fail, then it will close on its own.
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.close()
-        }
-        wsRef.current = null
-      }
-    }
-  }, [connect])
-
-  // Restore focus after reconnection
-  useEffect(() => {
-    if (connected && !wasConnectedRef.current) {
-      // Just reconnected - restore focus after short delay for attachments to complete
-      const timeoutId = setTimeout(() => {
-        if (
-          lastFocusedTerminalRef.current &&
-          document.hasFocus() &&
-          document.visibilityState === 'visible'
-        ) {
-          const xterm = xtermMapRef.current.get(lastFocusedTerminalRef.current)
-          xterm?.focus()
-        }
-      }, 150)
-      return () => clearTimeout(timeoutId)
-    }
-    wasConnectedRef.current = connected
-  }, [connected])
-
-  // Terminal operations
-  const createTerminal = useCallback(
-    (options: CreateTerminalOptions) => {
-      send({
-        type: 'terminal:create',
-        payload: options,
-      })
-    },
-    [send]
-  )
-
-  const destroyTerminal = useCallback(
-    (terminalId: string, options?: DestroyTerminalOptions) => {
-      log.ws.warn('destroyTerminal called', {
-        terminalId,
-        force: options?.force,
-        reason: options?.reason,
-        stack: new Error().stack?.split('\n').slice(1, 8).join('\n'),
-      })
-      send({
-        type: 'terminal:destroy',
-        payload: {
-          terminalId,
-          force: options?.force,
-          reason: options?.reason,
-        },
-      })
-      xtermMapRef.current.delete(terminalId)
-      setTerminals((prev) => prev.filter((t) => t.id !== terminalId))
-    },
-    [send]
-  )
-
-  const writeToTerminal = useCallback(
-    (terminalId: string, data: string) => {
-      log.ws.debug('writeToTerminal called', {
-        terminalId,
-        dataLen: data.length,
-        wsReadyState: wsRef.current?.readyState,
-      })
-      send({
-        type: 'terminal:input',
-        payload: { terminalId, data },
-      })
-    },
-    [send]
-  )
-
-  // Send text input followed by Enter key to terminal (for CLI tools like Claude Code)
-  const sendInputToTerminal = useCallback(
-    (terminalId: string, text: string) => {
-      // Write the text first
-      send({
-        type: 'terminal:input',
-        payload: { terminalId, data: text },
-      })
-      // Then send Enter (\r) after a brief delay to ensure text is processed first
-      setTimeout(() => {
-        send({
-          type: 'terminal:input',
-          payload: { terminalId, data: '\r' },
-        })
-      }, 50)
-    },
-    [send]
-  )
-
-  const resizeTerminal = useCallback(
-    (terminalId: string, cols: number, rows: number) => {
-      send({
-        type: 'terminal:resize',
-        payload: { terminalId, cols, rows },
-      })
-    },
-    [send]
-  )
-
-  const renameTerminal = useCallback(
-    (terminalId: string, name: string) => {
-      send({
-        type: 'terminal:rename',
-        payload: { terminalId, name },
-      })
-    },
-    [send]
-  )
-
-  const clearTerminalBuffer = useCallback(
-    (terminalId: string) => {
-      send({
-        type: 'terminal:clearBuffer',
-        payload: { terminalId },
-      })
-    },
-    [send]
-  )
-
-  const assignTerminalToTab = useCallback(
-    (terminalId: string, tabId: string | null, positionInTab?: number) => {
-      send({
-        type: 'terminal:assignTab',
-        payload: { terminalId, tabId, positionInTab },
-      })
-    },
-    [send]
-  )
-
-  // Tab operations
-  const createTab = useCallback(
-    (name: string, position?: number, directory?: string) => {
-      send({
-        type: 'tab:create',
-        payload: { name, position, directory },
-      })
-    },
-    [send]
-  )
-
-  const updateTab = useCallback(
-    (tabId: string, updates: { name?: string; directory?: string | null }) => {
-      send({
-        type: 'tab:update',
-        payload: { tabId, ...updates },
-      })
-    },
-    [send]
-  )
-
-  const deleteTab = useCallback(
-    (tabId: string) => {
-      send({
-        type: 'tab:delete',
-        payload: { tabId },
-      })
-    },
-    [send]
-  )
-
-  const reorderTab = useCallback(
-    (tabId: string, position: number) => {
-      send({
-        type: 'tab:reorder',
-        payload: { tabId, position },
-      })
-    },
-    [send]
-  )
-
-  const attachXterm = useCallback(
-    (terminalId: string, xterm: XTerm, options?: AttachXtermOptions) => {
-      xtermMapRef.current.set(terminalId, xterm)
-
-      // Handle Shift+Enter to insert a newline for Claude Code multi-line input
-      xterm.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-        if (event.type === 'keydown' && event.shiftKey && event.key === 'Enter') {
-          event.preventDefault()
-          event.stopPropagation()
-          writeToTerminal(terminalId, '\n')
-          return false // Prevent xterm from processing (would send regular CR)
-        }
-        return true // Allow all other keys to be processed normally
-      })
-
-      // Set up input handling
-      const disposable = xterm.onData((data) => {
-        writeToTerminal(terminalId, data)
-      })
-
-      // Track focus for reconnection restoration
-      const handleFocus = () => {
-        lastFocusedTerminalRef.current = terminalId
-      }
-      xterm.textarea?.addEventListener('focus', handleFocus)
-
-      // Register onAttached callback if provided
-      if (options?.onAttached) {
-        log.ws.debug('registering onAttached callback', { terminalId })
-        onAttachedCallbacksRef.current.set(terminalId, options.onAttached)
-      }
-
-      // Request attachment to get buffer
-      log.ws.info('attachXterm: sending terminal:attach', {
-        terminalId,
-        wsState: wsRef.current?.readyState,
-      })
-      send({
-        type: 'terminal:attach',
-        payload: { terminalId },
-      })
-
-      // Return cleanup function
-      // Note: Don't delete onAttached callback here - it needs to persist until
-      // the server responds with terminal:attached. The callback is deleted
-      // after being called in handleMessage.
-      return () => {
-        disposable.dispose()
-        xtermMapRef.current.delete(terminalId)
-        xterm.textarea?.removeEventListener('focus', handleFocus)
-      }
-    },
-    [send, writeToTerminal]
-  )
-
-  const setupImagePaste = useCallback(
-    (container: HTMLElement, terminalId: string) => {
-      const handlePaste = async (e: ClipboardEvent) => {
-        const items = e.clipboardData?.items
-        if (!items) return
-
-        // Check for image in clipboard
-        for (const item of items) {
-          if (item.type.startsWith('image/')) {
-            e.preventDefault()
-            e.stopPropagation()
-
-            const file = item.getAsFile()
-            if (!file) return
-
-            try {
-              const path = await uploadImage(file)
-              // Insert the path into the terminal
-              writeToTerminal(terminalId, path)
-            } catch (error) {
-              log.ws.error('Failed to upload image', { error: String(error) })
-            }
-            return
-          }
-        }
-        // If no image, let xterm handle the paste normally
-      }
-
-      container.addEventListener('paste', handlePaste, true)
-
-      return () => {
-        container.removeEventListener('paste', handlePaste, true)
-      }
-    },
-    [writeToTerminal]
-  )
+/**
+ * @deprecated Use `useTerminalStore` from '@/stores' instead.
+ *
+ * This hook wraps the MST store for backward compatibility.
+ * The `options` parameter is ignored - WebSocket configuration is now
+ * handled by StoreProvider in main.tsx.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function useTerminalWS(_options: UseTerminalWSOptions = {}): UseTerminalWSReturn {
+  const store = useTerminalStore()
 
   return {
-    terminals,
-    terminalsLoaded,
-    tabs,
-    connected,
-    newTerminalIds: newTerminalIdsRef.current,
-    createTerminal,
-    destroyTerminal,
-    writeToTerminal,
-    sendInputToTerminal,
-    resizeTerminal,
-    renameTerminal,
-    clearTerminalBuffer,
-    assignTerminalToTab,
-    createTab,
-    updateTab,
-    deleteTab,
-    reorderTab,
-    attachXterm,
-    setupImagePaste,
+    // Convert MST types to legacy types for backward compat
+    get terminals() {
+      return store.terminals.map(toTerminalInfo)
+    },
+    get terminalsLoaded() {
+      return store.terminalsLoaded
+    },
+    get tabs() {
+      return store.tabs.map(toTabInfo)
+    },
+    get connected() {
+      return store.connected
+    },
+    get newTerminalIds() {
+      return store.newTerminalIds
+    },
+
+    // Actions pass through directly
+    createTerminal: store.createTerminal,
+    destroyTerminal: store.destroyTerminal,
+    writeToTerminal: store.writeToTerminal,
+    sendInputToTerminal: store.sendInputToTerminal,
+    resizeTerminal: store.resizeTerminal,
+    renameTerminal: store.renameTerminal,
+    clearTerminalBuffer: store.clearTerminalBuffer,
+    assignTerminalToTab: store.assignTerminalToTab,
+    createTab: store.createTab,
+    updateTab: store.updateTab,
+    deleteTab: store.deleteTab,
+    reorderTab: store.reorderTab,
+    attachXterm: store.attachXterm,
+    setupImagePaste: store.setupImagePaste,
   }
 }

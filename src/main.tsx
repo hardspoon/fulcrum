@@ -7,6 +7,7 @@ import { ThemeProvider } from 'next-themes'
 import { routeTree } from './routeTree.gen'
 import { AuthProvider } from './contexts/auth-context'
 import { LoginModal } from './components/login-modal'
+import { StoreProvider } from './stores'
 import './i18n' // Initialize i18n before rendering
 import './index.css'
 
@@ -42,10 +43,12 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <RouterProvider router={router} />
-          <LoginModal />
-        </AuthProvider>
+        <StoreProvider>
+          <AuthProvider>
+            <RouterProvider router={router} />
+            <LoginModal />
+          </AuthProvider>
+        </StoreProvider>
       </QueryClientProvider>
     </ThemeProvider>
   </StrictMode>

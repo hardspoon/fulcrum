@@ -1,4 +1,6 @@
-import { types, Instance, SnapshotIn, getEnv, destroy } from 'mobx-state-tree'
+import { types, getEnv, destroy } from 'mobx-state-tree'
+import type { Instance, SnapshotIn } from 'mobx-state-tree'
+import type { Terminal as XTerm } from '@xterm/xterm'
 import { TerminalModel, TabModel, ViewStateModel } from './models'
 import type { ITerminal, ITerminalSnapshot, ITab, ITabSnapshot } from './models'
 import { log } from '@/lib/logger'
@@ -167,6 +169,10 @@ export const RootStore = types
     newTerminalIds: new Set<string>(),
     /** Pending optimistic updates awaiting server confirmation */
     pendingUpdates: new Map<string, { inverse: unknown }>(),
+    /** Callbacks to invoke when terminal:attached is received */
+    onAttachedCallbacks: new Map<string, () => void>(),
+    /** Last focused terminal ID (for reconnection focus restoration) */
+    lastFocusedTerminalId: null as string | null,
   }))
   .views((self) => ({
     /** Whether the store is ready for use */
@@ -245,6 +251,22 @@ export const RootStore = types
         })
       },
 
+      /** Send text input followed by Enter key to terminal (for CLI tools like Claude Code) */
+      sendInputToTerminal(terminalId: string, text: string) {
+        // Write the text first
+        getWs().send({
+          type: 'terminal:input',
+          payload: { terminalId, data: text },
+        })
+        // Then send Enter (\r) after a brief delay to ensure text is processed first
+        setTimeout(() => {
+          getWs().send({
+            type: 'terminal:input',
+            payload: { terminalId, data: '\r' },
+          })
+        }, 50)
+      },
+
       /** Request terminal resize */
       resizeTerminal(terminalId: string, cols: number, rows: number) {
         getWs().send({
@@ -267,8 +289,77 @@ export const RootStore = types
         terminal?.rename(name)
       },
 
-      /** Request terminal attachment */
-      attachTerminal(terminalId: string) {
+      /**
+       * Attach an xterm.js instance to a terminal.
+       * Sets up input handlers, registers callbacks, and requests buffer from server.
+       * Returns a cleanup function to detach the terminal.
+       */
+      attachXterm(
+        terminalId: string,
+        xterm: XTerm,
+        options?: { onAttached?: () => void }
+      ): () => void {
+        const terminal = self.terminals.get(terminalId)
+        if (!terminal) {
+          getWs().log.ws.warn('attachXterm: terminal not found', { terminalId })
+          return () => {}
+        }
+
+        // Store xterm reference in terminal's volatile state
+        terminal.setXterm(xterm)
+
+        // Handle Shift+Enter to insert a newline for Claude Code multi-line input
+        xterm.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+          if (event.type === 'keydown' && event.shiftKey && event.key === 'Enter') {
+            event.preventDefault()
+            event.stopPropagation()
+            getWs().send({
+              type: 'terminal:input',
+              payload: { terminalId, data: '\n' },
+            })
+            return false // Prevent xterm from processing (would send regular CR)
+          }
+          return true // Allow all other keys to be processed normally
+        })
+
+        // Set up input handling
+        const disposable = xterm.onData((data) => {
+          getWs().send({
+            type: 'terminal:input',
+            payload: { terminalId, data },
+          })
+        })
+
+        // Track focus for reconnection restoration
+        const handleFocus = () => {
+          self.lastFocusedTerminalId = terminalId
+        }
+        xterm.textarea?.addEventListener('focus', handleFocus)
+
+        // Register onAttached callback if provided
+        if (options?.onAttached) {
+          self.onAttachedCallbacks.set(terminalId, options.onAttached)
+        }
+
+        // Create cleanup function
+        const cleanup = () => {
+          disposable.dispose()
+          xterm.textarea?.removeEventListener('focus', handleFocus)
+          terminal.setXterm(null)
+        }
+        terminal.setAttachCleanup(cleanup)
+
+        // Request attachment to get buffer
+        getWs().send({
+          type: 'terminal:attach',
+          payload: { terminalId },
+        })
+
+        return cleanup
+      },
+
+      /** Request terminal attachment (low-level, just sends message) */
+      requestAttach(terminalId: string) {
         getWs().send({
           type: 'terminal:attach',
           payload: { terminalId },
@@ -361,6 +452,45 @@ export const RootStore = types
             const { terminalId } = payload as { terminalId: string }
             self.terminals.remove(terminalId)
             self.newTerminalIds.delete(terminalId)
+            break
+          }
+
+          case 'terminal:output': {
+            const { terminalId, data } = payload as { terminalId: string; data: string }
+            const terminal = self.terminals.get(terminalId)
+            if (terminal?.xterm) {
+              terminal.xterm.write(data)
+            } else {
+              getWs().log.ws.warn('terminal:output but no xterm', { terminalId })
+            }
+            break
+          }
+
+          case 'terminal:attached': {
+            const { terminalId, buffer } = payload as { terminalId: string; buffer?: string }
+            const terminal = self.terminals.get(terminalId)
+            if (terminal?.xterm) {
+              // Reset terminal to clean state before replaying buffer
+              terminal.xterm.reset()
+              if (buffer) {
+                terminal.xterm.write(buffer)
+              }
+            }
+            // Call onAttached callback if registered
+            const callback = self.onAttachedCallbacks.get(terminalId)
+            if (callback) {
+              self.onAttachedCallbacks.delete(terminalId)
+              callback()
+            }
+            break
+          }
+
+          case 'terminal:bufferCleared': {
+            const { terminalId } = payload as { terminalId: string }
+            const terminal = self.terminals.get(terminalId)
+            if (terminal?.xterm) {
+              terminal.xterm.reset()
+            }
             break
           }
 

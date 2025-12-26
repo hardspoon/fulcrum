@@ -1,4 +1,5 @@
-import { types, Instance, SnapshotIn } from 'mobx-state-tree'
+import { types } from 'mobx-state-tree'
+import type { Instance, SnapshotIn } from 'mobx-state-tree'
 import type { Terminal as XTerm } from '@xterm/xterm'
 
 /**

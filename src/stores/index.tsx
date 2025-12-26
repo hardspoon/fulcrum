@@ -6,6 +6,10 @@ import { log } from '@/lib/logger'
 export type { IRootStore } from './root-store'
 export type { ITerminal, ITerminalSnapshot, ITab, ITabSnapshot, IViewState } from './models'
 
+// Re-export hooks
+export { useTerminalStore } from './hooks'
+export type { UseTerminalStoreReturn } from './hooks'
+
 /**
  * React context for the MST store
  */
@@ -57,7 +61,7 @@ export function StoreProvider({
 }: StoreProviderProps) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectAttemptsRef = useRef(0)
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const storeRef = useRef<IRootStore | null>(null)
   const [, forceUpdate] = useState({})
 

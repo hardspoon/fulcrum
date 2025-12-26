@@ -1,5 +1,6 @@
-import { types, Instance, SnapshotIn, getRoot } from 'mobx-state-tree'
-import type { IRootStore } from '../root-store'
+import { types, getRoot } from 'mobx-state-tree'
+import type { Instance, SnapshotIn, IAnyStateTreeNode } from 'mobx-state-tree'
+import type { ITerminal } from './terminal'
 
 /**
  * Tab model representing a terminal tab container.
@@ -24,15 +25,18 @@ export const TabModel = types
      * Get all terminals that belong to this tab.
      * Computed view that automatically updates when terminals change.
      */
-    get terminals() {
-      const root = getRoot<IRootStore>(self)
+    get terminals(): ITerminal[] {
+      // Use any to avoid circular dependency with root-store
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const root = getRoot<IAnyStateTreeNode>(self) as any
+      if (!root.terminals?.items) return []
       return root.terminals.items
-        .filter((t) => t.tabId === self.id)
-        .sort((a, b) => a.positionInTab - b.positionInTab)
+        .filter((t: ITerminal) => t.tabId === self.id)
+        .sort((a: ITerminal, b: ITerminal) => a.positionInTab - b.positionInTab)
     },
 
     /** Number of terminals in this tab */
-    get terminalCount() {
+    get terminalCount(): number {
       return this.terminals.length
     },
   }))
