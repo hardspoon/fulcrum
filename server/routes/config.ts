@@ -227,7 +227,7 @@ app.post('/restart', (c) => {
   // Build first in the background, then restart only if successful
   // This prevents stopping the old instance if build fails
   setTimeout(() => {
-    spawn('bash', ['-c', 'cd ~/projects/vibora && mise run build && bun run drizzle-kit push && systemctl --user restart vibora-dev'], {
+    spawn('bash', ['-c', 'cd ~/projects/vibora && mise run build && bun run drizzle-kit push && systemctl --user restart vibora'], {
       detached: true,
       stdio: 'ignore',
     }).unref()
