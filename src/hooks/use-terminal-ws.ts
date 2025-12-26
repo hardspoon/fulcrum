@@ -63,6 +63,13 @@ interface AttachXtermOptions {
   onAttached?: () => void
 }
 
+interface DestroyTerminalOptions {
+  /** Required when destroying a terminal that belongs to a tab */
+  force?: boolean
+  /** Reason for deletion (for audit logging) */
+  reason?: string
+}
+
 interface UseTerminalWSReturn {
   terminals: TerminalInfo[]
   terminalsLoaded: boolean
@@ -70,7 +77,7 @@ interface UseTerminalWSReturn {
   connected: boolean
   newTerminalIds: Set<string>
   createTerminal: (options: CreateTerminalOptions) => void
-  destroyTerminal: (terminalId: string) => void
+  destroyTerminal: (terminalId: string, options?: DestroyTerminalOptions) => void
   writeToTerminal: (terminalId: string, data: string) => void
   sendInputToTerminal: (terminalId: string, text: string) => void
   resizeTerminal: (terminalId: string, cols: number, rows: number) => void
@@ -424,14 +431,20 @@ export function useTerminalWS(options: UseTerminalWSOptions = {}): UseTerminalWS
   )
 
   const destroyTerminal = useCallback(
-    (terminalId: string) => {
+    (terminalId: string, options?: DestroyTerminalOptions) => {
       log.ws.warn('destroyTerminal called', {
         terminalId,
+        force: options?.force,
+        reason: options?.reason,
         stack: new Error().stack?.split('\n').slice(1, 8).join('\n'),
       })
       send({
         type: 'terminal:destroy',
-        payload: { terminalId },
+        payload: {
+          terminalId,
+          force: options?.force,
+          reason: options?.reason,
+        },
       })
       xtermMapRef.current.delete(terminalId)
       setTerminals((prev) => prev.filter((t) => t.id !== terminalId))

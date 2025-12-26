@@ -156,11 +156,46 @@ export const terminalWebSocketHandlers: WSEvents = {
         }
 
         case 'terminal:destroy': {
-          log.ws.info('terminal:destroy received', {
-            terminalId: message.payload.terminalId,
+          const { terminalId, force, reason } = message.payload
+          const terminalInfo = ptyManager.getInfo(terminalId)
+
+          // Protection: Tab terminals require explicit force flag
+          if (terminalInfo?.tabId && !force) {
+            log.ws.warn('terminal:destroy BLOCKED - tab terminal requires force flag', {
+              terminalId,
+              tabId: terminalInfo.tabId,
+              name: terminalInfo.name,
+              clientId: clientData.id,
+              reason,
+            })
+            sendTo(ws, {
+              type: 'terminal:error',
+              payload: {
+                terminalId,
+                error: 'Tab terminals require explicit force flag to destroy',
+              },
+            })
+            break
+          }
+
+          // Audit log: Record all deletions with full context
+          log.ws.info('terminal:destroy EXECUTING', {
+            terminalId,
+            name: terminalInfo?.name,
+            cwd: terminalInfo?.cwd,
+            tabId: terminalInfo?.tabId,
             clientId: clientData.id,
+            reason: reason ?? 'unspecified',
+            force: force ?? false,
           })
-          ptyManager.destroy(message.payload.terminalId)
+
+          const destroyed = ptyManager.destroy(terminalId)
+          if (destroyed) {
+            broadcast({
+              type: 'terminal:destroyed',
+              payload: { terminalId },
+            })
+          }
           break
         }
 
@@ -277,8 +312,43 @@ export const terminalWebSocketHandlers: WSEvents = {
 
         case 'tab:delete': {
           const { tabId } = message.payload
+          const tabInfo = tabManager.get(tabId)
+
+          log.ws.info('tab:delete received', {
+            tabId,
+            tabName: tabInfo?.name,
+            clientId: clientData.id,
+          })
+
+          // Cascade: Destroy all terminals in this tab first
+          const terminalsInTab = ptyManager.listTerminals().filter((t) => t.tabId === tabId)
+
+          for (const terminal of terminalsInTab) {
+            log.ws.info('tab:delete CASCADE destroying terminal', {
+              terminalId: terminal.id,
+              terminalName: terminal.name,
+              tabId,
+              clientId: clientData.id,
+            })
+
+            const destroyed = ptyManager.destroy(terminal.id)
+            if (destroyed) {
+              broadcast({
+                type: 'terminal:destroyed',
+                payload: { terminalId: terminal.id },
+              })
+            }
+          }
+
+          // Now delete the tab
           const success = tabManager.delete(tabId)
           if (success) {
+            log.ws.info('tab:delete SUCCESS', {
+              tabId,
+              tabName: tabInfo?.name,
+              terminalsDestroyed: terminalsInTab.length,
+              clientId: clientData.id,
+            })
             broadcast({
               type: 'tab:deleted',
               payload: { tabId },

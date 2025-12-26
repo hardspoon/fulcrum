@@ -44,6 +44,16 @@ export interface TerminalDestroyMessage {
   type: 'terminal:destroy'
   payload: {
     terminalId: string
+    /**
+     * Required when destroying a terminal that belongs to a tab.
+     * Tab terminals should only be destroyed by explicit user action.
+     */
+    force?: boolean
+    /**
+     * Reason for deletion (for audit logging).
+     * Examples: 'user_closed', 'tab_deleted', 'task_cleanup'
+     */
+    reason?: string
   }
 }
 

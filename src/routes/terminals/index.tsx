@@ -188,38 +188,46 @@ function TerminalsView() {
   const tabCountBeforeCreateRef = useRef<number | null>(null)
 
   // Destroy orphaned worktree terminals (terminals in worktrees dir but no matching task)
+  // This cleanup is intentionally conservative to avoid accidental destruction:
+  // 1. Only runs when tasks are loaded AND we have at least one task (empty tasks = likely error)
+  // 2. Only affects terminals without a tabId (task terminals, not regular tab terminals)
+  // 3. Only affects terminals in the worktrees directory
   useEffect(() => {
     log.terminalsView.debug('Orphan cleanup effect running', {
       worktreeBasePath,
       tasksStatus,
+      taskCount: tasks.length,
       terminalCount: terminals.length,
       allTaskWorktreesSize: allTaskWorktrees.size,
-      allTaskWorktrees: Array.from(allTaskWorktrees),
-      terminals: terminals.map((t) => ({ id: t.id, name: t.name, cwd: t.cwd, tabId: t.tabId })),
     })
 
-    // Only run cleanup when tasks have successfully loaded
-    // status === 'success' ensures we have valid data, not stale/empty cache from React Query
-    if (!worktreeBasePath || tasksStatus !== 'success') {
-      log.terminalsView.debug('Orphan cleanup skipped', {
-        reason: !worktreeBasePath ? 'no worktreeBasePath' : `tasksStatus=${tasksStatus}`,
-      })
+    // Guard 1: Need worktreeBasePath to know which terminals are in worktrees dir
+    if (!worktreeBasePath) {
+      log.terminalsView.debug('Orphan cleanup skipped: no worktreeBasePath')
+      return
+    }
+
+    // Guard 2: Tasks must be successfully loaded
+    if (tasksStatus !== 'success') {
+      log.terminalsView.debug('Orphan cleanup skipped', { reason: `tasksStatus=${tasksStatus}` })
+      return
+    }
+
+    // Guard 3: If tasks array is empty, this likely indicates an error or the user has no tasks
+    // In either case, we should NOT destroy terminals - better to be safe
+    if (tasks.length === 0) {
+      log.terminalsView.debug('Orphan cleanup skipped: no tasks loaded (likely error or empty state)')
       return
     }
 
     for (const terminal of terminals) {
+      // Skip terminals that belong to regular tabs - they're not orphans
+      if (terminal.tabId) {
+        continue
+      }
+
       const isInWorktreesDir = terminal.cwd?.startsWith(worktreeBasePath)
       const isKnownTask = terminal.cwd && allTaskWorktrees.has(terminal.cwd)
-
-      log.terminalsView.debug('Checking terminal for orphan cleanup', {
-        terminalId: terminal.id,
-        name: terminal.name,
-        cwd: terminal.cwd,
-        tabId: terminal.tabId,
-        isInWorktreesDir,
-        isKnownTask,
-        willDestroy: isInWorktreesDir && !isKnownTask,
-      })
 
       if (isInWorktreesDir && !isKnownTask) {
         log.terminalsView.warn('DESTROYING ORPHAN TERMINAL', {
@@ -230,7 +238,7 @@ function TerminalsView() {
         destroyTerminal(terminal.id)
       }
     }
-  }, [terminals, allTaskWorktrees, worktreeBasePath, destroyTerminal, tasksStatus])
+  }, [terminals, allTaskWorktrees, worktreeBasePath, destroyTerminal, tasksStatus, tasks.length])
 
   // Filter terminals for the active tab
   const visibleTerminals = useMemo(() => {
@@ -367,7 +375,8 @@ function TerminalsView() {
         cleanup()
         cleanupFnsRef.current.delete(terminalId)
       }
-      destroyTerminal(terminalId)
+      // User-initiated close - pass force flag to allow destroying tab terminals
+      destroyTerminal(terminalId, { force: true, reason: 'user_closed' })
     },
     [destroyTerminal]
   )
@@ -425,14 +434,20 @@ function TerminalsView() {
 
   const handleTabDelete = useCallback(
     (tabId: string) => {
-      // Destroy all terminals in this tab
+      // Clean up xterm attachments for terminals in this tab
+      // (server will cascade-delete the terminals when the tab is deleted)
       const terminalsInTab = terminals.filter((t) => t.tabId === tabId)
       for (const terminal of terminalsInTab) {
-        handleTerminalClose(terminal.id)
+        const cleanup = cleanupFnsRef.current.get(terminal.id)
+        if (cleanup) {
+          cleanup()
+          cleanupFnsRef.current.delete(terminal.id)
+        }
       }
+      // Server handles cascade deletion of terminals
       deleteTab(tabId)
     },
-    [terminals, deleteTab, handleTerminalClose]
+    [terminals, deleteTab]
   )
 
   // Convert our tabs to the format TerminalTabBar expects
