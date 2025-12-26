@@ -383,7 +383,7 @@ run = """
 set -e
 
 echo "Linking CLI..." >&2
-cd cli && bun link
+cd cli && bun link && cd ..
 
 echo "Syncing database schema..." >&2
 bun run drizzle-kit push
