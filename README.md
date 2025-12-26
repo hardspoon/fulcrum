@@ -1,8 +1,5 @@
-# Vibora
+![vibora-light](https://github.com/user-attachments/assets/4e686c0f-1871-4ad5-b500-1e7b80b7eff5)
 
-![vibora](https://vibora-helper.knowsuchagency.workers.dev/)
-
-The Vibe Engineer's Cockpit. A terminal-first tool for orchestrating AI coding agents across isolated git worktrees.
 
 ## Philosophy
 
