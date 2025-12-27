@@ -237,14 +237,39 @@ export function TaskTerminal({ taskName, cwd, className, aiMode, description, st
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startup props are captured once at creation time
   }, [connected, cwd, xtermOpened, terminalsLoaded, terminals, taskName, createTerminal])
 
-  // Update terminalId when terminal appears in list
-   
+  // Update terminalId when terminal appears in list or when temp ID is replaced with real ID
+  // This handles the optimistic update flow where tempId → realId
+
   useEffect(() => {
-    if (!cwd || terminalId) return
-    const newTerminal = terminals.find((t) => t.cwd === cwd)
-    if (newTerminal) {
-      setTerminalId(newTerminal.id)
+    if (!cwd) return
+
+    const matchingTerminal = terminals.find((t) => t.cwd === cwd)
+
+    if (!matchingTerminal) {
+      // No terminal for this cwd yet
+      return
+    }
+
+    // Update terminalId if:
+    // 1. We don't have one yet, OR
+    // 2. Current terminalId no longer exists in the list (was replaced)
+    const currentTerminalExists = terminalId && terminals.some((t) => t.id === terminalId)
+
+    if (!terminalId || !currentTerminalExists) {
+      log.taskTerminal.debug('setting terminalId', {
+        newId: matchingTerminal.id,
+        prevId: terminalId,
+        reason: !terminalId ? 'initial' : 'tempId replaced',
+        cwd,
+        terminalCount: terminals.length,
+      })
+      setTerminalId(matchingTerminal.id)
       setIsCreating(false)
+
+      // Reset attachedRef when ID changes so the attach effect runs again
+      if (terminalId && !currentTerminalExists) {
+        attachedRef.current = false
+      }
     }
   }, [terminals, cwd, terminalId])
 
@@ -262,11 +287,10 @@ export function TaskTerminal({ taskName, cwd, className, aiMode, description, st
 
     log.taskTerminal.debug('attach effect passed guards, calling attachXterm', { terminalId })
 
-    // Capture current terminal ID for use in callbacks
-    const currentTerminalId = terminalId
-
     // Callback when terminal is fully attached (buffer received from server)
-    const onAttached = () => {
+    // The actualTerminalId is passed by the MST store - use this instead of closed-over value
+    // because after optimistic update, the tempId becomes realId.
+    const onAttached = (actualTerminalId: string) => {
       // Trigger a resize after attaching
       requestAnimationFrame(doFit)
 
@@ -275,23 +299,23 @@ export function TaskTerminal({ taskName, cwd, className, aiMode, description, st
       // component unmount/remount (fixes React strict mode race condition).
       // consumePendingStartup returns the startup info AND removes it from the store
       // to prevent duplicate execution.
-      const pendingStartup = consumePendingStartupRef.current(currentTerminalId)
+      const pendingStartup = consumePendingStartupRef.current(actualTerminalId)
 
       log.taskTerminal.debug('onAttached checking pending startup', {
-        terminalId: currentTerminalId,
+        terminalId: actualTerminalId,
         hasPendingStartup: !!pendingStartup,
       })
 
       // Run startup commands only if this is a newly created terminal (not restored from persistence)
       if (pendingStartup) {
-        log.taskTerminal.info('onAttached: running startup commands', { terminalId: currentTerminalId })
+        log.taskTerminal.info('onAttached: running startup commands', { terminalId: actualTerminalId })
         const { startupScript: currentStartupScript, aiMode: currentAiMode, description: currentDescription, taskName: currentTaskName, serverPort: currentServerPort } = pendingStartup
 
         // 1. Run startup script first (e.g., mise trust, mkdir .vibora, export VIBORA_DIR)
         if (currentStartupScript) {
           setTimeout(() => {
             // Write the script as-is - newlines act as Enter presses in terminals
-            writeToTerminalRef.current(currentTerminalId, currentStartupScript + '\r')
+            writeToTerminalRef.current(actualTerminalId, currentStartupScript + '\r')
           }, 100)
         }
 
@@ -308,17 +332,17 @@ export function TaskTerminal({ taskName, cwd, className, aiMode, description, st
         const escapedSystemPrompt = systemPrompt.replace(/"/g, '\\"')
 
         const taskCommand = currentAiMode === 'plan'
-          ? `claude "${prompt}" --append-system-prompt "${escapedSystemPrompt}" --session-id "${currentTerminalId}" --allow-dangerously-skip-permissions --permission-mode plan`
-          : `claude "${prompt}" --append-system-prompt "${escapedSystemPrompt}" --session-id "${currentTerminalId}" --dangerously-skip-permissions`
+          ? `claude "${prompt}" --append-system-prompt "${escapedSystemPrompt}" --session-id "${actualTerminalId}" --allow-dangerously-skip-permissions --permission-mode plan`
+          : `claude "${prompt}" --append-system-prompt "${escapedSystemPrompt}" --session-id "${actualTerminalId}" --dangerously-skip-permissions`
 
         // Wait longer for startup script to complete before sending Claude command
         // 5 seconds should be enough for most scripts (mise trust, mkdir, export, etc.)
         setTimeout(() => {
           log.taskTerminal.debug('writing claude command to terminal', {
-            terminalId: currentTerminalId,
+            terminalId: actualTerminalId,
             taskCommand: taskCommand.substring(0, 50) + '...',
           })
-          writeToTerminalRef.current(currentTerminalId, taskCommand + '\r')
+          writeToTerminalRef.current(actualTerminalId, taskCommand + '\r')
         }, currentStartupScript ? 5000 : 100)
       }
     }

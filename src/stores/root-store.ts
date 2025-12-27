@@ -172,6 +172,8 @@ export const RootStore = types
     pendingUpdates: new Map<string, PendingUpdate>(),
     /** Callbacks to invoke when terminal:attached is received */
     onAttachedCallbacks: new Map<string, () => void>(),
+    /** Terminals that received terminal:attached before callback was registered */
+    terminalsReadyForCallback: new Set<string>(),
     /** Last focused terminal ID (for reconnection focus restoration) */
     lastFocusedTerminalId: null as string | null,
     /**
@@ -425,12 +427,33 @@ export const RootStore = types
       attachXterm(
         terminalId: string,
         xterm: XTerm,
-        options?: { onAttached?: () => void }
+        options?: { onAttached?: (terminalId: string) => void }
       ): () => void {
         const terminal = self.terminals.get(terminalId)
         if (!terminal) {
           getWs().log.ws.warn('attachXterm: terminal not found', { terminalId })
           return () => {}
+        }
+
+        // IDEMPOTENCY CHECK: If this xterm is already attached to this terminal, don't re-attach.
+        // This prevents duplicate input handlers when both MST handler and React effect call attachXterm.
+        if (terminal.xterm === xterm) {
+          getWs().log.ws.debug('attachXterm: already attached, skipping', { terminalId })
+          // Still register the callback if provided (in case it's different)
+          if (options?.onAttached) {
+            if (self.terminalsReadyForCallback.has(terminalId)) {
+              self.terminalsReadyForCallback.delete(terminalId)
+              setTimeout(() => options.onAttached?.(terminalId), 0)
+            } else {
+              self.onAttachedCallbacks.set(terminalId, options.onAttached)
+            }
+          }
+          return terminal.attachCleanup || (() => {})
+        }
+
+        // Clean up any existing attachment first
+        if (terminal.attachCleanup) {
+          terminal.attachCleanup()
         }
 
         // Store xterm reference in terminal's volatile state
@@ -467,7 +490,23 @@ export const RootStore = types
 
         // Register onAttached callback if provided
         if (options?.onAttached) {
-          self.onAttachedCallbacks.set(terminalId, options.onAttached)
+          // Check if terminal:attached already arrived before we registered the callback
+          // This happens when server responds faster than React effects can run
+          if (self.terminalsReadyForCallback.has(terminalId)) {
+            getWs().log.ws.debug('attachXterm: terminal already attached, calling callback immediately', {
+              terminalId,
+            })
+            self.terminalsReadyForCallback.delete(terminalId)
+            // Call callback after current action completes to avoid nested action issues
+            // Pass terminalId so callback knows which terminal to use (may differ from what it closed over)
+            setTimeout(() => options.onAttached?.(terminalId), 0)
+          } else {
+            getWs().log.ws.debug('attachXterm: registering onAttached callback', {
+              terminalId,
+              existingCallbacks: Array.from(self.onAttachedCallbacks.keys()),
+            })
+            self.onAttachedCallbacks.set(terminalId, options.onAttached)
+          }
         }
 
         // Create cleanup function
@@ -635,13 +674,25 @@ export const RootStore = types
                 const optimisticTerminal = self.terminals.get(tempId)
 
                 if (optimisticTerminal) {
-                  // Preserve xterm reference - DON'T call cleanup() here
-                  // React's effect cleanup will handle disposing old handlers
+                  // Preserve xterm reference for re-attachment to real terminal
                   const xterm = optimisticTerminal.xterm
                   const onAttachedCallback = self.onAttachedCallbacks.get(tempId)
+                  const oldCleanup = optimisticTerminal.attachCleanup
 
-                  // Clear volatile state WITHOUT calling cleanup
-                  // This prevents double-cleanup when React effect cleans up
+                  getWs().log.ws.info('terminal:created optimistic handling', {
+                    tempId,
+                    realId: terminal.id,
+                    hasXterm: !!xterm,
+                    hasCallback: !!onAttachedCallback,
+                    isNew,
+                  })
+
+                  // IMPORTANT: Call cleanup to dispose old xterm handlers BEFORE re-attaching
+                  // Otherwise the xterm will have duplicate onData handlers (one for tempId, one for realId)
+                  // which causes double input registration
+                  if (oldCleanup) {
+                    oldCleanup()
+                  }
                   optimisticTerminal.setXterm(null)
                   optimisticTerminal.setAttachCleanup(null)
                   self.onAttachedCallbacks.delete(tempId)
@@ -657,12 +708,25 @@ export const RootStore = types
 
                     // Re-attach xterm to the real terminal with correct ID
                     const realTerminal = self.terminals.get(terminal.id)
+                    getWs().log.ws.info('terminal:created re-attaching xterm', {
+                      realId: terminal.id,
+                      hasRealTerminal: !!realTerminal,
+                      hasXterm: !!xterm,
+                      willAttach: !!(realTerminal && xterm),
+                    })
                     if (realTerminal && xterm) {
                       // Re-attach sets up new handlers bound to the real terminal ID
                       // Pass through the onAttached callback
                       this.attachXterm(terminal.id, xterm, {
                         onAttached: onAttachedCallback,
                       })
+                    } else if (onAttachedCallback) {
+                      // xterm not available yet (React effect hasn't run)
+                      // Register callback under realId so it's called when attachXterm runs later
+                      getWs().log.ws.info('terminal:created preserving callback for later', {
+                        realId: terminal.id,
+                      })
+                      self.onAttachedCallbacks.set(terminal.id, onAttachedCallback)
                     }
 
                     // Update newTerminalIds to use real ID
@@ -670,6 +734,8 @@ export const RootStore = types
                     self.newTerminalIds.add(terminal.id)
 
                     // Transfer pending startup from temp ID to real ID
+                    // The onAttached callback now receives the realId as a parameter,
+                    // so it will call consumePendingStartup(realId) - we need the startup there.
                     const pendingStartup = self.terminalsPendingStartup.get(tempId)
                     if (pendingStartup) {
                       self.terminalsPendingStartup.delete(tempId)
@@ -736,6 +802,8 @@ export const RootStore = types
             const { terminalId } = payload as { terminalId: string }
             self.terminals.remove(terminalId)
             self.newTerminalIds.delete(terminalId)
+            self.terminalsReadyForCallback.delete(terminalId)
+            self.onAttachedCallbacks.delete(terminalId)
             break
           }
 
@@ -753,6 +821,15 @@ export const RootStore = types
           case 'terminal:attached': {
             const { terminalId, buffer } = payload as { terminalId: string; buffer?: string }
             const terminal = self.terminals.get(terminalId)
+            getWs().log.ws.info('terminal:attached received', {
+              terminalId,
+              hasTerminal: !!terminal,
+              hasXterm: !!terminal?.xterm,
+              bufferLength: buffer?.length ?? 0,
+              hasCallback: self.onAttachedCallbacks.has(terminalId),
+              isReadyForCallback: self.terminalsReadyForCallback.has(terminalId),
+              registeredCallbacks: Array.from(self.onAttachedCallbacks.keys()),
+            })
             if (terminal?.xterm) {
               // Reset terminal to clean state before replaying buffer
               terminal.xterm.reset()
@@ -764,7 +841,15 @@ export const RootStore = types
             const callback = self.onAttachedCallbacks.get(terminalId)
             if (callback) {
               self.onAttachedCallbacks.delete(terminalId)
-              callback()
+              getWs().log.ws.debug('terminal:attached calling callback', { terminalId })
+              // Pass terminalId so callback knows which terminal to use (may differ from what it closed over)
+              callback(terminalId)
+            } else {
+              // No callback registered yet - this happens when terminal:attached arrives
+              // before the React effect has a chance to call attachXterm with the callback.
+              // Track this so attachXterm can call the callback immediately when registered.
+              getWs().log.ws.debug('terminal:attached no callback yet, marking ready', { terminalId })
+              self.terminalsReadyForCallback.add(terminalId)
             }
             break
           }

@@ -69,7 +69,8 @@ interface PendingStartupInfo {
 }
 
 interface AttachXtermOptions {
-  onAttached?: () => void
+  /** Called when terminal is attached. Receives the actual terminal ID (may differ from tempId after optimistic update). */
+  onAttached?: (terminalId: string) => void
 }
 
 interface DestroyTerminalOptions {
