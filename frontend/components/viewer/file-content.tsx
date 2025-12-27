@@ -141,11 +141,11 @@ export const FileContent = observer(function FileContent({ onBack }: FileContent
             <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
           </button>
         </div>
-        <div className="flex flex-1 items-center justify-center p-4 bg-muted">
+        <div className="flex-1 overflow-auto p-4 bg-muted">
           <img
             src={currentFile.content}
             alt={selectedFile}
-            className="max-w-full max-h-full object-contain"
+            className="block mx-auto"
           />
         </div>
       </div>
