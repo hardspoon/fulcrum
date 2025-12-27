@@ -236,6 +236,11 @@ export const RootStore = types
         self.newTerminalIds.delete(id)
       },
 
+      /** Set the last focused terminal ID (for reconnection focus restoration) */
+      setLastFocusedTerminal(terminalId: string) {
+        self.lastFocusedTerminalId = terminalId
+      },
+
       // ============ Terminal Actions ============
 
       /**
@@ -412,8 +417,9 @@ export const RootStore = types
         })
 
         // Track focus for reconnection restoration
+        // Use a separate action to modify volatile state
         const handleFocus = () => {
-          self.lastFocusedTerminalId = terminalId
+          this.setLastFocusedTerminal(terminalId)
         }
         xterm.textarea?.addEventListener('focus', handleFocus)
 
@@ -423,10 +429,13 @@ export const RootStore = types
         }
 
         // Create cleanup function
+        // Note: terminal reference may be stale after removal, so we look it up fresh
         const cleanup = () => {
           disposable.dispose()
           xterm.textarea?.removeEventListener('focus', handleFocus)
-          terminal.setXterm(null)
+          // Look up terminal fresh - it may have been removed from tree
+          const currentTerminal = self.terminals.get(terminalId)
+          currentTerminal?.setXterm(null)
         }
         terminal.setAttachCleanup(cleanup)
 
@@ -584,17 +593,24 @@ export const RootStore = types
                 const optimisticTerminal = self.terminals.get(tempId)
 
                 if (optimisticTerminal) {
-                  // Preserve xterm reference before cleanup
+                  // Preserve xterm reference - DON'T call cleanup() here
+                  // React's effect cleanup will handle disposing old handlers
                   const xterm = optimisticTerminal.xterm
                   const onAttachedCallback = self.onAttachedCallbacks.get(tempId)
 
-                  // Clean up old handlers (they're bound to the temp ID)
-                  optimisticTerminal.cleanup()
+                  // Clear volatile state WITHOUT calling cleanup
+                  // This prevents double-cleanup when React effect cleans up
+                  optimisticTerminal.setXterm(null)
+                  optimisticTerminal.setAttachCleanup(null)
                   self.onAttachedCallbacks.delete(tempId)
 
                   if (isNew) {
                     // Server created a new terminal - replace temp with real
-                    self.terminals.remove(tempId)
+                    // Use destroy directly without cleanup (we cleared volatile above)
+                    const idx = self.terminals.items.findIndex((t) => t.id === tempId)
+                    if (idx >= 0) {
+                      destroy(self.terminals.items[idx])
+                    }
                     self.terminals.add(terminal)
 
                     // Re-attach xterm to the real terminal with correct ID
@@ -619,7 +635,11 @@ export const RootStore = types
                     })
                   } else {
                     // Server returned existing terminal - rollback our optimistic and use existing
-                    self.terminals.remove(tempId)
+                    // Use destroy directly without cleanup
+                    const idx = self.terminals.items.findIndex((t) => t.id === tempId)
+                    if (idx >= 0) {
+                      destroy(self.terminals.items[idx])
+                    }
                     self.newTerminalIds.delete(tempId)
 
                     // Add the existing terminal if we don't have it
