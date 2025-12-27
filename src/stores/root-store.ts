@@ -584,12 +584,28 @@ export const RootStore = types
                 const optimisticTerminal = self.terminals.get(tempId)
 
                 if (optimisticTerminal) {
+                  // Preserve xterm reference before cleanup
+                  const xterm = optimisticTerminal.xterm
+                  const onAttachedCallback = self.onAttachedCallbacks.get(tempId)
+
+                  // Clean up old handlers (they're bound to the temp ID)
+                  optimisticTerminal.cleanup()
+                  self.onAttachedCallbacks.delete(tempId)
+
                   if (isNew) {
-                    // Server created a new terminal - update our optimistic terminal with real data
-                    // We need to remove the temp and add the real one since ID is an identifier
-                    optimisticTerminal.cleanup()
+                    // Server created a new terminal - replace temp with real
                     self.terminals.remove(tempId)
                     self.terminals.add(terminal)
+
+                    // Re-attach xterm to the real terminal with correct ID
+                    const realTerminal = self.terminals.get(terminal.id)
+                    if (realTerminal && xterm) {
+                      // Re-attach sets up new handlers bound to the real terminal ID
+                      // Pass through the onAttached callback
+                      this.attachXterm(terminal.id, xterm, {
+                        onAttached: onAttachedCallback,
+                      })
+                    }
 
                     // Update newTerminalIds to use real ID
                     self.newTerminalIds.delete(tempId)
@@ -599,10 +615,10 @@ export const RootStore = types
                       requestId,
                       tempId,
                       realId: terminal.id,
+                      xtermReattached: !!xterm,
                     })
                   } else {
                     // Server returned existing terminal - rollback our optimistic and use existing
-                    optimisticTerminal.cleanup()
                     self.terminals.remove(tempId)
                     self.newTerminalIds.delete(tempId)
 
@@ -611,10 +627,20 @@ export const RootStore = types
                       self.terminals.add(terminal)
                     }
 
+                    // Re-attach xterm to the existing terminal with correct ID
+                    const existingTerminal = self.terminals.get(terminal.id)
+                    if (existingTerminal && xterm) {
+                      // Re-attach sets up new handlers bound to the real terminal ID
+                      this.attachXterm(terminal.id, xterm, {
+                        onAttached: onAttachedCallback,
+                      })
+                    }
+
                     getWs().log.ws.debug('terminal:created deduplicated', {
                       requestId,
                       tempId,
                       existingId: terminal.id,
+                      xtermReattached: !!xterm,
                     })
                   }
                 }
