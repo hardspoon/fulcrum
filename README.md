@@ -30,13 +30,12 @@ Requires [Bun](https://bun.sh/) and [Claude Code](https://claude.ai/code).
 
 ### Desktop App (Recommended)
 
-Download the latest release from [GitHub Releases](https://github.com/knowsuchagency/vibora/releases/latest):
+Download the latest release:
 
 | Platform | Download |
 |----------|----------|
-| **macOS Apple Silicon** | `Vibora-X.X.X-macos-arm64.dmg` |
-| **macOS Intel** | `Vibora-X.X.X-macos-x64.dmg` |
-| **Linux** | `Vibora-X.X.X-linux-x64.AppImage` |
+| **macOS** (Apple Silicon) | [Download DMG](https://vibora-utils.knowsuchagency.workers.dev/download/dmg) |
+| **Linux** | [Download AppImage](https://vibora-utils.knowsuchagency.workers.dev/download/appimage) |
 
 The desktop app bundles everything—just install and run. It will start the server, install the Claude Code plugin, and check for updates automatically.
 
