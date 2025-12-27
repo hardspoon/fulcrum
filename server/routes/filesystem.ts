@@ -318,6 +318,59 @@ app.get('/read', (c) => {
   }
 })
 
+// GET /api/fs/image?path=/path/to/image&root=/worktree/root
+// Returns raw image data with proper content-type (for use in <img> tags)
+app.get('/image', (c) => {
+  const filePath = c.req.query('path')
+  const root = c.req.query('root')
+
+  if (!filePath) {
+    return c.json({ error: 'path parameter is required' }, 400)
+  }
+
+  if (!root) {
+    return c.json({ error: 'root parameter is required' }, 400)
+  }
+
+  const resolvedRoot = path.resolve(root)
+  const resolvedPath = path.resolve(resolvedRoot, filePath)
+
+  // Security: validate path is within root
+  if (!isPathWithinRoot(resolvedPath, resolvedRoot)) {
+    return c.json({ error: 'Access denied: path outside root' }, 403)
+  }
+
+  try {
+    if (!fs.existsSync(resolvedPath)) {
+      return c.json({ error: 'File not found' }, 404)
+    }
+
+    const stat = fs.statSync(resolvedPath)
+    if (!stat.isFile()) {
+      return c.json({ error: 'Path is not a file' }, 400)
+    }
+
+    const mimeType = getMimeType(resolvedPath)
+
+    // Only serve images
+    if (!mimeType.startsWith('image/')) {
+      return c.json({ error: 'Not an image file' }, 400)
+    }
+
+    const buffer = fs.readFileSync(resolvedPath)
+
+    return new Response(buffer, {
+      headers: {
+        'Content-Type': mimeType,
+        'Content-Length': buffer.length.toString(),
+        'Cache-Control': 'public, max-age=3600',
+      },
+    })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to read image' }, 500)
+  }
+})
+
 // POST /api/fs/write
 // Body: { path: string, root: string, content: string }
 app.post('/write', async (c) => {

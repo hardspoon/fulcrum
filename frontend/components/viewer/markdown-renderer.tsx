@@ -46,14 +46,14 @@ export function MarkdownRenderer({ content, worktreePath, filePath }: MarkdownRe
 
         let imageSrc = src
 
-        // Transform relative paths to use the API
+        // Transform relative paths to use the image API endpoint
         if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:')) {
           const resolvedPath = resolveImagePath(src, filePath)
           const params = new URLSearchParams({
             path: resolvedPath,
             root: worktreePath,
           })
-          imageSrc = `/api/fs/read?${params}`
+          imageSrc = `/api/fs/image?${params}`
         }
 
         return (
