@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react'
 import { observer } from 'mobx-react-lite'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { SidebarLeft01Icon } from '@hugeicons/core-free-icons'
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -37,6 +39,7 @@ const FilesViewerInner = observer(function FilesViewerInner() {
   } = useFilesStoreActions()
 
   const [mobileTab, setMobileTab] = useState<'tree' | 'content'>('tree')
+  const [isTreeCollapsed, setIsTreeCollapsed] = useState(false)
   const isMobile = useIsMobile()
 
   const handleSelectFile = useCallback(
@@ -51,13 +54,20 @@ const FilesViewerInner = observer(function FilesViewerInner() {
     [selectFile, loadFile]
   )
 
-
   const handleToggleDir = useCallback(
     (path: string) => {
       toggleDir(path)
     },
     [toggleDir]
   )
+
+  const handleCollapsePanel = useCallback(() => {
+    setIsTreeCollapsed(true)
+  }, [])
+
+  const handleExpandPanel = useCallback(() => {
+    setIsTreeCollapsed(false)
+  }, [])
 
   if (isLoadingTree) {
     return (
@@ -113,6 +123,32 @@ const FilesViewerInner = observer(function FilesViewerInner() {
     )
   }
 
+  // Desktop: collapsed tree panel
+  if (isTreeCollapsed) {
+    return (
+      <div className="flex h-full bg-background">
+        {/* File Content - full width */}
+        <div className="flex-1 overflow-hidden">
+          <FileContent />
+        </div>
+
+        {/* Expand button strip */}
+        <div className="shrink-0 border-l border-border bg-card flex flex-col">
+          <div className="p-1 border-b border-border">
+            <button
+              onClick={handleExpandPanel}
+              className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/50"
+              title="Show file tree"
+            >
+              <HugeiconsIcon icon={SidebarLeft01Icon} size={14} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Desktop: normal view with tree panel
   return (
     <ResizablePanelGroup direction="horizontal" className="h-full bg-background">
       {/* File Content Panel */}
@@ -132,6 +168,7 @@ const FilesViewerInner = observer(function FilesViewerInner() {
             onSelectFile={handleSelectFile}
             onToggleDir={handleToggleDir}
             onCollapseAll={collapseAll}
+            onCollapsePanel={handleCollapsePanel}
           />
         </ScrollArea>
       </ResizablePanel>

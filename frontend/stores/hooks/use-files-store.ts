@@ -39,6 +39,7 @@ export function useFilesStore(): IFilesStore {
  */
 export interface UseFilesStoreReturn {
   // State
+  worktreePath: string | null
   selectedFile: string | null
   currentFile: ReturnType<IFilesStore['currentFile']>
   expandedDirs: string[]
@@ -74,6 +75,7 @@ export function useFilesStoreActions(): UseFilesStoreReturn {
 
   return {
     // State (these are already observable via MST)
+    worktreePath: store.worktreePath,
     selectedFile: store.selectedFile,
     currentFile: store.currentFile,
     expandedDirs: [...store.expandedDirs],

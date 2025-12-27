@@ -11,6 +11,7 @@ const AUTO_SAVE_DELAY = 1000 // 1 second debounce
 
 export const FileContent = observer(function FileContent() {
   const {
+    worktreePath,
     selectedFile,
     currentFile,
     isLoading,
@@ -207,7 +208,11 @@ export const FileContent = observer(function FileContent() {
       {/* Content area */}
       <div className="flex-1 min-h-0">
         {showMarkdownPreview ? (
-          <MarkdownRenderer content={currentFile.content} />
+          <MarkdownRenderer
+            content={currentFile.content}
+            worktreePath={worktreePath || ''}
+            filePath={selectedFile}
+          />
         ) : (
           <MonacoEditor
             filePath={selectedFile}
