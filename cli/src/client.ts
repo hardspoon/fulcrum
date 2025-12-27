@@ -3,6 +3,7 @@ import { ApiError } from './utils/errors'
 import type {
   Task,
   TaskStatus,
+  Repository,
   GitBranchesResponse,
   GitDiffResponse,
   GitStatusResponse,
@@ -142,6 +143,11 @@ export class ViboraClient {
       method: 'DELETE',
       body: JSON.stringify({ ids, deleteLinkedWorktrees }),
     })
+  }
+
+  // Repositories
+  async listRepositories(): Promise<Repository[]> {
+    return this.fetch('/api/repositories')
   }
 
   // Git

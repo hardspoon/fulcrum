@@ -122,7 +122,8 @@ The plugin includes an MCP server that exposes task management tools:
 - `update_task` — Update task title/description
 - `delete_task` — Delete a task
 - `move_task` — Change task status
-- `get_current_task` — Get task for current working directory
+- `list_repositories` — List configured repositories
+- `send_notification` — Send notification to enabled channels
 
 For Claude Desktop, add to your `claude_desktop_config.json`:
 

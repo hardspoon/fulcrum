@@ -146,29 +146,33 @@ export function registerTools(server: McpServer, client: ViboraClient) {
     }
   )
 
-  // get_current_task
+  // list_repositories
   server.tool(
-    'get_current_task',
-    'Get the task associated with the current working directory (if any)',
-    {
-      path: z.optional(z.string()).describe('Override the working directory path'),
-    },
-    async ({ path }) => {
+    'list_repositories',
+    'List all configured repositories (useful for task creation)',
+    {},
+    async () => {
       try {
-        const cwd = path ?? process.cwd()
-        const tasks = await client.listTasks()
+        const repos = await client.listRepositories()
+        return formatSuccess(repos)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
 
-        // Find task whose worktreePath matches or contains the cwd
-        const task = tasks.find((t) => {
-          if (!t.worktreePath) return false
-          return cwd === t.worktreePath || cwd.startsWith(t.worktreePath + '/')
-        })
-
-        if (!task) {
-          return formatSuccess({ task: null, message: 'No task found for this directory' })
-        }
-
-        return formatSuccess(task)
+  // send_notification
+  server.tool(
+    'send_notification',
+    'Send a notification to all enabled notification channels',
+    {
+      title: z.string().describe('Notification title'),
+      message: z.string().describe('Notification message body'),
+    },
+    async ({ title, message }) => {
+      try {
+        const result = await client.sendNotification(title, message)
+        return formatSuccess(result)
       } catch (err) {
         return handleToolError(err)
       }
