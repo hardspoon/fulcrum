@@ -171,7 +171,7 @@ export const RootStore = types
     /** Pending optimistic updates awaiting server confirmation, keyed by requestId */
     pendingUpdates: new Map<string, PendingUpdate>(),
     /** Callbacks to invoke when terminal:attached is received */
-    onAttachedCallbacks: new Map<string, () => void>(),
+    onAttachedCallbacks: new Map<string, (terminalId: string) => void>(),
     /** Terminals that received terminal:attached before callback was registered */
     terminalsReadyForCallback: new Set<string>(),
     /** Last focused terminal ID (for reconnection focus restoration) */

@@ -9,7 +9,8 @@ import { log } from '@/lib/logger'
  * Options for attaching an xterm.js instance
  */
 interface AttachXtermOptions {
-  onAttached?: () => void
+  /** Called when terminal is attached. Receives the actual terminal ID (may differ from tempId after optimistic update). */
+  onAttached?: (terminalId: string) => void
 }
 
 /**
