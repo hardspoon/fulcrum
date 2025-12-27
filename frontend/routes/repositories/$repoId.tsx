@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useRepository, useUpdateRepository, useDeleteRepository } from '@/hooks/use-repositories'
 import { Button } from '@/components/ui/button'
@@ -15,15 +15,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from '@/components/ui/resizable'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
-  ArrowLeft02Icon,
   Delete02Icon,
   Folder01Icon,
   Loading03Icon,
@@ -42,12 +37,22 @@ import { buildEditorUrl, getEditorDisplayName, openExternalUrl } from '@/lib/edi
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
 import { FilesViewer } from '@/components/viewer/files-viewer'
 
+type RepoTab = 'settings' | 'files'
+
+interface RepoDetailSearch {
+  tab?: RepoTab
+}
+
 export const Route = createFileRoute('/repositories/$repoId')({
   component: RepositoryDetailView,
+  validateSearch: (search: Record<string, unknown>): RepoDetailSearch => ({
+    tab: search.tab === 'files' ? 'files' : undefined,
+  }),
 })
 
 function RepositoryDetailView() {
   const { repoId } = Route.useParams()
+  const { tab } = Route.useSearch()
   const navigate = useNavigate()
   const { data: repository, isLoading, error } = useRepository(repoId)
   const updateRepository = useUpdateRepository()
@@ -63,6 +68,20 @@ function RepositoryDetailView() {
   const [isCopierTemplate, setIsCopierTemplate] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
+
+  const activeTab = tab || 'settings'
+
+  const setActiveTab = useCallback(
+    (newTab: RepoTab) => {
+      navigate({
+        to: '/repositories/$repoId',
+        params: { repoId },
+        search: newTab === 'settings' ? {} : { tab: newTab },
+        replace: true,
+      })
+    },
+    [navigate, repoId]
+  )
 
   // Initialize form state when repository loads
   useEffect(() => {
@@ -253,12 +272,22 @@ function RepositoryDetailView() {
         </div>
       </div>
 
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {/* Settings Panel */}
-        <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as RepoTab)}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
+        <div className="shrink-0 border-b border-border px-4">
+          <TabsList>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="files">Files</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="settings" className="flex-1 overflow-hidden mt-0">
           <ScrollArea className="h-full">
             <div className="p-4">
-              <div className="space-y-6 bg-card rounded-lg p-6 border border-border">
+              <div className="mx-auto max-w-xl space-y-6 bg-card rounded-lg p-6 border border-border">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={2} />
                   <span className="font-mono break-all">{repository.path}</span>
@@ -318,15 +347,12 @@ function RepositoryDetailView() {
               </div>
             </div>
           </ScrollArea>
-        </ResizablePanel>
+        </TabsContent>
 
-        <ResizableHandle withHandle />
-
-        {/* Files Panel */}
-        <ResizablePanel defaultSize={65} minSize={30}>
+        <TabsContent value="files" className="flex-1 overflow-hidden mt-0">
           <FilesViewer worktreePath={repository.path} readOnly />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </TabsContent>
+      </Tabs>
 
       <CreateTaskModal
         open={taskModalOpen}
