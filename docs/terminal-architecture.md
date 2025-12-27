@@ -43,6 +43,8 @@ This document describes the terminal implementation in Vibora, including the Mob
 │  │    terminalsPendingStartup: Map<string, StartupInfo>           │  │
 │  │    onAttachedCallbacks: Map<string, callback>                  │  │
 │  │    terminalsReadyForCallback: Set<string>                      │  │
+│  │    pendingTabCreation: string | null                           │  │
+│  │    lastCreatedTabId: string | null                             │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 │                                                                      │
 │  Environment (injected):                                             │
@@ -499,6 +501,67 @@ If you return first then delete later, a race condition can cause double executi
 2. Component B calls consume before A deletes, also gets startup
 3. Both run startup commands
 
+### 9. Tab Creation Navigation Race Condition (Dec 2024)
+
+**Symptom**: When creating a new tab, the UI often navigated to the wrong tab (first tab instead of newly created tab), and the terminal was created in the wrong tab.
+
+**Root Cause**: Two separate React effects were racing to navigate:
+
+1. **Redirect effect**: Watched `[tabs, isValidTab]` and navigated to localStorage/first tab when URL was invalid
+2. **Tab detection effect**: Watched `[tabs]` and navigated to newly created tab
+
+When a new tab was created:
+1. Optimistic temp tab added (e.g., `temp-abc123`)
+2. Tab detection sees temp ID, returns early (waiting for real ID)
+3. Server confirms, store replaces temp with real tab
+4. **Both effects run** because `tabs` changed
+5. If redirect effect wins the race, it navigates to `tabs[0]` before tab detection can navigate to new tab
+
+The `intentionalNavigationRef` flag was supposed to prevent this, but it was timing-based and unreliable.
+
+**Solution**: Use state-driven navigation instead of timing-based refs:
+
+```typescript
+// In root-store.ts volatile state:
+pendingTabCreation: null as string | null,  // tempId being created
+lastCreatedTabId: null as string | null,     // real ID after confirmation
+
+// In createTab action:
+self.pendingTabCreation = tempId
+
+// In tab:created handler:
+self.pendingTabCreation = null
+self.lastCreatedTabId = tab.id
+
+// In component - single consolidated effect:
+useEffect(() => {
+  if (tabs.length === 0) return
+
+  // Case 1: Just received real ID - navigate to new tab
+  if (lastCreatedTabId) {
+    setActiveTab(lastCreatedTabId)
+    clearLastCreatedTabId()
+    // Create terminal in new tab...
+    return
+  }
+
+  // Case 2: Waiting for pending tab - don't redirect
+  if (pendingTabCreation) {
+    return
+  }
+
+  // Case 3: Normal redirect (invalid URL, no pending creation)
+  if (!isValidTab) {
+    navigate({ to: '/terminals', search: { tab: targetTab }, replace: true })
+  }
+}, [tabs, isValidTab, lastCreatedTabId, pendingTabCreation, ...])
+```
+
+**Why this works**:
+- Single effect = single decision point = no race
+- State-driven (`pendingTabCreation`, `lastCreatedTabId`) instead of timing-based refs
+- Clear priority: new tab creation > pending wait > normal redirect
+
 ---
 
 ## Protection Mechanisms
@@ -651,3 +714,4 @@ server/websocket/
 | 6 | Task terminal startup fix | ✅ Complete |
 | 7 | TempId→RealId race conditions | ✅ Complete |
 | 8 | Task terminal protection (force flag) | ✅ Complete |
+| 9 | Tab creation navigation race condition | ✅ Complete |

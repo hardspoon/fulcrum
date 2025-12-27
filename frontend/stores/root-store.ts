@@ -188,6 +188,18 @@ export const RootStore = types
       taskName: string
       serverPort?: number
     }>(),
+    /**
+     * Pending tab creation tempId.
+     * Set when createTab is called, cleared when tab:created confirms.
+     * Prevents redirect effect from interfering during tab creation.
+     */
+    pendingTabCreation: null as string | null,
+    /**
+     * Real ID of the last created tab.
+     * Set when tab:created confirms an optimistic update.
+     * Triggers navigation to the new tab in the component.
+     */
+    lastCreatedTabId: null as string | null,
   }))
   .views((self) => ({
     /** Whether the store is ready for use */
@@ -267,6 +279,16 @@ export const RootStore = types
           getWs().log.ws.debug('consumed pending startup', { terminalId, taskName: startup.taskName })
         }
         return startup
+      },
+
+      /** Set pending tab creation (for tracking optimistic tab creates) */
+      setPendingTabCreation(tempId: string | null) {
+        self.pendingTabCreation = tempId
+      },
+
+      /** Clear the last created tab ID after navigation is complete */
+      clearLastCreatedTabId() {
+        self.lastCreatedTabId = null
       },
 
       // ============ Terminal Actions ============
@@ -593,6 +615,9 @@ export const RootStore = types
         const tab = self.tabs.get(tempId)
         tab?.setPending(true)
 
+        // Track pending tab creation for navigation coordination
+        self.pendingTabCreation = tempId
+
         // Store inverse patches for rollback
         self.pendingUpdates.set(requestId, {
           entityType: 'tab',
@@ -913,6 +938,10 @@ export const RootStore = types
                   // We need to remove the temp and add the real one since ID is an identifier
                   self.tabs.remove(tempId)
                   self.tabs.add(tab)
+
+                  // Clear pending and set lastCreatedTabId for navigation
+                  self.pendingTabCreation = null
+                  self.lastCreatedTabId = tab.id
 
                   getWs().log.ws.debug('tab:created confirmed', {
                     requestId,
