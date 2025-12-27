@@ -92,6 +92,9 @@ const TerminalsView = observer(function TerminalsView() {
     writeToTerminal,
     sendInputToTerminal,
     newTerminalIds,
+    pendingTabCreation,
+    lastCreatedTabId,
+    clearLastCreatedTabId,
   } = useTerminalStore()
 
   // State for tab edit dialog
@@ -114,17 +117,49 @@ const TerminalsView = observer(function TerminalsView() {
     [navigate]
   )
 
-  // Redirect to last tab (from localStorage) or first tab if URL has no/invalid tab
-  // Skip if we're in the middle of an intentional navigation (e.g., after creating a new tab)
+  // Unified navigation effect - handles both new tab navigation and redirect
+  // This eliminates race conditions by having a single decision point for navigation
   useEffect(() => {
-    if (tabs.length > 0 && !isValidTab && !intentionalNavigationRef.current) {
+    if (tabs.length === 0) return
+
+    // Case 1: Just received real ID for created tab - navigate to it
+    if (lastCreatedTabId) {
+      log.terminal.debug('Navigating to newly created tab', { tabId: lastCreatedTabId })
+      setActiveTab(lastCreatedTabId)
+
+      // Create terminal in new tab after navigation settles
+      const tabId = lastCreatedTabId
+      clearLastCreatedTabId()
+
+      setTimeout(() => {
+        terminalCountRef.current++
+        const terminalName = `Terminal ${terminalCountRef.current}`
+        log.terminal.debug('Creating terminal in new tab', { tabId, name: terminalName })
+        createTerminal({
+          name: terminalName,
+          cols: 80,
+          rows: 24,
+          tabId,
+          positionInTab: 0,
+        })
+      }, 100)
+      return
+    }
+
+    // Case 2: Waiting for pending tab creation - don't redirect
+    if (pendingTabCreation) {
+      return
+    }
+
+    // Case 3: Normal redirect (invalid URL, no pending creation)
+    if (!isValidTab) {
       const lastTab = localStorage.getItem(LAST_TAB_STORAGE_KEY)
       const targetTab = lastTab && (tabs.some(t => t.id === lastTab) || lastTab === ALL_TASKS_TAB_ID)
         ? lastTab
         : tabs[0].id
       navigate({ to: '/terminals', search: { tab: targetTab }, replace: true })
     }
-  }, [tabs, isValidTab, navigate])
+  }, [tabs, isValidTab, lastCreatedTabId, pendingTabCreation, setActiveTab, clearLastCreatedTabId, navigate, createTerminal])
 
   // Persist active tab to localStorage
   useEffect(() => {
@@ -220,10 +255,6 @@ const TerminalsView = observer(function TerminalsView() {
   // Guard against duplicate creations from React Strict Mode or double-click
   const pendingTerminalCreateRef = useRef(false)
   const pendingTabCreateRef = useRef(false)
-  // Track the number of tabs when we initiated a tab creation to detect new tabs
-  const tabCountBeforeCreateRef = useRef<number | null>(null)
-  // Track when we're intentionally navigating to a new tab (prevents localStorage redirect race)
-  const intentionalNavigationRef = useRef(false)
 
   // Filter terminals for the active tab and convert to TerminalInfo for component compatibility
   const visibleTerminals = useMemo(() => {
@@ -317,55 +348,6 @@ const TerminalsView = observer(function TerminalsView() {
     }
   }, [terminals, allTaskWorktrees, assignTerminalToTab, tasksStatus])
 
-  // Auto-open newly created tabs and create a terminal inside
-  useEffect(() => {
-    // Only run if we're expecting a new tab (tabCountBeforeCreateRef is set)
-    if (tabCountBeforeCreateRef.current === null) return
-
-    // Check if a new tab was added
-    if (tabs.length > tabCountBeforeCreateRef.current) {
-      // Find the newest tab (highest position)
-      const newestTab = tabs.reduce((prev, curr) =>
-        curr.position > prev.position ? curr : prev
-      )
-
-      // Don't navigate to temp IDs - they will be replaced with real IDs shortly.
-      // Wait for the store to replace the temp tab with the real one.
-      if (newestTab.id.startsWith('temp-')) {
-        log.terminal.debug('New tab has temp ID, waiting for real ID', { tabId: newestTab.id })
-        return // Keep waiting - effect will run again when real ID arrives
-      }
-
-      log.terminal.debug('New tab detected, auto-opening', { tabId: newestTab.id, name: newestTab.name })
-
-      // Clear the ref to prevent re-triggering
-      tabCountBeforeCreateRef.current = null
-
-      // Switch to the new tab
-      setActiveTab(newestTab.id)
-
-      // Clear intentional navigation flag after a short delay to allow URL to update
-      setTimeout(() => {
-        intentionalNavigationRef.current = false
-      }, 100)
-
-      // Create a terminal inside the new tab after a short delay
-      // to ensure the tab switch is processed first
-      setTimeout(() => {
-        terminalCountRef.current++
-        const terminalName = `Terminal ${terminalCountRef.current}`
-        log.terminal.debug('Creating terminal in new tab', { tabId: newestTab.id, name: terminalName })
-        createTerminal({
-          name: terminalName,
-          cols: 80,
-          rows: 24,
-          tabId: newestTab.id,
-          positionInTab: 0,
-        })
-      }, 100)
-    }
-  }, [tabs, setActiveTab, createTerminal])
-
   const handleTerminalClose = useCallback(
     (terminalId: string) => {
       // Clean up xterm attachment
@@ -420,11 +402,6 @@ const TerminalsView = observer(function TerminalsView() {
     }
     pendingTabCreateRef.current = true
 
-    // Record current tab count to detect when new tab arrives
-    tabCountBeforeCreateRef.current = tabs.length
-    // Prevent localStorage redirect from overriding our navigation to the new tab
-    intentionalNavigationRef.current = true
-
     const name = `Tab ${tabs.length + 1}`
     log.terminal.debug('Quick creating tab', { name })
     createTab(name, undefined, undefined) // No directory
@@ -452,11 +429,6 @@ const TerminalsView = observer(function TerminalsView() {
       }
       pendingTabCreateRef.current = true
 
-      // Record current tab count to detect when new tab arrives
-      tabCountBeforeCreateRef.current = tabs.length
-      // Prevent localStorage redirect from overriding our navigation to the new tab
-      intentionalNavigationRef.current = true
-
       log.terminal.debug('Creating tab', { name, directory })
       createTab(name, undefined, directory)
 
@@ -465,7 +437,7 @@ const TerminalsView = observer(function TerminalsView() {
         pendingTabCreateRef.current = false
       }, 500)
     },
-    [createTab, tabs.length]
+    [createTab]
   )
 
   const handleTabDelete = useCallback(

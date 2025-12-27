@@ -64,6 +64,10 @@ export interface UseTerminalStoreReturn {
   tabs: ITab[]
   connected: boolean
   newTerminalIds: Set<string>
+  /** Pending tab creation tempId - prevents redirect while waiting for server */
+  pendingTabCreation: string | null
+  /** Real ID of last created tab - triggers navigation in component */
+  lastCreatedTabId: string | null
 
   // Terminal actions
   createTerminal: (options: CreateTerminalOptions) => void
@@ -87,6 +91,9 @@ export interface UseTerminalStoreReturn {
 
   // Startup management
   consumePendingStartup: (terminalId: string) => PendingStartupInfo | undefined
+
+  // Tab creation navigation
+  clearLastCreatedTabId: () => void
 }
 
 /**
@@ -158,6 +165,12 @@ export function useTerminalStore(): UseTerminalStoreReturn {
       get newTerminalIds() {
         return store.newTerminalIds
       },
+      get pendingTabCreation() {
+        return store.pendingTabCreation
+      },
+      get lastCreatedTabId() {
+        return store.lastCreatedTabId
+      },
 
       // Terminal actions (delegated to store)
       createTerminal: store.createTerminal.bind(store),
@@ -181,6 +194,9 @@ export function useTerminalStore(): UseTerminalStoreReturn {
 
       // Startup management
       consumePendingStartup: store.consumePendingStartup.bind(store),
+
+      // Tab creation navigation
+      clearLastCreatedTabId: store.clearLastCreatedTabId.bind(store),
     }
   }, [store])
 }
