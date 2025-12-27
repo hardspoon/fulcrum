@@ -188,9 +188,36 @@ export const RootStore = types
     return {
       /** Mark as connected to WebSocket */
       setConnected(connected: boolean) {
+        const wasConnected = self.connected
         self.connected = connected
+
         if (!connected) {
+          // Disconnected - mark as uninitialized
           self.initialized = false
+        } else if (!wasConnected && connected) {
+          // Just reconnected - clear stale pending updates
+          // These were in-flight when we disconnected and may have been
+          // processed or rejected by the server
+          if (self.pendingUpdates.size > 0) {
+            getWs().log.ws.info('Reconnected: clearing stale pending updates', {
+              count: self.pendingUpdates.size,
+            })
+
+            // Remove optimistic entities that were never confirmed
+            for (const pending of self.pendingUpdates.values()) {
+              if (pending.entityType === 'terminal') {
+                const terminal = self.terminals.get(pending.tempId)
+                if (terminal) {
+                  terminal.cleanup()
+                  self.terminals.remove(pending.tempId)
+                }
+                self.newTerminalIds.delete(pending.tempId)
+              } else if (pending.entityType === 'tab') {
+                self.tabs.remove(pending.tempId)
+              }
+            }
+            self.pendingUpdates.clear()
+          }
         }
       },
 
@@ -772,6 +799,55 @@ export const RootStore = types
             }
 
             log.ws.error('Terminal error from server', { error })
+            break
+          }
+
+          case 'sync:stale': {
+            const { entityType, entityId, requestId, tempId, error } = payload as {
+              entityType: 'terminal' | 'tab'
+              entityId: string
+              requestId?: string
+              tempId?: string
+              error: string
+            }
+
+            getWs().log.ws.warn('sync:stale received', { entityType, entityId, error })
+
+            // If this was for a pending optimistic update, rollback
+            if (requestId && tempId) {
+              const pendingUpdate = self.pendingUpdates.get(requestId)
+              if (pendingUpdate && pendingUpdate.tempId === tempId) {
+                self.pendingUpdates.delete(requestId)
+
+                if (pendingUpdate.entityType === 'terminal') {
+                  const terminal = self.terminals.get(tempId)
+                  if (terminal) {
+                    terminal.cleanup()
+                    self.terminals.remove(tempId)
+                  }
+                  self.newTerminalIds.delete(tempId)
+                } else if (pendingUpdate.entityType === 'tab') {
+                  self.tabs.remove(tempId)
+                }
+              }
+            }
+
+            // Remove the stale entity from local state if it exists
+            // This syncs the client with server reality
+            if (entityType === 'terminal') {
+              if (self.terminals.has(entityId)) {
+                const terminal = self.terminals.get(entityId)
+                if (terminal) {
+                  terminal.cleanup()
+                  self.terminals.remove(entityId)
+                }
+              }
+            } else if (entityType === 'tab') {
+              if (self.tabs.has(entityId)) {
+                self.tabs.remove(entityId)
+                self.viewState.clearFocusedTerminalForTab(entityId)
+              }
+            }
             break
           }
 

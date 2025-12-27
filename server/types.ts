@@ -324,6 +324,26 @@ export interface NotificationMessage {
   }
 }
 
+/**
+ * Sent when an operation references a stale or deleted entity.
+ * Client should refresh state and/or rollback optimistic updates.
+ */
+export interface SyncStaleMessage {
+  type: 'sync:stale'
+  payload: {
+    /** Echo of client requestId for optimistic update rollback */
+    requestId?: string
+    /** Client's temporary ID that should be rolled back */
+    tempId?: string
+    /** The entity type that was stale */
+    entityType: 'terminal' | 'tab'
+    /** The entity ID that was referenced */
+    entityId: string
+    /** Human-readable error message */
+    error: string
+  }
+}
+
 export type ServerMessage =
   | TerminalCreatedMessage
   | TerminalOutputMessage
@@ -342,3 +362,4 @@ export type ServerMessage =
   | TabsListResponseMessage
   | TaskUpdatedMessage
   | NotificationMessage
+  | SyncStaleMessage

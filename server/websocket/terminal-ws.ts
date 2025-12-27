@@ -245,13 +245,22 @@ export const terminalWebSocketHandlers: WSEvents = {
         }
 
         case 'terminal:rename': {
-          const success = ptyManager.rename(message.payload.terminalId, message.payload.name)
+          const { terminalId, name } = message.payload
+          const success = ptyManager.rename(terminalId, name)
           if (success) {
             broadcast({
               type: 'terminal:renamed',
+              payload: { terminalId, name },
+            })
+          } else {
+            // Terminal doesn't exist - send sync:stale
+            log.ws.warn('terminal:rename failed - terminal not found', { terminalId, clientId: clientData.id })
+            sendTo(ws, {
+              type: 'sync:stale',
               payload: {
-                terminalId: message.payload.terminalId,
-                name: message.payload.name,
+                entityType: 'terminal',
+                entityId: terminalId,
+                error: `Terminal ${terminalId} not found`,
               },
             })
           }
@@ -269,6 +278,17 @@ export const terminalWebSocketHandlers: WSEvents = {
                 terminalId,
                 tabId,
                 positionInTab: info?.positionInTab ?? 0,
+              },
+            })
+          } else {
+            // Terminal or tab doesn't exist
+            log.ws.warn('terminal:assignTab failed', { terminalId, tabId, clientId: clientData.id })
+            sendTo(ws, {
+              type: 'sync:stale',
+              payload: {
+                entityType: 'terminal',
+                entityId: terminalId,
+                error: `Terminal ${terminalId} or tab ${tabId} not found`,
               },
             })
           }
@@ -307,6 +327,17 @@ export const terminalWebSocketHandlers: WSEvents = {
             broadcast({
               type: 'tab:updated',
               payload: { tabId, name, directory },
+            })
+          } else {
+            // Tab doesn't exist
+            log.ws.warn('tab:update failed - tab not found', { tabId, clientId: clientData.id })
+            sendTo(ws, {
+              type: 'sync:stale',
+              payload: {
+                entityType: 'tab',
+                entityId: tabId,
+                error: `Tab ${tabId} not found`,
+              },
             })
           }
           break
@@ -366,6 +397,17 @@ export const terminalWebSocketHandlers: WSEvents = {
             broadcast({
               type: 'tab:reordered',
               payload: { tabId, position },
+            })
+          } else {
+            // Tab doesn't exist
+            log.ws.warn('tab:reorder failed - tab not found', { tabId, position, clientId: clientData.id })
+            sendTo(ws, {
+              type: 'sync:stale',
+              payload: {
+                entityType: 'tab',
+                entityId: tabId,
+                error: `Tab ${tabId} not found`,
+              },
             })
           }
           break
