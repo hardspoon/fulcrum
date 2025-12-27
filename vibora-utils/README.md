@@ -6,7 +6,7 @@ Cloudflare Worker that provides stable download URLs for the latest Vibora relea
 
 | Endpoint | Description |
 |----------|-------------|
-| `/download/dmg` | Redirects to latest macOS DMG |
+| `/download/dmg` | Redirects to latest macOS DMG (Apple Silicon) |
 | `/download/appimage` | Redirects to latest Linux AppImage |
 | `/download/info` | Returns JSON with version and asset URLs |
 
