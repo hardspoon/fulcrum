@@ -1,13 +1,28 @@
-![vibora-light](https://github.com/user-attachments/assets/4e686c0f-1871-4ad5-b500-1e7b80b7eff5)
+# Vibora
 
+The Vibe Engineer's Cockpit. Orchestrate Claude Code across parallel workstreams from a terminal-first command center.
 
-## Philosophy
+![Vibora Task Terminals View](./screenshots/terminals-view-with-tests.png)
 
-- **Claude Code first** — Built for developers who prefer working in the terminal with CLI agents. Vibora is designed with Claude Code in mind, though it works with other CLI agents (Codex, Gemini CLI, etc.). No abstraction layer, no wrapper APIs—agents run in terminals as-is.
-- **Opinionated with few opinions** — Provides structure without dictating workflow.
-- **Git worktree isolation** — Tasks create isolated git worktrees, with architecture supporting evolution toward more general task types.
-- **Persistent terminals** — Named terminals organized in tabs for work that doesn't fit neatly into task worktrees.
-- **Task terminals view** — See all terminal sessions across all tasks and worktrees in a single parallel view.
+## What It Does
+
+**Vibora is for developers who take Claude Code seriously.** Not as a novelty, but as their primary interface for getting things done. If you live in the terminal and want to run multiple Claude Code sessions across isolated workstreams, Vibora is your cockpit.
+
+- **Task Terminals View** — See and control all your Claude Code sessions across every worktree in one parallel view. The killer feature for orchestrating multiple agents simultaneously.
+- **Git Worktree Isolation** — Each task runs in its own worktree. Your main branch stays clean until you're ready to merge.
+- **Automatic Status Sync** — The Claude Code plugin syncs task status as you work. When Claude stops and waits for input, the task moves to "In Review". When you respond, it's back "In Progress".
+- **Persistent Terminals** — Named terminal tabs that survive restarts for ongoing work that doesn't fit into task worktrees.
+
+## Key Features
+
+- **Parallel Agent Orchestration** — Run multiple Claude Code sessions across different tasks and worktrees
+- **Git Worktree Isolation** — Safe experimentation without touching your main branch
+- **Claude Code Plugin** — Automatic status sync, slash commands, session continuity
+- **Kanban Task Management** — Visual task tracking from planning to done
+- **PR Monitoring** — Track pull requests across repositories
+- **Linear Integration** — Sync task status with Linear tickets
+- **System Monitoring** — CPU, memory, and disk usage at a glance
+- **Cross-Platform** — Desktop app (Mac, Linux) or web application
 
 ## Quick Start
 
@@ -15,38 +30,31 @@ Requires [Bun](https://bun.sh/) and [Claude Code](https://claude.ai/code).
 
 ### Desktop App (Recommended)
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/knowsuchagency/vibora/releases/latest):
+Download the latest release from [GitHub Releases](https://github.com/knowsuchagency/vibora/releases/latest):
 
-- **macOS Apple Silicon**: `Vibora-X.X.X-macos-arm64.dmg`
-- **macOS Intel**: `Vibora-X.X.X-macos-x64.dmg`
-- **Linux**: `Vibora-X.X.X-linux-x64.AppImage`
+| Platform | Download |
+|----------|----------|
+| **macOS Apple Silicon** | `Vibora-X.X.X-macos-arm64.dmg` |
+| **macOS Intel** | `Vibora-X.X.X-macos-x64.dmg` |
+| **Linux** | `Vibora-X.X.X-linux-x64.AppImage` |
 
-The desktop app bundles everything—just install and run. It will:
-- Start the Vibora server automatically
-- Install the Claude Code plugin
-- Check for updates on startup
+The desktop app bundles everything—just install and run. It will start the server, install the Claude Code plugin, and check for updates automatically.
 
 > **macOS note**: On first launch, right-click the app and select "Open" to bypass Gatekeeper.
 
-### Web Application (Alternative)
+### Web Application
 
-Run Vibora as a web server if you prefer browser access or need remote server deployment.
-
-#### Install via curl
+Run Vibora as a web server for browser access or remote deployment.
 
 ```bash
+# Install and start with curl
 curl -fsSL https://raw.githubusercontent.com/knowsuchagency/vibora/main/install.sh | bash
-```
 
-This installs vibora, the Claude Code plugin, and starts the server.
-
-#### Install via npm
-
-```bash
+# Or install via npm
 npx vibora@latest up
 ```
 
-If using npm, install the Claude Code plugin separately for automatic task status sync:
+If using npm, install the Claude Code plugin separately:
 
 ```bash
 claude plugin marketplace add knowsuchagency/vibora
@@ -55,39 +63,71 @@ claude plugin install vibora@vibora --scope user
 
 Open http://localhost:7777 in your browser.
 
-### Remote Server Setup
+## Features
+
+### Task Terminals View
+
+The killer feature. See all your Claude Code sessions across every task and worktree in a single parallel view. Each task runs in an isolated git worktree, and you can monitor and interact with all of them simultaneously.
+
+![Task Terminals View](./screenshots/terminals-view-with-tests.png)
+
+### Kanban Board
+
+Track tasks from planning to done. Create tasks that automatically spin up isolated git worktrees, and watch their status update in real-time as you work with Claude Code.
+
+![Kanban Board](./screenshots/tasks-kanban-board.png)
+
+### Repositories
+
+Manage your projects with quick actions. Create new tasks, open terminals, and configure repository settings from one place.
+
+![Repositories](./screenshots/repositories-view.png)
+
+### PR Review
+
+Monitor pull requests across all your repositories. Filter by status, organization, and more.
+
+![PR Review](./screenshots/review-pull-requests.png)
+
+### System Monitoring
+
+Keep an eye on system resources while your agents work. CPU, memory, and disk usage at a glance.
+
+![System Monitoring](./screenshots/monitoring-system-metrics.png)
+
+## Claude Code Plugin
+
+The Vibora plugin for Claude Code enables seamless integration:
+
+- **Automatic Status Sync** — Task moves to "In Review" when Claude stops, "In Progress" when you respond
+- **Slash Commands** — `/review`, `/pr`, `/notify`, `/linear`, `/task-info`
+- **Session Continuity** — Claude sessions are tied to task IDs
+
+The plugin is automatically installed in task worktrees when tasks are created. To install globally:
+
+```bash
+claude plugin marketplace add knowsuchagency/vibora
+claude plugin install vibora@vibora --scope user
+```
+
+## Remote Server Setup
 
 Run the backend on a remote server and connect from the desktop app or browser:
 
 1. **On the remote server:**
    ```bash
-   # Install and start
    npx vibora@latest up
-
-   # Configure for remote access
    vibora config set remoteHost your-server.example.com
    vibora config set basicAuthUsername admin
    vibora config set basicAuthPassword your-secure-password
    ```
 
-2. **Connect from desktop app:**
-   - Launch the app
-   - Click "Connect to Remote" (if local server not found)
-   - Enter the server URL: `your-server.example.com:7777`
-   - Enter credentials when prompted
+2. **Connect from desktop app** — Click "Connect to Remote" and enter the server URL
 
-3. **Or access via browser:**
-   Open `http://your-server.example.com:7777`
+3. **Or access via browser** — Open `http://your-server.example.com:7777`
 
-### Server Commands (Web Application)
-
-```bash
-vibora up       # Start server daemon
-vibora down     # Stop the server
-vibora status   # Check if running
-```
-
-## Configuration
+<details>
+<summary><strong>Configuration</strong></summary>
 
 Settings are stored in `.vibora/settings.json`. The vibora directory is resolved in this order:
 
@@ -107,37 +147,24 @@ Settings are stored in `.vibora/settings.json`. The vibora directory is resolved
 | githubPat | `GITHUB_PAT` | null |
 | language | — | null (auto-detect) |
 
-Notification settings (sound, Slack, Discord, Pushover) are configured via the Settings UI or CLI and stored in `settings.json`.
+Notification settings (sound, Slack, Discord, Pushover) are configured via the Settings UI or CLI.
 
 Precedence: environment variable → settings.json → default
 
 ### Linear Integration
 
-Vibora can sync task status with Linear tickets. Configure `linearApiKey` in settings or set the `LINEAR_API_KEY` environment variable. When a task is linked to a Linear ticket, status changes in Vibora automatically update the corresponding Linear ticket.
+Vibora can sync task status with Linear tickets. Configure `linearApiKey` in settings or set `LINEAR_API_KEY`. When a task is linked to a Linear ticket, status changes in Vibora automatically update Linear.
 
 ### Basic Auth
 
-Set `basicAuthUsername` and `basicAuthPassword` (via settings or environment variables) to require authentication. Useful when exposing Vibora over a network.
+Set `basicAuthUsername` and `basicAuthPassword` to require authentication when exposing Vibora over a network.
 
-### Claude Code Plugin
+</details>
 
-The vibora plugin for Claude Code enables automatic task status sync:
+<details>
+<summary><strong>CLI Reference</strong></summary>
 
-- **Task → IN_REVIEW** when Claude stops (waiting for your input)
-- **Task → IN_PROGRESS** when you respond to Claude
-
-The plugin also provides slash commands (`/review`, `/pr`, `/notify`, `/linear`, `/task-info`). The plugin is automatically installed in task worktrees when tasks are created, and Claude sessions are tied to task IDs for session continuity.
-
-To install the plugin globally:
-
-```bash
-claude plugin marketplace add knowsuchagency/vibora
-claude plugin install vibora@vibora --scope user
-```
-
-## CLI
-
-The CLI lets AI agents (like Claude Code) working inside task worktrees query and update task status.
+The CLI lets AI agents working inside task worktrees query and update task status.
 
 ### Server Management
 
@@ -199,11 +226,8 @@ vibora config set <key> <value>  # Set a config value
 vibora notifications             # Show notification settings
 vibora notifications enable      # Enable notifications
 vibora notifications disable     # Disable notifications
-vibora notifications test <ch>   # Test a channel (sound, slack, discord, pushover)
-vibora notifications set <ch> <key> <value>
-                                 # Set a channel config
-
-vibora notify <title> [message]  # Send a notification to all enabled channels
+vibora notifications test <ch>   # Test a channel
+vibora notify <title> [message]  # Send a notification
 ```
 
 ### Global Options
@@ -214,13 +238,11 @@ vibora notify <title> [message]  # Send a notification to all enabled channels
 --pretty          # Pretty-print JSON output
 ```
 
+</details>
+
 ## Internationalization
 
 Available in English and Chinese. Set the `language` setting or let it auto-detect from your browser.
-
-## z.ai Integration
-
-Works with [z.ai](https://z.ai) for Claude Code proxy integration. Configure via the Settings UI.
 
 ## Development
 
