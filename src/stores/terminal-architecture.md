@@ -1,6 +1,21 @@
-# Terminal State Data Model
+# Terminal Architecture
 
-This document describes the MobX State Tree (MST) data model used for terminal and tab state management.
+This document describes the terminal implementation in Vibora, including the MobX State Tree (MST) data model, important implementation details, and gotchas learned from debugging.
+
+## Table of Contents
+
+- [Store Architecture](#store-architecture)
+- [Entity Relationships](#entity-relationships)
+- [Terminal Types](#terminal-types)
+- [Data Flow](#data-flow)
+- [WebSocket Message Types](#websocket-message-types)
+- [Optimistic Update Flow](#optimistic-update-flow)
+- [Task Terminal Startup Flow](#task-terminal-startup-flow)
+- [Gotchas & Critical Implementation Details](#gotchas--critical-implementation-details)
+- [Protection Mechanisms](#protection-mechanisms)
+- [File Structure](#file-structure)
+
+---
 
 ## Store Architecture
 
@@ -26,6 +41,8 @@ This document describes the MobX State Tree (MST) data model used for terminal a
 │  │    newTerminalIds: Set<string>                                 │  │
 │  │    pendingUpdates: Map<string, PendingUpdate>                  │  │
 │  │    terminalsPendingStartup: Map<string, StartupInfo>           │  │
+│  │    onAttachedCallbacks: Map<string, callback>                  │  │
+│  │    terminalsReadyForCallback: Set<string>                      │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 │                                                                      │
 │  Environment (injected):                                             │
@@ -198,92 +215,6 @@ responses to requests and replace temp IDs with real server IDs.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Protection Mechanisms
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                Tab Terminal Protection                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Client                           Server                     │
-│    │                                │                        │
-│    │  terminal:destroy              │                        │
-│    │  { terminalId, force: false }  │                        │
-│    │───────────────────────────────►│                        │
-│    │                                │                        │
-│    │                                │  Check: has tabId?     │
-│    │                                │  Check: force flag?    │
-│    │                                │                        │
-│    │  terminal:error                │  ◄── BLOCKED          │
-│    │  "Tab terminals require..."    │                        │
-│    │◄───────────────────────────────│                        │
-│    │                                │                        │
-│                                                              │
-│  User clicks X button:                                       │
-│    │                                │                        │
-│    │  terminal:destroy              │                        │
-│    │  { terminalId,                 │                        │
-│    │    force: true,                │                        │
-│    │    reason: 'user_closed' }     │                        │
-│    │───────────────────────────────►│                        │
-│    │                                │                        │
-│    │  terminal:destroyed            │  ◄── ALLOWED          │
-│    │  { terminalId }                │                        │
-│    │◄───────────────────────────────│                        │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Tab Deletion Cascade
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  Tab Deletion Flow                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Client                           Server                     │
-│    │                                │                        │
-│    │  tab:delete { tabId }          │                        │
-│    │───────────────────────────────►│                        │
-│    │                                │                        │
-│    │                                │  1. Find terminals     │
-│    │                                │     in this tab        │
-│    │                                │                        │
-│    │  terminal:destroyed (T1)       │  2. Destroy each       │
-│    │◄───────────────────────────────│     and broadcast      │
-│    │                                │                        │
-│    │  terminal:destroyed (T2)       │                        │
-│    │◄───────────────────────────────│                        │
-│    │                                │                        │
-│    │  tab:deleted { tabId }         │  3. Delete tab         │
-│    │◄───────────────────────────────│     and broadcast      │
-│    │                                │                        │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## File Structure
-
-```
-src/stores/
-├── index.tsx              # StoreProvider, useStore hook
-├── root-store.ts          # Root store composition
-├── terminal-data-model.md # This file
-│
-├── models/
-│   ├── index.ts           # Model exports
-│   ├── terminal.ts        # Terminal model
-│   ├── tab.ts             # Tab model
-│   └── view-state.ts      # View state model
-│
-├── hooks/
-│   ├── index.ts           # Hook exports
-│   └── use-terminal-store.ts  # useTerminalStore hook
-│
-└── sync/
-    └── index.ts           # Request ID generation, patch utilities
-```
-
 ## Optimistic Update Flow
 
 ```
@@ -380,11 +311,11 @@ unmount/remount cycles (e.g., React strict mode, navigation).
 │       │                        │     terminal:attached    │         │
 │       │                        │◄─────────────────────────│         │
 │       │                        │                          │         │
-│       │   onAttached()         │  6. Call onAttached      │         │
-│       │◄───────────────────────│     callback             │         │
+│       │   onAttached(realId)   │  6. Call onAttached      │         │
+│       │◄───────────────────────│     with terminalId arg  │         │
 │       │                        │                          │         │
 │       │  consumePending-       │                          │         │
-│       │  Startup(terminalId)   │                          │         │
+│       │  Startup(realId)       │                          │         │
 │       │───────────────────────►│                          │         │
 │       │                        │                          │         │
 │       │  ◄── Returns startup   │  7. Delete from map      │         │
@@ -395,9 +326,6 @@ unmount/remount cycles (e.g., React strict mode, navigation).
 │       │                        │                          │         │
 │       ▼                        ▼                          ▼         │
 └─────────────────────────────────────────────────────────────────────┘
-
-Key: terminalsPendingStartup survives component unmount/remount because
-it's stored in MST volatile state, not React component refs.
 ```
 
 ### StartupInfo Structure
@@ -412,19 +340,261 @@ interface StartupInfo {
 }
 ```
 
-### Why Store-Based Startup Tracking?
+---
 
-Previous implementation used React refs (`createdByMeRef`), which failed when:
+## Gotchas & Critical Implementation Details
 
-1. Component creates terminal, sets `createdByMeRef = true`
-2. Component unmounts (React strict mode, navigation)
-3. Component remounts → **new ref** with `createdByMeRef = false`
-4. `onAttached` fires → reads `false` → skips startup
+### 1. dtach Session Lifecycle
 
-With MST store:
-- Startup info persists in `terminalsPendingStartup` across component lifecycle
-- `consumePendingStartup()` atomically gets AND deletes (prevents double-run)
-- Cleanup on error, disconnect, and terminal destruction
+Vibora uses `dtach` for persistent terminal sessions. Understanding the lifecycle is critical:
+
+1. **Creation** (`dtach -n`): Creates socket and spawns shell, then **exits immediately**
+2. **Attachment** (`dtach -a`): Connects to existing socket, this is the long-lived process
+
+**Critical**: These are two separate processes. The creation process exits right away—don't hold references to it.
+
+**Past Bug (Dec 2024)**: Task terminals showed blank screens because `start()` stored the short-lived `dtach -n` PTY in `this.pty`. When `attach()` checked `if (this.pty) return`, it bailed out thinking attachment already happened. Fix: Use a local variable for the creation PTY.
+
+### 2. TempId → RealId Transition
+
+When a terminal is created optimistically:
+1. Client generates `tempId` (e.g., `temp-abc123`)
+2. Server confirms with `realId` (e.g., `uuid-xyz789`)
+3. Client must transition ALL state from tempId to realId
+
+**Things that must be transferred:**
+- Pending startup info (`terminalsPendingStartup`)
+- xterm instance reference
+- onAttached callbacks
+- newTerminalIds tracking
+
+**Common pitfall**: Forgetting to transfer something causes silent failures later.
+
+### 3. Callback Closure Problem (Critical!)
+
+When React effects create callbacks, they close over state at creation time:
+
+```typescript
+// In React effect when terminalId = tempId
+const onAttached = () => {
+  // BAD: closes over currentTerminalId which is tempId
+  writeToTerminal(currentTerminalId, data)  // writes to wrong terminal!
+}
+```
+
+**The problem**: The callback is created when `terminalId` is `tempId`. After server confirms with `realId`, the callback still has `tempId` baked in.
+
+**Solution**: Pass the actual terminalId as a parameter to the callback:
+
+```typescript
+// MST store calls: callback(terminalId)
+const onAttached = (actualTerminalId: string) => {
+  writeToTerminal(actualTerminalId, data)  // uses correct ID
+}
+```
+
+### 4. Double Handler Registration
+
+When transitioning tempId → realId, both MST and React can try to attach handlers:
+
+```
+Timeline:
+  1. React effect runs for tempId → registers onData handler
+  2. Server confirms with realId
+  3. MST handler calls attachXterm(realId) → registers onData handler
+  4. React effect cleanup runs (terminalId changed)
+  5. React effect runs for realId → registers ANOTHER onData handler!
+```
+
+**Result**: Every keystroke is sent twice (double input).
+
+**Solution**: Make `attachXterm` idempotent:
+
+```typescript
+attachXterm(terminalId, xterm, options) {
+  // If same xterm already attached, skip re-attachment
+  if (terminal.xterm === xterm) {
+    // Just register callback if needed
+    return existingCleanup
+  }
+  // ... proceed with attachment
+}
+```
+
+### 5. Cleanup Before Re-attachment
+
+When transitioning from tempId to realId, you MUST cleanup old handlers before attaching new ones:
+
+```typescript
+// In terminal:created handler
+if (oldCleanup) {
+  oldCleanup()  // Dispose old onData handlers
+}
+// Now safe to re-attach
+attachXterm(realId, xterm, { onAttached })
+```
+
+Without this, the old tempId handlers remain active on the xterm, causing double input.
+
+### 6. Race: terminal:attached Before Callback Registration
+
+Sometimes the server responds with `terminal:attached` before the React effect has registered its callback:
+
+```
+Timeline:
+  1. MST sends terminal:attach
+  2. Server immediately responds with terminal:attached
+  3. MST handler checks for callback → none registered yet!
+  4. React effect runs, registers callback
+  5. Callback never fires (terminal:attached already processed)
+```
+
+**Solution**: Track terminals that are "ready" for callback:
+
+```typescript
+// In terminal:attached handler
+if (!callback) {
+  terminalsReadyForCallback.add(terminalId)
+}
+
+// In attachXterm when registering callback
+if (terminalsReadyForCallback.has(terminalId)) {
+  terminalsReadyForCallback.delete(terminalId)
+  callback(terminalId)  // Call immediately
+}
+```
+
+### 7. Store-Based vs React Ref State
+
+**Don't use React refs for state that must survive component lifecycle:**
+
+- Component unmount/remount loses ref values
+- React strict mode double-renders cause issues
+- Navigation between views remounts components
+
+**Use MST volatile state instead:**
+- `terminalsPendingStartup` - survives component unmount
+- `onAttachedCallbacks` - survives component unmount
+- `terminalsReadyForCallback` - race condition tracking
+
+### 8. Why consumePendingStartup Must Be Atomic
+
+```typescript
+consumePendingStartup(terminalId) {
+  const startup = map.get(terminalId)
+  if (startup) {
+    map.delete(terminalId)  // Delete BEFORE returning
+  }
+  return startup
+}
+```
+
+If you return first then delete later, a race condition can cause double execution:
+1. Component A calls consume, gets startup
+2. Component B calls consume before A deletes, also gets startup
+3. Both run startup commands
+
+---
+
+## Protection Mechanisms
+
+### Tab Terminal Protection
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                Tab Terminal Protection                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Client                           Server                     │
+│    │                                │                        │
+│    │  terminal:destroy              │                        │
+│    │  { terminalId, force: false }  │                        │
+│    │───────────────────────────────►│                        │
+│    │                                │                        │
+│    │                                │  Check: has tabId?     │
+│    │                                │  Check: force flag?    │
+│    │                                │                        │
+│    │  terminal:error                │  ◄── BLOCKED          │
+│    │  "Tab terminals require..."    │                        │
+│    │◄───────────────────────────────│                        │
+│    │                                │                        │
+│                                                              │
+│  User clicks X button:                                       │
+│    │                                │                        │
+│    │  terminal:destroy              │                        │
+│    │  { terminalId,                 │                        │
+│    │    force: true,                │                        │
+│    │    reason: 'user_closed' }     │                        │
+│    │───────────────────────────────►│                        │
+│    │                                │                        │
+│    │  terminal:destroyed            │  ◄── ALLOWED          │
+│    │  { terminalId }                │                        │
+│    │◄───────────────────────────────│                        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Tab Deletion Cascade
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Tab Deletion Flow                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Client                           Server                     │
+│    │                                │                        │
+│    │  tab:delete { tabId }          │                        │
+│    │───────────────────────────────►│                        │
+│    │                                │                        │
+│    │                                │  1. Find terminals     │
+│    │                                │     in this tab        │
+│    │                                │                        │
+│    │  terminal:destroyed (T1)       │  2. Destroy each       │
+│    │◄───────────────────────────────│     and broadcast      │
+│    │                                │                        │
+│    │  terminal:destroyed (T2)       │                        │
+│    │◄───────────────────────────────│                        │
+│    │                                │                        │
+│    │  tab:deleted { tabId }         │  3. Delete tab         │
+│    │◄───────────────────────────────│     and broadcast      │
+│    │                                │                        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## File Structure
+
+```
+src/stores/
+├── index.tsx                  # StoreProvider, useStore hook
+├── root-store.ts              # Root store composition + actions
+├── terminal-architecture.md   # This file
+│
+├── models/
+│   ├── index.ts               # Model exports
+│   ├── terminal.ts            # Terminal model
+│   ├── tab.ts                 # Tab model
+│   └── view-state.ts          # View state model
+│
+├── hooks/
+│   ├── index.ts               # Hook exports
+│   └── use-terminal-store.ts  # useTerminalStore hook
+│
+└── sync/
+    └── index.ts               # Request ID generation, patch utilities
+
+src/hooks/
+└── use-terminal-ws.ts         # Legacy compatibility wrapper
+
+src/components/terminal/
+├── task-terminal.tsx          # Task terminal with auto-Claude startup
+├── terminal-panel.tsx         # Tab terminal panel
+└── ...
+```
+
+---
 
 ## Migration Status
 
@@ -437,3 +607,4 @@ With MST store:
 | 4 | Optimistic updates with rollback | ✅ Complete |
 | 5 | Multi-client sync (stale detection) | ✅ Complete |
 | 6 | Task terminal startup fix | ✅ Complete |
+| 7 | TempId→RealId race conditions | ✅ Complete |
