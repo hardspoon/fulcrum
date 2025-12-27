@@ -866,6 +866,12 @@ async function init() {
       } else if (event.data?.type === 'vibora:playSound') {
         // Play notification sound locally
         playNotificationSound();
+      } else if (event.data?.type === 'vibora:openUrl') {
+        // Open URL with system handler (for vscode://, cursor://, etc.)
+        const { url } = event.data;
+        Neutralino.os.open(url).catch((err) => {
+          console.error('[Vibora] Failed to open URL:', url, err);
+        });
       }
     });
 
