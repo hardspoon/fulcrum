@@ -9,7 +9,11 @@ import { MarkdownRenderer } from './markdown-renderer'
 
 const AUTO_SAVE_DELAY = 1000 // 1 second debounce
 
-export const FileContent = observer(function FileContent() {
+interface FileContentProps {
+  onBack?: () => void
+}
+
+export const FileContent = observer(function FileContent({ onBack }: FileContentProps) {
   const {
     worktreePath,
     readOnly,
@@ -57,7 +61,7 @@ export const FileContent = observer(function FileContent() {
     [selectedFile, readOnly, updateContent, saveFile]
   )
 
-  const handleClose = useCallback(() => {
+  const handleBack = useCallback(() => {
     if (selectedFile) {
       // Cancel pending save
       if (saveTimerRef.current) {
@@ -66,7 +70,8 @@ export const FileContent = observer(function FileContent() {
       }
       closeFile(selectedFile)
     }
-  }, [selectedFile, closeFile])
+    onBack?.()
+  }, [selectedFile, closeFile, onBack])
 
   const handleToggleMarkdownView = useCallback(() => {
     if (selectedFile) {
@@ -129,7 +134,7 @@ export const FileContent = observer(function FileContent() {
             {selectedFile.split('/').pop() || selectedFile}
           </span>
           <button
-            onClick={handleClose}
+            onClick={handleBack}
             className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/50"
             title="Close file"
           >
@@ -198,7 +203,7 @@ export const FileContent = observer(function FileContent() {
         )}
 
         <button
-          onClick={handleClose}
+          onClick={handleBack}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/50"
           title="Close file"
         >
