@@ -395,7 +395,6 @@ function RepositoriesView() {
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-background px-4 py-2">
         <div className="flex items-center gap-2 sm:gap-4">
-          <h1 className="text-sm font-medium max-sm:hidden">{t('title')}</h1>
           {repositories && (
             <div className="text-xs text-muted-foreground">{t('total', { count: repositories.length })}</div>
           )}

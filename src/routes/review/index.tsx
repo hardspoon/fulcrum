@@ -40,9 +40,7 @@ function ReviewPage() {
   if (!isUserLoading && !user) {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex shrink-0 items-center border-b border-border bg-background px-4 py-2">
-          <h1 className="text-sm font-medium">{t('title')}</h1>
-        </div>
+        <div className="flex shrink-0 items-center border-b border-border bg-background px-4 py-2" />
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="max-w-md space-y-4 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -83,11 +81,7 @@ function ReviewPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b border-border bg-background px-4 py-2 max-sm:px-2">
-        <div className="flex items-center gap-4 max-sm:gap-2">
-          <h1 className="text-sm font-medium max-sm:hidden">{t('title')}</h1>
-        </div>
-
+      <div className="flex shrink-0 items-center justify-end border-b border-border bg-background px-4 py-2 max-sm:px-2">
         <div className="flex items-center gap-4 max-sm:gap-2">
           {/* Filter dropdown - different options for PRs vs Issues */}
           {activeTab === 'prs' ? (

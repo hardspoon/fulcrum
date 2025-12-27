@@ -1259,9 +1259,7 @@ function MonitoringPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border bg-background px-4 py-2">
-        <h1 className="text-sm font-medium">{t('title')}</h1>
-
+      <div className="flex shrink-0 items-center justify-end border-b border-border bg-background px-4 py-2">
         {/* Mobile: dropdown */}
         <div className="sm:hidden">
           <Select value={activeTab} onValueChange={(v) => setActiveTab(v as MonitoringTab)}>
