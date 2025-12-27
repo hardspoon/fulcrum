@@ -66,3 +66,18 @@ export function buildVSCodeUrl(
 ): string {
   return buildEditorUrl(path, 'vscode', remoteHost, sshPort)
 }
+
+/**
+ * Open a URL in the appropriate context
+ * - Desktop app: posts message to parent to use Neutralino.os.open()
+ * - Web browser: uses window.open()
+ */
+export function openExternalUrl(url: string): void {
+  if (window.parent !== window) {
+    // Running in desktop app iframe - delegate to Neutralino
+    window.parent.postMessage({ type: 'vibora:openUrl', url }, '*')
+  } else {
+    // Running in web browser
+    window.open(url, '_blank')
+  }
+}

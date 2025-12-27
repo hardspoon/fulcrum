@@ -32,7 +32,7 @@ import { toast } from 'sonner'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useEditorApp, useEditorHost, useEditorSshPort } from '@/hooks/use-config'
 import { useOpenInTerminal } from '@/hooks/use-open-in-terminal'
-import { buildEditorUrl, getEditorDisplayName } from '@/lib/editor-url'
+import { buildEditorUrl, getEditorDisplayName, openExternalUrl } from '@/lib/editor-url'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
 
 export const Route = createFileRoute('/repositories/$repoId')({
@@ -116,7 +116,7 @@ function RepositoryDetailView() {
   const handleOpenEditor = () => {
     if (!repository) return
     const url = buildEditorUrl(repository.path, editorApp, editorHost, editorSshPort)
-    window.open(url, '_blank')
+    openExternalUrl(url)
   }
 
   const handleOpenInTerminal = () => {

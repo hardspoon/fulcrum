@@ -18,7 +18,7 @@ import { useKillClaudeInTask } from '@/hooks/use-kill-claude'
 import { useEditorApp, useEditorHost, useEditorSshPort, usePort } from '@/hooks/use-config'
 import { useLinearTicket } from '@/hooks/use-linear'
 import { useTerminalWS } from '@/hooks/use-terminal-ws'
-import { buildEditorUrl } from '@/lib/editor-url'
+import { buildEditorUrl, openExternalUrl } from '@/lib/editor-url'
 import { TaskTerminal } from '@/components/terminal/task-terminal'
 import { DiffViewer } from '@/components/viewer/diff-viewer'
 import { BrowserPreview } from '@/components/viewer/browser-preview'
@@ -263,14 +263,14 @@ function TaskView() {
   const handleOpenVSCodeWorktree = () => {
     if (!task?.worktreePath) return
     const url = buildEditorUrl(task.worktreePath, editorApp, editorHost, editorSshPort)
-    window.open(url, '_blank')
+    openExternalUrl(url)
     setVscodeModalOpen(false)
   }
 
   const handleOpenVSCodeRepo = () => {
     if (!task?.repoPath) return
     const url = buildEditorUrl(task.repoPath, editorApp, editorHost, editorSshPort)
-    window.open(url, '_blank')
+    openExternalUrl(url)
     setVscodeModalOpen(false)
   }
 

@@ -47,7 +47,7 @@ import {
 import { FilesystemBrowser } from '@/components/ui/filesystem-browser'
 import { useDefaultGitReposDir, useEditorApp, useEditorHost, useEditorSshPort } from '@/hooks/use-config'
 import { useOpenInTerminal } from '@/hooks/use-open-in-terminal'
-import { buildEditorUrl, getEditorDisplayName } from '@/lib/editor-url'
+import { buildEditorUrl, getEditorDisplayName, openExternalUrl } from '@/lib/editor-url'
 import type { Repository } from '@/types'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
 import { NewProjectDialog } from '@/components/repositories/new-project-dialog'
@@ -79,7 +79,7 @@ function RepositoryCard({
 
   const handleOpenEditor = () => {
     const url = buildEditorUrl(repository.path, editorApp, editorHost, editorSshPort)
-    window.open(url, '_blank')
+    openExternalUrl(url)
   }
 
   const handleDelete = async () => {
