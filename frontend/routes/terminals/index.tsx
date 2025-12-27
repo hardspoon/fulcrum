@@ -92,6 +92,7 @@ const TerminalsView = observer(function TerminalsView() {
     setupImagePaste,
     writeToTerminal,
     sendInputToTerminal,
+    newTerminalIds,
   } = useTerminalStore()
 
   // State for tab edit dialog
@@ -115,8 +116,9 @@ const TerminalsView = observer(function TerminalsView() {
   )
 
   // Redirect to last tab (from localStorage) or first tab if URL has no/invalid tab
+  // Skip if we're in the middle of an intentional navigation (e.g., after creating a new tab)
   useEffect(() => {
-    if (tabs.length > 0 && !isValidTab) {
+    if (tabs.length > 0 && !isValidTab && !intentionalNavigationRef.current) {
       const lastTab = localStorage.getItem(LAST_TAB_STORAGE_KEY)
       const targetTab = lastTab && (tabs.some(t => t.id === lastTab) || lastTab === ALL_TASKS_TAB_ID)
         ? lastTab
@@ -222,6 +224,8 @@ const TerminalsView = observer(function TerminalsView() {
   const pendingTabCreateRef = useRef(false)
   // Track the number of tabs when we initiated a tab creation to detect new tabs
   const tabCountBeforeCreateRef = useRef<number | null>(null)
+  // Track when we're intentionally navigating to a new tab (prevents localStorage redirect race)
+  const intentionalNavigationRef = useRef(false)
 
   // Destroy orphaned worktree terminals (terminals in worktrees dir but no matching task)
   // This cleanup is intentionally conservative to avoid accidental destruction:
@@ -396,6 +400,13 @@ const TerminalsView = observer(function TerminalsView() {
         curr.position > prev.position ? curr : prev
       )
 
+      // Don't navigate to temp IDs - they will be replaced with real IDs shortly.
+      // Wait for the store to replace the temp tab with the real one.
+      if (newestTab.id.startsWith('temp-')) {
+        log.terminal.debug('New tab has temp ID, waiting for real ID', { tabId: newestTab.id })
+        return // Keep waiting - effect will run again when real ID arrives
+      }
+
       log.terminal.debug('New tab detected, auto-opening', { tabId: newestTab.id, name: newestTab.name })
 
       // Clear the ref to prevent re-triggering
@@ -403,6 +414,11 @@ const TerminalsView = observer(function TerminalsView() {
 
       // Switch to the new tab
       setActiveTab(newestTab.id)
+
+      // Clear intentional navigation flag after a short delay to allow URL to update
+      setTimeout(() => {
+        intentionalNavigationRef.current = false
+      }, 100)
 
       // Create a terminal inside the new tab after a short delay
       // to ensure the tab switch is processed first
@@ -440,8 +456,16 @@ const TerminalsView = observer(function TerminalsView() {
       // Attach xterm to terminal via WebSocket
       const cleanup = attachXterm(terminalId, xterm)
       cleanupFnsRef.current.set(terminalId, cleanup)
+
+      // Auto-focus newly created terminals
+      if (newTerminalIds.has(terminalId)) {
+        // Small delay to ensure terminal is fully initialized
+        setTimeout(() => {
+          xterm.focus()
+        }, 50)
+      }
     },
-    [attachXterm]
+    [attachXterm, newTerminalIds]
   )
 
   const handleTerminalResize = useCallback(
@@ -469,6 +493,8 @@ const TerminalsView = observer(function TerminalsView() {
 
     // Record current tab count to detect when new tab arrives
     tabCountBeforeCreateRef.current = tabs.length
+    // Prevent localStorage redirect from overriding our navigation to the new tab
+    intentionalNavigationRef.current = true
 
     const name = `Tab ${tabs.length + 1}`
     log.terminal.debug('Quick creating tab', { name })
@@ -499,6 +525,8 @@ const TerminalsView = observer(function TerminalsView() {
 
       // Record current tab count to detect when new tab arrives
       tabCountBeforeCreateRef.current = tabs.length
+      // Prevent localStorage redirect from overriding our navigation to the new tab
+      intentionalNavigationRef.current = true
 
       log.terminal.debug('Creating tab', { name, directory })
       createTab(name, undefined, directory)
