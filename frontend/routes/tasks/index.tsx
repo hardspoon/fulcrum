@@ -51,37 +51,35 @@ function KanbanView() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="relative flex shrink-0 items-center border-b border-border bg-background px-4 py-2">
-        <div className="absolute left-1/2 -translate-x-1/2">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-4 py-2">
+        <div className="relative min-w-0 flex-1 sm:max-w-64 sm:flex-none">
           <HugeiconsIcon icon={Search01Icon} size={12} strokeWidth={2} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t('searchPlaceholder')}
-            className="w-64 pl-6"
+            className="w-full pl-6"
           />
         </div>
-        <div className="ml-auto">
-          <Select
-            value={repoFilter ?? ''}
-            onValueChange={(v) => setRepoFilter(v || null)}
-          >
-            <SelectTrigger size="sm" className="max-sm:w-auto gap-1.5">
-              <HugeiconsIcon icon={FilterIcon} size={12} strokeWidth={2} className="text-muted-foreground" />
-              <SelectValue>
-                {repoFilter ?? t('allRepos')}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent className="min-w-[160px]">
-              <SelectItem value="">{t('allRepos')}</SelectItem>
-              {repoNames.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Select
+          value={repoFilter ?? ''}
+          onValueChange={(v) => setRepoFilter(v || null)}
+        >
+          <SelectTrigger size="sm" className="shrink-0 gap-1.5">
+            <HugeiconsIcon icon={FilterIcon} size={12} strokeWidth={2} className="text-muted-foreground" />
+            <SelectValue>
+              {repoFilter ?? t('allRepos')}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent className="min-w-[160px]">
+            <SelectItem value="">{t('allRepos')}</SelectItem>
+            {repoNames.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="flex-1 overflow-hidden">
         <KanbanBoard repoFilter={repoFilter ?? null} searchQuery={searchQuery} />
