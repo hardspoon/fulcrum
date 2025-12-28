@@ -186,8 +186,6 @@ function RepositoryDetailView() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-background px-4 py-2">
-        <span className="text-sm font-medium">{repository.displayName}</span>
-
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -271,6 +269,8 @@ function RepositoryDetailView() {
             <span className="max-sm:hidden">{updateRepository.isPending ? 'Saving...' : 'Save'}</span>
           </Button>
         </div>
+
+        <span className="text-sm font-medium">{repository.displayName}</span>
       </div>
 
       <Tabs
@@ -278,7 +278,7 @@ function RepositoryDetailView() {
         onValueChange={(v) => setActiveTab(v as RepoTab)}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <div className="shrink-0 border-b border-border px-4">
+        <div className="shrink-0 border-b border-border bg-muted/50 px-4">
           <TabsList variant="line">
             <TabsTrigger value="settings" className="px-3 py-1.5">Settings</TabsTrigger>
             <TabsTrigger value="files" className="px-3 py-1.5">Files</TabsTrigger>
