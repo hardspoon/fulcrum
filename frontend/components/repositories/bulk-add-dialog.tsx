@@ -311,7 +311,6 @@ export function BulkAddDialog({
         onOpenChange={setBrowserOpen}
         onSelect={handleBrowseSelect}
         initialPath={effectiveDirectory || undefined}
-        mode="directory"
       />
     </>
   )
