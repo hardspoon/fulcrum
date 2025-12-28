@@ -208,6 +208,7 @@ function RepositoryCard({
 
 function CreateRepositoryDialog() {
   const { t } = useTranslation('repositories')
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [browserOpen, setBrowserOpen] = useState(false)
   const [path, setPath] = useState('')
@@ -240,13 +241,14 @@ function CreateRepositoryDialog() {
         isCopierTemplate,
       },
       {
-        onSuccess: () => {
+        onSuccess: (repo) => {
           setOpen(false)
           setPath('')
           setDisplayName('')
           setStartupScript('')
           setCopyFiles('')
           setIsCopierTemplate(false)
+          navigate({ to: '/repositories/$repoId', params: { repoId: repo.id } })
         },
       }
     )
