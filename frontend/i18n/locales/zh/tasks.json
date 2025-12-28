@@ -37,7 +37,8 @@
     "createTask": "创建任务",
     "errors": {
       "notGitRepo": "所选文件夹不是 Git 仓库",
-      "validationFailed": "验证仓库失败"
+      "validationFailed": "验证仓库失败",
+      "createFailed": "创建任务失败"
     }
   }
 }

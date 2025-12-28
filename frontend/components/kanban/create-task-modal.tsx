@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useHotkeys } from '@/hooks/use-hotkeys'
 import {
   Dialog,
@@ -235,6 +236,11 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
           // Reset tab to saved if repositories exist, otherwise browse
           setRepoTab(repositories && repositories.length > 0 ? 'saved' : 'browse')
           navigate({ to: '/tasks/$taskId', params: { taskId: task.id }, state: navState as Record<string, unknown> })
+        },
+        onError: (error) => {
+          toast.error(t('createModal.errors.createFailed'), {
+            description: error instanceof Error ? error.message : String(error),
+          })
         },
       }
     )

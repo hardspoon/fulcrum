@@ -37,7 +37,8 @@
     "createTask": "Create Task",
     "errors": {
       "notGitRepo": "Selected folder is not a git repository",
-      "validationFailed": "Failed to validate repository"
+      "validationFailed": "Failed to validate repository",
+      "createFailed": "Failed to create task"
     }
   }
 }
