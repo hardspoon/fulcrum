@@ -15,6 +15,7 @@ import type { TerminalInfo } from '@/hooks/use-terminal-ws'
 import type { Terminal as XTerm } from '@xterm/xterm'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { MobileTerminalControls } from './mobile-terminal-controls'
+import { GitStatusBadge } from '@/components/viewer/git-status-badge'
 
 interface TaskInfo {
   taskId: string
@@ -85,6 +86,7 @@ function TerminalPane({ terminal, taskInfo, isMobile, onClose, onReady, onResize
                 )}
               </>
             )}
+            <GitStatusBadge worktreePath={taskInfo.worktreePath} />
             <div className="ml-auto flex items-center gap-0.5">
               <GitActionsButtons
                 repoPath={taskInfo.repoPath}
