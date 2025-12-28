@@ -48,7 +48,7 @@
 
     /* Status colors */
     --status-in-progress: #8d909b;                /* Lavender Grey - active */
-    --status-in-review: #2a2a27;                  /* Graphite - waiting */
+    --status-in-review: #e08d3c;                  /* Tiger's Eye - waiting */
     --status-done: #0d5c63;                       /* Stormy Teal - complete */
     --status-canceled: #dd403a;                   /* Cinnabar - stopped */
 }
@@ -95,9 +95,6 @@
     --sidebar-ring: oklch(0.985 0.001 106.423);
     --terminal-background: #0a0a0a;
     --tile: rgba(250, 249, 245, 0.1);             /* Porcelain 10% */
-
-    /* Status colors - dark mode overrides */
-    --status-in-review: #faf9f5;                  /* Porcelain - waiting */
 }
 
 @theme inline {
