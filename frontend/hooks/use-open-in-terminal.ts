@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { toast } from 'sonner'
 import { useTerminalWS } from './use-terminal-ws'
 import { log } from '@/lib/logger'
 
@@ -75,6 +76,18 @@ export function useOpenInTerminal() {
 
       if (!connected) {
         log.ws.warn('useOpenInTerminal: not connected, aborting')
+        toast.error('Terminal not connected', {
+          description: 'Please wait for the connection to establish',
+        })
+        return
+      }
+
+      // Prevent duplicate tab creation from rapid clicks
+      if (pendingRef.current) {
+        log.ws.warn('useOpenInTerminal: tab creation already pending', {
+          pendingDirectory: pendingRef.current.directory,
+          requestedDirectory: directory,
+        })
         return
       }
 
