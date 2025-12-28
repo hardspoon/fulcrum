@@ -103,8 +103,8 @@ class FrontendLogger implements Logger {
       console[consoleMethod](`[${entry.src}]`, msg, ctx ?? '')
     }
 
-    // Send to server if debug mode is enabled
-    if (DEBUG_ENABLED) {
+    // Send to server in dev mode or when debug mode is enabled
+    if (IS_DEV || DEBUG_ENABLED) {
       logBuffer.push(entry)
 
       // Flush if buffer is full
@@ -161,6 +161,7 @@ export const log = {
   terminalsView: createLogger('TerminalsView'),
   ws: createLogger('WebSocket'),
   taskTerminal: createLogger('TaskTerminal'),
+  repoTerminal: createLogger('RepoTerminal'),
   kanban: createLogger('Kanban'),
   viewer: createLogger('Viewer'),
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useRepository, useUpdateRepository, useDeleteRepository } from '@/hooks/use-repositories'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowLeft02Icon,
@@ -24,45 +25,39 @@ import {
   Folder01Icon,
   Loading03Icon,
   Alert02Icon,
-  VisualStudioCodeIcon,
   TaskAdd01Icon,
-  ComputerTerminal01Icon,
   Tick02Icon,
   GridViewIcon,
 } from '@hugeicons/core-free-icons'
 import { toast } from 'sonner'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useEditorApp, useEditorHost, useEditorSshPort } from '@/hooks/use-config'
-import { useOpenInTerminal } from '@/hooks/use-open-in-terminal'
-import { buildEditorUrl, getEditorDisplayName, openExternalUrl } from '@/lib/editor-url'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
 import { FilesViewer } from '@/components/viewer/files-viewer'
+import { GitStatusBadge } from '@/components/viewer/git-status-badge'
+import { Terminal } from '@/components/terminal/terminal'
+import { useTerminalWS } from '@/hooks/use-terminal-ws'
+import { log } from '@/lib/logger'
+import type { Terminal as XTerm } from '@xterm/xterm'
 
-type RepoTab = 'settings' | 'files'
+type RepoTab = 'settings' | 'workspace'
 
 interface RepoDetailSearch {
   tab?: RepoTab
+  file?: string
 }
 
-export const Route = createFileRoute('/repositories/$repoId')({
-  component: RepositoryDetailView,
-  validateSearch: (search: Record<string, unknown>): RepoDetailSearch => ({
-    tab: search.tab === 'files' ? 'files' : undefined,
-  }),
-})
-
+/**
+ * Repository detail view with integrated workspace (terminal + files).
+ */
 function RepositoryDetailView() {
   const { repoId } = Route.useParams()
-  const { tab } = Route.useSearch()
+  const { tab, file } = Route.useSearch()
   const navigate = useNavigate()
   const { data: repository, isLoading, error } = useRepository(repoId)
   const updateRepository = useUpdateRepository()
   const deleteRepository = useDeleteRepository()
-  const { data: editorApp } = useEditorApp()
-  const { data: editorHost } = useEditorHost()
-  const { data: editorSshPort } = useEditorSshPort()
-  const { openInTerminal } = useOpenInTerminal()
 
+  // Form state
   const [displayName, setDisplayName] = useState('')
   const [startupScript, setStartupScript] = useState('')
   const [copyFiles, setCopyFiles] = useState('')
@@ -70,14 +65,64 @@ function RepositoryDetailView() {
   const [hasChanges, setHasChanges] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
 
+  // Terminal state
+  const [terminalId, setTerminalId] = useState<string | null>(null)
+  const [isCreatingTerminal, setIsCreatingTerminal] = useState(false)
+  const [xtermReady, setXtermReady] = useState(false)
+  const [containerReady, setContainerReady] = useState(false)
+  const termRef = useRef<XTerm | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const createdTerminalRef = useRef(false)
+  const attachedRef = useRef(false)
+
+  const {
+    terminals,
+    terminalsLoaded,
+    connected,
+    createTerminal,
+    attachXterm,
+    resizeTerminal,
+    setupImagePaste,
+    writeToTerminal,
+  } = useTerminalWS()
+
   const activeTab = tab || 'settings'
+
+  // Log on mount
+  useEffect(() => {
+    log.repoTerminal.info('component mounted', { repoId, tab, activeTab })
+  }, [repoId, tab, activeTab])
+
+  useEffect(() => {
+    log.repoTerminal.debug('state changed', {
+      terminalId,
+      xtermReady,
+      containerReady,
+      connected,
+      terminalsLoaded,
+      terminalCount: terminals.length,
+      repoPath: repository?.path,
+    })
+  }, [terminalId, xtermReady, containerReady, connected, terminalsLoaded, terminals.length, repository?.path])
 
   const setActiveTab = useCallback(
     (newTab: RepoTab) => {
       navigate({
         to: '/repositories/$repoId',
         params: { repoId },
-        search: newTab === 'settings' ? {} : { tab: newTab },
+        search: newTab === 'settings' ? {} : { tab: newTab, file },
+        replace: true,
+      })
+    },
+    [navigate, repoId, file]
+  )
+
+  const handleFileChange = useCallback(
+    (newFile: string | null) => {
+      navigate({
+        to: '/repositories/$repoId',
+        params: { repoId },
+        search: { tab: 'workspace', file: newFile ?? undefined },
         replace: true,
       })
     },
@@ -140,16 +185,113 @@ function RepositoryDetailView() {
     navigate({ to: '/repositories' })
   }
 
-  const handleOpenEditor = () => {
-    if (!repository) return
-    const url = buildEditorUrl(repository.path, editorApp, editorHost, editorSshPort)
-    openExternalUrl(url)
-  }
+  // Reset terminal state when repository changes
+  // Note: Don't reset xtermReady - the Terminal component stays mounted and reuses the same xterm instance
+  useEffect(() => {
+    createdTerminalRef.current = false
+    attachedRef.current = false
+    setTerminalId(null)
+    setIsCreatingTerminal(false)
+  }, [repository?.path])
 
-  const handleOpenInTerminal = () => {
-    if (!repository) return
-    openInTerminal(repository.path, repository.displayName)
-  }
+  // Find or create terminal when workspace tab is active
+  useEffect(() => {
+    if (!connected || !repository?.path || !terminalsLoaded || activeTab !== 'workspace' || !xtermReady) {
+      log.repoTerminal.debug('find/create: waiting', { connected, path: repository?.path, terminalsLoaded, activeTab, xtermReady })
+      return
+    }
+
+    // Look for existing terminal with matching cwd
+    const existingTerminal = terminals.find((t) => t.cwd === repository.path)
+    if (existingTerminal) {
+      log.repoTerminal.info('found existing terminal', { id: existingTerminal.id, cwd: existingTerminal.cwd })
+      setTerminalId(existingTerminal.id)
+      return
+    }
+
+    // Create terminal only once
+    if (!createdTerminalRef.current && termRef.current) {
+      createdTerminalRef.current = true
+      setIsCreatingTerminal(true)
+      const { cols, rows } = termRef.current
+      log.repoTerminal.info('creating terminal', { name: repository.displayName, cwd: repository.path, cols, rows })
+      createTerminal({
+        name: repository.displayName,
+        cols,
+        rows,
+        cwd: repository.path,
+      })
+    }
+  }, [connected, repository?.path, repository?.displayName, terminalsLoaded, terminals, activeTab, createTerminal, xtermReady])
+
+  // Update terminalId when terminal appears in list
+  useEffect(() => {
+    if (!repository?.path) return
+
+    const matchingTerminal = terminals.find((t) => t.cwd === repository.path)
+    if (!matchingTerminal) return
+
+    const currentTerminalExists = terminalId && terminals.some((t) => t.id === terminalId)
+
+    if (!terminalId || !currentTerminalExists) {
+      setTerminalId(matchingTerminal.id)
+      setIsCreatingTerminal(false)
+      if (terminalId && !currentTerminalExists) {
+        attachedRef.current = false
+      }
+    }
+  }, [terminals, repository?.path, terminalId])
+
+  // Terminal callbacks
+  const handleTerminalReady = useCallback((xterm: XTerm) => {
+    log.repoTerminal.info('xterm ready')
+    termRef.current = xterm
+    setXtermReady(true)
+  }, [])
+
+  const handleTerminalResize = useCallback((cols: number, rows: number) => {
+    if (terminalId) {
+      resizeTerminal(terminalId, cols, rows)
+    }
+  }, [terminalId, resizeTerminal])
+
+  const handleTerminalContainerReady = useCallback((container: HTMLDivElement) => {
+    log.repoTerminal.info('container ready')
+    containerRef.current = container
+    setContainerReady(true)
+  }, [])
+
+  const handleTerminalSend = useCallback((data: string) => {
+    if (terminalId) {
+      writeToTerminal(terminalId, data)
+    }
+  }, [terminalId, writeToTerminal])
+
+  // Attach xterm to terminal once we have terminalId and both xterm/container are ready
+  useEffect(() => {
+    if (!terminalId || !xtermReady || !containerReady) {
+      log.repoTerminal.debug('attach effect: waiting', { terminalId, xtermReady, containerReady })
+      return
+    }
+    if (!termRef.current || !containerRef.current) {
+      log.repoTerminal.warn('attach effect: refs not set despite ready states', { terminalId })
+      return
+    }
+    if (attachedRef.current) {
+      log.repoTerminal.debug('attach effect: already attached', { terminalId })
+      return
+    }
+
+    log.repoTerminal.info('attaching terminal', { terminalId })
+    attachXterm(terminalId, termRef.current)
+    setupImagePaste(containerRef.current, terminalId)
+    attachedRef.current = true
+
+    return () => {
+      log.repoTerminal.debug('detaching terminal', { terminalId })
+      attachedRef.current = false
+    }
+  }, [terminalId, xtermReady, containerReady, attachXterm, setupImagePaste])
 
   if (isLoading) {
     return (
@@ -200,17 +342,6 @@ function RepositoryDetailView() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleOpenInTerminal}
-            className="text-muted-foreground hover:text-foreground"
-            title="Open in Terminal"
-          >
-            <HugeiconsIcon icon={ComputerTerminal01Icon} size={16} strokeWidth={2} data-slot="icon" />
-            <span className="max-sm:hidden">Terminal</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
             onClick={() => navigate({ to: '/tasks', search: { repo: repository.displayName } })}
             className="text-muted-foreground hover:text-foreground"
             title="View Tasks"
@@ -218,21 +349,12 @@ function RepositoryDetailView() {
             <HugeiconsIcon icon={GridViewIcon} size={14} strokeWidth={2} data-slot="icon" />
             <span className="max-sm:hidden">Tasks</span>
           </Button>
-
-          {/* Editor - hidden on mobile */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleOpenEditor}
-            className="text-muted-foreground hover:text-foreground max-sm:hidden"
-            title={`Open in ${getEditorDisplayName(editorApp)}`}
-          >
-            <HugeiconsIcon icon={VisualStudioCodeIcon} size={14} strokeWidth={2} data-slot="icon" />
-            <span>Editor</span>
-          </Button>
         </div>
 
-        <span className="text-sm font-medium">{repository.displayName}</span>
+        <div className="flex items-center gap-3">
+          <GitStatusBadge worktreePath={repository.path} />
+          <span className="text-sm font-medium">{repository.displayName}</span>
+        </div>
       </div>
 
       <Tabs
@@ -243,7 +365,7 @@ function RepositoryDetailView() {
         <div className="shrink-0 border-b border-border bg-muted/50 px-4">
           <TabsList variant="line">
             <TabsTrigger value="settings" className="px-3 py-1.5">Settings</TabsTrigger>
-            <TabsTrigger value="files" className="px-3 py-1.5">Files</TabsTrigger>
+            <TabsTrigger value="workspace" className="px-3 py-1.5">Workspace</TabsTrigger>
           </TabsList>
         </div>
 
@@ -353,8 +475,50 @@ function RepositoryDetailView() {
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="files" className="flex-1 overflow-hidden mt-0">
-          <FilesViewer worktreePath={repository.path} readOnly />
+        <TabsContent value="workspace" className="flex-1 overflow-hidden mt-0">
+          <ResizablePanelGroup direction="horizontal" className="h-full">
+            <ResizablePanel defaultSize={50} minSize={30}>
+              <div className="h-full flex flex-col">
+                {!connected && (
+                  <div className="shrink-0 px-2 py-1 bg-muted-foreground/20 text-muted-foreground text-xs">
+                    Connecting to terminal server...
+                  </div>
+                )}
+                {isCreatingTerminal && !terminalId && (
+                  <div className="flex-1 flex items-center justify-center bg-terminal-background">
+                    <div className="flex flex-col items-center gap-3">
+                      <HugeiconsIcon
+                        icon={Loading03Icon}
+                        size={24}
+                        strokeWidth={2}
+                        className="animate-spin text-muted-foreground"
+                      />
+                      <span className="font-mono text-sm text-muted-foreground">
+                        Initializing terminal...
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <Terminal
+                  className="flex-1"
+                  onReady={handleTerminalReady}
+                  onResize={handleTerminalResize}
+                  onContainerReady={handleTerminalContainerReady}
+                  terminalId={terminalId ?? undefined}
+                  setupImagePaste={setupImagePaste}
+                  onSend={handleTerminalSend}
+                />
+              </div>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={50} minSize={30}>
+              <FilesViewer
+                worktreePath={repository.path}
+                initialSelectedFile={file}
+                onFileChange={handleFileChange}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
         </TabsContent>
       </Tabs>
 
@@ -367,3 +531,11 @@ function RepositoryDetailView() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/repositories/$repoId')({
+  component: RepositoryDetailView,
+  validateSearch: (search: Record<string, unknown>): RepoDetailSearch => ({
+    tab: search.tab === 'workspace' ? 'workspace' : undefined,
+    file: typeof search.file === 'string' ? search.file : undefined,
+  }),
+})

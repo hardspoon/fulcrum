@@ -22,6 +22,9 @@ export default defineConfig({
   },
   server: {
     allowedHosts: ["citadel"],
+    watch: {
+      ignored: ['.vibora/**'],
+    },
     proxy: {
       '/api': {
         target: `http://localhost:${backendPort}`,

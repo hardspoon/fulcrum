@@ -55,13 +55,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import {
   DropdownMenu,
@@ -138,7 +131,6 @@ function TaskView() {
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteLinkedWorktree, setDeleteLinkedWorktree] = useState(true)
-  const [vscodeModalOpen, setVscodeModalOpen] = useState(false)
   const [mobileTab, setMobileTab] = useState<'terminal' | 'details'>('terminal')
   const isMobile = useIsMobile()
 
@@ -335,22 +327,10 @@ function TaskView() {
     )
   }
 
-  const handleOpenVSCodeModal = () => {
-    setVscodeModalOpen(true)
-  }
-
-  const handleOpenVSCodeWorktree = () => {
+  const handleOpenEditor = () => {
     if (!task?.worktreePath) return
     const url = buildEditorUrl(task.worktreePath, editorApp, editorHost, editorSshPort)
     openExternalUrl(url)
-    setVscodeModalOpen(false)
-  }
-
-  const handleOpenVSCodeRepo = () => {
-    if (!task?.repoPath) return
-    const url = buildEditorUrl(task.repoPath, editorApp, editorHost, editorSshPort)
-    openExternalUrl(url)
-    setVscodeModalOpen(false)
   }
 
   const handleStatusChange = (status: string) => {
@@ -741,13 +721,14 @@ function TaskView() {
             </Button>
           )}
 
-          {/* VS Code Button */}
+          {/* Editor Button */}
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={handleOpenVSCodeModal}
+            onClick={handleOpenEditor}
+            disabled={!task.worktreePath}
             className="text-muted-foreground hover:text-foreground"
-            title="Open in VS Code"
+            title="Open in editor"
           >
             <HugeiconsIcon icon={VisualStudioCodeIcon} size={16} strokeWidth={2} />
           </Button>
@@ -936,44 +917,6 @@ function TaskView() {
         open={configModalOpen}
         onOpenChange={setConfigModalOpen}
       />
-
-      {/* VS Code Modal */}
-      <Dialog open={vscodeModalOpen} onOpenChange={setVscodeModalOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Open in VS Code</DialogTitle>
-            <DialogDescription>
-              Choose which folder to open
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2 mt-4">
-            <Button
-              variant="outline"
-              className="justify-start font-mono text-sm"
-              onClick={handleOpenVSCodeWorktree}
-              disabled={!task.worktreePath}
-            >
-              <HugeiconsIcon icon={GitBranchIcon} size={16} strokeWidth={2} className="mr-2" />
-              Worktree
-              <span className="ml-auto text-xs text-muted-foreground truncate max-w-32">
-                {task.branch}
-              </span>
-            </Button>
-            <Button
-              variant="outline"
-              className="justify-start font-mono text-sm"
-              onClick={handleOpenVSCodeRepo}
-              disabled={!task.repoPath}
-            >
-              <HugeiconsIcon icon={Folder01Icon} size={16} strokeWidth={2} className="mr-2" />
-              Repository
-              <span className="ml-auto text-xs text-muted-foreground truncate max-w-32">
-                {task.repoName}
-              </span>
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
