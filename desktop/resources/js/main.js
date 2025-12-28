@@ -125,7 +125,7 @@ function migrateSettings(settings) {
   };
 
   // Copy existing nested groups if present
-  for (const key of ['server', 'paths', 'authentication', 'editor', 'integrations', 'appearance', 'notifications', 'zai', 'desktop']) {
+  for (const key of ['server', 'paths', 'editor', 'integrations', 'appearance', 'notifications', 'zai', 'desktop']) {
     if (settings[key] && typeof settings[key] === 'object') {
       migrated[key] = { ...migrated[key], ...settings[key] };
     }
@@ -136,8 +136,6 @@ function migrateSettings(settings) {
     const migrationMap = {
       port: ['server', 'port'],
       defaultGitReposDir: ['paths', 'defaultGitReposDir'],
-      basicAuthUsername: ['authentication', 'username'],
-      basicAuthPassword: ['authentication', 'password'],
       sshPort: ['editor', 'sshPort'],
       linearApiKey: ['integrations', 'linearApiKey'],
       githubPat: ['integrations', 'githubPat'],

@@ -25,8 +25,6 @@ import { testNotificationChannel, sendNotification, type NotificationPayload } f
 export const CONFIG_KEYS = {
   PORT: 'server.port',
   DEFAULT_GIT_REPOS_DIR: 'paths.defaultGitReposDir',
-  BASIC_AUTH_USERNAME: 'authentication.username',
-  BASIC_AUTH_PASSWORD: 'authentication.password',
   REMOTE_HOST: 'remoteVibora.host',
   REMOTE_PORT: 'remoteVibora.port',
   EDITOR_APP: 'editor.app',
@@ -46,8 +44,6 @@ const LEGACY_KEY_MAP: Record<string, string> = {
   // snake_case legacy keys
   port: 'server.port',
   default_git_repos_dir: 'paths.defaultGitReposDir',
-  basic_auth_username: 'authentication.username',
-  basic_auth_password: 'authentication.password',
   remote_host: 'remoteVibora.host',
   hostname: 'remoteVibora.host', // Extra legacy key
   ssh_port: 'editor.sshPort',
@@ -57,8 +53,6 @@ const LEGACY_KEY_MAP: Record<string, string> = {
   theme: 'appearance.theme',
   // camelCase legacy keys
   defaultGitReposDir: 'paths.defaultGitReposDir',
-  basicAuthUsername: 'authentication.username',
-  basicAuthPassword: 'authentication.password',
   remoteHost: 'remoteVibora.host',
   sshPort: 'editor.sshPort',
   linearApiKey: 'integrations.linearApiKey',
@@ -285,15 +279,6 @@ app.get('/:key', (c) => {
   const defaultValue = getDefaultValue(path)
   const isDefault = value === defaultValue || value === undefined || value === null
 
-  // Mask password for security
-  if (path === CONFIG_KEYS.BASIC_AUTH_PASSWORD) {
-    return c.json({
-      key,
-      value: value ? '••••••••' : null,
-      isDefault: value === null || value === undefined,
-    })
-  }
-
   return c.json({ key, value: value ?? defaultValue, isDefault })
 })
 
@@ -344,18 +329,12 @@ app.put('/:key', async (c) => {
     } else if (typeof value === 'string' && value === '') {
       // Convert empty strings to null for nullable fields
       if (path === CONFIG_KEYS.LINEAR_API_KEY || path === CONFIG_KEYS.GITHUB_PAT ||
-          path === CONFIG_KEYS.BASIC_AUTH_USERNAME || path === CONFIG_KEYS.BASIC_AUTH_PASSWORD ||
           path === CONFIG_KEYS.REMOTE_HOST || path === CONFIG_KEYS.EDITOR_HOST) {
         value = null
       }
     }
 
     updateSettingByPath(path, value)
-
-    // Mask password in response
-    if (path === CONFIG_KEYS.BASIC_AUTH_PASSWORD) {
-      return c.json({ key, value: value ? '••••••••' : null })
-    }
 
     return c.json({ key, value })
   } catch (err) {

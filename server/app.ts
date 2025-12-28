@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
-import { sessionAuthMiddleware } from './middleware/auth'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
@@ -18,7 +17,6 @@ import repositoriesRoutes from './routes/repositories'
 import copierRoutes from './routes/copier'
 import linearRoutes from './routes/linear'
 import githubRoutes from './routes/github'
-import authRoutes from './routes/auth'
 import { monitoringRoutes } from './routes/monitoring'
 import { writeEntry } from './lib/logger'
 import type { LogEntry } from '../shared/logger'
@@ -45,12 +43,9 @@ export function createApp() {
     cors({
       origin: '*',
       allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Content-Type', 'Authorization'],
+      allowHeaders: ['Content-Type'],
     })
   )
-
-  // Session-based auth with Basic Auth fallback for CLI
-  app.use('*', sessionAuthMiddleware)
 
   // API Routes
   app.route('/health', healthRoutes)
@@ -65,7 +60,6 @@ export function createApp() {
   app.route('/api/copier', copierRoutes)
   app.route('/api/linear', linearRoutes)
   app.route('/api/github', githubRoutes)
-  app.route('/api/auth', authRoutes)
   app.route('/api/monitoring', monitoringRoutes)
 
   // Logging endpoint for frontend to send batched logs to server

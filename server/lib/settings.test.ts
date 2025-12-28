@@ -71,8 +71,6 @@ describe('Settings', () => {
 
       expect(settings.server.port).toBe(7777)
       expect(settings.paths.defaultGitReposDir).toBe(process.env.HOME)
-      expect(settings.authentication.username).toBeNull()
-      expect(settings.authentication.password).toBeNull()
       expect(settings.integrations.linearApiKey).toBeNull()
       expect(settings.integrations.githubPat).toBeNull()
     })

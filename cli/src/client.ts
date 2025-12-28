@@ -1,4 +1,4 @@
-import { discoverServerUrl, getAuthCredentials } from './utils/server'
+import { discoverServerUrl } from './utils/server'
 import { ApiError } from './utils/errors'
 import type {
   Task,
@@ -32,18 +32,9 @@ export interface DiffQueryOptions {
 
 export class ViboraClient {
   private baseUrl: string
-  private authHeader: string | null
 
   constructor(urlOverride?: string, portOverride?: string) {
     this.baseUrl = discoverServerUrl(urlOverride, portOverride)
-
-    const credentials = getAuthCredentials()
-    if (credentials) {
-      const encoded = btoa(`${credentials.username}:${credentials.password}`)
-      this.authHeader = `Basic ${encoded}`
-    } else {
-      this.authHeader = null
-    }
   }
 
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -54,22 +45,11 @@ export class ViboraClient {
       ...(options?.headers as Record<string, string>),
     }
 
-    if (this.authHeader) {
-      headers['Authorization'] = this.authHeader
-    }
-
     try {
       const res = await fetch(url, {
         ...options,
         headers,
       })
-
-      if (res.status === 401) {
-        throw new ApiError(
-          401,
-          'Authentication required. Configure basicAuthUsername and basicAuthPassword in settings.json'
-        )
-      }
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))

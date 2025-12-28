@@ -7,11 +7,8 @@ interface Settings {
   _schemaVersion?: number
   // Nested format (v2)
   server?: { port?: number }
-  authentication?: { username?: string | null; password?: string | null }
   // Legacy flat format
   port?: number
-  basicAuthUsername?: string
-  basicAuthPassword?: string
 }
 
 const DEFAULT_PORT = 7777
@@ -28,28 +25,6 @@ function getPortFromSettings(settings: Settings | null): number | null {
   // Fall back to flat format (legacy)
   if (settings.port) {
     return settings.port
-  }
-  return null
-}
-
-/**
- * Get auth credentials from settings (supports nested and flat formats)
- */
-function getAuthFromSettings(settings: Settings | null): { username: string; password: string } | null {
-  if (!settings) return null
-  // Try nested format first (v2)
-  if (settings.authentication?.username && settings.authentication?.password) {
-    return {
-      username: settings.authentication.username,
-      password: settings.authentication.password,
-    }
-  }
-  // Fall back to flat format (legacy)
-  if (settings.basicAuthUsername && settings.basicAuthPassword) {
-    return {
-      username: settings.basicAuthUsername,
-      password: settings.basicAuthPassword,
-    }
   }
   return null
 }
@@ -146,28 +121,4 @@ export function getViboraDir(): string {
   }
   // 3. ~/.vibora (default)
   return join(homedir(), '.vibora')
-}
-
-/**
- * Gets auth credentials from settings.json.
- * Supports both nested (v2) and flat (legacy) formats.
- * Priority: VIBORA_DIR → CWD .vibora → ~/.vibora
- * Returns null if no credentials are configured.
- */
-export function getAuthCredentials(): { username: string; password: string } | null {
-  const settingsPaths = [
-    process.env.VIBORA_DIR && join(expandPath(process.env.VIBORA_DIR), 'settings.json'),
-    join(process.cwd(), '.vibora', 'settings.json'),
-    join(homedir(), '.vibora', 'settings.json'),
-  ].filter(Boolean) as string[]
-
-  for (const path of settingsPaths) {
-    const settings = readSettingsFile(path)
-    const auth = getAuthFromSettings(settings)
-    if (auth) {
-      return auth
-    }
-  }
-
-  return null
 }

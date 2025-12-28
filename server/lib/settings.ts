@@ -1,7 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
-import * as crypto from 'crypto'
 import { log } from './logger'
 
 // Schema version for settings migration
@@ -22,10 +21,6 @@ export interface Settings {
   }
   paths: {
     defaultGitReposDir: string
-  }
-  authentication: {
-    username: string | null
-    password: string | null
   }
   editor: {
     app: EditorApp
@@ -54,10 +49,6 @@ const DEFAULT_SETTINGS: Settings = {
   paths: {
     defaultGitReposDir: os.homedir(),
   },
-  authentication: {
-    username: null,
-    password: null,
-  },
   editor: {
     app: 'vscode',
     host: '',
@@ -83,8 +74,6 @@ const OLD_DEFAULT_PORT = 3333
 const MIGRATION_MAP: Record<string, string> = {
   port: 'server.port',
   defaultGitReposDir: 'paths.defaultGitReposDir',
-  basicAuthUsername: 'authentication.username',
-  basicAuthPassword: 'authentication.password',
   // remoteHost and hostname are handled specially in migrateSettings (need URL construction)
   sshPort: 'editor.sshPort',
   linearApiKey: 'integrations.linearApiKey',
@@ -302,10 +291,6 @@ export function getSettings(): Settings {
         ((parsed.paths as Record<string, unknown>)?.defaultGitReposDir as string) ?? DEFAULT_SETTINGS.paths.defaultGitReposDir
       ),
     },
-    authentication: {
-      username: ((parsed.authentication as Record<string, unknown>)?.username as string | null) ?? null,
-      password: ((parsed.authentication as Record<string, unknown>)?.password as string | null) ?? null,
-    },
     editor: {
       app: ((parsed.editor as Record<string, unknown>)?.app as EditorApp) ?? DEFAULT_SETTINGS.editor.app,
       host: ((parsed.editor as Record<string, unknown>)?.host as string) ?? DEFAULT_SETTINGS.editor.host,
@@ -338,10 +323,6 @@ export function getSettings(): Settings {
         ? expandPath(process.env.VIBORA_GIT_REPOS_DIR)
         : fileSettings.paths.defaultGitReposDir,
     },
-    authentication: {
-      username: process.env.VIBORA_BASIC_AUTH_USERNAME ?? fileSettings.authentication.username,
-      password: process.env.VIBORA_BASIC_AUTH_PASSWORD ?? fileSettings.authentication.password,
-    },
     editor: {
       app: fileSettings.editor.app,
       host: process.env.VIBORA_EDITOR_HOST ?? fileSettings.editor.host,
@@ -373,8 +354,6 @@ export interface LegacySettings {
   port: number
   defaultGitReposDir: string
   sshPort: number
-  basicAuthUsername: string | null
-  basicAuthPassword: string | null
   linearApiKey: string | null
   githubPat: string | null
   language: 'en' | 'zh' | null
@@ -390,8 +369,6 @@ export function toLegacySettings(settings: Settings): LegacySettings {
     port: settings.server.port,
     defaultGitReposDir: settings.paths.defaultGitReposDir,
     sshPort: settings.editor.sshPort,
-    basicAuthUsername: settings.authentication.username,
-    basicAuthPassword: settings.authentication.password,
     linearApiKey: settings.integrations.linearApiKey,
     githubPat: settings.integrations.githubPat,
     language: settings.appearance.language,
@@ -405,16 +382,6 @@ export function toLegacySettings(settings: Settings): LegacySettings {
 // Check if developer mode is enabled (VIBORA_DEVELOPER env var)
 export function isDeveloperMode(): boolean {
   return process.env.VIBORA_DEVELOPER === '1' || process.env.VIBORA_DEVELOPER === 'true'
-}
-
-// Get session secret derived from password (for signing session cookies)
-// Returns null if auth is not configured
-export function getSessionSecret(): string | null {
-  const settings = getSettings()
-  if (!settings.authentication.password) {
-    return null
-  }
-  return crypto.createHash('sha256').update(settings.authentication.password + 'vibora-session').digest('hex')
 }
 
 // Update a setting by dot-notation path

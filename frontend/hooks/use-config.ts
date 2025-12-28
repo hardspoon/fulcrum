@@ -15,8 +15,6 @@ export const CONFIG_KEYS = {
   PORT: 'server.port',
   WORKTREE_BASE_PATH: 'worktree_base_path', // Read-only, derived from VIBORA_DIR
   DEFAULT_GIT_REPOS_DIR: 'paths.defaultGitReposDir',
-  BASIC_AUTH_USERNAME: 'authentication.username',
-  BASIC_AUTH_PASSWORD: 'authentication.password',
   EDITOR_APP: 'editor.app',
   EDITOR_HOST: 'editor.host',
   EDITOR_SSH_PORT: 'editor.sshPort',
@@ -177,27 +175,6 @@ export function useClaudeCodeDarkTheme() {
   return {
     ...query,
     data: (query.data?.value as ClaudeCodeTheme) ?? 'dark-ansi',
-    isDefault: query.data?.isDefault ?? true,
-  }
-}
-
-export function useBasicAuthUsername() {
-  const query = useConfig(CONFIG_KEYS.BASIC_AUTH_USERNAME)
-
-  return {
-    ...query,
-    data: (query.data?.value as string) ?? '',
-    isDefault: query.data?.isDefault ?? true,
-  }
-}
-
-export function useBasicAuthPassword() {
-  const query = useConfig(CONFIG_KEYS.BASIC_AUTH_PASSWORD)
-
-  return {
-    ...query,
-    // Password is masked on the server, so we just check if it's set
-    data: (query.data?.value as string) ?? '',
     isDefault: query.data?.isDefault ?? true,
   }
 }

@@ -144,17 +144,18 @@ For Claude Desktop, add to your `claude_desktop_config.json`:
 
 Run the backend on a remote server and connect from anywhere. Launch tasks, close your laptop, and your agents keep working. As AI becomes more capable of autonomous work, this becomes essential.
 
-1. **On the remote server:**
+1. **Set up a secure tunnel** — Use Tailscale (recommended) or Cloudflare Tunnels to securely expose your server
+   - **Tailscale** — Works with both web and desktop app. No CORS configuration needed.
+   - **Cloudflare Tunnels** — Alternative for web-only usage. Note: Desktop app has CORS limitations with Cloudflare Tunnels.
+
+2. **On the remote server:**
    ```bash
    npx vibora@latest up
-   vibora config set remoteHost your-server.example.com
-   vibora config set basicAuthUsername admin
-   vibora config set basicAuthPassword your-secure-password
    ```
 
-2. **Connect from desktop app** — Click "Connect to Remote" and enter the server URL
+3. **Connect from desktop app** — Click "Connect to Remote" and enter the server URL (e.g., `http://your-server.tailnet.ts.net:7777`)
 
-3. **Or access via browser** — Open `http://your-server.example.com:7777`
+4. **Or access via browser** — Open the tunnel URL in your browser
 
 <details>
 <summary><strong>Configuration</strong></summary>
@@ -171,8 +172,6 @@ Settings are stored in `.vibora/settings.json`. The vibora directory is resolved
 | defaultGitReposDir | `VIBORA_GIT_REPOS_DIR` | ~ |
 | remoteHost | `VIBORA_REMOTE_HOST` | (empty) |
 | sshPort | `VIBORA_SSH_PORT` | 22 |
-| basicAuthUsername | `VIBORA_BASIC_AUTH_USERNAME` | null |
-| basicAuthPassword | `VIBORA_BASIC_AUTH_PASSWORD` | null |
 | linearApiKey | `LINEAR_API_KEY` | null |
 | githubPat | `GITHUB_PAT` | null |
 | language | — | null (auto-detect) |
@@ -184,10 +183,6 @@ Precedence: environment variable → settings.json → default
 ### Linear Integration
 
 Vibora can sync task status with Linear tickets. Configure `linearApiKey` in settings or set `LINEAR_API_KEY`. When a task is linked to a Linear ticket, status changes in Vibora automatically update Linear.
-
-### Basic Auth
-
-Set `basicAuthUsername` and `basicAuthPassword` to require authentication when exposing Vibora over a network.
 
 </details>
 
