@@ -90,3 +90,44 @@ export function useDeleteRepository() {
     },
   })
 }
+
+export interface ScannedRepository {
+  path: string
+  name: string
+  exists: boolean
+}
+
+export interface ScanResult {
+  directory: string
+  repositories: ScannedRepository[]
+}
+
+export function useScanRepositories() {
+  return useMutation({
+    mutationFn: (directory?: string) =>
+      fetchJSON<ScanResult>(`${API_BASE}/api/repositories/scan`, {
+        method: 'POST',
+        body: JSON.stringify(directory ? { directory } : {}),
+      }),
+  })
+}
+
+export interface BulkCreateResult {
+  created: Repository[]
+  skipped: number
+}
+
+export function useBulkCreateRepositories() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (repositories: Array<{ path: string; displayName?: string }>) =>
+      fetchJSON<BulkCreateResult>(`${API_BASE}/api/repositories/bulk`, {
+        method: 'POST',
+        body: JSON.stringify({ repositories }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['repositories'] })
+    },
+  })
+}

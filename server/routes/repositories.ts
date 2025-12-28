@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync, rmSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
 import { db, repositories, type NewRepository } from '../db'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { getSettings } from '../lib/settings'
 import { isGitUrl, extractRepoNameFromUrl } from '../lib/git-utils'
 
@@ -219,6 +219,116 @@ app.delete('/:id', (c) => {
 
   db.delete(repositories).where(eq(repositories.id, id)).run()
   return c.json({ success: true })
+})
+
+// POST /api/repositories/scan - Scan directory for git repositories
+app.post('/scan', async (c) => {
+  try {
+    const body = await c.req.json<{ directory?: string }>().catch(() => ({}))
+
+    // Default to configured git repos directory
+    const settings = getSettings()
+    const directory = body.directory || settings.paths.defaultGitReposDir
+
+    if (!existsSync(directory)) {
+      return c.json({ error: `Directory does not exist: ${directory}` }, 400)
+    }
+
+    // Get existing repository paths for comparison
+    const existingRepos = db.select({ path: repositories.path }).from(repositories).all()
+    const existingPaths = new Set(existingRepos.map((r) => r.path))
+
+    // Scan immediate subdirectories for .git folders
+    const discovered: Array<{ path: string; name: string; exists: boolean }> = []
+
+    const entries = readdirSync(directory, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      // Skip hidden directories
+      if (entry.name.startsWith('.')) continue
+
+      const subPath = join(directory, entry.name)
+      const gitPath = join(subPath, '.git')
+
+      if (existsSync(gitPath)) {
+        discovered.push({
+          path: subPath,
+          name: entry.name,
+          exists: existingPaths.has(subPath),
+        })
+      }
+    }
+
+    // Sort by name
+    discovered.sort((a, b) => a.name.localeCompare(b.name))
+
+    return c.json({ directory, repositories: discovered })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to scan directory' }, 500)
+  }
+})
+
+// POST /api/repositories/bulk - Bulk create repositories
+app.post('/bulk', async (c) => {
+  try {
+    const body = await c.req.json<{
+      repositories: Array<{ path: string; displayName?: string }>
+    }>()
+
+    if (!body.repositories || !Array.isArray(body.repositories) || body.repositories.length === 0) {
+      return c.json({ error: 'repositories array is required' }, 400)
+    }
+
+    // Get paths that already exist
+    const paths = body.repositories.map((r) => r.path)
+    const existingRepos = db
+      .select({ path: repositories.path })
+      .from(repositories)
+      .where(inArray(repositories.path, paths))
+      .all()
+    const existingPaths = new Set(existingRepos.map((r) => r.path))
+
+    const now = new Date().toISOString()
+    const toCreate: NewRepository[] = []
+
+    for (const repo of body.repositories) {
+      // Skip if path already exists
+      if (existingPaths.has(repo.path)) continue
+
+      // Verify the path exists on disk
+      if (!existsSync(repo.path)) continue
+
+      const displayName = repo.displayName || repo.path.split('/').pop() || 'repo'
+      toCreate.push({
+        id: crypto.randomUUID(),
+        path: repo.path,
+        displayName,
+        startupScript: null,
+        copyFiles: null,
+        isCopierTemplate: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+
+    if (toCreate.length > 0) {
+      db.insert(repositories).values(toCreate).run()
+    }
+
+    // Fetch created repositories
+    const createdIds = toCreate.map((r) => r.id)
+    const created =
+      createdIds.length > 0
+        ? db.select().from(repositories).where(inArray(repositories.id, createdIds)).all()
+        : []
+
+    return c.json({
+      created,
+      skipped: body.repositories.length - toCreate.length,
+    })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to bulk create repositories' }, 500)
+  }
 })
 
 export default app

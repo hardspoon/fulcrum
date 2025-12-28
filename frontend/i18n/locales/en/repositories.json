@@ -7,6 +7,7 @@
   "editor": "Editor",
   "settings": "Settings",
   "addRepository": "Add Repository",
+  "scanDirectory": "Scan Directory",
   "openInTerminal": "Open in Terminal",
   "openInEditor": "Open in {{editor}}",
   "card": {
@@ -77,6 +78,24 @@
         "inProgress": "Running Copier..."
       }
     }
+  },
+  "bulkAdd": {
+    "title": "Scan Directory for Repositories",
+    "description": "Find and add multiple git repositories from a directory.",
+    "directoryLabel": "Directory to scan",
+    "directoryPlaceholder": "Enter directory path",
+    "browse": "Browse...",
+    "scan": "Scan",
+    "foundRepos": "Found {{count}} repositories",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
+    "noReposFound": "No git repositories found in this directory.",
+    "alreadyAdded": "Already added",
+    "adding": "Adding repositories...",
+    "scanFailed": "Failed to scan directory",
+    "addFailed": "Failed to add repositories",
+    "cancel": "Cancel",
+    "addSelected": "Add {{count}} selected"
   },
   "empty": {
     "noRepositories": "No repositories added yet. Add a repository for quick access when creating tasks."
