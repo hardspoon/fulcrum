@@ -95,7 +95,6 @@ const TerminalsView = observer(function TerminalsView() {
     newTerminalIds,
     pendingTabCreation,
     lastCreatedTabId,
-    clearLastCreatedTabId,
   } = useTerminalStore()
 
   // State for tab edit dialog

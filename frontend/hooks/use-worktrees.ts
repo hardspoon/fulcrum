@@ -15,6 +15,11 @@ interface UseWorktreesReturn {
   refetch: () => void
 }
 
+interface WorktreesJsonResponse {
+  worktrees: (WorktreeBasic & Partial<WorktreeDetails>)[]
+  summary: WorktreesSummary
+}
+
 export function useWorktrees(): UseWorktreesReturn {
   const [worktreesMap, setWorktreesMap] = useState<Map<string, Worktree>>(new Map())
   const [summary, setSummary] = useState<WorktreesSummary | null>(null)
@@ -23,8 +28,47 @@ export function useWorktrees(): UseWorktreesReturn {
   const [error, setError] = useState<Error | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const pendingDetailsRef = useRef<number>(0)
+  const useJsonFallbackRef = useRef(false)
+
+  // JSON fallback for environments where SSE doesn't work (e.g., Cloudflare tunnels)
+  const fetchJson = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`${API_BASE}/api/worktrees/json`)
+      if (!response.ok) throw new Error('Failed to fetch worktrees')
+      const data: WorktreesJsonResponse = await response.json()
+
+      setWorktreesMap(
+        new Map(
+          data.worktrees.map((w) => [
+            w.path,
+            {
+              ...w,
+              size: w.size || 0,
+              sizeFormatted: w.sizeFormatted || '0 B',
+              branch: w.branch || 'unknown',
+            },
+          ])
+        )
+      )
+      setSummary(data.summary)
+      setIsLoading(false)
+      setIsLoadingDetails(false)
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to load worktrees'))
+      setIsLoading(false)
+      setIsLoadingDetails(false)
+    }
+  }, [])
 
   const connect = useCallback(() => {
+    // If we've determined SSE doesn't work, use JSON fallback
+    if (useJsonFallbackRef.current) {
+      fetchJson()
+      return
+    }
+
     // Close existing connection
     eventSourceRef.current?.close()
 
@@ -98,12 +142,13 @@ export function useWorktrees(): UseWorktreesReturn {
     })
 
     eventSource.onerror = () => {
-      setError(new Error('Connection lost'))
-      setIsLoading(false)
-      setIsLoadingDetails(false)
       eventSource.close()
+      // SSE failed, try JSON fallback
+      log.viewer.info('SSE connection failed, trying JSON fallback')
+      useJsonFallbackRef.current = true
+      fetchJson()
     }
-  }, [])
+  }, [fetchJson])
 
   useEffect(() => {
     connect()

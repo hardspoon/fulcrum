@@ -98,7 +98,13 @@ const app = new Hono()
 
 // GET /api/worktrees - Stream worktrees via SSE for progressive loading
 app.get('/', (c) => {
+  // Disable proxy buffering for SSE (required for Cloudflare tunnels)
+  c.header('X-Accel-Buffering', 'no')
+
   return streamSSE(c, async (stream) => {
+    // Send immediate comment to establish connection (helps with proxies/tunnels)
+    await stream.write(': ping\n\n')
+
     const worktreeBasePath = getWorktreeBasePath()
 
     // Handle missing directory
@@ -220,6 +226,90 @@ app.get('/', (c) => {
         totalSizeFormatted: formatBytes(totalSize),
       } satisfies WorktreesSummary),
     })
+  })
+})
+
+// GET /api/worktrees/json - JSON fallback for environments where SSE doesn't work (e.g., Cloudflare tunnels)
+app.get('/json', async (c) => {
+  const worktreeBasePath = getWorktreeBasePath()
+
+  // Handle missing directory
+  if (!fs.existsSync(worktreeBasePath)) {
+    return c.json({
+      worktrees: [],
+      summary: {
+        total: 0,
+        orphaned: 0,
+        totalSize: 0,
+        totalSizeFormatted: '0 B',
+      },
+    })
+  }
+
+  // Get all tasks to build a map of worktreePath -> task
+  const allTasks = db.select().from(tasks).all()
+  const worktreeToTask = new Map<string, (typeof allTasks)[0]>()
+  for (const task of allTasks) {
+    if (task.worktreePath) {
+      worktreeToTask.set(task.worktreePath, task)
+    }
+  }
+
+  // Read all directories in worktreeBasePath
+  const entries = fs.readdirSync(worktreeBasePath, { withFileTypes: true })
+  const worktrees: (WorktreeBasic & Partial<WorktreeDetails>)[] = []
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+
+    const fullPath = path.join(worktreeBasePath, entry.name)
+
+    // Check if it's a git worktree (has .git file or directory)
+    const gitPath = path.join(fullPath, '.git')
+    if (!fs.existsSync(gitPath)) continue
+
+    const stats = fs.statSync(fullPath)
+    const linkedTask = worktreeToTask.get(fullPath)
+
+    // Get size and branch in parallel
+    const [size, branch] = await Promise.all([
+      getDirectorySizeAsync(fullPath),
+      getGitBranchAsync(fullPath),
+    ])
+
+    worktrees.push({
+      path: fullPath,
+      name: entry.name,
+      lastModified: stats.mtime.toISOString(),
+      isOrphaned: !linkedTask,
+      taskId: linkedTask?.id,
+      taskTitle: linkedTask?.title,
+      taskStatus: linkedTask?.status,
+      repoPath: linkedTask?.repoPath,
+      size,
+      sizeFormatted: formatBytes(size),
+      branch,
+    })
+  }
+
+  // Sort: orphaned first, then by last modified (newest first)
+  worktrees.sort((a, b) => {
+    if (a.isOrphaned !== b.isOrphaned) {
+      return a.isOrphaned ? -1 : 1
+    }
+    return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
+  })
+
+  const totalSize = worktrees.reduce((sum, w) => sum + (w.size || 0), 0)
+
+  return c.json({
+    worktrees,
+    summary: {
+      total: worktrees.length,
+      orphaned: worktrees.filter((w) => w.isOrphaned).length,
+      totalSize,
+      totalSizeFormatted: formatBytes(totalSize),
+    },
   })
 })
 
