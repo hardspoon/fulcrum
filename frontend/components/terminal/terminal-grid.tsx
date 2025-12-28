@@ -29,6 +29,7 @@ import type { TerminalInfo } from '@/hooks/use-terminal-ws'
 import type { Terminal as XTerm } from '@xterm/xterm'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import { MobileTerminalControls } from './mobile-terminal-controls'
+import { MobileTerminalSelector } from './mobile-terminal-selector'
 import { GitStatusBadge } from '@/components/viewer/git-status-badge'
 import { useStore } from '@/stores'
 import { useTheme } from 'next-themes'
@@ -268,6 +269,15 @@ export function TerminalGrid({
   const [focusedTerminalId, setFocusedTerminalId] = useState<string | null>(
     terminals.length > 0 ? terminals[0].id : null
   )
+  // Track active terminal index for mobile single-terminal view
+  const [mobileActiveIndex, setMobileActiveIndex] = useState(0)
+
+  // Keep mobile active index in bounds when terminals change
+  useEffect(() => {
+    if (mobileActiveIndex >= terminals.length && terminals.length > 0) {
+      setMobileActiveIndex(terminals.length - 1)
+    }
+  }, [terminals.length, mobileActiveIndex])
 
   if (terminals.length === 0) {
     return <EmptyPane onAdd={onTerminalAdd} />
@@ -286,8 +296,12 @@ export function TerminalGrid({
   }
 
   const handleMobileSend = (data: string) => {
-    if (focusedTerminalId && writeToTerminal) {
-      writeToTerminal(focusedTerminalId, data)
+    // On mobile with multiple terminals, use the selected terminal from the selector
+    const targetTerminalId = isMobile && terminals.length > 1
+      ? terminals[mobileActiveIndex]?.id
+      : focusedTerminalId
+    if (targetTerminalId && writeToTerminal) {
+      writeToTerminal(targetTerminalId, data)
     }
   }
 
@@ -314,6 +328,25 @@ export function TerminalGrid({
       {isMobile && writeToTerminal && <MobileTerminalControls onSend={handleMobileSend} />}
     </div>
   )
+
+  // Mobile view with multiple terminals: show one terminal at a time with selector
+  if (isMobile && terminals.length > 1) {
+    const activeTerminal = terminals[mobileActiveIndex] ?? terminals[0]
+    return (
+      <div className="flex h-full w-full flex-col">
+        <MobileTerminalSelector
+          terminals={terminals}
+          activeIndex={mobileActiveIndex}
+          onSelect={setMobileActiveIndex}
+          taskInfoByCwd={taskInfoByCwd}
+        />
+        <div key={activeTerminal.id} className="min-h-0 flex-1">
+          {renderTerminalPane(activeTerminal)}
+        </div>
+        {writeToTerminal && <MobileTerminalControls onSend={handleMobileSend} />}
+      </div>
+    )
+  }
 
   // Single terminal - no resizable panels needed
   if (terminals.length === 1) {
