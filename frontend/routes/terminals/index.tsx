@@ -2,6 +2,7 @@ import { createFileRoute, useSearch, useNavigate } from '@tanstack/react-router'
 import { useCallback, useRef, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { observer } from 'mobx-react-lite'
+import { reaction } from 'mobx'
 import { TerminalGrid } from '@/components/terminal/terminal-grid'
 import { TerminalTabBar } from '@/components/terminal/terminal-tab-bar'
 import { TabEditDialog } from '@/components/terminal/tab-edit-dialog'
@@ -15,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useTerminalStore } from '@/stores'
+import { useTerminalStore, useStore } from '@/stores'
 import type { ITerminal, ITab } from '@/stores'
 import { useTasks } from '@/hooks/use-tasks'
 import { useRepositories } from '@/hooks/use-repositories'
@@ -117,49 +118,73 @@ const TerminalsView = observer(function TerminalsView() {
     [navigate]
   )
 
-  // Unified navigation effect - handles both new tab navigation and redirect
-  // This eliminates race conditions by having a single decision point for navigation
+  // Get raw store for MobX reaction (observer() doesn't help with useEffect dependencies)
+  const store = useStore()
+
+  // MobX reaction to handle newly created tabs
+  // This is needed because React's useEffect doesn't re-run when MobX observables change
+  // unless the component re-renders first. The reaction explicitly subscribes to store changes.
   useEffect(() => {
+    const dispose = reaction(
+      // Track these observables
+      () => ({
+        lastCreatedTabId: store.lastCreatedTabId,
+        pendingTabCreation: store.pendingTabCreation,
+      }),
+      // React to changes
+      ({ lastCreatedTabId: tabId }) => {
+        if (tabId) {
+          log.terminal.info('MobX reaction: lastCreatedTabId changed', { tabId })
+          setActiveTab(tabId)
+
+          // Clear lastCreatedTabId and create terminal AFTER navigation settles
+          // This delay prevents the redirect effect from racing and overriding our navigation
+          setTimeout(() => {
+            store.clearLastCreatedTabId()
+            terminalCountRef.current++
+            const terminalName = `Terminal ${terminalCountRef.current}`
+            log.terminal.debug('Creating terminal in new tab', { tabId, name: terminalName })
+            createTerminal({
+              name: terminalName,
+              cols: 80,
+              rows: 24,
+              tabId,
+              positionInTab: 0,
+            })
+          }, 150)
+        }
+      },
+      { fireImmediately: true } // Check current value on mount
+    )
+    return dispose
+  }, [store, setActiveTab, createTerminal])
+
+  // Redirect effect - handles invalid URL when not waiting for tab creation
+  useEffect(() => {
+    log.terminal.debug('Redirect effect running', {
+      tabsLength: tabs.length,
+      isValidTab,
+      pendingTabCreation,
+      lastCreatedTabId,
+    })
+
     if (tabs.length === 0) return
 
-    // Case 1: Just received real ID for created tab - navigate to it
-    if (lastCreatedTabId) {
-      log.terminal.debug('Navigating to newly created tab', { tabId: lastCreatedTabId })
-      setActiveTab(lastCreatedTabId)
-
-      // Create terminal in new tab after navigation settles
-      const tabId = lastCreatedTabId
-      clearLastCreatedTabId()
-
-      setTimeout(() => {
-        terminalCountRef.current++
-        const terminalName = `Terminal ${terminalCountRef.current}`
-        log.terminal.debug('Creating terminal in new tab', { tabId, name: terminalName })
-        createTerminal({
-          name: terminalName,
-          cols: 80,
-          rows: 24,
-          tabId,
-          positionInTab: 0,
-        })
-      }, 100)
+    // Don't redirect while waiting for tab creation
+    if (pendingTabCreation || lastCreatedTabId) {
       return
     }
 
-    // Case 2: Waiting for pending tab creation - don't redirect
-    if (pendingTabCreation) {
-      return
-    }
-
-    // Case 3: Normal redirect (invalid URL, no pending creation)
+    // Redirect to valid tab if URL is invalid
     if (!isValidTab) {
       const lastTab = localStorage.getItem(LAST_TAB_STORAGE_KEY)
       const targetTab = lastTab && (tabs.some(t => t.id === lastTab) || lastTab === ALL_TASKS_TAB_ID)
         ? lastTab
         : tabs[0].id
+      log.terminal.debug('Redirecting to tab', { targetTab })
       navigate({ to: '/terminals', search: { tab: targetTab }, replace: true })
     }
-  }, [tabs, isValidTab, lastCreatedTabId, pendingTabCreation, setActiveTab, clearLastCreatedTabId, navigate, createTerminal])
+  }, [tabs, isValidTab, lastCreatedTabId, pendingTabCreation, navigate])
 
   // Persist active tab to localStorage
   useEffect(() => {
