@@ -629,9 +629,10 @@ app.post('/merge-to-main', async (c) => {
         gitExec(repoPath, `checkout ${defaultBranch}`)
       }
 
-      // Attempt the merge (git hooks will handle pushing to origin)
+      // Attempt the squash merge (git hooks will handle pushing to origin)
       try {
-        gitExec(repoPath, `merge --no-ff ${worktreeBranch}`)
+        gitExec(repoPath, `merge --squash ${worktreeBranch}`)
+        gitExec(repoPath, `commit -m "Merge branch '${worktreeBranch}'"`)
       } catch (mergeErr) {
         // Check if it's a merge conflict
         try {
