@@ -65,6 +65,7 @@ const LAST_TAB_STORAGE_KEY = 'vibora:lastTerminalTab'
 
 interface TerminalsSearch {
   tab?: string
+  repo?: string
 }
 
 /**
@@ -74,7 +75,7 @@ interface TerminalsSearch {
 const TerminalsView = observer(function TerminalsView() {
   const { t } = useTranslation('terminals')
   const navigate = useNavigate()
-  const { tab: tabFromUrl } = useSearch({ from: '/terminals/' })
+  const { tab: tabFromUrl, repo: repoFilter } = useSearch({ from: '/terminals/' })
   const {
     terminals,
     tabs,
@@ -112,7 +113,21 @@ const TerminalsView = observer(function TerminalsView() {
   // Navigate to update URL when changing tabs
   const setActiveTab = useCallback(
     (tabId: string) => {
-      navigate({ to: '/terminals', search: { tab: tabId }, replace: true })
+      // Clear repo filter when switching away from Task Terminals
+      const repo = tabId === ALL_TASKS_TAB_ID ? repoFilter : undefined
+      navigate({ to: '/terminals', search: { tab: tabId, repo }, replace: true })
+    },
+    [navigate, repoFilter]
+  )
+
+  // Navigate to update URL when changing repo filter
+  const setRepoFilter = useCallback(
+    (repo: string | null) => {
+      navigate({
+        to: '/terminals',
+        search: (prev) => ({ ...prev, repo: repo || undefined }),
+        replace: true,
+      })
     },
     [navigate]
   )
@@ -194,7 +209,6 @@ const TerminalsView = observer(function TerminalsView() {
 
   const { data: tasks = [], status: tasksStatus } = useTasks()
   const { data: repositories = [] } = useRepositories()
-  const [repoFilter, setRepoFilter] = useState<string | null>(null)
 
   // Map repository path to repository id for linking
   const repoIdByPath = useMemo(() => {
@@ -520,25 +534,25 @@ const TerminalsView = observer(function TerminalsView() {
     <div className="flex h-full max-w-full flex-col overflow-hidden">
       {/* Tab Bar + Actions */}
       <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-border bg-background px-2 py-1">
-        <div className="min-w-0 flex-1 overflow-x-auto">
-          <div className="flex items-center">
-            {/* Tasks system tab - always first, visually distinct */}
-            <button
-              onClick={() => setActiveTab(ALL_TASKS_TAB_ID)}
-              className={cn(
-                'relative flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors max-sm:px-2',
-                activeTabId === ALL_TASKS_TAB_ID
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-primary hover:bg-primary/5',
-                'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary after:transition-opacity',
-                activeTabId === ALL_TASKS_TAB_ID ? 'after:opacity-100' : 'after:opacity-0'
-              )}
-            >
-              <HugeiconsIcon icon={GridViewIcon} size={12} strokeWidth={2} />
-              <span className="max-sm:hidden">{t('taskTerminals')}</span>
-            </button>
-            {/* Separator between Tasks and regular tabs */}
-            <div className="mx-2 h-4 w-px bg-border" />
+        <div className="flex min-w-0 flex-1 items-center">
+          {/* Tasks system tab - always first, visually distinct */}
+          <button
+            onClick={() => setActiveTab(ALL_TASKS_TAB_ID)}
+            className={cn(
+              'relative flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors max-sm:px-2',
+              activeTabId === ALL_TASKS_TAB_ID
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-primary hover:bg-primary/5',
+              'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary after:transition-opacity',
+              activeTabId === ALL_TASKS_TAB_ID ? 'after:opacity-100' : 'after:opacity-0'
+            )}
+          >
+            <HugeiconsIcon icon={GridViewIcon} size={12} strokeWidth={2} />
+            <span className="max-sm:hidden">{t('taskTerminals')}</span>
+          </button>
+          {/* Separator between Tasks and regular tabs */}
+          <div className="mx-2 h-4 w-px shrink-0 bg-border" />
+          <div className="min-w-0 flex-1">
             <TerminalTabBar
               tabs={tabBarTabs}
               activeTabId={activeTabId ?? ''}
@@ -628,5 +642,6 @@ export const Route = createFileRoute('/terminals/')({
   component: TerminalsView,
   validateSearch: (search: Record<string, unknown>): TerminalsSearch => ({
     tab: typeof search.tab === 'string' ? search.tab : undefined,
+    repo: typeof search.repo === 'string' ? search.repo : undefined,
   }),
 })

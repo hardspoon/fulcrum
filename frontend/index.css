@@ -178,6 +178,16 @@
   }
 }
 
+/* Hidden scrollbar but still scrollable */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Override sonner's fixed 16x16 icon container for image icons */
 [data-sonner-toast][data-styled=true] [data-icon]:has(img) {
   width: auto !important;

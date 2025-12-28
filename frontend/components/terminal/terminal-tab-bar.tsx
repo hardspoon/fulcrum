@@ -1,7 +1,7 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { PlusSignIcon, Cancel01Icon, Folder01Icon } from '@hugeicons/core-free-icons'
+import { PlusSignIcon, Cancel01Icon, Folder01Icon, ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import { attachClosestEdge, extractClosestEdge, type Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge'
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine'
@@ -190,26 +190,102 @@ export function TerminalTabBar({
   onTabEdit,
   onTabReorder,
 }: TerminalTabBarProps) {
-  return (
-    <div className="flex items-center gap-1">
-      {tabs.map((tab) => (
-        <DraggableTab
-          key={tab.id}
-          tab={tab}
-          isActive={tab.id === activeTabId}
-          canClose={tabs.length > 1}
-          onSelect={() => onTabSelect(tab.id)}
-          onClose={() => onTabClose(tab.id)}
-          onEdit={() => onTabEdit(tab)}
-          onReorder={onTabReorder}
-        />
-      ))}
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
 
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const { scrollLeft, scrollWidth, clientWidth } = el
+    setCanScrollLeft(scrollLeft > 0)
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 1)
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    updateScrollState()
+
+    el.addEventListener('scroll', updateScrollState)
+    const resizeObserver = new ResizeObserver(updateScrollState)
+    resizeObserver.observe(el)
+
+    return () => {
+      el.removeEventListener('scroll', updateScrollState)
+      resizeObserver.disconnect()
+    }
+  }, [updateScrollState])
+
+  // Update scroll state when tabs change
+  useEffect(() => {
+    updateScrollState()
+  }, [tabs, updateScrollState])
+
+  const scrollToStart = useCallback(() => {
+    scrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' })
+  }, [])
+
+  const scrollToEnd = useCallback(() => {
+    const el = scrollRef.current
+    if (el) {
+      el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' })
+    }
+  }, [])
+
+  return (
+    <div className="flex items-center">
+      {/* Scroll to start button */}
+      {canScrollLeft && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={scrollToStart}
+          className="shrink-0"
+        >
+          <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
+        </Button>
+      )}
+
+      {/* Scrollable tabs */}
+      <div
+        ref={scrollRef}
+        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none"
+      >
+        {tabs.map((tab) => (
+          <DraggableTab
+            key={tab.id}
+            tab={tab}
+            isActive={tab.id === activeTabId}
+            canClose={tabs.length > 1}
+            onSelect={() => onTabSelect(tab.id)}
+            onClose={() => onTabClose(tab.id)}
+            onEdit={() => onTabEdit(tab)}
+            onReorder={onTabReorder}
+          />
+        ))}
+      </div>
+
+      {/* Scroll to end button */}
+      {canScrollRight && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={scrollToEnd}
+          className="shrink-0"
+        >
+          <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
+        </Button>
+      )}
+
+      {/* Always-visible create button */}
       <Button
         variant="ghost"
         size="icon-xs"
         onClick={onTabCreate}
-        className="ml-1"
+        className="ml-1 shrink-0"
       >
         <HugeiconsIcon icon={PlusSignIcon} size={14} strokeWidth={2} />
       </Button>

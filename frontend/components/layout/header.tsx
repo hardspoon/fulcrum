@@ -56,7 +56,7 @@ export function Header({ onNewTaskRef, onOpenCommandPalette }: HeaderProps) {
       <div className="flex min-w-0 items-center gap-4 max-sm:gap-2">
 
         {/* Mobile navigation menu */}
-        <NavigationMenu className="lg:hidden">
+        <NavigationMenu className="md:hidden">
           <NavigationMenuList>
             <NavigationMenuItem>
               <NavigationMenuTrigger className="bg-transparent hover:bg-muted/50 data-open:bg-muted/50 gap-1 px-2">
@@ -81,7 +81,7 @@ export function Header({ onNewTaskRef, onOpenCommandPalette }: HeaderProps) {
         </NavigationMenu>
 
         {/* Desktop navigation */}
-        <nav className="hidden items-center gap-1 lg:flex">
+        <nav className="hidden items-center gap-1 md:flex">
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.to, item.matchPrefix)
             return (
