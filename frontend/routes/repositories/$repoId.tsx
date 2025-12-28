@@ -37,6 +37,7 @@ import { GitStatusBadge } from '@/components/viewer/git-status-badge'
 import { Terminal } from '@/components/terminal/terminal'
 import { useTerminalWS } from '@/hooks/use-terminal-ws'
 import { log } from '@/lib/logger'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { Terminal as XTerm } from '@xterm/xterm'
 
 type RepoTab = 'settings' | 'workspace'
@@ -64,6 +65,7 @@ function RepositoryDetailView() {
   const [isCopierTemplate, setIsCopierTemplate] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const [mobileWorkspaceTab, setMobileWorkspaceTab] = useState<'terminal' | 'files'>('terminal')
 
   // Terminal state
   const [terminalId, setTerminalId] = useState<string | null>(null)
@@ -87,6 +89,7 @@ function RepositoryDetailView() {
   } = useTerminalWS()
 
   const activeTab = tab || 'settings'
+  const isMobile = useIsMobile()
 
   // Log on mount
   useEffect(() => {
@@ -476,49 +479,106 @@ function RepositoryDetailView() {
         </TabsContent>
 
         <TabsContent value="workspace" className="flex-1 overflow-hidden mt-0">
-          <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={50} minSize={30}>
-              <div className="h-full flex flex-col">
-                {!connected && (
-                  <div className="shrink-0 px-2 py-1 bg-muted-foreground/20 text-muted-foreground text-xs">
-                    Connecting to terminal server...
-                  </div>
-                )}
-                {isCreatingTerminal && !terminalId && (
-                  <div className="flex-1 flex items-center justify-center bg-terminal-background">
-                    <div className="flex flex-col items-center gap-3">
-                      <HugeiconsIcon
-                        icon={Loading03Icon}
-                        size={24}
-                        strokeWidth={2}
-                        className="animate-spin text-muted-foreground"
-                      />
-                      <span className="font-mono text-sm text-muted-foreground">
-                        Initializing terminal...
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <Terminal
-                  className="flex-1"
-                  onReady={handleTerminalReady}
-                  onResize={handleTerminalResize}
-                  onContainerReady={handleTerminalContainerReady}
-                  terminalId={terminalId ?? undefined}
-                  setupImagePaste={setupImagePaste}
-                  onSend={handleTerminalSend}
-                />
+          {isMobile ? (
+            <Tabs
+              value={mobileWorkspaceTab}
+              onValueChange={(v) => setMobileWorkspaceTab(v as 'terminal' | 'files')}
+              className="flex min-h-0 flex-1 flex-col h-full"
+            >
+              <div className="shrink-0 border-b border-border px-2 py-1">
+                <TabsList className="w-full">
+                  <TabsTrigger value="terminal" className="flex-1">Terminal</TabsTrigger>
+                  <TabsTrigger value="files" className="flex-1">Files</TabsTrigger>
+                </TabsList>
               </div>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={50} minSize={30}>
-              <FilesViewer
-                worktreePath={repository.path}
-                initialSelectedFile={file}
-                onFileChange={handleFileChange}
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
+
+              <TabsContent value="terminal" className="flex-1 min-h-0">
+                <div className="h-full flex flex-col">
+                  {!connected && (
+                    <div className="shrink-0 px-2 py-1 bg-muted-foreground/20 text-muted-foreground text-xs">
+                      Connecting to terminal server...
+                    </div>
+                  )}
+                  {isCreatingTerminal && !terminalId && (
+                    <div className="flex-1 flex items-center justify-center bg-terminal-background">
+                      <div className="flex flex-col items-center gap-3">
+                        <HugeiconsIcon
+                          icon={Loading03Icon}
+                          size={24}
+                          strokeWidth={2}
+                          className="animate-spin text-muted-foreground"
+                        />
+                        <span className="font-mono text-sm text-muted-foreground">
+                          Initializing terminal...
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <Terminal
+                    className="flex-1"
+                    onReady={handleTerminalReady}
+                    onResize={handleTerminalResize}
+                    onContainerReady={handleTerminalContainerReady}
+                    terminalId={terminalId ?? undefined}
+                    setupImagePaste={setupImagePaste}
+                    onSend={handleTerminalSend}
+                  />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="files" className="flex-1 min-h-0">
+                <FilesViewer
+                  worktreePath={repository.path}
+                  initialSelectedFile={file}
+                  onFileChange={handleFileChange}
+                />
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+              <ResizablePanel defaultSize={50} minSize={30}>
+                <div className="h-full flex flex-col">
+                  {!connected && (
+                    <div className="shrink-0 px-2 py-1 bg-muted-foreground/20 text-muted-foreground text-xs">
+                      Connecting to terminal server...
+                    </div>
+                  )}
+                  {isCreatingTerminal && !terminalId && (
+                    <div className="flex-1 flex items-center justify-center bg-terminal-background">
+                      <div className="flex flex-col items-center gap-3">
+                        <HugeiconsIcon
+                          icon={Loading03Icon}
+                          size={24}
+                          strokeWidth={2}
+                          className="animate-spin text-muted-foreground"
+                        />
+                        <span className="font-mono text-sm text-muted-foreground">
+                          Initializing terminal...
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <Terminal
+                    className="flex-1"
+                    onReady={handleTerminalReady}
+                    onResize={handleTerminalResize}
+                    onContainerReady={handleTerminalContainerReady}
+                    terminalId={terminalId ?? undefined}
+                    setupImagePaste={setupImagePaste}
+                    onSend={handleTerminalSend}
+                  />
+                </div>
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={50} minSize={30}>
+                <FilesViewer
+                  worktreePath={repository.path}
+                  initialSelectedFile={file}
+                  onFileChange={handleFileChange}
+                />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          )}
         </TabsContent>
       </Tabs>
 

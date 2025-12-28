@@ -117,6 +117,7 @@ export function MonacoEditor({
       }
       options={{
         readOnly,
+        accessibilitySupport: 'off',
         minimap: { enabled: false },
         fontSize: 12,
         fontFamily: "'JetBrains Mono', monospace",
