@@ -11,15 +11,6 @@ run = "bun install"
 description = "Install dependencies"
 run = "bun install"
 
-[tasks."hooks:install"]
-description = "Install git pre-commit hooks"
-run = """
-set -e
-git config core.hooksPath hooks
-echo "Git hooks installed (using hooks/ directory)"
-echo "Pre-commit hook will verify version sync on commits"
-"""
-
 [tasks.bump]
 description = "Bump version (major, minor, or patch)"
 usage = 'arg "[type]" help="Version type: major, minor, or patch" default="patch"'
@@ -61,6 +52,16 @@ neutralino_config="desktop/neutralino.config.json"
 if [ -f "$neutralino_config" ]; then
   jq --arg v "$new_version" '.version = $v | .globalVariables.APP_VERSION = $v' "$neutralino_config" > "${neutralino_config}.tmp" && mv "${neutralino_config}.tmp" "$neutralino_config"
   echo "Updated $neutralino_config"
+fi
+
+# Update settings schema version to match major version
+settings_file="server/lib/settings.ts"
+if [ -f "$settings_file" ]; then
+  current_schema=$(grep -oP 'CURRENT_SCHEMA_VERSION = \\K\\d+' "$settings_file")
+  if [ -n "$current_schema" ] && [ "$current_schema" != "$major" ]; then
+    sed -i "s/CURRENT_SCHEMA_VERSION = $current_schema/CURRENT_SCHEMA_VERSION = $major/" "$settings_file"
+    echo "Updated $settings_file: schema $current_schema → $major"
+  fi
 fi
 
 echo "Bumped version: $current → $new_version"
@@ -201,6 +202,12 @@ if [ $errors -gt 0 ]; then
 fi
 
 echo "All versions in sync: $VERSION"
+
+# Show schema version (informational)
+if [ -f "server/lib/settings.ts" ]; then
+  SCHEMA_VERSION=$(grep -oP 'CURRENT_SCHEMA_VERSION = \\K\\d+' server/lib/settings.ts)
+  echo "Settings schema version: $SCHEMA_VERSION"
+fi
 """
 
 [tasks.preview]

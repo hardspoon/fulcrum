@@ -6,11 +6,20 @@ import * as os from 'os'
 
 // Execute git command and return output
 function gitExec(cwd: string, args: string): string {
-  return execSync(`git ${args}`, {
-    cwd,
-    encoding: 'utf-8',
-    maxBuffer: 10 * 1024 * 1024, // 10MB for large diffs
-  }).trim()
+  try {
+    return execSync(`git ${args}`, {
+      cwd,
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024, // 10MB for large diffs
+      stdio: ['pipe', 'pipe', 'pipe'], // Capture stderr for better error messages
+    }).trim()
+  } catch (err) {
+    // Include stderr in error message for better debugging
+    if (err && typeof err === 'object' && 'stderr' in err && err.stderr) {
+      throw new Error(String(err.stderr).trim() || String(err))
+    }
+    throw err
+  }
 }
 
 function parseStatusCode(code: string): string {
@@ -629,10 +638,29 @@ app.post('/merge-to-main', async (c) => {
         gitExec(repoPath, `checkout ${defaultBranch}`)
       }
 
+      // Get all commit messages from the worktree branch for the squash commit
+      let commitMessages = ''
+      try {
+        // Get commits that are in worktreeBranch but not in defaultBranch
+        commitMessages = gitExec(repoPath, `log ${defaultBranch}..${worktreeBranch} --pretty=format:%s%n%b --reverse`)
+      } catch {
+        // Fall back to simple message if we can't get commit history
+      }
+
+      // Build the squash commit message from concatenated branch commits
+      const squashMessage = commitMessages.trim() || `Merge branch '${worktreeBranch}'`
+
       // Attempt the squash merge (git hooks will handle pushing to origin)
       try {
         gitExec(repoPath, `merge --squash ${worktreeBranch}`)
-        gitExec(repoPath, `commit -m "Merge branch '${worktreeBranch}'"`)
+        // Use a temp file for the commit message to handle special characters
+        const tempFile = path.join(repoPath, '.git', 'SQUASH_MSG_TEMP')
+        fs.writeFileSync(tempFile, squashMessage)
+        try {
+          gitExec(repoPath, `commit -F "${tempFile}"`)
+        } finally {
+          fs.unlinkSync(tempFile)
+        }
       } catch (mergeErr) {
         // Check if it's a merge conflict
         try {
