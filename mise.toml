@@ -79,7 +79,10 @@ else
 fi
 export VITE_BACKEND_PORT="$PORT"
 export DEBUG="1"
-bunx concurrently -n server,client -c blue,green 'mise run server' 'mise run client'
+# Pass through env vars explicitly since they may not inherit through concurrently/bunx
+bunx concurrently -n server,client -c blue,green \
+  'VIBORA_DIR="$VIBORA_DIR" PORT="$PORT" mise run server' \
+  'DEBUG="$DEBUG" VITE_BACKEND_PORT="$VITE_BACKEND_PORT" mise run client'
 """
 
 [tasks.server]
