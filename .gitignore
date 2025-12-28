@@ -49,3 +49,6 @@ CLAUDE.local.md
 
 # Jujutsu
 .jj/
+
+# Local git hooks
+.hooks/
