@@ -46,3 +46,6 @@ desktop/bundle/
 
 # Claude
 CLAUDE.local.md
+
+# Jujutsu
+.jj/
