@@ -1,105 +1,60 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useTerminalWS } from './use-terminal-ws'
+import { toast } from 'sonner'
+import { useStore } from '@/stores'
 import { log } from '@/lib/logger'
 
 /**
  * Hook for opening a repository in a dedicated terminal tab.
  *
  * Behavior:
- * 1. Finds existing tab by directory from synced tabs
- * 2. If not found, creates tab with name and directory
- * 3. Creates terminal in that tab (server uses tab's directory as cwd)
- * 4. Navigates to /terminals?tab={tabId}
+ * 1. If tab exists for directory, navigates to it
+ * 2. If not found, creates tab and navigates to /terminals
+ *    (the terminals page creates the terminal via lastCreatedTabId)
  */
 export function useOpenInTerminal() {
   const navigate = useNavigate()
-  const { tabs, createTab, createTerminal, connected } = useTerminalWS()
-
-  // Track pending operations to handle async tab creation
-  const pendingRef = useRef<{
-    directory: string
-    name: string
-  } | null>(null)
-
-  // Watch for new tabs matching our pending directory
-  useEffect(() => {
-    log.ws.debug('useOpenInTerminal: tabs effect', {
-      hasPending: !!pendingRef.current,
-      pendingDirectory: pendingRef.current?.directory,
-      tabCount: tabs.length,
-      tabDirectories: tabs.map(t => t.directory),
-    })
-
-    if (!pendingRef.current) return
-
-    const { directory } = pendingRef.current
-    const matchingTab = tabs.find((t) => t.directory === directory)
-
-    log.ws.debug('useOpenInTerminal: checking for matching tab', {
-      directory,
-      matchingTab: matchingTab ? { id: matchingTab.id, name: matchingTab.name } : null,
-    })
-
-    if (matchingTab) {
-      // Tab found - create terminal and navigate
-      pendingRef.current = null
-
-      log.ws.info('useOpenInTerminal: creating terminal in tab', {
-        tabId: matchingTab.id,
-        directory,
-      })
-
-      // Create terminal in the tab (server will use tab's directory as cwd)
-      createTerminal({
-        name: 'Terminal 1',
-        cols: 80,
-        rows: 24,
-        tabId: matchingTab.id,
-        positionInTab: 0,
-      })
-
-      // Navigate to terminals page with the tab
-      navigate({ to: '/terminals', search: { tab: matchingTab.id } })
-    }
-  }, [tabs, createTerminal, navigate])
+  const store = useStore()
 
   const openInTerminal = useCallback(
     (directory: string, name: string) => {
       log.ws.info('useOpenInTerminal: openInTerminal called', {
         directory,
         name,
-        connected,
-        tabCount: tabs.length,
+        connected: store.connected,
+        tabCount: store.tabs.items.length,
       })
 
-      if (!connected) {
+      if (!store.connected) {
         log.ws.warn('useOpenInTerminal: not connected, aborting')
+        toast.error('Terminal not connected', {
+          description: 'Please wait for the connection to establish',
+        })
         return
       }
 
-      // Check if tab with this directory already exists
-      const existingTab = tabs.find((t) => t.directory === directory)
-
-      log.ws.debug('useOpenInTerminal: existing tab check', {
-        directory,
-        existingTab: existingTab ? { id: existingTab.id, name: existingTab.name } : null,
-      })
+      // Check if tab with this directory already exists (access store directly for fresh data)
+      const existingTab = store.tabs.items.find((t) => t.directory === directory)
 
       if (existingTab) {
-        // Navigate to existing tab
         log.ws.info('useOpenInTerminal: navigating to existing tab', { tabId: existingTab.id })
         navigate({ to: '/terminals', search: { tab: existingTab.id } })
         return
       }
 
-      // Create new tab with directory - terminal will be created in useEffect when tab appears
+      // Create new tab with directory
+      // The terminals page will create the terminal when lastCreatedTabId is set
       log.ws.info('useOpenInTerminal: creating new tab', { name, directory })
-      pendingRef.current = { directory, name }
-      createTab(name, undefined, directory)
+      store.createTab(name, undefined, directory)
+
+      // Navigate to terminals page - the terminals page will:
+      // 1. Wait for pendingTabCreation to clear (prevents redirect to other tabs)
+      // 2. Use lastCreatedTabId to select the newly created tab
+      // 3. Create a terminal in the new tab
+      navigate({ to: '/terminals' })
     },
-    [connected, tabs, createTab, navigate]
+    [store, navigate]
   )
 
-  return { openInTerminal, connected }
+  return { openInTerminal, connected: store.connected }
 }
