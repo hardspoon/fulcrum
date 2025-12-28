@@ -9,7 +9,7 @@ import { Terminal } from './terminal'
 import { TerminalStatusBar } from './terminal-status'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Cancel01Icon, PlusSignIcon, Task01Icon, LibraryIcon, Folder01Icon } from '@hugeicons/core-free-icons'
+import { Cancel01Icon, PlusSignIcon, Task01Icon, LibraryIcon, GitBranchIcon } from '@hugeicons/core-free-icons'
 import { GitActionsButtons } from './git-actions-buttons'
 import type { TerminalInfo } from '@/hooks/use-terminal-ws'
 import type { Terminal as XTerm } from '@xterm/xterm'
@@ -84,7 +84,7 @@ function TerminalPane({ terminal, taskInfo, isMobile, onClose, onReady, onResize
                 </Link>
                 {terminal.cwd && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground truncate">
-                    <HugeiconsIcon icon={Folder01Icon} size={12} strokeWidth={2} className="shrink-0" />
+                    <HugeiconsIcon icon={GitBranchIcon} size={12} strokeWidth={2} className="shrink-0" />
                     {terminal.cwd.split('/').pop()}
                   </span>
                 )}
