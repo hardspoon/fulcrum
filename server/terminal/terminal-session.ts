@@ -21,17 +21,18 @@ const ZAI_ENV_VARS = [
 
 // Get clean environment for terminal, filtering z.ai vars if disabled
 function getTerminalEnv(): Record<string, string> {
-  const { PORT: _PORT, ...envWithoutPort } = process.env
+  const { PORT: _PORT, NODE_ENV: _NODE_ENV, ...envWithoutFiltered } = process.env
   void _PORT
+  void _NODE_ENV
 
   const zaiSettings = getZAiSettings()
   if (zaiSettings.enabled) {
-    return envWithoutPort as Record<string, string>
+    return envWithoutFiltered as Record<string, string>
   }
 
   // Filter out z.ai env vars when disabled
   const filtered: Record<string, string> = {}
-  for (const [key, value] of Object.entries(envWithoutPort)) {
+  for (const [key, value] of Object.entries(envWithoutFiltered)) {
     if (!ZAI_ENV_VARS.includes(key) && value !== undefined) {
       filtered[key] = value
     }
