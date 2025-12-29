@@ -51,6 +51,7 @@ export interface TerminalSessionOptions {
   positionInTab?: number
   onData: (data: string) => void
   onExit: (exitCode: number) => void
+  onShouldDestroy?: () => void
 }
 
 export class TerminalSession {
@@ -67,6 +68,7 @@ export class TerminalSession {
   private buffer: BufferManager
   private onData: (data: string) => void
   private onExit: (exitCode: number) => void
+  private onShouldDestroy?: () => void
 
   // Flag to indicate we're intentionally detaching (not exiting)
   // Prevents race condition where onExit marks terminal as exited during graceful detach
@@ -89,6 +91,7 @@ export class TerminalSession {
     this.buffer.setTerminalId(this.id)
     this.onData = options.onData
     this.onExit = options.onExit
+    this.onShouldDestroy = options.onShouldDestroy
   }
 
   get name(): string {
@@ -233,6 +236,8 @@ export class TerminalSession {
         this.exitCode = exitCode
         this.updateDb({ status: 'exited', exitCode })
         this.onExit(exitCode)
+        // Trigger destruction so terminal can be recreated
+        this.onShouldDestroy?.()
       }
       // Otherwise dtach is still running, we just detached
     })

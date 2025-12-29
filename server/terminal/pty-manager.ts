@@ -1,5 +1,6 @@
 import { TerminalSession } from './terminal-session'
 import { getDtachService, DtachService } from './dtach-service'
+import { destroyTerminalAndBroadcast } from './pty-instance'
 import { db, terminals } from '../db'
 import { eq, ne } from 'drizzle-orm'
 import * as os from 'os'
@@ -64,6 +65,10 @@ export class PTYManager {
           positionInTab: record.positionInTab ?? 0,
           onData: (data) => this.callbacks.onData(record.id, data),
           onExit: (exitCode) => this.callbacks.onExit(record.id, exitCode),
+          onShouldDestroy: () => {
+            // Use queueMicrotask to avoid destroying while in exit handler
+            queueMicrotask(() => destroyTerminalAndBroadcast(record.id))
+          },
         })
         this.sessions.set(record.id, session)
         log.pty.info('Restored terminal', { terminalId: record.id, name: record.name })
@@ -131,6 +136,10 @@ export class PTYManager {
       positionInTab: options.positionInTab,
       onData: (data) => this.callbacks.onData(id, data),
       onExit: (exitCode) => this.callbacks.onExit(id, exitCode),
+      onShouldDestroy: () => {
+        // Use queueMicrotask to avoid destroying while in exit handler
+        queueMicrotask(() => destroyTerminalAndBroadcast(id))
+      },
     })
 
     this.sessions.set(id, session)
