@@ -42,7 +42,8 @@ Download the latest release:
 
 The desktop app bundles everything—just install and run. It will start the server, install the Claude Code plugin, and check for updates automatically.
 
-#### macOS Installation
+<details>
+<summary>👉 <strong>macOS Installation</strong></summary>
 
 1. Open the DMG and drag Vibora to Applications:
 
@@ -59,6 +60,8 @@ The desktop app bundles everything—just install and run. It will start the ser
 4. Confirm by clicking **Open Anyway** in the dialog:
 
    ![Open Anyway](./screenshots/macos-gatekeeper-open-anyway.png)
+
+</details>
 
 ### Web Application
 
