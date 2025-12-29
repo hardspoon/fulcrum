@@ -165,6 +165,7 @@ export interface CreateProjectRequest {
   outputPath: string
   answers: Record<string, unknown>
   projectName: string
+  trust?: boolean // Trust template for unsafe features (tasks, migrations)
 }
 
 export interface CreateProjectResponse {

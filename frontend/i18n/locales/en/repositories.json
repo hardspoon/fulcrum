@@ -73,7 +73,9 @@
         "projectName": "Project Name",
         "outputDirectory": "Output Directory",
         "selectDirectory": "Select directory...",
-        "willCreate": "Will create"
+        "willCreate": "Will create",
+        "trustTemplate": "Trust this template",
+        "trustWarning": "This template runs code during project creation. Only enable if you trust the source."
       },
       "creating": {
         "description": "Creating your project...",

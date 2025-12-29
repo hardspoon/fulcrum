@@ -62,6 +62,8 @@ export function NewProjectDialog() {
   const [outputPath, setOutputPath] = useState('')
   const [projectName, setProjectName] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
+  const [trust, setTrust] = useState(false)
+  const [needsTrust, setNeedsTrust] = useState(false)
 
   // Queries
   const { data: templates } = useCopierTemplates()
@@ -84,6 +86,8 @@ export function NewProjectDialog() {
       setOutputPath(defaultGitReposDir || '')
       setProjectName('')
       setCreateError(null)
+      setTrust(false)
+      setNeedsTrust(false)
     }
   }, [open, defaultGitReposDir])
 
@@ -148,6 +152,7 @@ export function NewProjectDialog() {
         outputPath,
         answers,
         projectName,
+        trust,
       },
       {
         onSuccess: (data) => {
@@ -156,6 +161,10 @@ export function NewProjectDialog() {
         },
         onError: (error) => {
           setCreateError(error.message)
+          // Detect if this is an unsafe feature error
+          if (error.message.includes('unsafe') || error.message.includes('--trust')) {
+            setNeedsTrust(true)
+          }
           setStep('output')
         },
       }
@@ -441,6 +450,26 @@ export function NewProjectDialog() {
                   <div className="text-destructive text-sm mt-2 p-2 bg-destructive/10 rounded">
                     {createError}
                   </div>
+                )}
+
+                {needsTrust && (
+                  <Field>
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        checked={trust}
+                        onCheckedChange={(checked) => setTrust(checked === true)}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <FieldLabel className="cursor-pointer">
+                          {t('newProject.steps.output.trustTemplate')}
+                        </FieldLabel>
+                        <FieldDescription>
+                          {t('newProject.steps.output.trustWarning')}
+                        </FieldDescription>
+                      </div>
+                    </div>
+                  </Field>
                 )}
               </FieldGroup>
             )}

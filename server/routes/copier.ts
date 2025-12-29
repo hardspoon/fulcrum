@@ -223,7 +223,7 @@ app.post('/create', async (c) => {
     }
 
     const body = await c.req.json<CreateProjectRequest>()
-    const { templateSource, outputPath, answers, projectName } = body
+    const { templateSource, outputPath, answers, projectName, trust } = body
 
     // Validate inputs
     if (!templateSource || !outputPath || !projectName) {
@@ -258,8 +258,9 @@ app.post('/create', async (c) => {
 
     // Execute copier via uvx
     try {
+      const trustFlag = trust ? '--trust ' : ''
       execSync(
-        `uvx copier copy --data-file "${answersFile}" --force --vcs-ref HEAD "${templatePath}" "${fullOutputPath}"`,
+        `uvx copier copy --data-file "${answersFile}" --force --vcs-ref HEAD ${trustFlag}"${templatePath}" "${fullOutputPath}"`,
         {
           encoding: 'utf-8',
           stdio: 'pipe',
