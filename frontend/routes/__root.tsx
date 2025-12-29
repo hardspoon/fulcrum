@@ -80,6 +80,7 @@ function RootLayout() {
   const [openNewTask, setOpenNewTask] = useState<(() => void) | null>(null)
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const isDesktop = typeof window !== 'undefined' && window.parent !== window
 
   const handleNewTaskRef = useCallback((fn: () => void) => {
     setOpenNewTask(() => fn)
@@ -119,7 +120,7 @@ function RootLayout() {
           onShowShortcuts={handleShowShortcuts}
         />
         <KeyboardShortcutsHelp open={shortcutsHelpOpen} onOpenChange={setShortcutsHelpOpen} />
-        <Toaster position="bottom-right" />
+        <Toaster position={isDesktop ? 'bottom-center' : 'bottom-right'} />
       </div>
     </KeyboardProvider>
   )
