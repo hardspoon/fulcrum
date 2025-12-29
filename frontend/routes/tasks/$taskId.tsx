@@ -200,8 +200,10 @@ function TaskView() {
   // Get terminal functions for sending commands
   const { terminals, sendInputToTerminal } = useTerminalWS()
 
-  // Find the terminal for this task
-  const taskTerminal = terminals.find((t) => t.cwd === task?.worktreePath)
+  // Find the terminal for this task (matches if cwd is the worktree or a subdirectory)
+  const taskTerminal = terminals.find((t) =>
+    task?.worktreePath && t.cwd.startsWith(task.worktreePath)
+  )
 
   // Send prompt to Claude Code to resolve git issues
   const resolveWithClaude = (prompt: string) => {

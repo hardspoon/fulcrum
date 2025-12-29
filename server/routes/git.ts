@@ -651,6 +651,7 @@ app.post('/merge-to-main', async (c) => {
       const squashMessage = commitMessages.trim() || `Merge branch '${worktreeBranch}'`
 
       // Attempt the squash merge (git hooks will handle pushing to origin)
+      const squashMsgPath = path.join(repoPath, '.git', 'SQUASH_MSG')
       try {
         gitExec(repoPath, `merge --squash ${worktreeBranch}`)
         // Use a temp file for the commit message to handle special characters
@@ -660,8 +661,16 @@ app.post('/merge-to-main', async (c) => {
           gitExec(repoPath, `commit -F "${tempFile}"`)
         } finally {
           fs.unlinkSync(tempFile)
+          // Clean up git's SQUASH_MSG file if it exists
+          if (fs.existsSync(squashMsgPath)) {
+            fs.unlinkSync(squashMsgPath)
+          }
         }
       } catch (mergeErr) {
+        // Always clean up SQUASH_MSG on failure to prevent pre-commit hook issues
+        if (fs.existsSync(squashMsgPath)) {
+          fs.unlinkSync(squashMsgPath)
+        }
         // Check if it's a merge conflict
         try {
           const mergeStatus = gitExec(repoPath, 'status')
