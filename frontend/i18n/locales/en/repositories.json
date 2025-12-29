@@ -1,6 +1,7 @@
 {
   "title": "Repositories",
   "total": "{{count}} total",
+  "searchPlaceholder": "Search repositories...",
   "newTask": "New Task",
   "viewTasks": "Tasks",
   "terminal": "Terminal",
@@ -102,7 +103,8 @@
     "addSelected": "Add {{count}} selected"
   },
   "empty": {
-    "noRepositories": "No repositories added yet. Add a repository for quick access when creating tasks."
+    "noRepositories": "No repositories added yet. Add a repository for quick access when creating tasks.",
+    "noMatches": "No repositories match your search."
   },
   "error": {
     "failedToLoad": "Failed to load repositories: {{message}}"

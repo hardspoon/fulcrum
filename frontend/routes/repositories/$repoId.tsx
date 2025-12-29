@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useRepository, useUpdateRepository, useDeleteRepository } from '@/hooks/use-repositories'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,8 @@ import {
   TaskAdd01Icon,
   Tick02Icon,
   GridViewIcon,
+  Link01Icon,
+  GithubIcon,
 } from '@hugeicons/core-free-icons'
 import { toast } from 'sonner'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -39,6 +42,37 @@ import { useTerminalWS } from '@/hooks/use-terminal-ws'
 import { log } from '@/lib/logger'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { Terminal as XTerm } from '@xterm/xterm'
+
+/**
+ * Convert a git URL (SSH or HTTPS) to a web-browsable HTTPS URL
+ */
+function gitUrlToHttps(url: string): string {
+  // Handle SSH format: git@github.com:user/repo.git
+  const sshMatch = url.match(/^git@([^:]+):(.+?)(\.git)?$/)
+  if (sshMatch) {
+    return `https://${sshMatch[1]}/${sshMatch[2]}`
+  }
+  // Already HTTPS or other format - strip .git suffix if present
+  return url.replace(/\.git$/, '')
+}
+
+/**
+ * Hook to fetch the git remote URL for a repository path
+ */
+function useGitRemoteUrl(repoPath: string | undefined) {
+  return useQuery({
+    queryKey: ['git-remote', repoPath],
+    queryFn: async () => {
+      if (!repoPath) return null
+      const res = await fetch(`/api/git/remote?path=${encodeURIComponent(repoPath)}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      return data.remoteUrl as string | null
+    },
+    enabled: !!repoPath,
+    staleTime: 60 * 1000, // Cache for 1 minute
+  })
+}
 
 type RepoTab = 'settings' | 'workspace'
 
@@ -57,6 +91,7 @@ function RepositoryDetailView() {
   const { data: repository, isLoading, error } = useRepository(repoId)
   const updateRepository = useUpdateRepository()
   const deleteRepository = useDeleteRepository()
+  const { data: remoteUrl } = useGitRemoteUrl(repository?.path)
 
   // Form state
   const [displayName, setDisplayName] = useState('')
@@ -357,6 +392,21 @@ function RepositoryDetailView() {
         <div className="flex items-center gap-3">
           <GitStatusBadge worktreePath={repository.path} />
           <span className="text-sm font-medium">{repository.displayName}</span>
+          {remoteUrl && (
+            <a
+              href={gitUrlToHttps(remoteUrl)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title={remoteUrl}
+            >
+              <HugeiconsIcon
+                icon={remoteUrl.includes('github.com') ? GithubIcon : Link01Icon}
+                size={14}
+                strokeWidth={2}
+              />
+            </a>
+          )}
           <AlertDialog>
             <AlertDialogTrigger
               render={

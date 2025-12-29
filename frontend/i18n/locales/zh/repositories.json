@@ -1,6 +1,7 @@
 {
   "title": "仓库",
   "total": "共 {{count}} 个",
+  "searchPlaceholder": "搜索仓库...",
   "newTask": "新建任务",
   "addRepository": "添加仓库",
   "scanDirectory": "扫描目录",
@@ -92,7 +93,8 @@
     }
   },
   "empty": {
-    "noRepositories": "尚未添加任何仓库。添加一个仓库以便在创建任务时快速访问。"
+    "noRepositories": "尚未添加任何仓库。添加一个仓库以便在创建任务时快速访问。",
+    "noMatches": "没有匹配的仓库。"
   },
   "error": {
     "failedToLoad": "加载仓库失败：{{message}}"

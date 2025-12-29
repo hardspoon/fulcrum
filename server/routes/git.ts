@@ -932,4 +932,33 @@ app.post('/sync-parent', async (c) => {
   }
 })
 
+// GET /api/git/remote?path=/path/to/repo - Get git remote URL
+app.get('/remote', (c) => {
+  let repoPath = c.req.query('path')
+
+  if (!repoPath) {
+    return c.json({ error: 'path parameter is required' }, 400)
+  }
+
+  // Expand ~ to home directory
+  if (repoPath.startsWith('~')) {
+    repoPath = path.join(os.homedir(), repoPath.slice(1))
+  }
+
+  repoPath = path.resolve(repoPath)
+
+  if (!fs.existsSync(repoPath)) {
+    return c.json({ error: 'Path does not exist' }, 404)
+  }
+
+  try {
+    // Get origin remote URL
+    const remoteUrl = gitExec(repoPath, 'remote get-url origin')
+    return c.json({ remoteUrl })
+  } catch {
+    // No origin remote configured
+    return c.json({ remoteUrl: null })
+  }
+})
+
 export default app

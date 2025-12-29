@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { fuzzyScore } from '@/lib/fuzzy-search'
 import {
   useRepositories,
   useDeleteRepository,
@@ -29,6 +30,7 @@ import {
   ComputerTerminal01Icon,
   GridViewIcon,
   FolderSearchIcon,
+  Search01Icon,
 } from '@hugeicons/core-free-icons'
 import { useEditorApp, useEditorHost, useEditorSshPort } from '@/hooks/use-config'
 import { useOpenInTerminal } from '@/hooks/use-open-in-terminal'
@@ -38,6 +40,7 @@ import { CreateTaskModal } from '@/components/kanban/create-task-modal'
 import { NewProjectDialog } from '@/components/repositories/new-project-dialog'
 import { AddRepositoryDialog } from '@/components/repositories/add-repository-dialog'
 import { BulkAddDialog } from '@/components/repositories/bulk-add-dialog'
+import { Input } from '@/components/ui/input'
 
 export const Route = createFileRoute('/repositories/')({
   component: RepositoriesView,
@@ -242,6 +245,23 @@ function RepositoriesView() {
   const deleteRepository = useDeleteRepository()
   const [taskModalRepo, setTaskModalRepo] = useState<Repository | null>(null)
   const { openInTerminal } = useOpenInTerminal()
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filteredRepositories = useMemo(() => {
+    if (!repositories) return []
+    if (!searchQuery?.trim()) return repositories
+    return repositories
+      .map((repo) => ({
+        repo,
+        score: Math.max(
+          fuzzyScore(repo.displayName, searchQuery),
+          fuzzyScore(repo.path, searchQuery)
+        ),
+      }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(({ repo }) => repo)
+  }, [repositories, searchQuery])
 
   const handleDelete = async (id: string) => {
     await deleteRepository.mutateAsync(id)
@@ -257,6 +277,16 @@ function RepositoriesView() {
         <AddRepositoryButton />
         <ScanDirectoryButton />
         <NewProjectDialog />
+        <div className="flex-1" />
+        <div className="relative min-w-0 w-48 sm:w-64">
+          <HugeiconsIcon icon={Search01Icon} size={12} strokeWidth={2} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+            className="w-full pl-6"
+          />
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-4">
@@ -286,8 +316,16 @@ function RepositoriesView() {
           </div>
         )}
 
+        {!isLoading && !error && repositories && repositories.length > 0 && filteredRepositories.length === 0 && (
+          <div className="py-12 text-muted-foreground">
+            <p className="text-sm">
+              {t('empty.noMatches')}
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {repositories?.map((repo) => (
+          {filteredRepositories.map((repo) => (
             <RepositoryCard
               key={repo.id}
               repository={repo}
