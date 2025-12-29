@@ -357,6 +357,34 @@ function RepositoryDetailView() {
         <div className="flex items-center gap-3">
           <GitStatusBadge worktreePath={repository.path} />
           <span className="text-sm font-medium">{repository.displayName}</span>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="text-muted-foreground hover:text-destructive"
+                />
+              }
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={2} />
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Repository</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove "{repository.displayName}" from Vibora. The actual repository
+                  files will not be affected.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <Button variant="destructive" onClick={handleDelete}>
+                  Delete
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
@@ -433,37 +461,7 @@ function RepositoryDetailView() {
                   </Field>
                 </FieldGroup>
 
-                <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
-                  <AlertDialog>
-                    <AlertDialogTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-muted-foreground hover:text-destructive"
-                        />
-                      }
-                    >
-                      <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={2} data-slot="icon" />
-                      Delete
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Repository</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will remove "{repository.displayName}" from Vibora. The actual repository
-                          files will not be affected.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <Button variant="destructive" onClick={handleDelete}>
-                          Delete
-                        </Button>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-
+                <div className="flex items-center justify-end pt-4 border-t border-border">
                   <Button
                     size="sm"
                     onClick={handleSave}
