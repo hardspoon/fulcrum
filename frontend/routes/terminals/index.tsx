@@ -228,16 +228,6 @@ const TerminalsView = observer(function TerminalsView() {
     )
   }, [tasks])
 
-  // Count only visible terminals for limit check:
-  // - Terminals in regular tabs (have a tabId)
-  // - Terminals from active tasks (visible in Task Terminals view)
-  // This excludes terminals from done/cancelled tasks which are hidden from the user
-  const visibleTerminalCount = useMemo(() => {
-    return terminals.filter(
-      (t) => t.tabId != null || (t.cwd && activeTaskWorktrees.has(t.cwd))
-    ).length
-  }, [terminals, activeTaskWorktrees])
-
   // Get ALL task worktree paths - these terminals should never be in regular tabs
   const allTaskWorktrees = useMemo(() => {
     return new Set(
@@ -591,7 +581,7 @@ const TerminalsView = observer(function TerminalsView() {
             variant="outline"
             size="sm"
             onClick={handleTerminalAdd}
-            disabled={!connected || visibleTerminalCount >= 24 || activeTabId === ALL_TASKS_TAB_ID}
+            disabled={!connected || activeTabId === ALL_TASKS_TAB_ID}
             className="max-sm:px-2 border-transparent text-primary"
           >
             <HugeiconsIcon
