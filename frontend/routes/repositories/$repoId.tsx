@@ -239,8 +239,8 @@ function RepositoryDetailView() {
       return
     }
 
-    // Look for existing terminal with matching cwd
-    const existingTerminal = terminals.find((t) => t.cwd === repository.path)
+    // Look for existing running terminal with matching cwd
+    const existingTerminal = terminals.find((t) => t.cwd === repository.path && t.status === 'running')
     if (existingTerminal) {
       log.repoTerminal.info('found existing terminal', { id: existingTerminal.id, cwd: existingTerminal.cwd })
       setTerminalId(existingTerminal.id)
@@ -266,7 +266,7 @@ function RepositoryDetailView() {
   useEffect(() => {
     if (!repository?.path) return
 
-    const matchingTerminal = terminals.find((t) => t.cwd === repository.path)
+    const matchingTerminal = terminals.find((t) => t.cwd === repository.path && t.status === 'running')
     if (!matchingTerminal) return
 
     const currentTerminalExists = terminalId && terminals.some((t) => t.id === terminalId)
