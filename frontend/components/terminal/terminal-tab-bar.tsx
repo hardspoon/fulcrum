@@ -191,7 +191,7 @@ export function TerminalTabBar({
   onTabReorder,
 }: TerminalTabBarProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const createButtonRef = useRef<HTMLButtonElement>(null)
+  const createButtonRef = useRef<HTMLSpanElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const [createButtonVisible, setCreateButtonVisible] = useState(true)
@@ -290,15 +290,16 @@ export function TerminalTabBar({
         ))}
 
         {/* Create button inside scroll area - sits next to rightmost tab */}
-        <Button
-          ref={createButtonRef}
-          variant="ghost"
-          size="icon-xs"
-          onClick={onTabCreate}
-          className="shrink-0"
-        >
-          <HugeiconsIcon icon={PlusSignIcon} size={14} strokeWidth={2} />
-        </Button>
+        <span ref={createButtonRef}>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={onTabCreate}
+            className="shrink-0"
+          >
+            <HugeiconsIcon icon={PlusSignIcon} size={14} strokeWidth={2} />
+          </Button>
+        </span>
       </div>
 
       {/* Scroll to end button */}
