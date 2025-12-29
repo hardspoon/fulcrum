@@ -299,7 +299,7 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for development setup, architecture, and co
 
 **In plain English:**
 
-- **Allowed:** Use Vibora for any purpose—personal or commercial
-- **Allowed:** Build and sell software using Vibora (we have no claim over your work)
-- **Not allowed:** Resell or redistribute Vibora itself for profit
-- **No warranty:** The software is provided as-is
+- ✅ Use Vibora for any purpose—personal or commercial
+- ✅ Build and sell software using Vibora (we have no claim over your work)
+- ❌ Resell or redistribute Vibora itself for profit
+- ⚠️ The software is provided as-is
