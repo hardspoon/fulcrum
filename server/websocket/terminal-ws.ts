@@ -350,14 +350,33 @@ export const terminalWebSocketHandlers: WSEvents = {
 
         // Tab messages
         case 'tab:create': {
-          const { name, position, directory, requestId, tempId } = message.payload
-          log.ws.debug('tab:create request', { name, position, directory, clientId: clientData.id, requestId, tempId })
+          const { name, position, directory, adoptTerminalId, requestId, tempId } = message.payload
+          log.ws.debug('tab:create request', { name, position, directory, adoptTerminalId, clientId: clientData.id, requestId, tempId })
           const tab = tabManager.create({ name, position, directory })
           log.ws.info('tab:create created', { tabId: tab.id, name: tab.name, directory: tab.directory, requestId, tempId })
           broadcast({
             type: 'tab:created',
             payload: { tab, requestId, tempId },
           })
+
+          // Adopt existing terminal into the new tab if specified
+          if (adoptTerminalId) {
+            const success = ptyManager.assignTab(adoptTerminalId, tab.id)
+            if (success) {
+              const info = ptyManager.getInfo(adoptTerminalId)
+              log.ws.info('tab:create adopted terminal', { terminalId: adoptTerminalId, tabId: tab.id })
+              broadcast({
+                type: 'terminal:tabAssigned',
+                payload: {
+                  terminalId: adoptTerminalId,
+                  tabId: tab.id,
+                  positionInTab: info?.positionInTab ?? 0,
+                },
+              })
+            } else {
+              log.ws.warn('tab:create failed to adopt terminal', { terminalId: adoptTerminalId, tabId: tab.id })
+            }
+          }
           break
         }
 

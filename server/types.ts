@@ -127,6 +127,7 @@ export interface TabCreateMessage {
     name: string
     position?: number
     directory?: string
+    adoptTerminalId?: string // Adopt existing terminal into new tab
   } & RequestCorrelation
 }
 

@@ -8,8 +8,9 @@ import { log } from '@/lib/logger'
  * Hook for opening a repository in a dedicated terminal tab.
  *
  * Behavior:
- * 1. If tab exists for directory, navigates to it
- * 2. If not found, creates tab and navigates to /terminals
+ * 1. If terminal exists for directory (with or without tab), reuses it
+ * 2. If tab exists for directory, navigates to it
+ * 3. If not found, creates tab and navigates to /terminals
  *    (the terminals page creates the terminal via lastCreatedTabId)
  */
 export function useOpenInTerminal() {
@@ -23,6 +24,7 @@ export function useOpenInTerminal() {
         name,
         connected: store.connected,
         tabCount: store.tabs.items.length,
+        terminalCount: store.terminals.items.length,
       })
 
       if (!store.connected) {
@@ -30,6 +32,23 @@ export function useOpenInTerminal() {
         toast.error('Terminal not connected', {
           description: 'Please wait for the connection to establish',
         })
+        return
+      }
+
+      // Check if terminal with this directory already exists (e.g., from repository detail view)
+      const existingTerminal = store.terminals.items.find((t) => t.cwd === directory)
+
+      if (existingTerminal) {
+        if (existingTerminal.tabId) {
+          // Terminal already in a tab - navigate to it
+          log.ws.info('useOpenInTerminal: navigating to terminal tab', { terminalId: existingTerminal.id, tabId: existingTerminal.tabId })
+          navigate({ to: '/terminals', search: { tab: existingTerminal.tabId } })
+          return
+        }
+        // Orphan terminal (no tab) - create tab and adopt it
+        log.ws.info('useOpenInTerminal: adopting orphan terminal into new tab', { terminalId: existingTerminal.id, name, directory })
+        store.createTab(name, undefined, directory, existingTerminal.id)
+        navigate({ to: '/terminals' })
         return
       }
 

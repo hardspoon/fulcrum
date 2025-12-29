@@ -646,7 +646,7 @@ export const RootStore = types
        * 5. On server confirm: replace temp ID with real ID
        * 6. On server reject: apply inverse patches to rollback
        */
-      createTab(name: string, position?: number, directory?: string) {
+      createTab(name: string, position?: number, directory?: string, adoptTerminalId?: string) {
         const requestId = generateRequestId()
         const tempId = generateTempId()
 
@@ -685,10 +685,10 @@ export const RootStore = types
         // Send request to server
         getWs().send({
           type: 'tab:create',
-          payload: { name, position, directory, requestId, tempId },
+          payload: { name, position, directory, adoptTerminalId, requestId, tempId },
         })
 
-        getWs().log.ws.debug('createTab optimistic', { requestId, tempId, name })
+        getWs().log.ws.debug('createTab optimistic', { requestId, tempId, name, adoptTerminalId })
       },
 
       /** Request tab update */
