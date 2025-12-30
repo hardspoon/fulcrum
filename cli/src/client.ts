@@ -11,6 +11,9 @@ import type {
   ConfigResponse,
   NotificationSettings,
   NotificationTestResult,
+  ExecuteCommandRequest,
+  ExecuteCommandResponse,
+  ExecSession,
 } from '@shared/types'
 
 export interface CreateTaskInput {
@@ -217,6 +220,38 @@ export class ViboraClient {
   async restartVibora(): Promise<{ success?: boolean; message?: string; error?: string }> {
     return this.fetch('/api/config/restart', {
       method: 'POST',
+    })
+  }
+
+  // Command execution
+  async executeCommand(
+    command: string,
+    options?: { sessionId?: string; cwd?: string; timeout?: number; name?: string }
+  ): Promise<ExecuteCommandResponse> {
+    const body: ExecuteCommandRequest = {
+      command,
+      ...options,
+    }
+    return this.fetch('/api/exec', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }
+
+  async listExecSessions(): Promise<ExecSession[]> {
+    return this.fetch('/api/exec/sessions')
+  }
+
+  async updateExecSession(sessionId: string, updates: { name?: string }): Promise<ExecSession> {
+    return this.fetch(`/api/exec/sessions/${sessionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async destroyExecSession(sessionId: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/exec/sessions/${sessionId}`, {
+      method: 'DELETE',
     })
   }
 }
