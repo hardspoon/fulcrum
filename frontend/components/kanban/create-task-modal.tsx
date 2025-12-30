@@ -151,7 +151,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
   // Set default base branch when branches are loaded, reset when repo changes
   useEffect(() => {
     if (branchData) {
-      setBaseBranch(branchData.current || branchData.branches[0] || 'main')
+      setBaseBranch(branchData.defaultBranch || branchData.branches[0] || 'main')
     } else {
       setBaseBranch('')
     }

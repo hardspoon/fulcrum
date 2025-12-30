@@ -164,12 +164,13 @@ function FileDiffSection({ file, wrap, isCollapsed, onToggle }: FileDiffSectionP
 interface DiffViewerProps {
   taskId: string
   worktreePath: string | null
+  baseBranch?: string
 }
 
-export function DiffViewer({ taskId, worktreePath }: DiffViewerProps) {
+export function DiffViewer({ taskId, worktreePath, baseBranch }: DiffViewerProps) {
   const { options, setOption, toggleFileCollapse, collapseAll, expandAll, isFileCollapsed } = useDiffOptions(taskId)
   const { wrap, ignoreWhitespace, includeUntracked, collapsedFiles } = options
-  const { data, isLoading, error } = useGitDiff(worktreePath, { ignoreWhitespace, includeUntracked })
+  const { data, isLoading, error } = useGitDiff(worktreePath, { ignoreWhitespace, includeUntracked, baseBranch })
 
   const files = useMemo(() => {
     if (!data?.diff) return []

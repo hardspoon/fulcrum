@@ -201,9 +201,13 @@ app.get('/branches', (c) => {
       current = branches[0] || 'main'
     }
 
+    // Get the default branch (main/master)
+    const defaultBranch = getDefaultBranch(repoPath)
+
     return c.json({
       branches,
       current,
+      defaultBranch,
     })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to list branches' }, 500)
@@ -318,6 +322,7 @@ app.get('/diff', (c) => {
   const staged = c.req.query('staged') === 'true'
   const ignoreWhitespace = c.req.query('ignoreWhitespace') === 'true'
   const includeUntracked = c.req.query('includeUntracked') === 'true'
+  const baseBranchParam = c.req.query('baseBranch')
 
   if (!worktreePath) {
     return c.json({ error: 'path parameter is required' }, 400)
@@ -360,7 +365,7 @@ app.get('/diff', (c) => {
     let baseBranch: string | undefined
     if (!diff) {
       try {
-        baseBranch = getDefaultBranch(worktreePath)
+        baseBranch = getDefaultBranch(worktreePath, baseBranchParam)
         const mergeBase = gitExec(worktreePath, `merge-base ${baseBranch} HEAD`)
         branchDiff = gitExec(worktreePath, `diff${wsFlag} ${mergeBase}..HEAD`)
       } catch {

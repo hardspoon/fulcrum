@@ -476,11 +476,11 @@ function TaskView() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={handleSync} disabled={gitSync.isPending || !task.worktreePath}>
                   <HugeiconsIcon icon={ArrowRight03Icon} size={14} strokeWidth={2} />
-                  Pull from main
+                  Pull from {task.baseBranch}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleMergeToMain} disabled={gitMerge.isPending || !task.worktreePath}>
                   <HugeiconsIcon icon={ArrowLeft03Icon} size={14} strokeWidth={2} />
-                  Merge to main
+                  Merge to {task.baseBranch}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handlePush} disabled={gitPush.isPending || !task.worktreePath}>
                   <HugeiconsIcon icon={ArrowUp03Icon} size={14} strokeWidth={2} />
@@ -677,14 +677,14 @@ function TaskView() {
 
           {/* Desktop: Individual git operation buttons */}
           <div className="flex items-center gap-0">
-          {/* Pull from Main Button */}
+          {/* Pull from Base Branch Button */}
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={handleSync}
             disabled={gitSync.isPending || !task.worktreePath}
             className="text-muted-foreground hover:text-foreground"
-            title="Pull from main"
+            title={`Pull from ${task.baseBranch}`}
           >
             <HugeiconsIcon
               icon={ArrowRight03Icon}
@@ -694,14 +694,14 @@ function TaskView() {
             />
           </Button>
 
-          {/* Merge to Main Button */}
+          {/* Merge to Base Branch Button */}
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={handleMergeToMain}
             disabled={gitMerge.isPending || !task.worktreePath}
             className="text-muted-foreground hover:text-foreground"
-            title="Merge to main"
+            title={`Merge to ${task.baseBranch}`}
           >
             <HugeiconsIcon
               icon={ArrowLeft03Icon}
@@ -881,7 +881,7 @@ function TaskView() {
               </div>
 
               <TabsContent value="diff" className="flex-1 overflow-hidden">
-                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} />
+                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch} />
               </TabsContent>
 
               <TabsContent value="browser" className="flex-1 overflow-hidden">
@@ -951,7 +951,7 @@ function TaskView() {
               </div>
 
               <TabsContent value="diff" className="flex-1 overflow-hidden">
-                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} />
+                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch} />
               </TabsContent>
 
               <TabsContent value="browser" className="flex-1 overflow-hidden">

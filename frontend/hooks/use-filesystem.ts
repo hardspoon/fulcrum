@@ -25,6 +25,7 @@ interface FileTreeResponse {
 interface BranchListing {
   branches: string[]
   current: string
+  defaultBranch: string
 }
 
 interface GitFile {
@@ -74,16 +75,17 @@ export function useBranches(repoPath: string | null) {
   })
 }
 
-export function useGitDiff(worktreePath: string | null, options: { staged?: boolean; ignoreWhitespace?: boolean; includeUntracked?: boolean } = {}) {
-  const { staged = false, ignoreWhitespace = false, includeUntracked = false } = options
+export function useGitDiff(worktreePath: string | null, options: { staged?: boolean; ignoreWhitespace?: boolean; includeUntracked?: boolean; baseBranch?: string } = {}) {
+  const { staged = false, ignoreWhitespace = false, includeUntracked = false, baseBranch } = options
   return useQuery({
-    queryKey: ['git', 'diff', worktreePath, staged, ignoreWhitespace, includeUntracked],
+    queryKey: ['git', 'diff', worktreePath, staged, ignoreWhitespace, includeUntracked, baseBranch],
     queryFn: () => {
       const params = new URLSearchParams({
         path: worktreePath!,
         ...(staged && { staged: 'true' }),
         ...(ignoreWhitespace && { ignoreWhitespace: 'true' }),
         ...(includeUntracked && { includeUntracked: 'true' }),
+        ...(baseBranch && { baseBranch }),
       })
       return fetchJSON<GitDiff>(`${API_BASE}/api/git/diff?${params}`)
     },
