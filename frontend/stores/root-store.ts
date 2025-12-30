@@ -940,26 +940,37 @@ export const RootStore = types
               isReadyForCallback: self.terminalsReadyForCallback.has(terminalId),
               registeredCallbacks: Array.from(self.onAttachedCallbacks.keys()),
             })
+
+            // Helper to call the onAttached callback (or mark ready for later)
+            const invokeCallback = () => {
+              const callback = self.onAttachedCallbacks.get(terminalId)
+              if (callback) {
+                self.onAttachedCallbacks.delete(terminalId)
+                getWs().log.ws.debug('terminal:attached calling callback', { terminalId })
+                // Pass terminalId so callback knows which terminal to use (may differ from what it closed over)
+                callback(terminalId)
+              } else {
+                // No callback registered yet - this happens when terminal:attached arrives
+                // before the React effect has a chance to call attachXterm with the callback.
+                // Track this so attachXterm can call the callback immediately when registered.
+                getWs().log.ws.debug('terminal:attached no callback yet, marking ready', { terminalId })
+                self.terminalsReadyForCallback.add(terminalId)
+              }
+            }
+
             if (terminal?.xterm) {
               // Reset terminal to clean state before replaying buffer
               terminal.xterm.reset()
               if (buffer) {
-                terminal.xterm.write(buffer)
+                // Use write callback to ensure buffer is fully processed before invoking callback.
+                // This fixes a race condition where reset() makes cursor visible, and the callback
+                // (which triggers doFit) runs before the buffer's hide-cursor sequence is processed.
+                terminal.xterm.write(buffer, invokeCallback)
+              } else {
+                invokeCallback()
               }
-            }
-            // Call onAttached callback if registered
-            const callback = self.onAttachedCallbacks.get(terminalId)
-            if (callback) {
-              self.onAttachedCallbacks.delete(terminalId)
-              getWs().log.ws.debug('terminal:attached calling callback', { terminalId })
-              // Pass terminalId so callback knows which terminal to use (may differ from what it closed over)
-              callback(terminalId)
             } else {
-              // No callback registered yet - this happens when terminal:attached arrives
-              // before the React effect has a chance to call attachXterm with the callback.
-              // Track this so attachXterm can call the callback immediately when registered.
-              getWs().log.ws.debug('terminal:attached no callback yet, marking ready', { terminalId })
-              self.terminalsReadyForCallback.add(terminalId)
+              invokeCallback()
             }
             break
           }
