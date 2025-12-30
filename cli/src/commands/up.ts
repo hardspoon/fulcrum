@@ -18,6 +18,7 @@ import {
   installUv,
 } from '../utils/install'
 import { getDependency, getInstallMethod, getInstallCommand } from '../utils/dependencies'
+import pkg from '../../../package.json'
 
 /**
  * Gets the package root directory (where the CLI is installed).
@@ -205,6 +206,7 @@ export async function handleUpCommand(flags: Record<string, string>) {
       HOST: host,
       VIBORA_DIR: viboraDir,
       VIBORA_PACKAGE_ROOT: packageRoot,
+      VIBORA_VERSION: pkg.version,
       BUN_PTY_LIB: ptyLibPath,
       ...(debug && { LOG_LEVEL: 'debug', DEBUG: '1' }),
     },
