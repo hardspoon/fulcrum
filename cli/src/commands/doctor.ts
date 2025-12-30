@@ -1,5 +1,5 @@
 import { checkAllDependencies, getInstallCommand, getDependency } from '../utils/dependencies'
-import { output, isPrettyOutput } from '../utils/output'
+import { output } from '../utils/output'
 
 /**
  * Handle the `vibora doctor` command.
@@ -7,9 +7,9 @@ import { output, isPrettyOutput } from '../utils/output'
  */
 export async function handleDoctorCommand(flags: Record<string, string>) {
   const deps = checkAllDependencies()
-  const showJson = !isPrettyOutput() && flags.pretty !== 'true'
 
-  if (showJson) {
+  // Human-readable by default, --json for machine output
+  if (flags.json === 'true') {
     output(deps)
     return
   }

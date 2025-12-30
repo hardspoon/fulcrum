@@ -116,7 +116,7 @@ Commands:
                             Checks/installs dependencies: bun, dtach, claude, uv
   down                      Stop Vibora server
   status                    Check if server is running
-  doctor                    Check all dependencies and show versions
+  doctor [--json]           Check all dependencies and show versions
 
   git status                Get git status for worktree
   git diff                  Get git diff for worktree
