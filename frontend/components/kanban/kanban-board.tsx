@@ -102,9 +102,10 @@ function KanbanBoardInner({ repoFilter, searchQuery }: KanbanBoardProps) {
         .sort((a, b) => b.score - a.score)
         .map(({ task }) => task)
     } else {
-      // Default sort: newest first
-      filtered = [...filtered].sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      // Default sort: most recently updated first
+      filtered = [...filtered].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       )
     }
     return filtered

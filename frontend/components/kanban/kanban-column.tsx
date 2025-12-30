@@ -24,7 +24,10 @@ export function KanbanColumn({ status, tasks, isMobile }: KanbanColumnProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [isOver, setIsOver] = useState(false)
 
-  const sortedTasks = [...tasks].sort((a, b) => b.position - a.position)
+  // Sort by most recently updated first
+  const sortedTasks = [...tasks].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  )
 
   useEffect(() => {
     const el = ref.current
