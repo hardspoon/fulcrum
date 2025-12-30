@@ -21,6 +21,7 @@ import {
   GridViewIcon,
   Link01Icon,
   GithubIcon,
+  ComputerTerminal01Icon,
 } from '@hugeicons/core-free-icons'
 import { toast } from 'sonner'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -32,6 +33,7 @@ import { Terminal } from '@/components/terminal/terminal'
 import { useTerminalWS } from '@/hooks/use-terminal-ws'
 import { log } from '@/lib/logger'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useOpenInTerminal } from '@/hooks/use-open-in-terminal'
 import type { Terminal as XTerm } from '@xterm/xterm'
 
 /**
@@ -117,6 +119,7 @@ function RepositoryDetailView() {
 
   const activeTab = tab || 'settings'
   const isMobile = useIsMobile()
+  const { openInTerminal } = useOpenInTerminal()
 
   // Log on mount
   useEffect(() => {
@@ -378,6 +381,17 @@ function RepositoryDetailView() {
           >
             <HugeiconsIcon icon={GridViewIcon} size={14} strokeWidth={2} data-slot="icon" />
             <span className="max-sm:hidden">Tasks</span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openInTerminal(repository.path, repository.displayName)}
+            className="text-muted-foreground hover:text-foreground"
+            title="Open in Terminal"
+          >
+            <HugeiconsIcon icon={ComputerTerminal01Icon} size={14} strokeWidth={2} data-slot="icon" />
+            <span className="max-sm:hidden">Terminal</span>
           </Button>
         </div>
 

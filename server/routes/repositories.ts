@@ -49,22 +49,25 @@ app.post('/', async (c) => {
       return c.json({ error: 'path is required' }, 400)
     }
 
+    // Expand tilde in path
+    const repoPath = expandPath(body.path)
+
     // Check for duplicate path
     const existing = db
       .select()
       .from(repositories)
-      .where(eq(repositories.path, body.path))
+      .where(eq(repositories.path, repoPath))
       .get()
     if (existing) {
       return c.json({ error: 'Repository with this path already exists' }, 400)
     }
 
     const now = new Date().toISOString()
-    const displayName = body.displayName || body.path.split('/').pop() || 'repo'
+    const displayName = body.displayName || repoPath.split('/').pop() || 'repo'
 
     const newRepo: NewRepository = {
       id: crypto.randomUUID(),
-      path: body.path,
+      path: repoPath,
       displayName,
       startupScript: body.startupScript || null,
       copyFiles: body.copyFiles || null,
@@ -301,9 +304,9 @@ app.post('/scan', async (c) => {
   try {
     const body = await c.req.json<{ directory?: string }>().catch(() => ({}))
 
-    // Default to configured git repos directory
+    // Default to configured git repos directory, expand tilde if present
     const settings = getSettings()
-    const directory = body.directory || settings.paths.defaultGitReposDir
+    const directory = expandPath(body.directory || settings.paths.defaultGitReposDir)
 
     if (!existsSync(directory)) {
       return c.json({ error: `Directory does not exist: ${directory}` }, 400)

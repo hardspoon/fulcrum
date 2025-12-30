@@ -48,7 +48,7 @@ export function useOpenInTerminal() {
         // Orphan terminal (no tab) - create tab and adopt it
         log.ws.info('useOpenInTerminal: adopting orphan terminal into new tab', { terminalId: existingTerminal.id, name, directory })
         store.createTab(name, undefined, directory, existingTerminal.id)
-        navigate({ to: '/terminals' })
+        navigate({ to: '/terminals', search: { tab: store.pendingTabCreation! } })
         return
       }
 
@@ -66,11 +66,9 @@ export function useOpenInTerminal() {
       log.ws.info('useOpenInTerminal: creating new tab', { name, directory })
       store.createTab(name, undefined, directory)
 
-      // Navigate to terminals page - the terminals page will:
-      // 1. Wait for pendingTabCreation to clear (prevents redirect to other tabs)
-      // 2. Use lastCreatedTabId to select the newly created tab
-      // 3. Create a terminal in the new tab
-      navigate({ to: '/terminals' })
+      // Navigate with tempId to show correct tab immediately
+      // The terminals page will update URL to real ID when server confirms
+      navigate({ to: '/terminals', search: { tab: store.pendingTabCreation! } })
     },
     [store, navigate]
   )
