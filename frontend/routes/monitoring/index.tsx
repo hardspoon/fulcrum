@@ -384,7 +384,7 @@ function SystemMetricsTab() {
         {TIME_WINDOWS.map((tw) => (
           <Button
             key={tw}
-            variant={window === tw ? 'secondary' : 'ghost'}
+            variant={window === tw ? 'default' : 'ghost'}
             size="xs"
             onClick={() => setWindow(tw)}
           >
