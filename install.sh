@@ -53,6 +53,73 @@ check_dependencies() {
     print_success "npm $(npm -v)"
 }
 
+# Check and install dtach
+install_dtach() {
+    print_step "Checking for dtach..."
+
+    if command -v dtach &> /dev/null; then
+        print_success "dtach is already installed"
+        return 0
+    fi
+
+    print_warning "dtach not found. Installing..."
+
+    if command -v brew &> /dev/null; then
+        if brew install dtach; then
+            print_success "dtach installed via Homebrew"
+            return 0
+        fi
+    elif command -v apt &> /dev/null; then
+        if sudo apt install -y dtach; then
+            print_success "dtach installed via apt"
+            return 0
+        fi
+    elif command -v dnf &> /dev/null; then
+        if sudo dnf install -y dtach; then
+            print_success "dtach installed via dnf"
+            return 0
+        fi
+    elif command -v pacman &> /dev/null; then
+        if sudo pacman -S --noconfirm dtach; then
+            print_success "dtach installed via pacman"
+            return 0
+        fi
+    fi
+
+    print_warning "Could not install dtach automatically"
+    echo "  Install manually using your package manager"
+    return 1
+}
+
+# Check and install uv
+install_uv() {
+    print_step "Checking for uv..."
+
+    if command -v uv &> /dev/null; then
+        print_success "uv is already installed"
+        return 0
+    fi
+
+    print_warning "uv not found. Installing..."
+
+    if command -v brew &> /dev/null; then
+        if brew install uv; then
+            print_success "uv installed via Homebrew"
+            return 0
+        fi
+    fi
+
+    # Fall back to curl installer
+    if curl -LsSf https://astral.sh/uv/install.sh | sh; then
+        print_success "uv installed via curl"
+        return 0
+    fi
+
+    print_warning "Could not install uv automatically"
+    echo "  Install manually: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    return 1
+}
+
 # Install vibora CLI globally
 install_vibora() {
     print_step "Installing vibora..."
@@ -125,6 +192,7 @@ start_vibora() {
         echo ""
         echo "Commands:"
         echo "  vibora status    # Check server status"
+        echo "  vibora doctor    # Check all dependencies"
         echo "  vibora down      # Stop server"
         echo "  vibora up        # Start server"
     else
@@ -144,8 +212,10 @@ main() {
     echo ""
 
     check_dependencies
+    install_dtach
     install_vibora
     install_claude_code
+    install_uv
     install_vibora_plugin
     start_vibora
 }

@@ -13,14 +13,22 @@ import { handleHealthCommand } from './commands/health'
 import { handleNotificationsCommand } from './commands/notifications'
 import { handleNotifyCommand } from './commands/notify'
 import { handleDevCommand } from './commands/dev'
+import { handleDoctorCommand } from './commands/doctor'
 import { outputError, setPrettyOutput } from './utils/output'
 import { CliError, ExitCodes } from './utils/errors'
 
 const VERSION = '0.1.0'
 
 /**
+ * Short flag aliases (e.g., -y -> --yes)
+ */
+const FLAG_ALIASES: Record<string, string> = {
+  y: 'yes',
+}
+
+/**
  * Parse command line arguments into flags and positional args.
- * Supports: --flag=value, --flag value, --flag (boolean)
+ * Supports: --flag=value, --flag value, --flag (boolean), -f (short flags)
  */
 function parseArgs(args: string[]): {
   positional: string[]
@@ -43,13 +51,18 @@ function parseArgs(args: string[]): {
         // --flag or --flag value
         const key = arg.slice(2)
         const nextArg = args[i + 1]
-        if (nextArg && !nextArg.startsWith('--')) {
+        if (nextArg && !nextArg.startsWith('-')) {
           flags[key] = nextArg
           i++
         } else {
           flags[key] = 'true'
         }
       }
+    } else if (arg.startsWith('-') && arg.length === 2) {
+      // Short flag like -y
+      const shortKey = arg.slice(1)
+      const longKey = FLAG_ALIASES[shortKey] || shortKey
+      flags[longKey] = 'true'
     } else {
       positional.push(arg)
     }
@@ -98,9 +111,12 @@ Commands:
   tasks move <id>           Move task to different status
   tasks delete <id>         Delete a task
 
-  up [--host] [--debug]     Start Vibora server (daemon)
+  up [-y] [--host] [--debug]
+                            Start Vibora server (daemon)
+                            Checks/installs dependencies: bun, dtach, claude, uv
   down                      Stop Vibora server
   status                    Check if server is running
+  doctor                    Check all dependencies and show versions
 
   git status                Get git status for worktree
   git diff                  Get git diff for worktree
@@ -132,6 +148,7 @@ Global Options:
   --port=<port>     Server port (default: 7777)
   --url=<url>       Override full server URL
   --pretty          Pretty-print JSON output
+  -y, --yes         Auto-confirm prompts (for CI/automation)
   --version         Show version
   --help            Show this help
 
@@ -193,6 +210,11 @@ Examples:
 
       case 'health': {
         await handleHealthCommand(flags)
+        break
+      }
+
+      case 'doctor': {
+        await handleDoctorCommand(flags)
         break
       }
 

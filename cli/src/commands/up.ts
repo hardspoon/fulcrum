@@ -10,10 +10,14 @@ import { getViboraDir } from '../utils/server'
 import {
   isDtachInstalled,
   isBunInstalled,
-  isBrewInstalled,
   installDtach,
   installBun,
+  isClaudeInstalled,
+  installClaude,
+  isUvInstalled,
+  installUv,
 } from '../utils/install'
+import { getDependency, getInstallMethod, getInstallCommand } from '../utils/dependencies'
 
 /**
  * Gets the package root directory (where the CLI is installed).
@@ -40,13 +44,16 @@ function getPackageRoot(): string {
 }
 
 export async function handleUpCommand(flags: Record<string, string>) {
+  const autoYes = flags.yes === 'true' || flags.y === 'true'
+
   // Check if bun is installed (needed to run the server)
   if (!isBunInstalled()) {
-    const hasBrew = isBrewInstalled()
-    const method = hasBrew ? 'Homebrew' : 'curl script'
+    const bunDep = getDependency('bun')!
+    const method = getInstallMethod(bunDep)
     console.error('Bun is required to run Vibora but is not installed.')
+    console.error('  Bun is the JavaScript runtime that powers Vibora.')
 
-    const shouldInstall = await confirm(`Would you like to install bun via ${method}?`)
+    const shouldInstall = autoYes || (await confirm(`Would you like to install bun via ${method}?`))
     if (shouldInstall) {
       const success = installBun()
       if (!success) {
@@ -56,7 +63,7 @@ export async function handleUpCommand(flags: Record<string, string>) {
     } else {
       throw new CliError(
         'MISSING_DEPENDENCY',
-        'Bun is required. Install manually: brew install oven-sh/bun/bun (macOS) or curl -fsSL https://bun.sh/install | bash',
+        `Bun is required. Install manually: ${getInstallCommand(bunDep)}`,
         ExitCodes.ERROR
       )
     }
@@ -64,11 +71,12 @@ export async function handleUpCommand(flags: Record<string, string>) {
 
   // Check if dtach is installed (required for terminal persistence)
   if (!isDtachInstalled()) {
-    const hasBrew = isBrewInstalled()
-    const method = hasBrew ? 'Homebrew' : 'apt'
+    const dtachDep = getDependency('dtach')!
+    const method = getInstallMethod(dtachDep)
     console.error('dtach is required for terminal persistence but is not installed.')
+    console.error('  dtach enables persistent terminal sessions that survive disconnects.')
 
-    const shouldInstall = await confirm(`Would you like to install dtach via ${method}?`)
+    const shouldInstall = autoYes || (await confirm(`Would you like to install dtach via ${method}?`))
     if (shouldInstall) {
       const success = installDtach()
       if (!success) {
@@ -78,7 +86,53 @@ export async function handleUpCommand(flags: Record<string, string>) {
     } else {
       throw new CliError(
         'MISSING_DEPENDENCY',
-        'dtach is required. Install manually: brew install dtach (macOS) or apt install dtach (Linux)',
+        `dtach is required. Install manually: ${getInstallCommand(dtachDep)}`,
+        ExitCodes.ERROR
+      )
+    }
+  }
+
+  // Check if Claude Code CLI is installed (required for AI agent orchestration)
+  if (!isClaudeInstalled()) {
+    const claudeDep = getDependency('claude')!
+    const method = getInstallMethod(claudeDep)
+    console.error('Claude Code CLI is required but is not installed.')
+    console.error('  Claude Code is the AI coding agent that Vibora orchestrates.')
+
+    const shouldInstall = autoYes || (await confirm(`Would you like to install Claude Code via ${method}?`))
+    if (shouldInstall) {
+      const success = installClaude()
+      if (!success) {
+        throw new CliError('INSTALL_FAILED', 'Failed to install Claude Code', ExitCodes.ERROR)
+      }
+      console.error('Claude Code installed successfully!')
+    } else {
+      throw new CliError(
+        'MISSING_DEPENDENCY',
+        `Claude Code is required. Install manually: ${getInstallCommand(claudeDep)}`,
+        ExitCodes.ERROR
+      )
+    }
+  }
+
+  // Check if uv is installed (required for Python package management)
+  if (!isUvInstalled()) {
+    const uvDep = getDependency('uv')!
+    const method = getInstallMethod(uvDep)
+    console.error('uv is required but is not installed.')
+    console.error('  uv is a fast Python package manager used by Claude Code.')
+
+    const shouldInstall = autoYes || (await confirm(`Would you like to install uv via ${method}?`))
+    if (shouldInstall) {
+      const success = installUv()
+      if (!success) {
+        throw new CliError('INSTALL_FAILED', 'Failed to install uv', ExitCodes.ERROR)
+      }
+      console.error('uv installed successfully!')
+    } else {
+      throw new CliError(
+        'MISSING_DEPENDENCY',
+        `uv is required. Install manually: ${getInstallCommand(uvDep)}`,
         ExitCodes.ERROR
       )
     }
@@ -89,7 +143,7 @@ export async function handleUpCommand(flags: Record<string, string>) {
   if (existingPid && isProcessRunning(existingPid)) {
     console.error(`Vibora server is already running (PID: ${existingPid})`)
 
-    const shouldReplace = await confirm('Would you like to stop it and start a new instance?')
+    const shouldReplace = autoYes || (await confirm('Would you like to stop it and start a new instance?'))
     if (shouldReplace) {
       console.error('Stopping existing instance...')
       process.kill(existingPid, 'SIGTERM')
@@ -179,4 +233,27 @@ export async function handleUpCommand(flags: Record<string, string>) {
     port,
     url: `http://localhost:${port}`,
   })
+
+  // Show getting started tips
+  showGettingStartedTips(port)
+}
+
+/**
+ * Display getting started tips after successful server start.
+ */
+function showGettingStartedTips(port: number): void {
+  console.error(`
+Vibora is running at http://localhost:${port}
+
+Getting Started:
+  1. Open http://localhost:${port} in your browser
+  2. Add a repository to get started
+  3. Create a task to spin up an isolated worktree
+  4. Run Claude Code in the task terminal
+
+Commands:
+  vibora status    Check server status
+  vibora doctor    Check all dependencies
+  vibora down      Stop the server
+`)
 }

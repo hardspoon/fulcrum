@@ -29,11 +29,29 @@ The Vibe Engineer's Cockpit. Orchestrate Claude Code across parallel workstreams
 
 ## Quick Start
 
-Requires [Bun](https://bun.sh/) and [Claude Code](https://claude.ai/code).
+```bash
+npx vibora@latest up
+```
 
-### Desktop App (Recommended)
+That's it! Vibora will:
+- Check for required dependencies (bun, dtach, Claude Code, uv)
+- Offer to install any that are missing
+- Start the server on http://localhost:7777
+- Show getting started tips
 
-Download the latest release:
+Open http://localhost:7777 in your browser.
+
+### Check Your Setup
+
+```bash
+vibora doctor
+```
+
+Shows the status of all dependencies with versions.
+
+### Desktop App
+
+Download the desktop app for a bundled experience:
 
 | Platform | Download |
 |----------|----------|
@@ -43,46 +61,31 @@ Download the latest release:
 The desktop app bundles everything—just install and run. It will start the server, install the Claude Code plugin, and check for updates automatically.
 
 <details>
-<summary>👉 <strong>macOS Installation</strong></summary>
+<summary>macOS Installation Notes</summary>
 
-1. Open the DMG and drag Vibora to Applications:
-
-   ![DMG Installer](./screenshots/macos-dmg-installer.png)
-
-2. On first launch, macOS will block the app:
-
-   ![Gatekeeper Blocked](./screenshots/macos-gatekeeper-blocked.png)
-
-3. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**:
-
-   ![Privacy & Security](./screenshots/macos-privacy-security-open-anyway.png)
-
-4. Confirm by clicking **Open Anyway** in the dialog:
-
-   ![Open Anyway](./screenshots/macos-gatekeeper-open-anyway.png)
+1. Open the DMG and drag Vibora to Applications
+2. On first launch, macOS will block the app
+3. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**
+4. Confirm by clicking **Open Anyway** in the dialog
 
 </details>
 
-### Web Application
+### Install Script
 
-Run Vibora as a web server for browser access or remote deployment.
+For automated installation (useful for remote servers):
 
 ```bash
-# Install and start with curl
 curl -fsSL https://raw.githubusercontent.com/knowsuchagency/vibora/main/install.sh | bash
-
-# Or install via npm
-npx vibora@latest up
 ```
 
-If using npm, install the Claude Code plugin separately:
+### Claude Code Plugin
+
+Install the plugin for automatic status sync and task management:
 
 ```bash
 claude plugin marketplace add knowsuchagency/vibora
 claude plugin install vibora@vibora --scope user
 ```
-
-Open http://localhost:7777 in your browser.
 
 ## Features
 
@@ -244,8 +247,10 @@ The CLI lets AI agents working inside task worktrees query and update task statu
 
 ```bash
 vibora up                        # Start server daemon
+vibora up -y                     # Start with auto-install (no prompts)
 vibora down                      # Stop server
 vibora status                    # Check server status
+vibora doctor                    # Check all dependencies
 vibora health                    # Check server health
 vibora mcp                       # Start MCP server (stdio)
 ```

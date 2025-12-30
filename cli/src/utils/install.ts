@@ -1,39 +1,49 @@
-import { execSync, spawnSync } from 'node:child_process'
+import {
+  isCommandInstalled,
+  getDependency,
+  installDependency as installDep,
+} from './dependencies'
 
 /**
  * Check if Homebrew is installed.
  */
 export function isBrewInstalled(): boolean {
-  try {
-    execSync('which brew', { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
+  return isCommandInstalled('brew')
 }
 
 /**
  * Check if Bun is installed.
  */
 export function isBunInstalled(): boolean {
-  try {
-    execSync('which bun', { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
+  return isCommandInstalled('bun')
 }
 
 /**
  * Check if dtach is installed.
  */
 export function isDtachInstalled(): boolean {
-  try {
-    execSync('which dtach', { stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
+  return isCommandInstalled('dtach')
+}
+
+/**
+ * Check if Claude Code CLI is installed.
+ */
+export function isClaudeInstalled(): boolean {
+  return isCommandInstalled('claude')
+}
+
+/**
+ * Check if uv is installed.
+ */
+export function isUvInstalled(): boolean {
+  return isCommandInstalled('uv')
+}
+
+/**
+ * Check if GitHub CLI is installed.
+ */
+export function isGhInstalled(): boolean {
+  return isCommandInstalled('gh')
 }
 
 /**
@@ -41,12 +51,9 @@ export function isDtachInstalled(): boolean {
  * Returns true if installation succeeded.
  */
 export function installDtach(): boolean {
-  const hasBrew = isBrewInstalled()
-  const cmd = hasBrew ? 'brew install dtach' : 'sudo apt install -y dtach'
-
-  console.error(`Running: ${cmd}`)
-  const result = spawnSync(cmd, { shell: true, stdio: 'inherit' })
-  return result.status === 0
+  const dep = getDependency('dtach')
+  if (!dep) return false
+  return installDep(dep)
 }
 
 /**
@@ -54,12 +61,37 @@ export function installDtach(): boolean {
  * Returns true if installation succeeded.
  */
 export function installBun(): boolean {
-  const hasBrew = isBrewInstalled()
-  const cmd = hasBrew
-    ? 'brew install oven-sh/bun/bun'
-    : 'curl -fsSL https://bun.sh/install | bash'
+  const dep = getDependency('bun')
+  if (!dep) return false
+  return installDep(dep)
+}
 
-  console.error(`Running: ${cmd}`)
-  const result = spawnSync(cmd, { shell: true, stdio: 'inherit' })
-  return result.status === 0
+/**
+ * Install Claude Code CLI via npm.
+ * Returns true if installation succeeded.
+ */
+export function installClaude(): boolean {
+  const dep = getDependency('claude')
+  if (!dep) return false
+  return installDep(dep)
+}
+
+/**
+ * Install uv using Homebrew (macOS) or curl script (Linux/other).
+ * Returns true if installation succeeded.
+ */
+export function installUv(): boolean {
+  const dep = getDependency('uv')
+  if (!dep) return false
+  return installDep(dep)
+}
+
+/**
+ * Install GitHub CLI using Homebrew (macOS) or apt (Linux).
+ * Returns true if installation succeeded.
+ */
+export function installGh(): boolean {
+  const dep = getDependency('gh')
+  if (!dep) return false
+  return installDep(dep)
 }
