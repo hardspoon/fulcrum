@@ -332,7 +332,7 @@ app.put('/:key', async (c) => {
         return c.json({ error: `Claude Code theme must be one of: ${CLAUDE_CODE_THEMES.join(', ')}` }, 400)
       }
     } else if (path === CONFIG_KEYS.EDITOR_APP) {
-      const validApps: EditorApp[] = ['vscode', 'cursor', 'windsurf', 'zed']
+      const validApps: EditorApp[] = ['vscode', 'cursor', 'windsurf', 'zed', 'antigravity']
       if (!validApps.includes(value as EditorApp)) {
         return c.json({ error: `Editor app must be one of: ${validApps.join(', ')}` }, 400)
       }

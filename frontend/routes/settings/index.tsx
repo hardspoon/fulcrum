@@ -594,6 +594,7 @@ function SettingsPage() {
                               <SelectItem value="cursor">Cursor</SelectItem>
                               <SelectItem value="windsurf">Windsurf</SelectItem>
                               <SelectItem value="zed">Zed</SelectItem>
+                              <SelectItem value="antigravity">Antigravity</SelectItem>
                             </SelectContent>
                           </Select>
                           <Button

@@ -1,7 +1,7 @@
 /**
  * Editor app types supported by Vibora
  */
-export type EditorApp = 'vscode' | 'cursor' | 'windsurf' | 'zed'
+export type EditorApp = 'vscode' | 'cursor' | 'windsurf' | 'zed' | 'antigravity'
 
 /**
  * Editor protocol mapping
@@ -11,6 +11,7 @@ const EDITOR_PROTOCOLS: Record<EditorApp, string> = {
   cursor: 'cursor',
   windsurf: 'windsurf',
   zed: 'zed',
+  antigravity: 'antigravity',
 }
 
 /**
@@ -51,6 +52,7 @@ export function getEditorDisplayName(editorApp: EditorApp): string {
     cursor: 'Cursor',
     windsurf: 'Windsurf',
     zed: 'Zed',
+    antigravity: 'Antigravity',
   }
   return names[editorApp]
 }

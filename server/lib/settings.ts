@@ -7,7 +7,7 @@ import { log } from './logger'
 const CURRENT_SCHEMA_VERSION = 5
 
 // Editor app types
-export type EditorApp = 'vscode' | 'cursor' | 'windsurf' | 'zed'
+export type EditorApp = 'vscode' | 'cursor' | 'windsurf' | 'zed' | 'antigravity'
 
 // Claude Code theme types
 export type ClaudeCodeTheme = 'light' | 'light-ansi' | 'light-daltonized' | 'dark' | 'dark-ansi' | 'dark-daltonized'

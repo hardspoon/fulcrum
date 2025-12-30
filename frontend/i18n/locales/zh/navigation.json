@@ -25,6 +25,7 @@
       "goToMonitoring": "前往监控",
       "goToSettings": "前往设置",
       "newTask": "新建任务",
+      "openInEditor": "在编辑器中打开",
       "keyboardShortcuts": "键盘快捷键"
     }
   },
@@ -33,6 +34,7 @@
     "groups": {
       "navigation": "导航",
       "actions": "操作",
+      "terminals": "终端（桌面端）",
       "general": "通用"
     },
     "labels": {
@@ -45,8 +47,22 @@
       "goToSettings": "前往设置",
       "commandPalette": "命令面板",
       "newTask": "新建任务",
+      "openInEditor": "在编辑器中打开",
       "keyboardShortcuts": "键盘快捷键",
-      "closeModal": "关闭弹窗"
+      "closeModal": "关闭弹窗",
+      "newTerminal": "新建终端",
+      "closeTerminal": "关闭终端",
+      "submitForm": "提交表单"
     }
+  },
+  "openInEditor": {
+    "title": "在编辑器中打开",
+    "description": "在 {{editor}} 中打开文件夹",
+    "pathLabel": "路径",
+    "pathPlaceholder": "~/projects/my-project",
+    "pathHint": "支持 ~ 表示主目录",
+    "browse": "浏览",
+    "cancel": "取消",
+    "open": "打开"
   }
 }

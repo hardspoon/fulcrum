@@ -21,6 +21,7 @@ import {
   HelpCircleIcon,
   GitPullRequestIcon,
   ChartLineData01Icon,
+  CodeIcon,
 } from '@hugeicons/core-free-icons'
 
 interface CommandPaletteProps {
@@ -28,9 +29,10 @@ interface CommandPaletteProps {
   onOpenChange?: (open: boolean) => void
   onNewTask?: () => void
   onShowShortcuts?: () => void
+  onOpenInEditor?: () => void
 }
 
-export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, onShowShortcuts }: CommandPaletteProps) {
+export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, onShowShortcuts, onOpenInEditor }: CommandPaletteProps) {
   const { t } = useTranslation('navigation')
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
@@ -141,6 +143,18 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
         },
       },
       {
+        id: 'open-in-editor',
+        label: t('commandPalette.commands.openInEditor'),
+        shortcut: 'meta+e',
+        keywords: ['editor', 'code', 'vscode', 'cursor', 'folder', 'path'],
+        category: 'actions',
+        icon: <HugeiconsIcon icon={CodeIcon} size={16} strokeWidth={2} />,
+        action: () => {
+          setOpen(false)
+          onOpenInEditor?.()
+        },
+      },
+      {
         id: 'show-shortcuts',
         label: t('commandPalette.commands.keyboardShortcuts'),
         shortcut: 'meta+/',
@@ -154,7 +168,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
       },
     ]
     return cmds
-  }, [navigate, onNewTask, onShowShortcuts, setOpen, t])
+  }, [navigate, onNewTask, onShowShortcuts, onOpenInEditor, setOpen, t])
 
   // Filter commands based on query
   const filteredCommands = useMemo(
@@ -224,6 +238,15 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
       onShowShortcuts?.()
     },
     { allowInInput: true, allowInTerminal: true, deps: [onShowShortcuts] }
+  )
+
+  // Open in editor shortcut (Cmd+E)
+  useHotkeys(
+    'meta+e',
+    () => {
+      onOpenInEditor?.()
+    },
+    { allowInInput: false, deps: [onOpenInEditor] }
   )
 
   // Handle keyboard navigation in the palette

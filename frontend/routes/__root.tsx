@@ -11,6 +11,7 @@ import { PageBackground } from '@/components/layout/page-background'
 import { ConnectionStatusBanner } from '@/components/layout/connection-status-banner'
 import { ClaudeSetupBanner } from '@/components/onboarding/claude-setup-banner'
 import { KeyboardShortcutsHelp } from '@/components/keyboard-shortcuts-help'
+import { OpenInEditorDialog } from '@/components/open-in-editor-dialog'
 import { Toaster } from '@/components/ui/sonner'
 
 export const Route = createRootRoute({
@@ -80,6 +81,7 @@ function RootLayout() {
   const [openNewTask, setOpenNewTask] = useState<(() => void) | null>(null)
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [openInEditorDialogOpen, setOpenInEditorDialogOpen] = useState(false)
   const isDesktop = typeof window !== 'undefined' && window.parent !== window
 
   const handleNewTaskRef = useCallback((fn: () => void) => {
@@ -96,6 +98,10 @@ function RootLayout() {
 
   const handleOpenCommandPalette = useCallback(() => {
     setCommandPaletteOpen(true)
+  }, [])
+
+  const handleOpenInEditor = useCallback(() => {
+    setOpenInEditorDialogOpen(true)
   }, [])
 
   return (
@@ -118,8 +124,10 @@ function RootLayout() {
           onOpenChange={setCommandPaletteOpen}
           onNewTask={handleNewTask}
           onShowShortcuts={handleShowShortcuts}
+          onOpenInEditor={handleOpenInEditor}
         />
         <KeyboardShortcutsHelp open={shortcutsHelpOpen} onOpenChange={setShortcutsHelpOpen} />
+        <OpenInEditorDialog open={openInEditorDialogOpen} onOpenChange={setOpenInEditorDialogOpen} />
         <Toaster position={isDesktop ? 'bottom-center' : 'bottom-right'} />
       </div>
     </KeyboardProvider>
