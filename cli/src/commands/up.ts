@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { output } from '../utils/output'
+import { output, isJsonOutput } from '../utils/output'
 import { CliError, ExitCodes } from '../utils/errors'
 import { writePid, readPid, removePid, isProcessRunning, getPort } from '../utils/process'
 import { confirm } from '../utils/prompt'
@@ -230,14 +230,16 @@ export async function handleUpCommand(flags: Record<string, string>) {
     throw new CliError('START_FAILED', 'Server process died immediately after starting', ExitCodes.ERROR)
   }
 
-  output({
-    pid,
-    port,
-    url: `http://localhost:${port}`,
-  })
-
-  // Show getting started tips
-  showGettingStartedTips(port)
+  if (isJsonOutput()) {
+    output({
+      pid,
+      port,
+      url: `http://localhost:${port}`,
+    })
+  } else {
+    // Show getting started tips for human-readable output
+    showGettingStartedTips(port)
+  }
 }
 
 /**
