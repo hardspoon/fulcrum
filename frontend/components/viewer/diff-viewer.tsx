@@ -279,7 +279,7 @@ export function DiffViewer({ taskId, worktreePath }: DiffViewerProps) {
         {data?.branch && (
           <span className="text-muted-foreground">
             {data.branch}
-            {data.isBranchDiff && <span className="opacity-70"> (vs master)</span>}
+            {data.isBranchDiff && data.baseBranch && <span className="opacity-70"> (vs {data.baseBranch})</span>}
           </span>
         )}
         {(totalAdditions > 0 || totalDeletions > 0) && (

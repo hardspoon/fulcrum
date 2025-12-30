@@ -193,6 +193,7 @@ export interface GitDiffResponse {
   hasStagedChanges: boolean
   hasUnstagedChanges: boolean
   isBranchDiff: boolean
+  baseBranch?: string
 }
 
 export interface GitStatusResponse {

@@ -357,9 +357,10 @@ app.get('/diff', (c) => {
 
     // If no local changes, get diff against base branch
     let branchDiff = ''
+    let baseBranch: string | undefined
     if (!diff) {
       try {
-        const baseBranch = getDefaultBranch(worktreePath)
+        baseBranch = getDefaultBranch(worktreePath)
         const mergeBase = gitExec(worktreePath, `merge-base ${baseBranch} HEAD`)
         branchDiff = gitExec(worktreePath, `diff${wsFlag} ${mergeBase}..HEAD`)
       } catch {
@@ -413,6 +414,7 @@ app.get('/diff', (c) => {
       hasStagedChanges: files.some((f) => f.staged),
       hasUnstagedChanges: files.some((f) => !f.staged && f.status !== 'untracked'),
       isBranchDiff: !diff && !!branchDiff,
+      baseBranch,
     })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to get diff' }, 500)

@@ -40,6 +40,7 @@ interface GitDiff {
   hasStagedChanges: boolean
   hasUnstagedChanges: boolean
   isBranchDiff?: boolean
+  baseBranch?: string
 }
 
 interface GitStatus {
