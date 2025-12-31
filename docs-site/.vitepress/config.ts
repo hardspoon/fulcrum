@@ -84,7 +84,6 @@ export default defineConfig({
             { text: 'Setup', link: '/development/' },
             { text: 'Architecture', link: '/development/architecture' },
             { text: 'Terminal Internals', link: '/development/terminal' },
-            { text: 'Contributing', link: '/development/contributing' },
           ],
         },
       ],
