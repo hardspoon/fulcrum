@@ -19,12 +19,12 @@ export default defineConfig({
   ],
 
   head: [
-    ['link', { rel: 'icon', href: '/vibora/logo.jpg' }],
+    ['link', { rel: 'icon', href: '/vibora/logo.png' }],
     ['meta', { name: 'theme-color', content: '#0b7a75' }],
   ],
 
   themeConfig: {
-    logo: '/logo.jpg',
+    logo: '/logo.png',
 
     nav: [
       { text: 'Guide', link: '/guide/' },

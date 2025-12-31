@@ -82,7 +82,7 @@ export function useTaskSync() {
           function showNotification() {
             // Determine icon: goat if default sound enabled, otherwise logo
           const useGoat = playSound && !isCustomSound
-          const iconUrl = useGoat ? '/goat.jpeg' : '/logo.jpg'
+          const iconUrl = useGoat ? '/goat.jpeg' : '/logo.png'
 
           // Create icon element for toast
           const icon = (

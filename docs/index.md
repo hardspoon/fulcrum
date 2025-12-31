@@ -6,7 +6,7 @@ hero:
   text: The Vibe Engineer's Cockpit
   tagline: Orchestrate Claude Code across parallel workstreams from a terminal-first command center
   image:
-    src: /logo.jpg
+    src: /logo.png
     alt: Vibora
   actions:
     - theme: brand

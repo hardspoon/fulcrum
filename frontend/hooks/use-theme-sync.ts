@@ -50,8 +50,8 @@ export function useThemeSync() {
       link.rel = 'icon'
       document.head.appendChild(link)
     }
-    link.type = 'image/jpeg'
-    link.href = '/logo.jpg'
+    link.type = 'image/png'
+    link.href = '/logo.png'
   }, [])
 
   // Sync to Claude Code when sync setting is toggled on (immediate sync with current theme)
