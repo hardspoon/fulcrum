@@ -6,7 +6,7 @@ import { output, isJsonOutput } from '../utils/output'
 import { CliError, ExitCodes } from '../utils/errors'
 import { writePid, readPid, removePid, isProcessRunning, getPort } from '../utils/process'
 import { confirm } from '../utils/prompt'
-import { getViboraDir } from '../utils/server'
+import { getViboraDir, updateSettingsPort } from '../utils/server'
 import {
   isDtachInstalled,
   isBunInstalled,
@@ -173,6 +173,12 @@ export async function handleUpCommand(flags: Record<string, string>) {
   }
 
   const port = getPort(flags.port)
+
+  // Persist port to settings.json when explicitly passed
+  if (flags.port) {
+    updateSettingsPort(port)
+  }
+
   const host = flags.host ? '0.0.0.0' : 'localhost'
   const packageRoot = getPackageRoot()
   const serverPath = join(packageRoot, 'server', 'index.js')

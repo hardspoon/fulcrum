@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -103,6 +103,37 @@ export function discoverServerUrl(urlOverride?: string, portOverride?: string): 
 
   // 7. Default
   return `http://localhost:${DEFAULT_PORT}`
+}
+
+/**
+ * Updates the port in settings.json.
+ * Used when --port is explicitly passed to vibora up.
+ */
+export function updateSettingsPort(port: number): void {
+  const viboraDir = getViboraDir()
+  const settingsPath = join(viboraDir, 'settings.json')
+
+  let settings: Record<string, unknown> = {}
+  try {
+    if (existsSync(settingsPath)) {
+      settings = JSON.parse(readFileSync(settingsPath, 'utf-8'))
+    }
+  } catch {
+    // Start fresh if parse fails
+  }
+
+  // Ensure nested structure exists
+  if (!settings.server || typeof settings.server !== 'object') {
+    settings.server = {}
+  }
+  (settings.server as Record<string, unknown>).port = port
+
+  // Ensure directory exists
+  if (!existsSync(viboraDir)) {
+    mkdirSync(viboraDir, { recursive: true })
+  }
+
+  writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
 }
 
 /**
