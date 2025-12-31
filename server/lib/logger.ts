@@ -140,6 +140,7 @@ export function createLogger(component: string): Logger {
 
 // Pre-configured loggers for common components
 export const log = {
+  db: createLogger('Database'),
   pty: createLogger('PTYManager'),
   ws: createLogger('WS'),
   terminal: createLogger('Terminal'),

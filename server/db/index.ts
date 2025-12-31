@@ -1,10 +1,12 @@
 import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
 import { Database } from 'bun:sqlite'
-import { join } from 'node:path'
-import { readdirSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { readdirSync, existsSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import * as schema from './schema'
 import { initializeViboraDirectories, getDatabasePath } from '../lib/settings'
+import { log } from '../lib/logger'
 
 // Lazy-initialized database instance
 let _db: BunSQLiteDatabase<typeof schema> | null = null
@@ -18,6 +20,14 @@ function initializeDatabase(): BunSQLiteDatabase<typeof schema> {
   initializeViboraDirectories()
 
   const dbPath = getDatabasePath()
+
+  // Run schema sync before opening database
+  // In bundled mode, migrations are applied after db init
+  // In source mode, we run drizzle-kit push before opening
+  if (!process.env.VIBORA_PACKAGE_ROOT) {
+    runSourceModeSchemaSync(dbPath)
+  }
+
   _sqlite = new Database(dbPath)
 
   // Enable WAL mode for better performance
@@ -56,6 +66,36 @@ export function resetDatabase(): void {
 // For testing: get the underlying SQLite instance
 export function getSqlite(): Database | null {
   return _sqlite
+}
+
+// Run drizzle-kit push in source mode to sync schema
+// This ensures database schema is always up-to-date when running from source
+function runSourceModeSchemaSync(dbPath: string): void {
+  // Find the project root by looking for drizzle.config.ts
+  const serverDir = dirname(import.meta.dir)
+  const projectRoot = dirname(serverDir)
+  const configPath = join(projectRoot, 'drizzle.config.ts')
+
+  if (!existsSync(configPath)) {
+    // Not running from source (or config not found), skip
+    return
+  }
+
+  // Run drizzle-kit push with the correct database path
+  const result = spawnSync('bun', ['run', 'drizzle-kit', 'push', '--force'], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      VIBORA_DATABASE_PATH: dbPath,
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 30000,
+  })
+
+  if (result.status !== 0) {
+    const stderr = result.stderr?.toString() || ''
+    log.db.error('drizzle-kit push failed', { stderr })
+  }
 }
 
 // Run migrations in bundled mode (lazy, called after db initialization)
