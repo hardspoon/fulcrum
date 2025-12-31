@@ -7,8 +7,17 @@ import { db, repositories, type NewRepository } from '../db'
 import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { getSettings, expandPath } from '../lib/settings'
 import { isGitUrl, extractRepoNameFromUrl } from '../lib/git-utils'
+import type { Repository } from '../../../shared/types'
 
 const app = new Hono()
+
+// Transform database row to API response (parse JSON fields)
+function toApiResponse(row: typeof repositories.$inferSelect): Repository {
+  return {
+    ...row,
+    claudeOptions: row.claudeOptions ? JSON.parse(row.claudeOptions) : null,
+  }
+}
 
 // GET /api/repositories - List all repositories (sorted by last used, then created)
 app.get('/', (c) => {
@@ -21,7 +30,7 @@ app.get('/', (c) => {
       desc(repositories.createdAt)
     )
     .all()
-  return c.json(allRepos)
+  return c.json(allRepos.map(toApiResponse))
 })
 
 // GET /api/repositories/:id - Get single repository
@@ -31,7 +40,7 @@ app.get('/:id', (c) => {
   if (!repo) {
     return c.json({ error: 'Repository not found' }, 404)
   }
-  return c.json(repo)
+  return c.json(toApiResponse(repo))
 })
 
 // POST /api/repositories - Create repository
@@ -42,7 +51,7 @@ app.post('/', async (c) => {
       displayName: string
       startupScript?: string | null
       copyFiles?: string | null
-      systemPromptAddition?: string | null
+      claudeOptions?: Record<string, string> | null
       isCopierTemplate?: boolean
     }>()
 
@@ -72,7 +81,7 @@ app.post('/', async (c) => {
       displayName,
       startupScript: body.startupScript || null,
       copyFiles: body.copyFiles || null,
-      systemPromptAddition: body.systemPromptAddition || null,
+      claudeOptions: body.claudeOptions ? JSON.stringify(body.claudeOptions) : null,
       isCopierTemplate: body.isCopierTemplate ?? false,
       createdAt: now,
       updatedAt: now,
@@ -80,7 +89,7 @@ app.post('/', async (c) => {
 
     db.insert(repositories).values(newRepo).run()
     const created = db.select().from(repositories).where(eq(repositories.id, newRepo.id)).get()
-    return c.json(created, 201)
+    return c.json(created ? toApiResponse(created) : null, 201)
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to create repository' }, 400)
   }
@@ -205,7 +214,7 @@ app.post('/clone', async (c) => {
 
     db.insert(repositories).values(newRepo).run()
     const created = db.select().from(repositories).where(eq(repositories.id, newRepo.id)).get()
-    return c.json(created, 201)
+    return c.json(created ? toApiResponse(created) : null, 201)
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to clone repository' }, 500)
   }
@@ -226,7 +235,7 @@ app.patch('/:id', async (c) => {
       displayName?: string
       startupScript?: string | null
       copyFiles?: string | null
-      systemPromptAddition?: string | null
+      claudeOptions?: Record<string, string> | null
       isCopierTemplate?: boolean
     }>()
 
@@ -243,13 +252,20 @@ app.patch('/:id', async (c) => {
     }
 
     const now = new Date().toISOString()
+
+    // Serialize claudeOptions if provided
+    const updateData: Record<string, unknown> = { ...body, updatedAt: now }
+    if ('claudeOptions' in body) {
+      updateData.claudeOptions = body.claudeOptions ? JSON.stringify(body.claudeOptions) : null
+    }
+
     db.update(repositories)
-      .set({ ...body, updatedAt: now })
+      .set(updateData)
       .where(eq(repositories.id, id))
       .run()
 
     const updated = db.select().from(repositories).where(eq(repositories.id, id)).get()
-    return c.json(updated)
+    return c.json(updated ? toApiResponse(updated) : null)
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to update repository' }, 400)
   }
@@ -404,7 +420,7 @@ app.post('/bulk', async (c) => {
         : []
 
     return c.json({
-      created,
+      created: created.map(toApiResponse),
       skipped: body.repositories.length - toCreate.length,
     })
   } catch (err) {

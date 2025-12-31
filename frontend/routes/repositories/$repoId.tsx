@@ -29,6 +29,7 @@ import { toast } from 'sonner'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
 import { DeleteRepositoryDialog } from '@/components/repositories/delete-repository-dialog'
+import { ClaudeOptionsEditor } from '@/components/repositories/claude-options-editor'
 import { FilesViewer } from '@/components/viewer/files-viewer'
 import { GitStatusBadge } from '@/components/viewer/git-status-badge'
 import { Terminal } from '@/components/terminal/terminal'
@@ -95,7 +96,7 @@ function RepositoryDetailView() {
   const [displayName, setDisplayName] = useState('')
   const [startupScript, setStartupScript] = useState('')
   const [copyFiles, setCopyFiles] = useState('')
-  const [systemPromptAddition, setSystemPromptAddition] = useState('')
+  const [claudeOptions, setClaudeOptions] = useState<Record<string, string>>({})
   const [isCopierTemplate, setIsCopierTemplate] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
@@ -183,7 +184,7 @@ function RepositoryDetailView() {
       setDisplayName(repository.displayName)
       setStartupScript(repository.startupScript || '')
       setCopyFiles(repository.copyFiles || '')
-      setSystemPromptAddition(repository.systemPromptAddition || '')
+      setClaudeOptions(repository.claudeOptions || {})
       setIsCopierTemplate(repository.isCopierTemplate ?? false)
       setHasChanges(false)
     }
@@ -196,11 +197,11 @@ function RepositoryDetailView() {
         displayName !== repository.displayName ||
         startupScript !== (repository.startupScript || '') ||
         copyFiles !== (repository.copyFiles || '') ||
-        systemPromptAddition !== (repository.systemPromptAddition || '') ||
+        JSON.stringify(claudeOptions) !== JSON.stringify(repository.claudeOptions || {}) ||
         isCopierTemplate !== (repository.isCopierTemplate ?? false)
       setHasChanges(changed)
     }
-  }, [displayName, startupScript, copyFiles, systemPromptAddition, isCopierTemplate, repository])
+  }, [displayName, startupScript, copyFiles, claudeOptions, isCopierTemplate, repository])
 
   const handleSave = () => {
     if (!repository) return
@@ -212,7 +213,7 @@ function RepositoryDetailView() {
           displayName: displayName.trim() || repository.path.split('/').pop() || 'repo',
           startupScript: startupScript.trim() || null,
           copyFiles: copyFiles.trim() || null,
-          systemPromptAddition: systemPromptAddition.trim() || null,
+          claudeOptions: Object.keys(claudeOptions).length > 0 ? claudeOptions : null,
           isCopierTemplate,
         },
       },
@@ -500,17 +501,14 @@ function RepositoryDetailView() {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="systemPromptAddition">{t('detailView.settings.systemPromptAddition')}</FieldLabel>
-                    <Textarea
-                      id="systemPromptAddition"
-                      value={systemPromptAddition}
-                      onChange={(e) => setSystemPromptAddition(e.target.value)}
-                      placeholder={t('detailView.settings.systemPromptAdditionPlaceholder')}
-                      rows={3}
-                    />
-                    <FieldDescription>
-                      {t('detailView.settings.systemPromptAdditionDescription')}
+                    <FieldLabel>{t('detailView.settings.claudeOptions')}</FieldLabel>
+                    <FieldDescription className="mb-2">
+                      {t('detailView.settings.claudeOptionsDescription')}
                     </FieldDescription>
+                    <ClaudeOptionsEditor
+                      value={claudeOptions}
+                      onChange={setClaudeOptions}
+                    />
                   </Field>
 
                   <Field>

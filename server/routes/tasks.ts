@@ -116,18 +116,19 @@ function copyFilesToWorktree(repoPath: string, worktreePath: string, patterns: s
 
 const app = new Hono()
 
-// Helper to parse viewState JSON from database
-function parseViewState(task: Task): Task & { viewState: unknown } {
+// Helper to parse JSON fields from database
+function toApiResponse(task: Task): Task & { viewState: unknown; claudeOptions: Record<string, string> | null } {
   return {
     ...task,
     viewState: task.viewState ? JSON.parse(task.viewState) : null,
+    claudeOptions: task.claudeOptions ? JSON.parse(task.claudeOptions) : null,
   }
 }
 
 // GET /api/tasks - List all tasks
 app.get('/', (c) => {
   const allTasks = db.select().from(tasks).orderBy(asc(tasks.position)).all()
-  return c.json(allTasks.map(parseViewState))
+  return c.json(allTasks.map(toApiResponse))
 })
 
 // POST /api/tasks - Create task
@@ -137,7 +138,7 @@ app.post('/', async (c) => {
       Omit<NewTask, 'id' | 'createdAt' | 'updatedAt'> & {
         copyFiles?: string
         startupScript?: string
-        systemPromptAddition?: string
+        claudeOptions?: Record<string, string> | null
       }
     >()
 
@@ -163,7 +164,7 @@ app.post('/', async (c) => {
       worktreePath: body.worktreePath || null,
       startupScript: body.startupScript || null,
       aiMode: body.aiMode || null,
-      systemPromptAddition: body.systemPromptAddition || null,
+      claudeOptions: body.claudeOptions ? JSON.stringify(body.claudeOptions) : null,
       createdAt: now,
       updatedAt: now,
     }
@@ -198,7 +199,7 @@ app.post('/', async (c) => {
 
     const created = db.select().from(tasks).where(eq(tasks.id, newTask.id)).get()
     broadcast({ type: 'task:updated', payload: { taskId: newTask.id } })
-    return c.json(created ? parseViewState(created) : null, 201)
+    return c.json(created ? toApiResponse(created) : null, 201)
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to create task' }, 400)
   }
@@ -261,7 +262,7 @@ app.get('/:id', (c) => {
   if (!task) {
     return c.json({ error: 'Task not found' }, 404)
   }
-  return c.json(parseViewState(task))
+  return c.json(toApiResponse(task))
 })
 
 // PATCH /api/tasks/:id - Update task
@@ -300,7 +301,7 @@ app.patch('/:id', async (c) => {
     }
 
     const updated = db.select().from(tasks).where(eq(tasks.id, id)).get()
-    return c.json(updated ? parseViewState(updated) : null)
+    return c.json(updated ? toApiResponse(updated) : null)
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to update task' }, 400)
   }
@@ -416,7 +417,7 @@ app.patch('/:id/status', async (c) => {
     // Update the task status (handles all side effects: broadcast, Linear sync, notifications, killClaude)
     const updated = await updateTaskStatus(id, newStatus, newPosition)
 
-    return c.json(updated ? parseViewState(updated) : null)
+    return c.json(updated ? toApiResponse(updated) : null)
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to update task status' }, 400)
   }

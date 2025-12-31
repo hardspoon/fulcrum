@@ -217,7 +217,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
         worktreePath,
         copyFiles: selectedRepo?.copyFiles || undefined,
         startupScript: selectedRepo?.startupScript || undefined,
-        systemPromptAddition: selectedRepo?.systemPromptAddition || undefined,
+        claudeOptions: selectedRepo?.claudeOptions || undefined,
       },
       {
         onSuccess: (task) => {

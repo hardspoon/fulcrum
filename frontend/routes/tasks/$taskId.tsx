@@ -856,7 +856,7 @@ function TaskView() {
               aiMode={aiMode}
               description={aiModeDescription}
               startupScript={task.startupScript}
-              systemPromptAddition={task.systemPromptAddition}
+              claudeOptions={task.claudeOptions}
               serverPort={serverPort}
             />
           </TabsContent>
@@ -909,7 +909,7 @@ function TaskView() {
               aiMode={aiMode}
               description={aiModeDescription}
               startupScript={task.startupScript}
-              systemPromptAddition={task.systemPromptAddition}
+              claudeOptions={task.claudeOptions}
               serverPort={serverPort}
             />
           </ResizablePanel>

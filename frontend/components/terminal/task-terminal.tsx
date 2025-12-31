@@ -22,11 +22,11 @@ interface TaskTerminalProps {
   aiMode?: 'default' | 'plan'
   description?: string
   startupScript?: string | null
-  systemPromptAddition?: string | null
+  claudeOptions?: Record<string, string> | null
   serverPort?: number
 }
 
-export function TaskTerminal({ taskName, cwd, className, aiMode, description, startupScript, systemPromptAddition, serverPort = 7777 }: TaskTerminalProps) {
+export function TaskTerminal({ taskName, cwd, className, aiMode, description, startupScript, claudeOptions, serverPort = 7777 }: TaskTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XTerm | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -234,7 +234,7 @@ export function TaskTerminal({ taskName, cwd, className, aiMode, description, st
         // component unmount/remount (fixes race condition with React strict mode)
         startup: {
           startupScript,
-          systemPromptAddition,
+          claudeOptions,
           aiMode,
           description,
           taskName,
@@ -318,7 +318,7 @@ export function TaskTerminal({ taskName, cwd, className, aiMode, description, st
       if (pendingStartup) {
         log.taskTerminal.info('onAttached: running startup commands', { terminalId: actualTerminalId })
         setIsStartingClaude(true)
-        const { startupScript: currentStartupScript, systemPromptAddition: currentSystemPromptAddition, aiMode: currentAiMode, description: currentDescription, taskName: currentTaskName, serverPort: currentServerPort } = pendingStartup
+        const { startupScript: currentStartupScript, claudeOptions: currentClaudeOptions, aiMode: currentAiMode, description: currentDescription, taskName: currentTaskName, serverPort: currentServerPort } = pendingStartup
 
         // 1. Run startup script first (e.g., mise trust, mkdir .vibora, export VIBORA_DIR)
         // Use source with heredoc so exports persist in the current shell
@@ -333,21 +333,25 @@ export function TaskTerminal({ taskName, cwd, className, aiMode, description, st
         // 2. Then run Claude with the task prompt
         const effectivePort = currentServerPort ?? 7777
         const portFlag = effectivePort !== 7777 ? ` --port=${effectivePort}` : ''
-        let systemPrompt = 'You are working in a Vibora task worktree. ' +
+        const systemPrompt = 'You are working in a Vibora task worktree. ' +
           'Commit after completing each logical unit of work (feature, fix, refactor) to preserve progress. ' +
           `When you finish working and need user input, run: vibora current-task review${portFlag}. ` +
           `When linking a PR: vibora current-task pr <url>${portFlag}. ` +
           `When linking a Linear ticket: vibora current-task linear <url-or-ticket>${portFlag}. ` +
           `For notifications: vibora notify "Title" "Message"${portFlag}.`
-        // Append custom system prompt addition if provided
-        if (currentSystemPromptAddition) {
-          systemPrompt += '\n\n' + currentSystemPromptAddition
-        }
         const taskInfo = currentDescription ? `${currentTaskName}: ${currentDescription}` : currentTaskName
 
+        // Build additional CLI options from claudeOptions
+        let additionalOptions = ''
+        if (currentClaudeOptions && Object.keys(currentClaudeOptions).length > 0) {
+          additionalOptions = Object.entries(currentClaudeOptions)
+            .map(([key, value]) => ` --${key} ${escapeForShell(value)}`)
+            .join('')
+        }
+
         const taskCommand = currentAiMode === 'plan'
-          ? `claude ${escapeForShell(taskInfo)} --append-system-prompt ${escapeForShell(systemPrompt)} --session-id "${actualTerminalId}" --allow-dangerously-skip-permissions --permission-mode plan`
-          : `claude ${escapeForShell(taskInfo)} --append-system-prompt ${escapeForShell(systemPrompt)} --session-id "${actualTerminalId}" --dangerously-skip-permissions`
+          ? `claude ${escapeForShell(taskInfo)} --append-system-prompt ${escapeForShell(systemPrompt)} --session-id "${actualTerminalId}" --allow-dangerously-skip-permissions --permission-mode plan${additionalOptions}`
+          : `claude ${escapeForShell(taskInfo)} --append-system-prompt ${escapeForShell(systemPrompt)} --session-id "${actualTerminalId}" --dangerously-skip-permissions${additionalOptions}`
 
         // Wait longer for startup script to complete before sending Claude command
         // 5 seconds should be enough for most scripts (mise trust, mkdir, export, etc.)

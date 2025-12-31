@@ -92,6 +92,13 @@
       "when": 1767138213949,
       "tag": "0012_previous_norrin_radd",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1767243600000,
+      "tag": "0013_replace_system_prompt_with_claude_options",
+      "breakpoints": true
     }
   ]
 }

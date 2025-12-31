@@ -57,7 +57,7 @@ export interface Task {
   linearTicketUrl: string | null
   startupScript: string | null
   aiMode: 'default' | 'plan' | null
-  systemPromptAddition: string | null
+  claudeOptions: Record<string, string> | null
   createdAt: string
   updatedAt: string
 }
@@ -133,7 +133,7 @@ export interface Repository {
   displayName: string
   startupScript: string | null
   copyFiles: string | null
-  systemPromptAddition: string | null
+  claudeOptions: Record<string, string> | null
   remoteUrl: string | null
   isCopierTemplate: boolean
   createdAt: string

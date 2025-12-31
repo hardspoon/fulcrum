@@ -28,7 +28,7 @@ export function useCreateRepository() {
       displayName: string
       startupScript?: string | null
       copyFiles?: string | null
-      systemPromptAddition?: string | null
+      claudeOptions?: Record<string, string> | null
       isCopierTemplate?: boolean
     }) =>
       fetchJSON<Repository>(`${API_BASE}/api/repositories`, {
@@ -70,7 +70,7 @@ export function useUpdateRepository() {
       updates,
     }: {
       id: string
-      updates: Partial<Pick<Repository, 'path' | 'displayName' | 'startupScript' | 'copyFiles' | 'systemPromptAddition' | 'isCopierTemplate'>>
+      updates: Partial<Pick<Repository, 'path' | 'displayName' | 'startupScript' | 'copyFiles' | 'claudeOptions' | 'isCopierTemplate'>>
     }) =>
       fetchJSON<Repository>(`${API_BASE}/api/repositories/${id}`, {
         method: 'PATCH',
