@@ -712,17 +712,17 @@ echo "Desktop release packages ready in desktop/dist/"
 # Documentation tasks
 [tasks."docs:dev"]
 description = "Start documentation dev server"
-dir = "docs-site"
+dir = "docs"
 run = "bunx vitepress dev"
 
 [tasks."docs:build"]
 description = "Build documentation site"
-dir = "docs-site"
+dir = "docs"
 run = "bunx vitepress build"
 
 [tasks."docs:preview"]
 description = "Preview documentation build"
-dir = "docs-site"
+dir = "docs"
 run = "bunx vitepress preview"
 
 # Worker tasks

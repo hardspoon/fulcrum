@@ -103,7 +103,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: 'https://github.com/knowsuchagency/vibora/edit/main/docs-site/:path',
+      pattern: 'https://github.com/knowsuchagency/vibora/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
   },

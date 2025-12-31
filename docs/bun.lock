@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "docs-site",
+      "name": "docs",
       "devDependencies": {
         "@types/bun": "latest",
         "vitepress": "^1.6.4",
