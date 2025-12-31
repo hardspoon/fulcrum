@@ -4,41 +4,9 @@ import { getDtachService } from './dtach-service'
 import { BufferManager } from './buffer-manager'
 import { db, terminals } from '../db'
 import { eq } from 'drizzle-orm'
-import { getZAiSettings } from '../lib/settings'
+import { getShellEnv } from '../lib/env'
 import type { TerminalInfo, TerminalStatus } from '../types'
 import { log } from '../lib/logger'
-
-// z.ai related env vars to filter when z.ai is disabled
-const ZAI_ENV_VARS = [
-  'ANTHROPIC_AUTH_TOKEN',
-  'ANTHROPIC_BASE_URL',
-  'API_TIMEOUT_MS',
-  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-  'ANTHROPIC_DEFAULT_SONNET_MODEL',
-  'ANTHROPIC_DEFAULT_OPUS_MODEL',
-  'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
-]
-
-// Get clean environment for terminal, filtering z.ai vars if disabled
-function getTerminalEnv(): Record<string, string> {
-  const { PORT: _PORT, NODE_ENV: _NODE_ENV, ...envWithoutFiltered } = process.env
-  void _PORT
-  void _NODE_ENV
-
-  const zaiSettings = getZAiSettings()
-  if (zaiSettings.enabled) {
-    return envWithoutFiltered as Record<string, string>
-  }
-
-  // Filter out z.ai env vars when disabled
-  const filtered: Record<string, string> = {}
-  for (const [key, value] of Object.entries(envWithoutFiltered)) {
-    if (!ZAI_ENV_VARS.includes(key) && value !== undefined) {
-      filtered[key] = value
-    }
-  }
-  return filtered
-}
 
 export interface TerminalSessionOptions {
   id: string
@@ -134,7 +102,7 @@ export class TerminalSession {
         rows: this.rows,
         cwd: this.cwd,
         env: {
-          ...getTerminalEnv(),
+          ...getShellEnv(),
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
           // Signal remote context for starship/shell prompts to show full info
@@ -206,7 +174,7 @@ export class TerminalSession {
         rows: this.rows,
         cwd: this.cwd,
         env: {
-          ...getTerminalEnv(),
+          ...getShellEnv(),
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
           // Explicitly unset - bun-pty merges with process.env, doesn't replace

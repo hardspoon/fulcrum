@@ -3,6 +3,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import * as os from 'node:os'
 import type { ExecuteCommandRequest, ExecuteCommandResponse, ExecSession, UpdateExecSessionRequest } from '@shared/types'
+import { getShellEnv } from '../lib/env'
 
 const DEFAULT_TIMEOUT = 30000 // 30 seconds
 
@@ -35,7 +36,7 @@ function createSession(cwd?: string, name?: string): ShellSession {
   // The shell stays alive as long as stdin isn't closed
   const proc = spawn('/bin/bash', ['--norc', '--noprofile'], {
     cwd: initialCwd,
-    env: { ...process.env, TERM: 'dumb' },
+    env: { ...getShellEnv(), TERM: 'dumb' },
     stdio: ['pipe', 'pipe', 'pipe'],
   })
 
