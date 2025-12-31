@@ -5,6 +5,7 @@
     "system": "系统指标",
     "processes": "进程",
     "vibora": "Vibora 服务器",
+    "worktrees": "工作树",
     "usage": "使用限额"
   },
   "claude": {
@@ -40,7 +41,16 @@
       "cache": "缓存/缓冲区"
     },
     "diskUsage": "磁盘使用率 ({{path}})",
-    "error": "加载系统指标失败：{{message}}"
+    "error": "加载系统指标失败：{{message}}",
+    "timeWindows": {
+      "1m": "1 分钟",
+      "10m": "10 分钟",
+      "1h": "1 小时",
+      "3h": "3 小时",
+      "6h": "6 小时",
+      "12h": "12 小时",
+      "24h": "24 小时"
+    }
   },
   "processes": {
     "topProcesses": "热门进程",

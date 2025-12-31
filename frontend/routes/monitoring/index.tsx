@@ -46,7 +46,6 @@ import {
   useKillViboraInstance,
   useClaudeUsage,
   formatBytes,
-  formatTimeWindow,
   type TimeWindow,
   type ClaudeFilter,
   type ClaudeInstance,
@@ -374,7 +373,7 @@ function SystemMetricsTab() {
           </SelectTrigger>
           <SelectContent>
             {TIME_WINDOWS.map((tw) => (
-              <SelectItem key={tw} value={tw}>{formatTimeWindow(tw)}</SelectItem>
+              <SelectItem key={tw} value={tw}>{t(`system.timeWindows.${tw}`)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -388,7 +387,7 @@ function SystemMetricsTab() {
             size="xs"
             onClick={() => setWindow(tw)}
           >
-            {formatTimeWindow(tw)}
+            {t(`system.timeWindows.${tw}`)}
           </Button>
         ))}
       </div>

@@ -117,5 +117,39 @@
   },
   "error": {
     "failedToLoad": "Failed to load repositories: {{message}}"
+  },
+  "detailView": {
+    "breadcrumb": "Repositories",
+    "notFound": "Repository not found",
+    "save": "Save",
+    "saving": "Saving...",
+    "saved": "Repository saved",
+    "failedToSave": "Failed to save repository",
+    "tabs": {
+      "settings": "Settings",
+      "workspace": "Workspace"
+    },
+    "mobileWorkspace": {
+      "terminal": "Terminal",
+      "files": "Files"
+    },
+    "settings": {
+      "displayName": "Display Name",
+      "startupScript": "Startup Script",
+      "startupScriptPlaceholder": "npm install && npm run dev",
+      "startupScriptDescription": "Command to run in the terminal when creating a worktree.",
+      "systemPromptAddition": "System Prompt Addition",
+      "systemPromptAdditionPlaceholder": "Additional context or instructions for Claude...",
+      "systemPromptAdditionDescription": "Custom instructions to append to the Claude system prompt when creating tasks.",
+      "copyFiles": "Copy Files",
+      "copyFilesPlaceholder": ".env, config.local.json",
+      "copyFilesDescription": "Comma-separated glob patterns for files to copy into new worktrees.",
+      "isCopierTemplate": "Use as Copier Template",
+      "isCopierTemplateDescription": "Mark as a template for creating new projects with Copier."
+    },
+    "workspace": {
+      "connectingToTerminal": "Connecting to terminal server...",
+      "initializingTerminal": "Initializing terminal..."
+    }
   }
 }

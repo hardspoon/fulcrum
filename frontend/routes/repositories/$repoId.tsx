@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { useRepository, useUpdateRepository, useDeleteRepository } from '@/hooks/use-repositories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -81,6 +82,7 @@ interface RepoDetailSearch {
  * Repository detail view with integrated workspace (terminal + files).
  */
 function RepositoryDetailView() {
+  const { t } = useTranslation('repositories')
   const { repoId } = Route.useParams()
   const { tab, file } = Route.useSearch()
   const navigate = useNavigate()
@@ -216,11 +218,11 @@ function RepositoryDetailView() {
       },
       {
         onSuccess: () => {
-          toast.success('Repository saved')
+          toast.success(t('detailView.saved'))
           setHasChanges(false)
         },
         onError: (error) => {
-          toast.error('Failed to save repository', {
+          toast.error(t('detailView.failedToSave'), {
             description: error instanceof Error ? error.message : 'Unknown error',
           })
         },
@@ -361,13 +363,13 @@ function RepositoryDetailView() {
         <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-4 py-2">
           <Link to="/repositories" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <HugeiconsIcon icon={ArrowLeft02Icon} size={16} strokeWidth={2} />
-            Repositories
+            {t('detailView.breadcrumb')}
           </Link>
         </div>
         <div className="flex flex-1 items-center justify-center">
           <div className="flex items-center gap-3 text-destructive">
             <HugeiconsIcon icon={Alert02Icon} size={20} strokeWidth={2} />
-            <span className="text-sm">Repository not found</span>
+            <span className="text-sm">{t('detailView.notFound')}</span>
           </div>
         </div>
       </div>
@@ -385,7 +387,7 @@ function RepositoryDetailView() {
             className="text-muted-foreground hover:text-foreground"
           >
             <HugeiconsIcon icon={TaskAdd01Icon} size={16} strokeWidth={2} data-slot="icon" className="-translate-y-px" />
-            <span className="max-sm:hidden">New Task</span>
+            <span className="max-sm:hidden">{t('newTask')}</span>
           </Button>
 
           <Button
@@ -393,10 +395,10 @@ function RepositoryDetailView() {
             size="sm"
             onClick={() => navigate({ to: '/tasks', search: { repo: repository.displayName } })}
             className="text-muted-foreground hover:text-foreground"
-            title="View Tasks"
+            title={t('viewTasks')}
           >
             <HugeiconsIcon icon={GridViewIcon} size={14} strokeWidth={2} data-slot="icon" />
-            <span className="max-sm:hidden">Tasks</span>
+            <span className="max-sm:hidden">{t('viewTasks')}</span>
           </Button>
 
           <Button
@@ -404,10 +406,10 @@ function RepositoryDetailView() {
             size="sm"
             onClick={() => openInTerminal(repository.path, repository.displayName)}
             className="text-muted-foreground hover:text-foreground"
-            title="Open in Terminal"
+            title={t('openInTerminal')}
           >
             <HugeiconsIcon icon={ComputerTerminal01Icon} size={14} strokeWidth={2} data-slot="icon" />
-            <span className="max-sm:hidden">Terminal</span>
+            <span className="max-sm:hidden">{t('terminal')}</span>
           </Button>
 
           <Button
@@ -415,10 +417,10 @@ function RepositoryDetailView() {
             size="sm"
             onClick={handleOpenEditor}
             className="text-muted-foreground hover:text-foreground"
-            title={`Open in ${getEditorDisplayName(editorApp)}`}
+            title={t('openInEditor', { editor: getEditorDisplayName(editorApp) })}
           >
             <HugeiconsIcon icon={VisualStudioCodeIcon} size={14} strokeWidth={2} data-slot="icon" />
-            <span className="max-sm:hidden">Editor</span>
+            <span className="max-sm:hidden">{t('editor')}</span>
           </Button>
         </div>
 
@@ -458,8 +460,8 @@ function RepositoryDetailView() {
       >
         <div className="shrink-0 border-b border-border bg-muted/50 px-4">
           <TabsList variant="line">
-            <TabsTrigger value="settings" className="px-3 py-1.5">Settings</TabsTrigger>
-            <TabsTrigger value="workspace" className="px-3 py-1.5">Workspace</TabsTrigger>
+            <TabsTrigger value="settings" className="px-3 py-1.5">{t('detailView.tabs.settings')}</TabsTrigger>
+            <TabsTrigger value="workspace" className="px-3 py-1.5">{t('detailView.tabs.workspace')}</TabsTrigger>
           </TabsList>
         </div>
 
@@ -474,7 +476,7 @@ function RepositoryDetailView() {
 
                 <FieldGroup>
                   <Field>
-                    <FieldLabel htmlFor="displayName">Display Name</FieldLabel>
+                    <FieldLabel htmlFor="displayName">{t('detailView.settings.displayName')}</FieldLabel>
                     <Input
                       id="displayName"
                       value={displayName}
@@ -484,43 +486,43 @@ function RepositoryDetailView() {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="startupScript">Startup Script</FieldLabel>
+                    <FieldLabel htmlFor="startupScript">{t('detailView.settings.startupScript')}</FieldLabel>
                     <Textarea
                       id="startupScript"
                       value={startupScript}
                       onChange={(e) => setStartupScript(e.target.value)}
-                      placeholder="npm install && npm run dev"
+                      placeholder={t('detailView.settings.startupScriptPlaceholder')}
                       rows={3}
                     />
                     <FieldDescription>
-                      Command to run in the terminal when creating a worktree.
+                      {t('detailView.settings.startupScriptDescription')}
                     </FieldDescription>
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="systemPromptAddition">System Prompt Addition</FieldLabel>
+                    <FieldLabel htmlFor="systemPromptAddition">{t('detailView.settings.systemPromptAddition')}</FieldLabel>
                     <Textarea
                       id="systemPromptAddition"
                       value={systemPromptAddition}
                       onChange={(e) => setSystemPromptAddition(e.target.value)}
-                      placeholder="Additional context or instructions for Claude..."
+                      placeholder={t('detailView.settings.systemPromptAdditionPlaceholder')}
                       rows={3}
                     />
                     <FieldDescription>
-                      Custom instructions to append to the Claude system prompt when creating tasks.
+                      {t('detailView.settings.systemPromptAdditionDescription')}
                     </FieldDescription>
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="copyFiles">Copy Files</FieldLabel>
+                    <FieldLabel htmlFor="copyFiles">{t('detailView.settings.copyFiles')}</FieldLabel>
                     <Input
                       id="copyFiles"
                       value={copyFiles}
                       onChange={(e) => setCopyFiles(e.target.value)}
-                      placeholder=".env, config.local.json"
+                      placeholder={t('detailView.settings.copyFilesPlaceholder')}
                     />
                     <FieldDescription>
-                      Comma-separated glob patterns for files to copy into new worktrees.
+                      {t('detailView.settings.copyFilesDescription')}
                     </FieldDescription>
                   </Field>
 
@@ -530,10 +532,10 @@ function RepositoryDetailView() {
                         checked={isCopierTemplate}
                         onCheckedChange={(checked) => setIsCopierTemplate(checked === true)}
                       />
-                      <FieldLabel className="cursor-pointer">Use as Copier Template</FieldLabel>
+                      <FieldLabel className="cursor-pointer">{t('detailView.settings.isCopierTemplate')}</FieldLabel>
                     </div>
                     <FieldDescription>
-                      Mark as a template for creating new projects with Copier.
+                      {t('detailView.settings.isCopierTemplateDescription')}
                     </FieldDescription>
                   </Field>
                 </FieldGroup>
@@ -545,7 +547,7 @@ function RepositoryDetailView() {
                     disabled={!hasChanges || updateRepository.isPending}
                   >
                     <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} data-slot="icon" />
-                    {updateRepository.isPending ? 'Saving...' : 'Save'}
+                    {updateRepository.isPending ? t('detailView.saving') : t('detailView.save')}
                   </Button>
                 </div>
               </div>
@@ -562,8 +564,8 @@ function RepositoryDetailView() {
             >
               <div className="shrink-0 border-b border-border px-2 py-1">
                 <TabsList className="w-full">
-                  <TabsTrigger value="terminal" className="flex-1">Terminal</TabsTrigger>
-                  <TabsTrigger value="files" className="flex-1">Files</TabsTrigger>
+                  <TabsTrigger value="terminal" className="flex-1">{t('detailView.mobileWorkspace.terminal')}</TabsTrigger>
+                  <TabsTrigger value="files" className="flex-1">{t('detailView.mobileWorkspace.files')}</TabsTrigger>
                 </TabsList>
               </div>
 
@@ -571,7 +573,7 @@ function RepositoryDetailView() {
                 <div className="h-full flex flex-col">
                   {!connected && (
                     <div className="shrink-0 px-2 py-1 bg-muted-foreground/20 text-muted-foreground text-xs">
-                      Connecting to terminal server...
+                      {t('detailView.workspace.connectingToTerminal')}
                     </div>
                   )}
                   {isCreatingTerminal && !terminalId && (
@@ -584,7 +586,7 @@ function RepositoryDetailView() {
                           className="animate-spin text-muted-foreground"
                         />
                         <span className="font-mono text-sm text-muted-foreground">
-                          Initializing terminal...
+                          {t('detailView.workspace.initializingTerminal')}
                         </span>
                       </div>
                     </div>
@@ -615,7 +617,7 @@ function RepositoryDetailView() {
                 <div className="h-full flex flex-col">
                   {!connected && (
                     <div className="shrink-0 px-2 py-1 bg-muted-foreground/20 text-muted-foreground text-xs">
-                      Connecting to terminal server...
+                      {t('detailView.workspace.connectingToTerminal')}
                     </div>
                   )}
                   {isCreatingTerminal && !terminalId && (
@@ -628,7 +630,7 @@ function RepositoryDetailView() {
                           className="animate-spin text-muted-foreground"
                         />
                         <span className="font-mono text-sm text-muted-foreground">
-                          Initializing terminal...
+                          {t('detailView.workspace.initializingTerminal')}
                         </span>
                       </div>
                     </div>

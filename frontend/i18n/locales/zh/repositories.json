@@ -3,8 +3,14 @@
   "total": "共 {{count}} 个",
   "searchPlaceholder": "搜索仓库...",
   "newTask": "新建任务",
+  "viewTasks": "任务",
+  "terminal": "终端",
+  "editor": "编辑器",
+  "settings": "设置",
   "addRepository": "添加仓库",
   "scanDirectory": "扫描目录",
+  "openInTerminal": "在终端中打开",
+  "openInEditor": "在 {{editor}} 中打开",
   "card": {
     "openInVSCode": "在 VS Code 中打开"
   },
@@ -107,5 +113,39 @@
   },
   "error": {
     "failedToLoad": "加载仓库失败：{{message}}"
+  },
+  "detailView": {
+    "breadcrumb": "仓库",
+    "notFound": "仓库未找到",
+    "save": "保存",
+    "saving": "保存中...",
+    "saved": "仓库已保存",
+    "failedToSave": "保存仓库失败",
+    "tabs": {
+      "settings": "设置",
+      "workspace": "工作区"
+    },
+    "mobileWorkspace": {
+      "terminal": "终端",
+      "files": "文件"
+    },
+    "settings": {
+      "displayName": "显示名称",
+      "startupScript": "启动脚本",
+      "startupScriptPlaceholder": "npm install && npm run dev",
+      "startupScriptDescription": "创建工作树时在终端中运行的命令。",
+      "systemPromptAddition": "系统提示词补充",
+      "systemPromptAdditionPlaceholder": "Claude 的额外上下文或指令...",
+      "systemPromptAdditionDescription": "创建任务时追加到 Claude 系统提示词的自定义指令。",
+      "copyFiles": "复制文件",
+      "copyFilesPlaceholder": ".env, config.local.json",
+      "copyFilesDescription": "用逗号分隔的 glob 模式，用于复制文件到新的工作树。",
+      "isCopierTemplate": "用作 Copier 模板",
+      "isCopierTemplateDescription": "标记为使用 Copier 创建新项目的模板。"
+    },
+    "workspace": {
+      "connectingToTerminal": "正在连接终端服务器...",
+      "initializingTerminal": "正在初始化终端..."
+    }
   }
 }

@@ -41,7 +41,16 @@
       "cache": "Cache / Buffers"
     },
     "diskUsage": "Disk Usage ({{path}})",
-    "error": "Failed to load system metrics: {{message}}"
+    "error": "Failed to load system metrics: {{message}}",
+    "timeWindows": {
+      "1m": "1 min",
+      "10m": "10 min",
+      "1h": "1 hour",
+      "3h": "3 hours",
+      "6h": "6 hours",
+      "12h": "12 hours",
+      "24h": "24 hours"
+    }
   },
   "processes": {
     "topProcesses": "Top Processes",
