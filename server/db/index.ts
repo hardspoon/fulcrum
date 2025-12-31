@@ -101,11 +101,14 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
 
     if (migrationCount.count === 0) {
       // Database was created with drizzle-kit push - mark all migrations as applied
+      // and skip running migrate() since all tables/columns already exist
       const files = readdirSync(migrationsPath).filter((f: string) => f.endsWith('.sql')).sort()
       for (const file of files) {
         const hash = file.replace('.sql', '')
         sqlite.exec(`INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('${hash}', ${Date.now()})`)
       }
+      log.db.info('Database created via push, marked all migrations as applied', { count: files.length })
+      return
     }
   }
 
