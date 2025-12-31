@@ -709,6 +709,22 @@ mise run desktop:manifest
 echo "Desktop release packages ready in desktop/dist/"
 """
 
+# Documentation tasks
+[tasks."docs:dev"]
+description = "Start documentation dev server"
+dir = "docs-site"
+run = "bunx vitepress dev"
+
+[tasks."docs:build"]
+description = "Build documentation site"
+dir = "docs-site"
+run = "bunx vitepress build"
+
+[tasks."docs:preview"]
+description = "Preview documentation build"
+dir = "docs-site"
+run = "bunx vitepress preview"
+
 # Worker tasks
 [tasks."worker:deploy"]
 description = "Deploy vibora-utils Cloudflare worker"
