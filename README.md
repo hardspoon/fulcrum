@@ -1,6 +1,6 @@
 # Vibora
 
-**Orchestrate Claude Code. Ship to production. Own your entire workflow.**
+**Harness Attention. Orchestrate Agents. Ship.**
 
 ![Vibora Kanban Board](./screenshots/tasks-kanban-board.png)
 

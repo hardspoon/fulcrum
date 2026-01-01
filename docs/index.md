@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Vibora
   text: The Vibe Engineer's Cockpit
-  tagline: Orchestrate Claude Code. Ship to production. Own your entire workflow.
+  tagline: Harness Attention. Orchestrate Agents. Ship.
   image:
     src: /logo.png
     alt: Vibora
