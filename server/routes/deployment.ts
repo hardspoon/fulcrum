@@ -229,11 +229,12 @@ app.post('/settings', async (c) => {
 // GET /api/deployment/settings - Get current deployment settings
 app.get('/settings', async (c) => {
   const settings = getSettings()
+  const token = settings.integrations.cloudflareApiToken
 
   return c.json({
-    // Don't expose the full API token, just whether it's set
-    cloudflareApiToken: settings.integrations.cloudflareApiToken ? '***' : null,
-    cloudflareConfigured: !!settings.integrations.cloudflareApiToken,
+    // Mask the token but preserve its length for consistent UI display
+    cloudflareApiToken: token ? '•'.repeat(token.length) : null,
+    cloudflareConfigured: !!token,
   })
 })
 

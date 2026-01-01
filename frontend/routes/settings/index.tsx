@@ -174,7 +174,12 @@ function SettingsPage() {
     }
   }, [zAiSettings])
 
-  // Sync deployment settings - no local state needed, token is masked from API
+  // Sync deployment settings
+  useEffect(() => {
+    if (deploymentSettings?.cloudflareApiToken !== undefined) {
+      setLocalCloudflareToken(deploymentSettings.cloudflareApiToken ?? '')
+    }
+  }, [deploymentSettings])
 
   // Sync Claude Code theme settings
   useEffect(() => {
@@ -199,7 +204,7 @@ function SettingsPage() {
     localClaudeCodeLightTheme !== claudeCodeLightTheme ||
     localClaudeCodeDarkTheme !== claudeCodeDarkTheme
 
-  const hasDeploymentChanges = localCloudflareToken !== '' // New token entered (existing is masked)
+  const hasDeploymentChanges = localCloudflareToken !== (deploymentSettings?.cloudflareApiToken ?? '')
 
   const hasNotificationChanges = notificationSettings && (
     notificationsEnabled !== notificationSettings.enabled ||
@@ -396,11 +401,7 @@ function SettingsPage() {
               cloudflareApiToken: localCloudflareToken || undefined,
             },
             {
-              onSettled: () => {
-                // Clear the token field after saving (it's masked on reload)
-                setLocalCloudflareToken('')
-                resolve(undefined)
-              },
+              onSettled: resolve,
             }
           )
         })
@@ -802,7 +803,7 @@ function SettingsPage() {
                             type="password"
                             value={localCloudflareToken}
                             onChange={(e) => setLocalCloudflareToken(e.target.value)}
-                            placeholder={deploymentSettings?.cloudflareConfigured ? '••••••••' : t('fields.cloudflare.placeholder')}
+                            placeholder={t('fields.cloudflare.placeholder')}
                             disabled={isLoading}
                             className="flex-1 font-mono text-sm"
                           />
