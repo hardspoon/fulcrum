@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Vibora
-  text: The Vibe Engineer's Cockpit
-  tagline: Harness Attention. Orchestrate Agents. Ship.
+  text: Harness Attention. Orchestrate Agents. Ship.
+  tagline: Run parallel Claude Code sessions. Deploy to production. Self-hosted.
   image:
     src: /logo.png
     alt: Vibora
