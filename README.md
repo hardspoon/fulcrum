@@ -113,6 +113,12 @@ Manage your projects with quick actions. Create new tasks, open terminals, and c
 
 ![Repositories](./screenshots/repositories-view.png)
 
+### Browser Preview
+
+Preview your app alongside the agent terminal in a split-pane view. Watch changes in real-time as Claude iterates on your code.
+
+![Browser Preview](./screenshots/browser-preview-split-view.png)
+
 ### System Monitoring
 
 Keep an eye on system resources while your agents work. CPU, memory, and disk usage at a glance.
