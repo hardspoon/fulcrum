@@ -21,11 +21,16 @@ function isCommandAvailable(command: string): { installed: boolean; path?: strin
  */
 app.get('/dependencies', (c) => {
   // Check for Claude Code CLI
-  // First check environment variable (set by launcher), then do live check
+  // The CLI performs alias-aware detection before starting the server.
+  // Since the server runs as a daemon without access to shell aliases,
+  // we trust the CLI's detection passed via environment variable.
+  const claudeInstalledFromEnv = process.env.VIBORA_CLAUDE_INSTALLED === '1'
   const claudeMissingFromEnv = process.env.VIBORA_CLAUDE_MISSING === '1'
-  const claudeCheck = claudeMissingFromEnv
-    ? { installed: false }
-    : isCommandAvailable('claude')
+  const claudeCheck = claudeInstalledFromEnv
+    ? { installed: true }
+    : claudeMissingFromEnv
+      ? { installed: false }
+      : isCommandAvailable('claude')
 
   // Check for dtach (should always be installed if we got here, but check anyway)
   const dtachCheck = isCommandAvailable('dtach')

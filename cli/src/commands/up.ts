@@ -214,6 +214,8 @@ export async function handleUpCommand(flags: Record<string, string>) {
       VIBORA_PACKAGE_ROOT: packageRoot,
       VIBORA_VERSION: pkg.version,
       BUN_PTY_LIB: ptyLibPath,
+      // Pass CLI's alias-aware detection to the server (which can't detect aliases)
+      VIBORA_CLAUDE_INSTALLED: '1',
       ...(debug && { LOG_LEVEL: 'debug', DEBUG: '1' }),
     },
   })
