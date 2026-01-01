@@ -15,7 +15,7 @@ import {
   getTraefikLogs,
   TRAEFIK_CONTAINER_NAME,
   TRAEFIK_NETWORK,
-  TRAEFIK_DYNAMIC_DIR,
+  getTraefikDynamicDir,
 } from '../services/traefik-docker'
 import { getSettings, updateSettingByPath } from '../lib/settings'
 
@@ -135,7 +135,7 @@ app.post('/traefik/start', async (c) => {
     status,
     containerName: TRAEFIK_CONTAINER_NAME,
     network: TRAEFIK_NETWORK,
-    configDir: TRAEFIK_DYNAMIC_DIR,
+    configDir: getTraefikDynamicDir(),
   })
 })
 

@@ -142,8 +142,9 @@ function parseTraefikContainer(
       ? dynamicMount.Source
       : join(dynamicMount.Source, 'dynamic')
   } else {
-    // Default fallback
-    configDir = type === 'vibora' ? '/etc/vibora/traefik/dynamic' : '/etc/traefik/dynamic'
+    // Default fallback - use /etc/traefik/dynamic for external Traefik
+    // (Vibora's own Traefik uses getViboraTraefikConfig() which resolves dynamically)
+    configDir = '/etc/traefik/dynamic'
   }
 
   // Find the network - prefer dokploy-network, then any network

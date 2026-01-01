@@ -1,5 +1,8 @@
 import { Hono } from 'hono'
 import { execSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { homedir } from 'node:os'
 
 const app = new Hono()
 
@@ -16,6 +19,33 @@ function isCommandAvailable(command: string): { installed: boolean; path?: strin
 }
 
 /**
+ * Check if Claude Code CLI is installed
+ * Checks PATH first, then common installation locations
+ */
+function isClaudeCodeInstalled(): { installed: boolean; path?: string } {
+  // First check PATH
+  const pathCheck = isCommandAvailable('claude')
+  if (pathCheck.installed) {
+    return pathCheck
+  }
+
+  // Check common installation paths (e.g., when installed as alias)
+  const commonPaths = [
+    join(homedir(), '.claude', 'local', 'claude'),
+    '/usr/local/bin/claude',
+    '/opt/homebrew/bin/claude',
+  ]
+
+  for (const path of commonPaths) {
+    if (existsSync(path)) {
+      return { installed: true, path }
+    }
+  }
+
+  return { installed: false }
+}
+
+/**
  * GET /api/system/dependencies
  * Returns the status of required and optional dependencies
  */
@@ -24,13 +54,14 @@ app.get('/dependencies', (c) => {
   // The CLI performs alias-aware detection before starting the server.
   // Since the server runs as a daemon without access to shell aliases,
   // we trust the CLI's detection passed via environment variable.
+  // As a fallback, we also check common installation paths.
   const claudeInstalledFromEnv = process.env.VIBORA_CLAUDE_INSTALLED === '1'
   const claudeMissingFromEnv = process.env.VIBORA_CLAUDE_MISSING === '1'
   const claudeCheck = claudeInstalledFromEnv
     ? { installed: true }
     : claudeMissingFromEnv
       ? { installed: false }
-      : isCommandAvailable('claude')
+      : isClaudeCodeInstalled()
 
   // Check for dtach (should always be installed if we got here, but check anyway)
   const dtachCheck = isCommandAvailable('dtach')

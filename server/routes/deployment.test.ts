@@ -29,7 +29,7 @@ mock.module('../services/traefik-docker', () => ({
   getTraefikLogs: () => Promise.resolve('Traefik started'),
   TRAEFIK_CONTAINER_NAME: 'traefik',
   TRAEFIK_NETWORK: 'traefik',
-  TRAEFIK_DYNAMIC_DIR: '/etc/traefik/dynamic',
+  getTraefikDynamicDir: () => '/etc/traefik/dynamic',
 }))
 
 describe('Deployment Routes', () => {

@@ -9,9 +9,22 @@ import type { TraefikConfig } from './traefik'
 export const TRAEFIK_CONTAINER_NAME = 'vibora-traefik'
 export const TRAEFIK_IMAGE = 'traefik:v3'
 export const TRAEFIK_NETWORK = 'vibora-network'
-export const TRAEFIK_CONFIG_DIR = '/etc/vibora/traefik'
-export const TRAEFIK_DYNAMIC_DIR = '/etc/vibora/traefik/dynamic'
 export const TRAEFIK_CERTS_MOUNT = '/certs' // Mount point inside container
+
+/**
+ * Get Traefik config directory (on host)
+ * Uses vibora directory to avoid requiring root permissions
+ */
+export function getTraefikConfigDir(): string {
+  return join(getViboraDir(), 'traefik')
+}
+
+/**
+ * Get Traefik dynamic config directory (on host)
+ */
+export function getTraefikDynamicDir(): string {
+  return join(getViboraDir(), 'traefik', 'dynamic')
+}
 
 export type TraefikContainerStatus = 'running' | 'stopped' | 'not_found'
 
@@ -79,11 +92,14 @@ function getCertsDir(): string {
  * Ensure config directories exist
  */
 async function ensureConfigDirs(): Promise<void> {
-  if (!existsSync(TRAEFIK_CONFIG_DIR)) {
-    await mkdir(TRAEFIK_CONFIG_DIR, { recursive: true })
+  const configDir = getTraefikConfigDir()
+  const dynamicDir = getTraefikDynamicDir()
+
+  if (!existsSync(configDir)) {
+    await mkdir(configDir, { recursive: true })
   }
-  if (!existsSync(TRAEFIK_DYNAMIC_DIR)) {
-    await mkdir(TRAEFIK_DYNAMIC_DIR, { recursive: true })
+  if (!existsSync(dynamicDir)) {
+    await mkdir(dynamicDir, { recursive: true })
   }
   // Ensure certs directory exists
   const certsDir = getCertsDir()
@@ -194,15 +210,17 @@ export async function startTraefikContainer(
   await ensureConfigDirs()
 
   // Write traefik.yml
-  const traefikConfigPath = join(TRAEFIK_CONFIG_DIR, 'traefik.yml')
+  const configDir = getTraefikConfigDir()
+  const dynamicDir = getTraefikDynamicDir()
+  const traefikConfigPath = join(configDir, 'traefik.yml')
   await writeFile(traefikConfigPath, generateTraefikConfig(acmeEmail), 'utf-8')
 
   // Write middlewares.yml to dynamic dir
-  const middlewaresPath = join(TRAEFIK_DYNAMIC_DIR, 'middlewares.yml')
+  const middlewaresPath = join(dynamicDir, 'middlewares.yml')
   await writeFile(middlewaresPath, generateMiddlewaresConfig(), 'utf-8')
 
   // Create empty acme.json with correct permissions
-  const acmePath = join(TRAEFIK_CONFIG_DIR, 'acme.json')
+  const acmePath = join(configDir, 'acme.json')
   if (!existsSync(acmePath)) {
     await writeFile(acmePath, '{}', 'utf-8')
     await chmod(acmePath, 0o600)
@@ -222,11 +240,11 @@ export async function startTraefikContainer(
     '-v',
     '/var/run/docker.sock:/var/run/docker.sock:ro',
     '-v',
-    `${TRAEFIK_CONFIG_DIR}/traefik.yml:/etc/traefik/traefik.yml:ro`,
+    `${configDir}/traefik.yml:/etc/traefik/traefik.yml:ro`,
     '-v',
-    `${TRAEFIK_CONFIG_DIR}/acme.json:/etc/traefik/acme.json`,
+    `${configDir}/acme.json:/etc/traefik/acme.json`,
     '-v',
-    `${TRAEFIK_DYNAMIC_DIR}:/etc/traefik/dynamic:ro`,
+    `${dynamicDir}:/etc/traefik/dynamic:ro`,
     '-v',
     `${certsDir}:${TRAEFIK_CERTS_MOUNT}:ro`, // Mount Origin CA certificates
     '--network',
@@ -366,7 +384,7 @@ export async function getTraefikLogs(tail = 100): Promise<string> {
  */
 export function getViboraTraefikConfig(): TraefikConfig {
   return {
-    configDir: TRAEFIK_DYNAMIC_DIR,
+    configDir: getTraefikDynamicDir(),
     network: TRAEFIK_NETWORK,
     certResolver: 'letsencrypt',
     containerName: TRAEFIK_CONTAINER_NAME,
