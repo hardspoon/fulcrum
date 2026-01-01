@@ -1,52 +1,50 @@
-# Introduction
+# Vibora
 
-Vibora is a terminal-first command center for orchestrating AI coding agents across parallel workstreams.
+Run multiple Claude Code sessions in parallel across isolated git worktrees. Monitor them all from one screen. Close your laptop—they keep working. Deploy to production when ready. Self-hosted and open source.
 
-## Why Vibora?
+- **Full Development Lifecycle** — Develop features in isolated git worktrees, then deploy to production with Docker Compose. No context switching, no vendor lock-in.
+- **Parallel Agent Orchestration** — Run multiple Claude Code sessions across different tasks and worktrees. See and control all sessions in one parallel view.
+- **Work From Anywhere** — Close your laptop—Claude keeps working on your behalf. Pick up where you left off from your phone.
+- **Deep Claude Integration** — Via MCP, Claude can orchestrate tasks, execute code on your remote machine, and deploy apps—securely and autonomously.
+- **Open Source & Self-Hosted** — Inspect the code, run it anywhere, own your data. From a $5 VPS to your home lab.
 
-**For developers who take Claude Code seriously.** Not as a novelty, but as their primary interface for getting things done. If you live in the terminal and want to run multiple Claude Code sessions across isolated workstreams, Vibora is your cockpit.
+## Features
 
-## Key Features
+### Kanban Board
 
-### Full Development Lifecycle
+Track tasks from planning to done. Create tasks that automatically spin up isolated git worktrees, and watch their status update in real-time as you work with Claude Code.
 
-From development to deployment, all from one open-source platform. Develop features in isolated worktrees, then deploy them to production on your own hardware.
+![Kanban Board](/screenshots/tasks-kanban-board.png)
 
 ### Task Terminals View
 
-See and control all your Claude Code sessions across every worktree in one parallel view. The killer feature for orchestrating multiple agents simultaneously.
+See all your Claude Code sessions across every task and worktree in a single parallel view. Each task runs in an isolated git worktree, and you can monitor and interact with all of them simultaneously.
 
-### Local or Remote Execution
+![Task Terminals View](/screenshots/terminals-view-with-tests.png)
 
-Client/server architecture lets you run agents on your machine or a remote server. Launch tasks, close your laptop, and your agents keep working.
+### App Deployment
 
-### Git Worktree Isolation
+Deploy applications directly from Vibora with Docker Compose. Edit compose files inline, configure environment variables, and manage services with automatic Traefik routing and optional Cloudflare DNS integration.
 
-Each task runs in its own worktree. Your main branch stays clean until you're ready to merge.
+![App Deployment](/screenshots/app-deployment-config.png)
 
-### Docker Compose Deployment
+### Repositories
 
-Deploy apps with standard Docker Compose files. Automatic domain routing with Traefik, optional Cloudflare DNS integration, and real-time build logs.
+Manage your projects with quick actions. Create new tasks, open terminals, and configure repository settings from one place.
 
-### Persistent Terminals
+![Repositories](/screenshots/repositories-view.png)
 
-Named terminal tabs that survive restarts for ongoing work that doesn't fit into task worktrees.
+### Browser Preview
 
-## Feature Overview
+Preview your app alongside the agent terminal in a split-pane view. Watch changes in real-time as Claude iterates on your code.
 
-| Feature | Description |
-|---------|-------------|
-| **App Deployment** | Deploy Docker Compose apps with automatic domain routing and DNS |
-| **Parallel Agent Orchestration** | Run multiple Claude Code sessions across different tasks and worktrees |
-| **Local or Remote Execution** | Run on your machine or a remote server; agents continue working when you disconnect |
-| **Git Worktree Isolation** | Safe experimentation without touching your main branch |
-| **Claude Code Plugin** | Skill for task management, automatic status sync, session continuity |
-| **MCP Server** | Let Claude manage tasks, list repositories, and send notifications |
-| **Kanban Task Management** | Visual task tracking from planning to done |
-| **PR Monitoring** | Track pull requests across repositories |
-| **Linear Integration** | Sync task status with Linear tickets |
-| **System Monitoring** | CPU, memory, and disk usage at a glance |
-| **Cross-Platform** | Desktop app (Mac, Linux) or web application |
+![Browser Preview](/screenshots/browser-preview-split-view.png)
+
+### System Monitoring
+
+Keep an eye on system resources while your agents work. CPU, memory, and disk usage at a glance.
+
+![System Monitoring](/screenshots/monitoring-system-metrics.png)
 
 ## Next Steps
 

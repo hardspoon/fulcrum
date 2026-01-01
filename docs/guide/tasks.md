@@ -26,18 +26,16 @@ With the Claude Code plugin installed, status changes automatically:
 
 ## Creating Tasks
 
+### From the Navbar
+
+Click the **+** button in the top navigation bar to open the Create Task dialog. Select a repository, enter a task name, and optionally link to a Linear ticket.
+
 ### From the Repositories View
 
 1. Navigate to **Repositories**
 2. Click **New Task** on the repository
 3. Enter a task name
 4. Optionally link to a Linear ticket
-
-### From the CLI
-
-```bash
-vibora tasks create
-```
 
 ## Managing Tasks
 
@@ -49,23 +47,37 @@ The Kanban board shows all tasks organized by status. Drag tasks between columns
 
 See all Claude Code sessions across every task in one parallel view. This is the killer feature for orchestrating multiple agents.
 
-### CLI Commands
+### Task Detail View
 
-```bash
-vibora tasks list                # List all tasks
-vibora tasks get <id>            # Get task by ID
-vibora tasks move <id>           # Move to different status
-vibora tasks delete <id>         # Delete a task
-```
+Click on a task to open the detail view with a split-pane layout:
 
-When inside a task worktree:
+![Task Detail View](/screenshots/task-detail-split-view.png)
 
-```bash
-vibora current-task              # Get current task info
-vibora current-task review       # Mark as IN_REVIEW
-vibora current-task done         # Mark as DONE
-vibora current-task pr <url>     # Associate a PR
-```
+The left panel shows the Claude Code terminal. The right panel has three tabs:
+
+- **Diff** — View all changes made in the worktree compared to the base branch
+- **Browser** — Integrated browser to preview your app as Claude works on it
+- **Files** — Browse and edit files in the worktree
+
+The header contains quick-action buttons for common git operations:
+
+![Task Detail Git Buttons](/screenshots/task-detail-git-buttons.png)
+
+| Button | Action |
+|--------|--------|
+| **→\|** | **Pull from main** — Rebase your worktree onto the latest base branch |
+| **\|←** | **Merge to main** — Squash merge your worktree into the base branch and mark task as done |
+| **↑** | **Push to origin** — Push your worktree branch to the remote |
+| **⟳** | **Sync parent** — Pull the latest changes from origin into the parent repo's base branch |
+| **⑂** | **Commit** — Send a commit prompt to Claude Code |
+| **⎇** | **Create PR** — Create a pull request from your worktree branch |
+| **🗑** | **Delete** — Delete the task and optionally its worktree |
+
+The diagram below shows how these operations relate to each other:
+
+![Git Workflow](/screenshots/task-detail-git-workflow.png)
+
+If a git operation fails, you'll see a toast with a "Resolve with Claude" button that sends a detailed prompt to Claude Code to help fix the issue.
 
 ## Git Worktrees
 
@@ -80,29 +92,10 @@ Each task runs in its own [git worktree](https://git-scm.com/docs/git-worktree).
 
 Worktrees are created in `~/.vibora/worktrees/` by default (or `$VIBORA_DIR/worktrees/`).
 
-### Worktree Commands
-
-```bash
-vibora worktrees list            # List all worktrees
-vibora worktrees delete          # Delete a worktree
-```
-
 ## Linking to Linear
 
-Link a task to a Linear ticket for automatic status sync:
-
-```bash
-vibora current-task linear https://linear.app/team/issue/TEAM-123
-```
-
-When task status changes in Vibora, the linked Linear ticket updates automatically.
+Link a task to a Linear ticket when creating it, or add a link later via the task settings. When task status changes in Vibora, the linked Linear ticket updates automatically.
 
 ## Associating Pull Requests
 
-Link a PR to your task:
-
-```bash
-vibora current-task pr https://github.com/org/repo/pull/123
-```
-
-PRs are visible on the task card and in the PR Review view.
+Use the **Create PR** button in the task detail view, or link an existing PR via task settings. PRs are visible on the task card and in the PR Review view.

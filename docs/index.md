@@ -39,9 +39,7 @@ features:
 
 ## What It Does
 
-**Vibora is for developers who take Claude Code seriously.** Not as a novelty, but as their primary interface for getting things done. If you live in the terminal and want to run multiple Claude Code sessions across isolated workstreams, Vibora is your cockpit.
-
-**The complete development lifecycle.** Develop features in isolated worktrees, then deploy them to production—all from the same open-source platform running on your own hardware. No vendor lock-in, no wondering where your data lives.
+Run multiple Claude Code sessions in parallel across isolated git worktrees. Monitor them all from one screen. Close your laptop—they keep working. Deploy to production when ready. Self-hosted and open source.
 
 ## Quick Start
 

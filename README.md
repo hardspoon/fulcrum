@@ -6,7 +6,7 @@
 
 ## What It Does
 
-**Vibora is for developers who take Claude Code seriously.** Not as a novelty, but as their primary interface for getting things done. From isolated worktrees to production deployment—build, test, and ship from one open-source platform running on your own hardware.
+Run multiple Claude Code sessions in parallel across isolated git worktrees. Monitor them all from one screen. Close your laptop—they keep working. Deploy to production when ready. Self-hosted and open source.
 
 - **Full Development Lifecycle** — Develop features in isolated git worktrees, then deploy to production with Docker Compose. No context switching, no vendor lock-in.
 - **Parallel Agent Orchestration** — Run multiple Claude Code sessions across different tasks and worktrees. See and control all sessions in one parallel view.

@@ -73,6 +73,8 @@ The plugin enables:
 3. Enter a task name (e.g., "Add user authentication")
 4. Vibora creates an isolated git worktree and opens a terminal
 
+![Create New Task](/screenshots/create-new-task-dialog.png)
+
 Your task is now running in its own worktree. You can:
 - Open it in your editor
 - Start Claude Code in the terminal

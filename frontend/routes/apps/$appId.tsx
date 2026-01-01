@@ -63,6 +63,7 @@ import {
   ArrowLeft01Icon,
   Cancel01Icon,
   Menu01Icon,
+  PackageIcon,
 } from '@hugeicons/core-free-icons'
 import { MonacoEditor } from '@/components/viewer/monaco-editor'
 import type { Deployment, ExposureMethod } from '@/types'
@@ -223,6 +224,16 @@ function AppDetailView() {
           {/* App info on right */}
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm">{app.name}</span>
+            {app.repository && (
+              <Link
+                to="/repositories/$repoId"
+                params={{ repoId: app.repository.id }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                title={app.repository.displayName}
+              >
+                <HugeiconsIcon icon={PackageIcon} size={14} strokeWidth={2} />
+              </Link>
+            )}
             <div
               className={`h-2 w-2 rounded-full ${
                 app.status === 'running' ? 'bg-green-500' :

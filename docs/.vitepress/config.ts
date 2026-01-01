@@ -2,7 +2,8 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'Vibora',
-  description: "The Vibe Engineer's Cockpit - Terminal-first AI agent orchestration",
+  titleTemplate: ':title - Harness Attention. Ship.',
+  description: "Terminal-first AI agent orchestration for vibe engineers",
 
   // Deploy to Cloudflare Pages at www.vibora.dev
   base: '/',

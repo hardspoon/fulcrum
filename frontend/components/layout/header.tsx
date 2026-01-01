@@ -21,6 +21,7 @@ import {
   ChartLineData01Icon,
   More03Icon,
   Rocket01Icon,
+  HelpCircleIcon,
 } from '@hugeicons/core-free-icons'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
 import { cn } from '@/lib/utils'
@@ -123,6 +124,15 @@ export function Header({ onNewTaskRef, onOpenCommandPalette }: HeaderProps) {
         >
           <HugeiconsIcon icon={BrowserIcon} size={16} strokeWidth={2} />
         </Button>
+        <a
+          href="https://www.vibora.dev/guide/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center rounded-md p-1.5 text-foreground/60 transition-colors hover:text-foreground"
+          title={t('header.help')}
+        >
+          <HugeiconsIcon icon={HelpCircleIcon} size={16} strokeWidth={2} />
+        </a>
         <Link
           to="/settings"
           className={cn(

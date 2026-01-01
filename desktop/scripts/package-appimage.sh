@@ -75,7 +75,7 @@ cat > "$APP_DIR/usr/share/applications/vibora.desktop" << EOF
 [Desktop Entry]
 Type=Application
 Name=Vibora
-Comment=The Vibe Engineer's Cockpit
+Comment=Harness Attention. Orchestrate Agents. Ship.
 Exec=vibora-launcher
 Icon=vibora
 Categories=Development;IDE;

@@ -1,10 +1,11 @@
 import { spawn } from 'child_process'
+import { join } from 'path'
 import { nanoid } from 'nanoid'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { apps, appServices, deployments, repositories, tunnels } from '../db/schema'
 import { log } from '../lib/logger'
-import { getSettings } from '../lib/settings'
+import { getSettings, getViboraDir } from '../lib/settings'
 import { composeBuild } from './docker-compose'
 import {
   ensureSwarmMode,
@@ -280,11 +281,13 @@ export async function deployApp(
     // Stage 2b: Generate Swarm-compatible compose file
     // This adds image fields for services with build sections
     // Also attaches services to the Traefik network for routing
+    const appDir = join(getViboraDir(), 'apps', appId)
     const swarmFileResult = await generateSwarmComposeFile(
       repo.path,
       app.composeFile,
       projectName,
-      traefikConfig.network // Attach to Traefik network
+      traefikConfig.network, // Attach to Traefik network
+      appDir // Output directory for swarm compose file
     )
     if (!swarmFileResult.success) {
       throw new Error(`Failed to generate Swarm compose file: ${swarmFileResult.error}`)
@@ -555,8 +558,7 @@ export async function deployApp(
       // Add cloudflared service to the stack and redeploy
       onProgress?.({ stage: 'configuring', message: 'Adding cloudflared to stack...' })
       const cloudflaredResult = await addCloudflaredToStack(
-        repo.path,
-        swarmFileResult.swarmFile,
+        swarmFileResult.swarmFile, // Absolute path to swarm compose file
         {
           tunnelToken: tunnelRecord!.tunnelToken,
           network: traefikConfig.network,

@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'child_process'
-import { readFile, writeFile } from 'fs/promises'
+import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { log } from '../lib/logger'
@@ -166,30 +166,34 @@ export async function ensureSwarmMode(): Promise<{ initialized: boolean; error?:
  * 1. Adds `image: {projectName}-{serviceName}` for services with `build` but no `image`
  * 2. Removes `restart` (Swarm handles this via deploy config)
  * 3. Optionally attaches services to an external network (for Traefik routing)
- * 4. Writes to `.swarm-compose.yml` in the same directory
+ * 4. Writes to `swarm-compose.yml` in the specified output directory
  */
 export async function generateSwarmComposeFile(
   cwd: string,
   composeFile: string,
   projectName: string,
-  externalNetwork?: string // Optional external network for ingress (e.g., dokploy-network)
+  externalNetwork: string | undefined, // Optional external network for ingress (e.g., dokploy-network)
+  outputDir: string // Directory to write the swarm compose file (e.g., VIBORA_DIR/apps/{appId})
 ): Promise<{ success: boolean; swarmFile: string; error?: string }> {
-  const swarmFile = '.swarm-compose.yml'
+  const swarmFileName = 'swarm-compose.yml'
   const originalPath = join(cwd, composeFile)
-  const swarmPath = join(cwd, swarmFile)
+  const swarmPath = join(outputDir, swarmFileName)
 
   try {
+    // Ensure output directory exists
+    await mkdir(outputDir, { recursive: true })
+
     // Read and parse the original compose file
     const content = await readFile(originalPath, 'utf-8')
     const parsed = parseYaml(content) as Record<string, unknown>
 
     if (!parsed || typeof parsed !== 'object') {
-      return { success: false, swarmFile, error: 'Invalid compose file format' }
+      return { success: false, swarmFile: swarmPath, error: 'Invalid compose file format' }
     }
 
     const services = parsed.services as Record<string, Record<string, unknown>> | undefined
     if (!services) {
-      return { success: false, swarmFile, error: 'No services found in compose file' }
+      return { success: false, swarmFile: swarmPath, error: 'No services found in compose file' }
     }
 
     // Track which services were modified
@@ -298,17 +302,17 @@ export async function generateSwarmComposeFile(
 
     if (modified.length > 0 || externalNetwork) {
       log.deploy.info('Generated Swarm compose file', {
-        swarmFile,
+        swarmFile: swarmPath,
         modifiedServices: modified,
         externalNetwork: externalNetwork || null,
       })
     }
 
-    return { success: true, swarmFile }
+    return { success: true, swarmFile: swarmPath }
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
     log.deploy.error('Failed to generate Swarm compose file', { error })
-    return { success: false, swarmFile, error }
+    return { success: false, swarmFile: swarmPath, error }
   }
 }
 
@@ -631,14 +635,11 @@ export interface CloudflaredServiceConfig {
  * and connects to the same network as the app services
  */
 export async function addCloudflaredToStack(
-  cwd: string,
-  swarmFile: string,
+  swarmFilePath: string, // Absolute path to the swarm compose file
   config: CloudflaredServiceConfig
 ): Promise<{ success: boolean; error?: string }> {
-  const swarmPath = join(cwd, swarmFile)
-
   try {
-    const content = await readFile(swarmPath, 'utf-8')
+    const content = await readFile(swarmFilePath, 'utf-8')
     const parsed = parseYaml(content) as Record<string, unknown>
 
     const services = parsed.services as Record<string, Record<string, unknown>>
@@ -672,8 +673,8 @@ export async function addCloudflaredToStack(
       parsed.networks = networks
     }
 
-    await writeFile(swarmPath, stringifyYaml(parsed), 'utf-8')
-    log.deploy.info('Added cloudflared service to stack', { swarmFile })
+    await writeFile(swarmFilePath, stringifyYaml(parsed), 'utf-8')
+    log.deploy.info('Added cloudflared service to stack', { swarmFile: swarmFilePath })
     return { success: true }
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)

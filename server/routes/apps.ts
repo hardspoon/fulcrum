@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
+import { rm } from 'fs/promises'
+import { join } from 'path'
 import { nanoid } from 'nanoid'
 import { eq, desc } from 'drizzle-orm'
 import { db } from '../db'
@@ -11,6 +13,7 @@ import { checkDockerInstalled, checkDockerRunning } from '../services/docker-com
 import { refreshGitWatchers } from '../services/git-watcher'
 import { deleteDnsRecord } from '../services/cloudflare'
 import { log } from '../lib/logger'
+import { getViboraDir } from '../lib/settings'
 import type { App, AppService } from '../db/schema'
 
 const app = new Hono()
@@ -417,6 +420,16 @@ app.delete('/:id', async (c) => {
       }
     }
   }
+
+  // Clean up app directory (contains swarm-compose.yml)
+  const appDir = join(getViboraDir(), 'apps', id)
+  await rm(appDir, { recursive: true, force: true }).catch((err) => {
+    log.deploy.warn('Failed to delete app directory during app deletion', {
+      appId: id,
+      appDir,
+      error: String(err),
+    })
+  })
 
   // Delete services
   await db.delete(appServices).where(eq(appServices.appId, id))

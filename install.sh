@@ -64,12 +64,16 @@ install_dtach() {
 
     print_warning "dtach not found. Installing..."
 
+    # Try Homebrew first (works on both macOS and Linux)
     if command -v brew &> /dev/null; then
         if brew install dtach; then
             print_success "dtach installed via Homebrew"
             return 0
         fi
-    elif command -v apt &> /dev/null; then
+    fi
+
+    # Fallback to system package managers
+    if command -v apt &> /dev/null; then
         if sudo apt install -y dtach; then
             print_success "dtach installed via apt"
             return 0
@@ -179,6 +183,181 @@ install_vibora_plugin() {
     fi
 }
 
+# Ask user a yes/no question
+ask_yes_no() {
+    local prompt="$1"
+    local default="${2:-n}"
+    local response
+
+    if [ "$default" = "y" ]; then
+        prompt="$prompt [Y/n] "
+    else
+        prompt="$prompt [y/N] "
+    fi
+
+    read -r -p "$prompt" response
+    response=${response:-$default}
+
+    case "$response" in
+        [yY][eE][sS]|[yY]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Check and offer to install Docker (optional, for app deployment)
+install_docker() {
+    print_step "Checking for Docker..."
+
+    if command -v docker &> /dev/null; then
+        print_success "Docker is already installed"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Docker enables app deployment features in Vibora.${NC}"
+    echo "  - Deploy apps with Docker Compose"
+    echo "  - Automatic domain routing with Traefik"
+    echo "  - Container monitoring and logs"
+    echo ""
+
+    if ! ask_yes_no "Would you like to install Docker?"; then
+        print_warning "Skipping Docker installation"
+        echo "  You can install it later: https://docs.docker.com/get-docker/"
+        return 0
+    fi
+
+    print_warning "Installing Docker..."
+
+    # Try Homebrew first (works on both macOS and Linux)
+    if command -v brew &> /dev/null; then
+        if [[ "$(uname)" == "Darwin" ]]; then
+            # macOS: use cask for Docker Desktop
+            if brew install --cask docker; then
+                print_success "Docker installed via Homebrew"
+                echo "  Please open Docker Desktop to complete setup"
+                return 0
+            fi
+        else
+            # Linux: use formula for docker engine
+            if brew install docker docker-compose; then
+                print_success "Docker installed via Homebrew"
+                return 0
+            fi
+        fi
+    fi
+
+    # Fallback to system package managers / official script
+    if command -v apt &> /dev/null; then
+        # Docker's official install script
+        if curl -fsSL https://get.docker.com | sh; then
+            print_success "Docker installed"
+            # Add user to docker group
+            if [ -n "$SUDO_USER" ]; then
+                sudo usermod -aG docker "$SUDO_USER"
+                echo "  Log out and back in for group changes to take effect"
+            fi
+            return 0
+        fi
+    elif command -v dnf &> /dev/null; then
+        if sudo dnf install -y docker docker-compose-plugin && sudo systemctl enable --now docker; then
+            print_success "Docker installed via dnf"
+            if [ -n "$SUDO_USER" ]; then
+                sudo usermod -aG docker "$SUDO_USER"
+            fi
+            return 0
+        fi
+    elif command -v pacman &> /dev/null; then
+        if sudo pacman -S --noconfirm docker docker-compose && sudo systemctl enable --now docker; then
+            print_success "Docker installed via pacman"
+            if [ -n "$SUDO_USER" ]; then
+                sudo usermod -aG docker "$SUDO_USER"
+            fi
+            return 0
+        fi
+    fi
+
+    print_warning "Could not install Docker automatically"
+    echo "  Install manually: https://docs.docker.com/get-docker/"
+    return 1
+}
+
+# Check and offer to install cloudflared (optional, for tunnel access)
+install_cloudflared() {
+    print_step "Checking for cloudflared..."
+
+    if command -v cloudflared &> /dev/null; then
+        print_success "cloudflared is already installed"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Cloudflared enables secure tunnel access to deployed apps.${NC}"
+    echo "  - Expose apps to the internet without port forwarding"
+    echo "  - Automatic HTTPS with Cloudflare certificates"
+    echo "  - Optional DNS integration for custom domains"
+    echo ""
+
+    if ! ask_yes_no "Would you like to install cloudflared?"; then
+        print_warning "Skipping cloudflared installation"
+        echo "  You can install it later: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
+        return 0
+    fi
+
+    print_warning "Installing cloudflared..."
+
+    # Try Homebrew first (works on both macOS and Linux)
+    if command -v brew &> /dev/null; then
+        if brew install cloudflared; then
+            print_success "cloudflared installed via Homebrew"
+            return 0
+        fi
+    fi
+
+    # Fallback to system package managers
+    if command -v apt &> /dev/null; then
+        # Add Cloudflare's GPG key and repo
+        if curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg > /dev/null && \
+           echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflared.list && \
+           sudo apt update && sudo apt install -y cloudflared; then
+            print_success "cloudflared installed via apt"
+            return 0
+        fi
+    elif command -v dnf &> /dev/null; then
+        if sudo dnf install -y cloudflared; then
+            print_success "cloudflared installed via dnf"
+            return 0
+        fi
+    elif command -v pacman &> /dev/null; then
+        if sudo pacman -S --noconfirm cloudflared; then
+            print_success "cloudflared installed via pacman"
+            return 0
+        fi
+    fi
+
+    # Fallback: try downloading binary directly
+    local arch
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64) arch="amd64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        *) print_warning "Unsupported architecture: $arch"; return 1 ;;
+    esac
+
+    local os
+    os=$(uname -s | tr '[:upper:]' '[:lower:]')
+
+    if curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-${os}-${arch}" -o /tmp/cloudflared && \
+       chmod +x /tmp/cloudflared && \
+       sudo mv /tmp/cloudflared /usr/local/bin/cloudflared; then
+        print_success "cloudflared installed"
+        return 0
+    fi
+
+    print_warning "Could not install cloudflared automatically"
+    echo "  Install manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
+    return 1
+}
+
 # Start vibora server
 start_vibora() {
     print_step "Starting vibora server..."
@@ -205,10 +384,10 @@ start_vibora() {
 # Main installation flow
 main() {
     echo ""
-    echo -e "${BLUE}╔═══════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║${NC}     Vibora Installation Script        ${BLUE}║${NC}"
-    echo -e "${BLUE}║${NC}     The Vibe Engineer's Cockpit       ${BLUE}║${NC}"
-    echo -e "${BLUE}╚═══════════════════════════════════════╝${NC}"
+    echo -e "${BLUE}╔═════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║${NC}           Vibora Installation Script            ${BLUE}║${NC}"
+    echo -e "${BLUE}║${NC}  Harness Attention. Orchestrate Agents. Ship.  ${BLUE}║${NC}"
+    echo -e "${BLUE}╚═════════════════════════════════════════════════╝${NC}"
     echo ""
 
     check_dependencies
@@ -217,6 +396,13 @@ main() {
     install_claude_code
     install_uv
     install_vibora_plugin
+
+    # Optional: App deployment dependencies
+    echo ""
+    echo -e "${BLUE}━━━ Optional: App Deployment ━━━${NC}"
+    install_docker
+    install_cloudflared
+
     start_vibora
 }
 

@@ -16,16 +16,6 @@ From this view you can:
 - Monitor progress across multiple agents
 - Quickly identify which tasks need attention
 
-### Opening Claude Code
-
-In a task terminal:
-
-```bash
-claude
-```
-
-The Claude Code plugin automatically detects the task context and syncs status.
-
 ## Persistent Terminal Tabs
 
 For work that doesn't fit into task worktrees, use persistent terminal tabs.
@@ -52,14 +42,6 @@ Terminals are backed by [dtach](https://github.com/crigler/dtach) sessions, prov
 - **Persistence** — Terminals survive server restarts
 - **Detach/Attach** — Sessions continue running when you disconnect
 - **Remote resilience** — Perfect for remote server setups
-
-### Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| <kbd>Ctrl</kbd>+<kbd>C</kbd> | Send interrupt |
-| <kbd>Ctrl</kbd>+<kbd>D</kbd> | Send EOF |
-| <kbd>Ctrl</kbd>+<kbd>L</kbd> | Clear terminal |
 
 ### Scrollback
 

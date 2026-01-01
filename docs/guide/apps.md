@@ -27,7 +27,7 @@ Before deploying apps, you need:
 - **Docker** — Running on your server
 - **Traefik** — Vibora can start its own Traefik container, or use an existing one (e.g., from [Dokploy](https://dokploy.com/))
 - **A domain** — For exposing services (optional for local-only deployments)
-- **Cloudflare API token** — For automatic DNS configuration (optional)
+- **Cloudflare API token** — For automatic DNS configuration or tunnel access (optional)
 
 Check your setup:
 
@@ -67,12 +67,12 @@ myapp.example.com
 
 Requirements:
 - The service must have a port mapping in the Compose file (e.g., `ports: ["3000:3000"]`)
-- The domain must point to your server's IP (manual or via Cloudflare integration)
 
-When a domain is set, Vibora:
-1. Creates a Traefik configuration for the domain
-2. Optionally creates a Cloudflare DNS record
-3. Provisions an HTTPS certificate via Let's Encrypt (or Cloudflare Origin CA)
+When setting a domain, choose an **exposure method**:
+- **DNS** — Direct traffic to your server (requires public IP)
+- **Tunnel** — Route through Cloudflare (works behind NAT)
+
+See [Domain Configuration](#domain-configuration) for details on each method.
 
 ### Port Mapping
 
@@ -116,7 +116,7 @@ Click **Deploy** to start a deployment. You'll see real-time progress:
 ### Build Options
 
 - **No-cache** — Force a fresh build without Docker cache
-- **Autodeploy** — Automatically deploy when the repository receives a push (coming soon)
+- **Autodeploy** — Automatically deploy when commits or merges land on the repository's default branch
 - **Notifications** — Get notified when deployments complete
 
 ### Deployment History
@@ -125,20 +125,72 @@ View the last 10 deployments with their status and build logs. Click any deploym
 
 ## Domain Configuration
 
-### Automatic DNS (Cloudflare)
+Vibora supports two methods for exposing services to the internet:
 
-If you configure a Cloudflare API token:
+### Exposure Methods
+
+When configuring a domain for a service, you can choose between:
+
+| Method | How it works | Best for |
+|--------|--------------|----------|
+| **DNS** | Creates an A record pointing to your server's public IP. Traffic goes directly to your server. | Servers with public IPs, full control over traffic |
+| **Tunnel** | Creates a Cloudflare Tunnel. Traffic routes through Cloudflare's network without exposing your server's IP. | Home labs, servers behind NAT, enhanced security |
+
+### DNS Method
+
+With the DNS method:
+1. An A record is created pointing your domain to your server's IP
+2. Traffic flows directly from the internet to your server
+3. Traefik handles routing and HTTPS
+
+Requirements:
+- Your server must have a public IP address
+- Port 80/443 must be accessible
+
+### Tunnel Method
+
+With the Tunnel method:
+1. Vibora creates a Cloudflare Tunnel for your app
+2. A `cloudflared` container runs alongside your app
+3. Traffic routes through Cloudflare's network to your containers
+4. A CNAME record points to the tunnel
+
+Benefits:
+- **No public IP required** — Works behind NAT, firewalls, or on home networks
+- **No exposed ports** — Your server doesn't need ports 80/443 open
+- **DDoS protection** — Traffic is filtered by Cloudflare
+- **Hidden origin IP** — Your server's IP is never exposed
+
+### Cloudflare Setup
+
+To use automatic DNS or tunnels, configure your Cloudflare credentials:
 
 1. Go to **Settings > Deployment**
-2. Enter your Cloudflare API token
-3. DNS records are created automatically when you deploy
+2. Enter your **Cloudflare API token**
+3. For tunnels, also enter your **Cloudflare Account ID**
 
-The token needs the following permissions:
-- `Zone:DNS:Edit` for the zones you're deploying to
+#### API Token Permissions
+
+Create a token with these permissions:
+
+| Scope | Permission | Access |
+|-------|------------|--------|
+| Account | Cloudflare Tunnel | Edit |
+| Zone | SSL and Certificates | Edit |
+| Zone | DNS | Edit |
+
+To create a token:
+1. Go to [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)
+2. Click **Create Token**
+3. Select **Create Custom Token**
+4. Add the three permissions listed above
+5. Set zone resources to your domain (or "All zones" for convenience)
+
+Your Account ID is visible in the Cloudflare dashboard URL or on the right sidebar of any zone's overview page.
 
 ### Manual DNS
 
-Without Cloudflare integration, you'll see a reminder to create DNS records manually. Point your domain to your server's public IP with an A record:
+Without Cloudflare integration, create DNS records manually. Point your domain to your server's public IP:
 
 ```
 myapp.example.com.  A  203.0.113.42
@@ -146,7 +198,7 @@ myapp.example.com.  A  203.0.113.42
 
 ### HTTPS Certificates
 
-Traefik automatically provisions Let's Encrypt certificates for your domains. If you're using Cloudflare with proxying enabled, Vibora can generate Cloudflare Origin CA certificates instead.
+Traefik automatically provisions Let's Encrypt certificates for DNS-exposed domains. Tunnel-exposed services get HTTPS automatically through Cloudflare.
 
 ## Stopping and Deleting
 
@@ -217,7 +269,29 @@ Each app gets its own Docker network. Traefik connects to all app networks to ro
 Check the deployment logs for error messages. Common issues:
 - Missing dependencies in Dockerfile
 - Invalid Compose syntax
-- Port conflicts
+
+### Port Conflicts
+
+If a container fails to start with "port already in use" or "bind: address already in use":
+
+1. **Find what's using the port:**
+   ```bash
+   sudo lsof -i :3000
+   # or
+   sudo ss -tlnp | grep 3000
+   ```
+
+2. **Common conflicts:**
+   - Another app deployed with the same host port
+   - A service running directly on the host (Node dev server, database, etc.)
+   - A previous deployment that didn't stop cleanly
+
+3. **Solutions:**
+   - Change the host port in your Compose file: `"3001:3000"` instead of `"3000:3000"`
+   - Stop the conflicting service
+   - Use only container ports without host binding when exposing via Traefik (Traefik routes traffic through Docker networks, not host ports)
+
+**Tip:** When exposing services through Traefik, you don't need host port mappings. Instead of `ports: ["3000:3000"]`, you can use `expose: ["3000"]` to only expose the port to other containers on the same network.
 
 ### Service Not Accessible
 
@@ -229,49 +303,12 @@ Check the deployment logs for error messages. Common issues:
 ### DNS Not Created
 
 - Verify your Cloudflare API token is set in Settings
-- Check that the token has `Zone:DNS:Edit` permission
+- Check that the token has **Zone → DNS → Edit** permission
 - Look for errors in the deployment log
 
-## Best Practices
+### Tunnel Not Working
 
-### Use Environment Variables
-
-Never hardcode secrets in your Compose file. Use environment variables:
-
-```yaml
-services:
-  web:
-    environment:
-      - DATABASE_URL
-      - API_KEY
-```
-
-Then set `DATABASE_URL` and `API_KEY` in the app's environment settings.
-
-### Health Checks
-
-Add health checks to your Compose file for better container management:
-
-```yaml
-services:
-  web:
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-```
-
-### Resource Limits
-
-Set memory and CPU limits to prevent runaway containers:
-
-```yaml
-services:
-  web:
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-```
+- Verify both API token and Account ID are set in Settings
+- Check that the token has **Account → Cloudflare Tunnel → Edit** permission
+- Look for the `cloudflared` container in `docker ps`
+- Check tunnel status in the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/)

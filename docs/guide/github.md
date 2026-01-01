@@ -6,17 +6,17 @@ Vibora integrates with GitHub for PR monitoring and repository management.
 
 ### Personal Access Token (Optional)
 
-For private repositories or higher rate limits, configure a GitHub PAT:
+For private repositories or higher rate limits, configure a GitHub PAT.
+
+**From the CLI:**
 
 ```bash
 vibora config set integrations.githubPat YOUR_PAT
 ```
 
-Or use an environment variable:
+**From the UI:**
 
-```bash
-export GITHUB_PAT=YOUR_PAT
-```
+Go to **Settings > Integrations** and enter your PAT in the GitHub section.
 
 The PAT needs `repo` scope for private repositories.
 
@@ -30,16 +30,6 @@ The **PR Review** view shows pull requests across all your repositories.
 - **Filter by repository** — Focus on specific projects
 - **Filter by author** — See your PRs or team members'
 - **Quick actions** — Open in browser, copy URL
-
-### Linking PRs to Tasks
-
-Associate a PR with your current task:
-
-```bash
-vibora current-task pr https://github.com/org/repo/pull/123
-```
-
-The PR appears on the task card and in the Kanban view.
 
 ## Repository Management
 

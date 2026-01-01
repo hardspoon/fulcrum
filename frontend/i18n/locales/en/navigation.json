@@ -8,7 +8,8 @@
     "review": "Review",
     "monitoring": "Monitoring",
     "settings": "Settings",
-    "commandPalette": "Command Palette ({{shortcut}})"
+    "commandPalette": "Command Palette ({{shortcut}})",
+    "help": "Documentation"
   },
   "commandPalette": {
     "placeholder": "Type a command or search...",
@@ -22,6 +23,7 @@
       "goToTerminals": "Go to Terminals",
       "goToTaskTerminals": "Go to Task Terminals",
       "goToRepositories": "Go to Repositories",
+      "goToApps": "Go to Apps",
       "goToReview": "Go to Review",
       "goToMonitoring": "Go to Monitoring",
       "goToSettings": "Go to Settings",
@@ -43,6 +45,7 @@
       "goToTerminals": "Go to Terminals",
       "goToTaskTerminals": "Go to Task Terminals",
       "goToRepositories": "Go to Repositories",
+      "goToApps": "Go to Apps",
       "goToReview": "Go to Review",
       "goToMonitoring": "Go to Monitoring",
       "goToSettings": "Go to Settings",
