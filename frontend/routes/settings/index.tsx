@@ -765,14 +765,21 @@ function SettingsPage() {
                           {t('fields.linear.label')}
                         </label>
                         <div className="flex flex-1 items-center gap-2">
-                          <Input
-                            type="password"
-                            value={localLinearApiKey}
-                            onChange={(e) => setLocalLinearApiKey(e.target.value)}
-                            placeholder="lin_api_..."
-                            disabled={isLoading}
-                            className="flex-1 font-mono text-sm"
-                          />
+                          <div className="relative flex-1">
+                            <Input
+                              type="password"
+                              value={localLinearApiKey}
+                              onChange={(e) => setLocalLinearApiKey(e.target.value)}
+                              placeholder="lin_api_..."
+                              disabled={isLoading}
+                              className="flex-1 pr-8 font-mono text-sm"
+                            />
+                            {!!linearApiKey && (
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                              </div>
+                            )}
+                          </div>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -797,14 +804,21 @@ function SettingsPage() {
                           {t('fields.github.label')}
                         </label>
                         <div className="flex flex-1 items-center gap-2">
-                          <Input
-                            type="password"
-                            value={localGitHubPat}
-                            onChange={(e) => setLocalGitHubPat(e.target.value)}
-                            placeholder="ghp_..."
-                            disabled={isLoading}
-                            className="flex-1 font-mono text-sm"
-                          />
+                          <div className="relative flex-1">
+                            <Input
+                              type="password"
+                              value={localGitHubPat}
+                              onChange={(e) => setLocalGitHubPat(e.target.value)}
+                              placeholder="ghp_..."
+                              disabled={isLoading}
+                              className="flex-1 pr-8 font-mono text-sm"
+                            />
+                            {!!githubPat && (
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                              </div>
+                            )}
+                          </div>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -829,14 +843,21 @@ function SettingsPage() {
                           {t('fields.cloudflare.label')}
                         </label>
                         <div className="flex flex-1 items-center gap-2">
-                          <Input
-                            type="password"
-                            value={localCloudflareToken}
-                            onChange={(e) => setLocalCloudflareToken(e.target.value)}
-                            placeholder={deploymentSettings?.cloudflareApiToken || t('fields.cloudflare.placeholder')}
-                            disabled={isLoading}
-                            className="flex-1 font-mono text-sm"
-                          />
+                          <div className="relative flex-1">
+                            <Input
+                              type="password"
+                              value={localCloudflareToken}
+                              onChange={(e) => setLocalCloudflareToken(e.target.value)}
+                              placeholder={t('fields.cloudflare.placeholder')}
+                              disabled={isLoading}
+                              className="flex-1 pr-8 font-mono text-sm"
+                            />
+                            {!!deploymentSettings?.cloudflareApiToken && (
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground sm:ml-20 sm:pl-2">
@@ -851,14 +872,21 @@ function SettingsPage() {
                           Account ID
                         </label>
                         <div className="flex flex-1 items-center gap-2">
-                          <Input
-                            type="password"
-                            value={localCloudflareAccountId}
-                            onChange={(e) => setLocalCloudflareAccountId(e.target.value)}
-                            placeholder={deploymentSettings?.cloudflareAccountId || 'Cloudflare Account ID'}
-                            disabled={isLoading}
-                            className="flex-1 font-mono text-sm"
-                          />
+                          <div className="relative flex-1">
+                            <Input
+                              type="password"
+                              value={localCloudflareAccountId}
+                              onChange={(e) => setLocalCloudflareAccountId(e.target.value)}
+                              placeholder="CF Account ID"
+                              disabled={isLoading}
+                              className="flex-1 pr-8 font-mono text-sm"
+                            />
+                            {!!deploymentSettings?.cloudflareAccountId && (
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground sm:ml-20 sm:pl-2">
@@ -893,14 +921,21 @@ function SettingsPage() {
                           <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
                             {t('fields.zai.apiKey')}
                           </label>
-                          <Input
-                            type="password"
-                            value={zAiApiKey}
-                            onChange={(e) => setZAiApiKey(e.target.value)}
-                            placeholder="zai_..."
-                            disabled={isLoading}
-                            className="flex-1 font-mono text-sm"
-                          />
+                          <div className="relative flex-1">
+                            <Input
+                              type="password"
+                              value={zAiApiKey}
+                              onChange={(e) => setZAiApiKey(e.target.value)}
+                              placeholder="zai_..."
+                              disabled={isLoading}
+                              className="flex-1 pr-8 font-mono text-sm"
+                            />
+                            {!!zAiSettings?.apiKey && (
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <p className="text-xs text-muted-foreground sm:ml-20 sm:pl-2">
                           {t('fields.zai.description')}
@@ -1097,14 +1132,21 @@ function SettingsPage() {
                       </Button>
                     </div>
                     {slackEnabled && (
-                      <Input
-                        type="password"
-                        value={slackWebhook}
-                        onChange={(e) => setSlackWebhook(e.target.value)}
-                        placeholder="https://hooks.slack.com/services/..."
-                        disabled={isLoading || !notificationsEnabled}
-                        className="ml-6 flex-1 font-mono text-sm"
-                      />
+                      <div className="relative ml-6">
+                        <Input
+                          type="password"
+                          value={slackWebhook}
+                          onChange={(e) => setSlackWebhook(e.target.value)}
+                          placeholder="https://hooks.slack.com/services/..."
+                          disabled={isLoading || !notificationsEnabled}
+                          className="flex-1 pr-8 font-mono text-sm"
+                        />
+                        {!!notificationSettings?.slack?.webhookUrl && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                            <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -1133,14 +1175,21 @@ function SettingsPage() {
                       </Button>
                     </div>
                     {discordEnabled && (
-                      <Input
-                        type="password"
-                        value={discordWebhook}
-                        onChange={(e) => setDiscordWebhook(e.target.value)}
-                        placeholder="https://discord.com/api/webhooks/..."
-                        disabled={isLoading || !notificationsEnabled}
-                        className="ml-6 flex-1 font-mono text-sm"
-                      />
+                      <div className="relative ml-6">
+                        <Input
+                          type="password"
+                          value={discordWebhook}
+                          onChange={(e) => setDiscordWebhook(e.target.value)}
+                          placeholder="https://discord.com/api/webhooks/..."
+                          disabled={isLoading || !notificationsEnabled}
+                          className="flex-1 pr-8 font-mono text-sm"
+                        />
+                        {!!notificationSettings?.discord?.webhookUrl && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                            <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -1170,22 +1219,36 @@ function SettingsPage() {
                     </div>
                     {pushoverEnabled && (
                       <div className="ml-6 space-y-2">
-                        <Input
-                          type="password"
-                          value={pushoverAppToken}
-                          onChange={(e) => setPushoverAppToken(e.target.value)}
-                          placeholder={t('notifications.appToken')}
-                          disabled={isLoading || !notificationsEnabled}
-                          className="flex-1 font-mono text-sm"
-                        />
-                        <Input
-                          type="password"
-                          value={pushoverUserKey}
-                          onChange={(e) => setPushoverUserKey(e.target.value)}
-                          placeholder={t('notifications.userKey')}
-                          disabled={isLoading || !notificationsEnabled}
-                          className="flex-1 font-mono text-sm"
-                        />
+                        <div className="relative">
+                          <Input
+                            type="password"
+                            value={pushoverAppToken}
+                            onChange={(e) => setPushoverAppToken(e.target.value)}
+                            placeholder={t('notifications.appToken')}
+                            disabled={isLoading || !notificationsEnabled}
+                            className="flex-1 pr-8 font-mono text-sm"
+                          />
+                          {!!notificationSettings?.pushover?.appToken && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                              <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <Input
+                            type="password"
+                            value={pushoverUserKey}
+                            onChange={(e) => setPushoverUserKey(e.target.value)}
+                            placeholder={t('notifications.userKey')}
+                            disabled={isLoading || !notificationsEnabled}
+                            className="flex-1 pr-8 font-mono text-sm"
+                          />
+                          {!!notificationSettings?.pushover?.userKey && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                              <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
