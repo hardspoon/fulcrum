@@ -1,20 +1,19 @@
 {
   "name": "vibora",
   "private": true,
-  "version": "6.2.5",
+  "version": "6.3.0",
   "description": "The Vibe Engineer's Cockpit",
   "license": "PolyForm-Shield-1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "dev:server": "mkdir -p ~/.vibora && drizzle-kit push && bun --watch server/index.ts",
+    "dev:server": "mkdir -p ~/.vibora && bun --watch server/index.ts",
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production bun server/index.ts",
     "lint": "eslint .",
     "preview": "vite preview",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

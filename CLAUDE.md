@@ -21,7 +21,8 @@ mise run down         # Stop the daemon server
 mise run check        # Run all checks (lint + typecheck)
 mise run lint         # Run ESLint
 mise run typecheck    # Check TypeScript types
-mise run db:push      # Sync schema to database
+mise run db:generate  # Generate new migration from schema changes
+mise run db:migrate   # Apply pending migrations
 mise run db:studio    # Open Drizzle Studio GUI
 mise run cli:build    # Build CLI package for npm distribution
 mise run bump         # Bump patch version (or: bump major, bump minor)

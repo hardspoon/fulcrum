@@ -23,21 +23,14 @@ export async function clearDatabase(): Promise<void> {
 }
 
 /**
- * Pushes the schema to the database.
- * For tests, we use drizzle-kit push equivalent.
+ * Initializes the database schema.
+ * The database is lazily initialized when first accessed via the db proxy.
+ * Migrations run automatically on initialization.
  * Since we're using VIBORA_DIR isolation, the database will be fresh.
  */
-export async function pushSchema(): Promise<void> {
-  // The database is lazily initialized when first accessed via the db proxy.
-  // drizzle-kit push is typically run separately, but for tests we rely on
-  // the schema being defined. In bundled mode migrations are run, but in tests
-  // we need to create tables manually.
-
+export async function initSchema(): Promise<void> {
   // Access db to trigger lazy initialization which creates the vibora directory
-  // and database file. Tables are created by drizzle-kit push in dev mode.
-
-  // For tests, we'll run drizzle-kit push via CLI or ensure tables exist.
-  // Since we want no mocks and real behavior, we use the actual drizzle-kit.
+  // and database file. Migrations are run automatically on initialization.
 }
 
 /**

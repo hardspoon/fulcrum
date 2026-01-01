@@ -41,11 +41,12 @@ mise run preview      # Preview production build
 
 ### Database Operations
 
+Database migrations run automatically when the server starts. To make schema changes:
+
 ```bash
-mise run db:push      # Sync schema to database
+mise run db:generate  # Generate new migration from schema changes
+mise run db:migrate   # Apply pending migrations (also happens on server start)
 mise run db:studio    # Open Drizzle Studio GUI
-mise run db:generate  # Generate migrations
-mise run db:migrate   # Apply migrations
 ```
 
 ### CLI Package
@@ -108,7 +109,6 @@ After=network.target
 Type=simple
 WorkingDirectory=%h/vibora
 ExecStartPre=mise run build:debug
-ExecStartPre=bun run drizzle-kit push
 ExecStartPre=mise run down
 ExecStart=bun server/index.ts
 Environment=VIBORA_DEVELOPER=1

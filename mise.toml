@@ -215,10 +215,6 @@ fi
 description = "Preview production build"
 run = "bunx vite preview"
 
-[tasks."db:push"]
-description = "Sync schema to database"
-run = "bun run drizzle-kit push"
-
 [tasks."db:studio"]
 description = "Open Drizzle Studio GUI"
 run = "bun run drizzle-kit studio"

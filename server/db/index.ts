@@ -80,8 +80,9 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
     return
   }
 
-  // Check if this is a database created with drizzle-kit push (has tables but no migrations recorded).
-  // If so, mark migrations as applied based on actual schema state to avoid duplicate errors.
+  // Check if this is a database with tables but no migrations recorded.
+  // This handles legacy databases that were created before migrations were used.
+  // Mark migrations as applied based on actual schema state to avoid duplicate errors.
   const hasTasksTable = sqlite
     .query("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'")
     .get()
@@ -97,7 +98,7 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
     `)
 
     // Check which migrations need to be marked as applied based on schema state.
-    // This handles both fresh push-created databases and databases with partial/stale migration records.
+    // This handles legacy databases and databases with partial/stale migration records.
     const journalPath = join(migrationsPath, 'meta', '_journal.json')
     if (!existsSync(journalPath)) {
       log.db.warn('Migration journal not found', { journalPath })
@@ -126,6 +127,9 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
       const hasNotificationsEnabled = sqlite
         .query("SELECT name FROM pragma_table_info('apps') WHERE name='notifications_enabled'")
         .get()
+      const hasTunnelsTable = sqlite
+        .query("SELECT name FROM sqlite_master WHERE type='table' AND name='tunnels'")
+        .get()
 
       // Determine which migrations should be marked as applied based on schema state
       const migrationsToMark: Array<{ tag: string; when: number }> = []
@@ -152,6 +156,10 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
         }
         // 0016 adds notifications_enabled to apps
         else if (entry.tag.startsWith('0016') && hasNotificationsEnabled) {
+          shouldMark = true
+        }
+        // 0017 creates tunnels table and adds exposure_method to app_services
+        else if (entry.tag.startsWith('0017') && hasTunnelsTable) {
           shouldMark = true
         }
 

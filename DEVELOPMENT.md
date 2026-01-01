@@ -36,11 +36,10 @@ mise run lint         # Run ESLint
 mise run typecheck    # Check TypeScript types
 mise run preview      # Preview production build
 
-# Database operations
-mise run db:push      # Sync schema to database
+# Database operations (always use migrations)
+mise run db:generate  # Generate new migration from schema changes
+mise run db:migrate   # Apply pending migrations
 mise run db:studio    # Open Drizzle Studio GUI
-mise run db:generate  # Generate migrations
-mise run db:migrate   # Apply migrations
 
 # CLI package
 mise run cli:build    # Bundle server, copy frontend, generate migrations
@@ -180,7 +179,7 @@ This is safe to run even if Vibora is already running via `mise run up`.
 
 The systemd service runs these steps in order via `ExecStartPre`:
 1. `mise run build:debug` - Build frontend with debug logging enabled
-2. `bun run drizzle-kit push` - Run any pending migrations
+2. Migrations run automatically on server start
 3. `mise run down` - Stop any daemon instance
 4. `bun server/index.ts` - Start the new instance
 
