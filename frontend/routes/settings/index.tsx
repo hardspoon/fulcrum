@@ -398,7 +398,7 @@ function SettingsPage() {
         new Promise((resolve) => {
           updateDeploymentSettings.mutate(
             {
-              cloudflareApiToken: localCloudflareToken || undefined,
+              cloudflareApiToken: localCloudflareToken || null,
             },
             {
               onSettled: resolve,
