@@ -272,7 +272,7 @@ function AppDetailView() {
           </TabsContent>
 
           <TabsContent value="monitoring" className="mt-0">
-            <MonitoringTab appName={app.name} services={app.services} />
+            <MonitoringTab appId={app.id} />
           </TabsContent>
         </div>
       </Tabs>
@@ -1493,38 +1493,24 @@ function ServiceSummaryCard({ containers }: { containers: ContainerStats[] }) {
 }
 
 // Monitoring tab - real-time resource usage for app containers
-function MonitoringTab({
-  appName,
-  services,
-}: {
-  appName: string
-  services?: NonNullable<ReturnType<typeof useApp>['data']>['services']
-}) {
+function MonitoringTab({ appId }: { appId: string }) {
   const { t } = useTranslation('common')
   const { data: dockerStats, isLoading } = useDockerStats()
 
   // Filter containers that belong to this app
-  // Docker Compose container names typically follow the pattern: {project}_{service}_{replica}
-  // or {project}-{service}-{replica} depending on the version
+  // Docker Swarm container names follow the pattern: {stackName}_{serviceName}.{replica}.{taskId}
+  // The stack name is derived from the app ID: vibora-{first 8 chars of appId}
   const appContainers = useMemo(() => {
     if (!dockerStats?.containers) return []
 
-    const appNameLower = appName.toLowerCase().replace(/[^a-z0-9]/g, '')
+    // Match the backend's getProjectName function: vibora-${appId.slice(0, 8).toLowerCase()}
+    const stackPrefix = `vibora-${appId.slice(0, 8).toLowerCase()}_`
 
     return dockerStats.containers.filter((container) => {
-      const containerNameLower = container.name.toLowerCase()
-
-      // Check if container name starts with the app name (common pattern)
-      if (containerNameLower.startsWith(appNameLower)) return true
-
-      // Check if container name contains any of our service names
-      if (services?.some((s) => containerNameLower.includes(s.serviceName.toLowerCase()))) {
-        return true
-      }
-
-      return false
+      // Container name should start with our stack prefix (e.g., "vibora-ytuuhxrj_")
+      return container.name.toLowerCase().startsWith(stackPrefix)
     })
-  }, [dockerStats, appName, services])
+  }, [dockerStats, appId])
 
   if (isLoading) {
     return (
