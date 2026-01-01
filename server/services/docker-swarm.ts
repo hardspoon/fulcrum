@@ -200,13 +200,68 @@ export async function generateSwarmComposeFile(
       // If service has build but no image, add image field
       // docker compose build creates images as: {projectName}-{serviceName}
       if (serviceConfig.build && !serviceConfig.image) {
-        serviceConfig.image = `${projectName}-${serviceName}`
+        const imageName = `${projectName}-${serviceName}`
+        serviceConfig.image = imageName
         modified.push(serviceName)
+        log.deploy.warn('Added image field for Swarm (Swarm cannot build inline)', {
+          service: serviceName,
+          image: imageName,
+        })
       }
 
       // Remove restart (Swarm uses deploy.restart_policy)
       if (serviceConfig.restart) {
+        log.deploy.warn('Removed restart field (use deploy.restart_policy for Swarm)', {
+          service: serviceName,
+          restart: serviceConfig.restart,
+        })
         delete serviceConfig.restart
+      }
+
+      // Convert depends_on from object format to list format
+      // Docker Swarm only supports list format: depends_on: [service1, service2]
+      // It does NOT support object format: depends_on: { db: { condition: service_healthy } }
+      if (serviceConfig.depends_on && typeof serviceConfig.depends_on === 'object' && !Array.isArray(serviceConfig.depends_on)) {
+        const conditions = Object.entries(serviceConfig.depends_on as Record<string, { condition?: string }>)
+          .map(([svc, cfg]) => cfg.condition ? `${svc}:${cfg.condition}` : svc)
+          .join(', ')
+        log.deploy.warn('Converting depends_on to list format (conditions ignored by Swarm)', {
+          service: serviceName,
+          original: conditions,
+        })
+        serviceConfig.depends_on = Object.keys(serviceConfig.depends_on)
+      }
+
+      // Remove fields not supported by Docker Swarm
+      // These would cause "unsupported" errors or be silently ignored
+      const unsupportedFields = [
+        'container_name',  // Swarm names containers: stack_service.slot.id
+        'links',           // Deprecated, use networks instead
+        'network_mode',    // Use networks with driver options
+        'devices',         // Not supported in Swarm
+        'tmpfs',           // Use mounts with type: tmpfs in deploy
+        'userns_mode',     // Not supported
+        'sysctls',         // Not supported
+        'security_opt',    // Not supported (use no_new_privileges in deploy)
+        'cpu_count',       // Use deploy.resources.limits.cpus
+        'cpu_percent',     // Use deploy.resources
+        'cpus',            // Use deploy.resources.limits.cpus
+        'mem_limit',       // Use deploy.resources.limits.memory
+        'memswap_limit',   // Use deploy.resources
+        'mem_reservation', // Use deploy.resources.reservations.memory
+      ]
+      const removedFields: string[] = []
+      for (const field of unsupportedFields) {
+        if (field in serviceConfig) {
+          removedFields.push(field)
+          delete serviceConfig[field]
+        }
+      }
+      if (removedFields.length > 0) {
+        log.deploy.warn('Removed unsupported Swarm fields', {
+          service: serviceName,
+          fields: removedFields,
+        })
       }
 
       // Add external network to service if specified
