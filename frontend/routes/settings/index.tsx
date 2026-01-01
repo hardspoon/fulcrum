@@ -175,19 +175,16 @@ function SettingsPage() {
     }
   }, [zAiSettings])
 
-  // Sync deployment settings (but don't sync masked values - they're just placeholders)
-  // Masked values look like "••••••••" and should not overwrite local state
+  // Sync deployment settings
+  // We sync masked values for display (just like Linear/GitHub fields)
+  // The save logic filters out masked values to prevent overwriting real values
   useEffect(() => {
-    // Don't sync masked token values - keep local state empty if we haven't entered a new value
-    // The API returns masked values for display only, not for saving back
-    if (deploymentSettings?.cloudflareAccountId !== undefined) {
-      const accountId = deploymentSettings.cloudflareAccountId ?? ''
-      // Only sync if it's not a masked value
-      if (!accountId.match(/^•+$/)) {
-        setLocalCloudflareAccountId(accountId)
-      }
+    if (deploymentSettings?.cloudflareApiToken !== undefined) {
+      setLocalCloudflareToken(deploymentSettings.cloudflareApiToken ?? '')
     }
-    // Never sync the API token - always show empty unless user enters new value
+    if (deploymentSettings?.cloudflareAccountId !== undefined) {
+      setLocalCloudflareAccountId(deploymentSettings.cloudflareAccountId ?? '')
+    }
   }, [deploymentSettings])
 
   // Sync Claude Code theme settings
@@ -214,16 +211,15 @@ function SettingsPage() {
     localClaudeCodeDarkTheme !== claudeCodeDarkTheme
 
   // Check if deployment settings have changed
-  // For secrets (token), we have changes if user entered a new value (non-empty and non-masked)
-  // For account ID, compare against actual value (if not masked)
+  // We compare local state against server values
+  // Masked values (all dots) are treated as "unchanged from server"
   const hasDeploymentChanges = (() => {
-    // Token: has changes if user entered something (we don't sync masked values to local state)
-    const tokenChanged = localCloudflareToken !== '' && !localCloudflareToken.match(/^•+$/)
-    // Account ID: has changes if different from server value (unless server value is masked)
+    const serverToken = deploymentSettings?.cloudflareApiToken ?? ''
     const serverAccountId = deploymentSettings?.cloudflareAccountId ?? ''
-    const accountIdChanged = !serverAccountId.match(/^•+$/)
-      ? localCloudflareAccountId !== serverAccountId
-      : localCloudflareAccountId !== ''
+    // Token: changed if different from server AND not a mask (user entered real value)
+    const tokenChanged = localCloudflareToken !== serverToken && !localCloudflareToken.match(/^•+$/)
+    // Account ID: changed if different from server AND not a mask
+    const accountIdChanged = localCloudflareAccountId !== serverAccountId && !localCloudflareAccountId.match(/^•+$/)
     return tokenChanged || accountIdChanged
   })()
 
@@ -416,16 +412,17 @@ function SettingsPage() {
     // Save deployment settings (cloudflare token/account ID)
     // Only send values that were actually changed by the user (not masked placeholders)
     if (hasDeploymentChanges) {
+      const serverToken = deploymentSettings?.cloudflareApiToken ?? ''
+      const serverAccountId = deploymentSettings?.cloudflareAccountId ?? ''
       const updates: { cloudflareApiToken?: string | null; cloudflareAccountId?: string | null } = {}
 
-      // Only send token if user entered a new one (not empty and not masked)
-      if (localCloudflareToken && !localCloudflareToken.match(/^•+$/)) {
-        updates.cloudflareApiToken = localCloudflareToken
+      // Only send token if it changed and is not a mask (user entered real value)
+      if (localCloudflareToken !== serverToken && !localCloudflareToken.match(/^•+$/)) {
+        updates.cloudflareApiToken = localCloudflareToken || null
       }
 
-      // Send account ID if changed
-      const serverAccountId = deploymentSettings?.cloudflareAccountId ?? ''
-      if (!serverAccountId.match(/^•+$/) ? localCloudflareAccountId !== serverAccountId : localCloudflareAccountId !== '') {
+      // Only send account ID if it changed and is not a mask
+      if (localCloudflareAccountId !== serverAccountId && !localCloudflareAccountId.match(/^•+$/)) {
         updates.cloudflareAccountId = localCloudflareAccountId || null
       }
 

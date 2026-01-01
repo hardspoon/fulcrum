@@ -204,11 +204,16 @@ app.post('/settings', async (c) => {
       cloudflareAccountId?: string | null
     }>()
 
-    if (body.cloudflareApiToken !== undefined) {
+    // Helper to check if a value is a masked placeholder (all dots)
+    // This prevents the frontend from accidentally overwriting real values with display masks
+    const isMaskedValue = (value: unknown): boolean =>
+      typeof value === 'string' && /^•+$/.test(value)
+
+    if (body.cloudflareApiToken !== undefined && !isMaskedValue(body.cloudflareApiToken)) {
       updateSettingByPath('integrations.cloudflareApiToken', body.cloudflareApiToken)
     }
 
-    if (body.cloudflareAccountId !== undefined) {
+    if (body.cloudflareAccountId !== undefined && !isMaskedValue(body.cloudflareAccountId)) {
       updateSettingByPath('integrations.cloudflareAccountId', body.cloudflareAccountId)
     }
 
