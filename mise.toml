@@ -100,6 +100,7 @@ run = "DEBUG=\"${DEBUG:-}\" bunx vite --port \"${FRONTEND_PORT:-5173}\" ${VITE_H
 
 [tasks.build]
 description = "Build for production"
+depends = ["install"]
 run = """
 rm -rf dist
 bunx tsc -b --force && bunx vite build
