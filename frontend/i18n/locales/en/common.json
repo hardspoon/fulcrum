@@ -181,12 +181,9 @@
       "description": "Real-time CPU and memory usage for each service",
       "cpu": "CPU",
       "memory": "Memory",
-      "memoryLimit": "Memory Limit",
       "noContainers": "No running containers found",
       "dockerUnavailable": "Docker stats not available",
-      "cpuDistribution": "CPU Distribution",
-      "memoryDistribution": "Memory Distribution",
-      "noUsage": "No usage"
+      "serviceTotal": "Service Total"
     }
   }
 }

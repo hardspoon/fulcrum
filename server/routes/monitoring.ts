@@ -505,90 +505,208 @@ interface ContainerStats {
   memoryPercent: number
 }
 
-// GET /api/monitoring/docker-stats
-// Returns Docker container resource usage
-monitoringRoutes.get('/docker-stats', (c) => {
-  try {
-    // Try docker first, then podman
-    let result: string
-    let runtime = 'docker'
+// Docker socket paths to try
+const DOCKER_SOCKETS = [
+  '/var/run/docker.sock',
+  `${homedir()}/.docker/run/docker.sock`,
+  '/run/docker.sock',
+]
 
-    try {
-      result = execSync('docker stats --no-stream --format "{{json .}}"', {
-        encoding: 'utf-8',
-        timeout: 10000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
-    } catch {
-      try {
-        result = execSync('podman stats --no-stream --format "{{json .}}"', {
-          encoding: 'utf-8',
-          timeout: 10000,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        })
-        runtime = 'podman'
-      } catch {
-        // Neither docker nor podman available
-        return c.json({ containers: [], available: false, runtime: null })
-      }
+// Find a working Docker socket
+function findDockerSocket(): string | null {
+  for (const socketPath of DOCKER_SOCKETS) {
+    if (existsSync(socketPath)) {
+      return socketPath
     }
+  }
+  return null
+}
+
+// Fetch container stats from Docker API (matches Docker Desktop values)
+async function fetchDockerApiStats(): Promise<ContainerStats[] | null> {
+  const socketPath = findDockerSocket()
+  if (!socketPath) return null
+
+  try {
+    // First, list all running containers
+    const listUrl = 'http://localhost/containers/json'
+    const listResponse = await fetch(listUrl, {
+      // @ts-expect-error - Bun supports unix sockets via this option
+      unix: socketPath,
+    })
+
+    if (!listResponse.ok) return null
+
+    const containerList = await listResponse.json() as Array<{
+      Id: string
+      Names: string[]
+      State: string
+    }>
 
     const containers: ContainerStats[] = []
 
-    for (const line of result.trim().split('\n')) {
-      if (!line.trim()) continue
+    // Fetch stats for each container
+    for (const container of containerList) {
+      if (container.State !== 'running') continue
 
       try {
-        const data = JSON.parse(line)
+        const statsUrl = `http://localhost/containers/${container.Id}/stats?stream=false`
+        const statsResponse = await fetch(statsUrl, {
+          // @ts-expect-error - Bun supports unix sockets via this option
+          unix: socketPath,
+        })
 
-        // Parse CPU percentage (e.g., "0.50%" -> 0.5)
-        const cpuStr = data.CPUPerc || '0%'
-        const cpuPercent = parseFloat(cpuStr.replace('%', '')) || 0
+        if (!statsResponse.ok) continue
 
-        // Parse memory usage (e.g., "100MiB / 8GiB")
-        const memUsageStr = data.MemUsage || '0B / 0B'
-        const [usedStr, limitStr] = memUsageStr.split(' / ')
-
-        const parseMemory = (str: string): number => {
-          const match = str.match(/([\d.]+)\s*(B|KB|KiB|MB|MiB|GB|GiB)/i)
-          if (!match) return 0
-          const value = parseFloat(match[1])
-          const unit = match[2].toLowerCase()
-
-          switch (unit) {
-            case 'b': return value / (1024 * 1024)
-            case 'kb': case 'kib': return value / 1024
-            case 'mb': case 'mib': return value
-            case 'gb': case 'gib': return value * 1024
-            default: return value
+        const stats = await statsResponse.json() as {
+          cpu_stats: {
+            cpu_usage: { total_usage: number }
+            system_cpu_usage: number
+            online_cpus: number
+          }
+          precpu_stats: {
+            cpu_usage: { total_usage: number }
+            system_cpu_usage: number
+          }
+          memory_stats: {
+            usage: number
+            limit: number
           }
         }
 
-        const memoryMB = parseMemory(usedStr)
-        const memoryLimit = parseMemory(limitStr)
+        // Calculate CPU percentage
+        const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage
+        const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage
+        const cpuPercent = systemDelta > 0 && cpuDelta > 0
+          ? (cpuDelta / systemDelta) * stats.cpu_stats.online_cpus * 100
+          : 0
 
-        // Parse memory percentage
-        const memPercStr = data.MemPerc || '0%'
-        const memoryPercent = parseFloat(memPercStr.replace('%', '')) || 0
+        // Memory usage (matches Docker Desktop - uses raw usage, not RSS)
+        const memoryBytes = stats.memory_stats.usage || 0
+        const memoryLimit = stats.memory_stats.limit || 0
+        const memoryMB = memoryBytes / (1024 * 1024)
+        const memoryLimitMB = memoryLimit / (1024 * 1024)
+        const memoryPercent = memoryLimit > 0 ? (memoryBytes / memoryLimit) * 100 : 0
 
         containers.push({
-          id: (data.ID || data.Id || '').slice(0, 12),
-          name: data.Name || data.Names || 'unknown',
+          id: container.Id.slice(0, 12),
+          name: (container.Names[0] || 'unknown').replace(/^\//, ''),
           cpuPercent: Math.round(cpuPercent * 10) / 10,
           memoryMB: Math.round(memoryMB * 10) / 10,
-          memoryLimit: Math.round(memoryLimit * 10) / 10,
+          memoryLimit: Math.round(memoryLimitMB * 10) / 10,
           memoryPercent: Math.round(memoryPercent * 10) / 10,
         })
       } catch {
-        // Skip malformed JSON lines
+        // Skip this container
         continue
       }
     }
 
-    // Sort by memory usage descending
-    containers.sort((a, b) => b.memoryMB - a.memoryMB)
+    return containers
+  } catch {
+    return null
+  }
+}
 
-    return c.json({ containers, available: true, runtime })
+// Fallback: use docker stats CLI (for podman or when API unavailable)
+function fetchDockerCliStats(): { containers: ContainerStats[]; runtime: string } | null {
+  let result: string
+  let runtime = 'docker'
+
+  try {
+    result = execSync('docker stats --no-stream --format "{{json .}}"', {
+      encoding: 'utf-8',
+      timeout: 10000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+  } catch {
+    try {
+      result = execSync('podman stats --no-stream --format "{{json .}}"', {
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
+      runtime = 'podman'
+    } catch {
+      return null
+    }
+  }
+
+  const containers: ContainerStats[] = []
+
+  for (const line of result.trim().split('\n')) {
+    if (!line.trim()) continue
+
+    try {
+      const data = JSON.parse(line)
+
+      // Parse CPU percentage (e.g., "0.50%" -> 0.5)
+      const cpuStr = data.CPUPerc || '0%'
+      const cpuPercent = parseFloat(cpuStr.replace('%', '')) || 0
+
+      // Parse memory usage (e.g., "100MiB / 8GiB")
+      const memUsageStr = data.MemUsage || '0B / 0B'
+      const [usedStr, limitStr] = memUsageStr.split(' / ')
+
+      const parseMemory = (str: string): number => {
+        const match = str.match(/([\d.]+)\s*(B|KB|KiB|MB|MiB|GB|GiB)/i)
+        if (!match) return 0
+        const value = parseFloat(match[1])
+        const unit = match[2].toLowerCase()
+
+        switch (unit) {
+          case 'b': return value / (1024 * 1024)
+          case 'kb': case 'kib': return value / 1024
+          case 'mb': case 'mib': return value
+          case 'gb': case 'gib': return value * 1024
+          default: return value
+        }
+      }
+
+      const memoryMB = parseMemory(usedStr)
+      const memoryLimit = parseMemory(limitStr)
+
+      // Parse memory percentage
+      const memPercStr = data.MemPerc || '0%'
+      const memoryPercent = parseFloat(memPercStr.replace('%', '')) || 0
+
+      containers.push({
+        id: (data.ID || data.Id || '').slice(0, 12),
+        name: data.Name || data.Names || 'unknown',
+        cpuPercent: Math.round(cpuPercent * 10) / 10,
+        memoryMB: Math.round(memoryMB * 10) / 10,
+        memoryLimit: Math.round(memoryLimit * 10) / 10,
+        memoryPercent: Math.round(memoryPercent * 10) / 10,
+      })
+    } catch {
+      // Skip malformed JSON lines
+      continue
+    }
+  }
+
+  return { containers, runtime }
+}
+
+// GET /api/monitoring/docker-stats
+// Returns Docker container resource usage
+monitoringRoutes.get('/docker-stats', async (c) => {
+  try {
+    // Try Docker API first (provides accurate memory matching Docker Desktop)
+    const apiContainers = await fetchDockerApiStats()
+    if (apiContainers && apiContainers.length > 0) {
+      // Sort by memory usage descending
+      apiContainers.sort((a, b) => b.memoryMB - a.memoryMB)
+      return c.json({ containers: apiContainers, available: true, runtime: 'docker' })
+    }
+
+    // Fallback to CLI
+    const cliResult = fetchDockerCliStats()
+    if (cliResult) {
+      cliResult.containers.sort((a, b) => b.memoryMB - a.memoryMB)
+      return c.json({ containers: cliResult.containers, available: true, runtime: cliResult.runtime })
+    }
+
+    return c.json({ containers: [], available: false, runtime: null })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return c.json({ error: message }, 500)

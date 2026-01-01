@@ -63,19 +63,10 @@ import { parseLogs } from '@/lib/log-utils'
 import { LogLine } from '@/components/ui/log-line'
 import { toast } from 'sonner'
 import { useDockerStats, type ContainerStats } from '@/hooks/use-monitoring'
-import { RadialBarChart, RadialBar, PolarAngleAxis, PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
 import { Card } from '@/components/ui/card'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
 
 type AppTab = 'general' | 'deployments' | 'logs' | 'monitoring'
-
-// Color palette for distribution charts
-const DISTRIBUTION_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
-]
 
 interface AppDetailSearch {
   tab?: AppTab
@@ -1317,170 +1308,156 @@ function ServicesSection({
   )
 }
 
-// Helper to get gauge color based on usage percentage
-function getGaugeColor(percent: number): string {
-  if (percent >= 90) return 'var(--destructive)'
-  if (percent >= 70) return 'var(--muted-foreground)'
-  return 'var(--chart-system)'
-}
-
-// Helper to get text color class based on usage percentage
-function getUsageTextColor(percent: number): string {
-  if (percent >= 90) return 'text-destructive'
-  if (percent >= 70) return 'text-muted-foreground'
-  return 'text-chart-system'
-}
-
-// Resource gauge component for CPU/Memory visualization
-function ResourceGauge({
-  percent,
-  label,
-  value,
-}: {
-  percent: number
-  label: string
-  value: string
-}) {
-  const data = [{ value: Math.min(percent, 100), fill: getGaugeColor(percent) }]
-
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative size-20">
-        <RadialBarChart
-          width={80}
-          height={80}
-          cx={40}
-          cy={40}
-          innerRadius={28}
-          outerRadius={38}
-          barSize={8}
-          data={data}
-          startAngle={90}
-          endAngle={-270}
-        >
-          <PolarAngleAxis
-            type="number"
-            domain={[0, 100]}
-            angleAxisId={0}
-            tick={false}
-          />
-          <RadialBar
-            background={{ fill: 'var(--border)' }}
-            dataKey="value"
-            cornerRadius={4}
-            angleAxisId={0}
-          />
-        </RadialBarChart>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className={`text-sm font-semibold tabular-nums ${getUsageTextColor(percent)}`}>
-            {percent.toFixed(0)}%
-          </span>
-        </div>
-      </div>
-      <span className="text-xs text-muted-foreground mt-1">{label}</span>
-      <span className="text-xs font-medium">{value}</span>
-    </div>
-  )
-}
-
 // Helper to extract service name from container name
 function extractServiceName(containerName: string): string {
-  const parts = containerName.split(/[-_]/)
-  if (parts.length >= 2) {
-    return parts[1]
+  // Docker Swarm format: project_service.replica.taskid
+  // Example: "vibora-bg-qczqd_pocketbase.1.abc123" -> "pocketbase"
+
+  // First split by underscore to separate project from service
+  const underscoreParts = containerName.split('_')
+  if (underscoreParts.length >= 2) {
+    // Take the second part, then remove replica/task suffix
+    const servicePart = underscoreParts[1]
+    // Remove .N.taskid suffix
+    const dotParts = servicePart.split('.')
+    return dotParts[0]
+  }
+
+  // Fallback: split by dash and find service name
+  const parts = containerName.split(/[-_.]/)
+  for (const part of parts.slice(1)) {
+    if (part && !part.match(/^\d+$/) && part.length > 2) {
+      return part
+    }
   }
   return containerName
 }
 
-// Donut chart showing resource distribution across containers
-function ResourceDistributionChart({
-  containers,
-  metric,
-  title,
+// Colors for distribution charts
+const DISTRIBUTION_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+]
+
+// Distribution ring chart component
+function DistributionRing({
+  data,
+  label,
+  totalValue,
+  unit,
 }: {
-  containers: ContainerStats[]
-  metric: 'cpu' | 'memory'
-  title: string
+  data: Array<{ name: string; value: number; color: string }>
+  label: string
+  totalValue: string
+  unit: string
 }) {
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative size-28">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={32}
+              outerRadius={48}
+              paddingAngle={2}
+              dataKey="value"
+              stroke="none"
+            >
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <RechartsTooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const item = payload[0].payload
+                  return (
+                    <div className="bg-popover border rounded-md px-2 py-1 text-xs shadow-md">
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-muted-foreground">
+                        {item.value.toFixed(1)} {unit}
+                      </p>
+                    </div>
+                  )
+                }
+                return null
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-sm font-semibold tabular-nums">{totalValue}</span>
+          <span className="text-[10px] text-muted-foreground">{unit}</span>
+        </div>
+      </div>
+      <span className="text-xs text-muted-foreground mt-1">{label}</span>
+    </div>
+  )
+}
+
+// Service summary card with total usage and distribution charts
+function ServiceSummaryCard({ containers }: { containers: ContainerStats[] }) {
   const { t } = useTranslation('common')
 
-  const data = useMemo(() => {
-    return containers.map((c, i) => ({
-      name: extractServiceName(c.name),
-      value: metric === 'cpu' ? c.cpuPercent : c.memoryMB,
-      fill: DISTRIBUTION_COLORS[i % DISTRIBUTION_COLORS.length],
-    }))
-  }, [containers, metric])
+  const totalCpu = containers.reduce((sum, c) => sum + c.cpuPercent, 0)
+  const totalMemory = containers.reduce((sum, c) => sum + c.memoryMB, 0)
 
-  const total = useMemo(() => {
-    return data.reduce((sum, d) => sum + d.value, 0)
-  }, [data])
+  // Prepare data for distribution charts
+  const containerData = containers.map((c, i) => ({
+    name: extractServiceName(c.name),
+    cpu: c.cpuPercent,
+    memory: c.memoryMB,
+    color: DISTRIBUTION_COLORS[i % DISTRIBUTION_COLORS.length],
+  }))
 
-  // Don't render if total is 0 (no usage)
-  if (total === 0) {
-    return (
-      <Card className="p-4">
-        <h4 className="text-sm font-medium mb-2">{title}</h4>
-        <div className="flex items-center justify-center h-[160px] text-muted-foreground text-sm">
-          {t('apps.monitoring.noUsage')}
-        </div>
-      </Card>
-    )
-  }
+  const cpuData = containerData.map((c) => ({
+    name: c.name,
+    value: c.cpu,
+    color: c.color,
+  }))
+
+  const memoryData = containerData.map((c) => ({
+    name: c.name,
+    value: c.memory,
+    color: c.color,
+  }))
 
   return (
-    <Card className="p-4">
-      <h4 className="text-sm font-medium mb-2">{title}</h4>
-      <div className="flex items-center">
-        <div className="w-[140px] h-[140px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                innerRadius={35}
-                outerRadius={60}
-                dataKey="value"
-                strokeWidth={1}
-                stroke="hsl(var(--background))"
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                ))}
-              </Pie>
-              <RechartsTooltip
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const item = payload[0]
-                    const percent = ((item.value as number) / total * 100).toFixed(1)
-                    return (
-                      <div className="bg-popover border rounded-md px-2 py-1 text-xs shadow-md">
-                        <span className="font-medium">{item.name}</span>: {percent}%
-                        {metric === 'memory' && ` (${(item.value as number).toFixed(0)} MB)`}
-                      </div>
-                    )
-                  }
-                  return null
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="flex-1 ml-4 space-y-1.5">
-          {data.map((item, index) => (
-            <div key={index} className="flex items-center gap-2 text-xs">
-              <div
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: item.fill }}
-              />
-              <span className="truncate flex-1" title={item.name}>{item.name}</span>
-              <span className="text-muted-foreground tabular-nums">
-                {((item.value / total) * 100).toFixed(0)}%
-              </span>
-            </div>
-          ))}
-        </div>
+    <Card className="p-4 mb-6">
+      <h4 className="text-sm font-medium mb-4">{t('apps.monitoring.serviceTotal')}</h4>
+
+      <div className="flex items-center justify-around">
+        <DistributionRing
+          data={cpuData}
+          label={t('apps.monitoring.cpu')}
+          totalValue={totalCpu.toFixed(1)}
+          unit="%"
+        />
+        <DistributionRing
+          data={memoryData}
+          label={t('apps.monitoring.memory')}
+          totalValue={totalMemory.toFixed(0)}
+          unit="MB"
+        />
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-4">
+        {containerData.map((c) => (
+          <div key={c.name} className="flex items-center gap-1.5">
+            <div
+              className="size-2.5 rounded-full"
+              style={{ backgroundColor: c.color }}
+            />
+            <span className="text-xs text-muted-foreground">{c.name}</span>
+          </div>
+        ))}
       </div>
     </Card>
   )
@@ -1568,23 +1545,10 @@ function MonitoringTab({
         </p>
       </div>
 
-      {/* Distribution charts - only show when there are 2+ containers */}
-      {appContainers.length > 1 && (
-        <div className="grid gap-4 sm:grid-cols-2 mb-6">
-          <ResourceDistributionChart
-            containers={appContainers}
-            metric="cpu"
-            title={t('apps.monitoring.cpuDistribution')}
-          />
-          <ResourceDistributionChart
-            containers={appContainers}
-            metric="memory"
-            title={t('apps.monitoring.memoryDistribution')}
-          />
-        </div>
-      )}
+      {/* Service summary with distribution charts */}
+      <ServiceSummaryCard containers={appContainers} />
 
-      {/* Per-container cards */}
+      {/* Per-container cards showing raw values */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {appContainers.map((container) => (
           <ContainerCard key={container.id} container={container} />
@@ -1598,50 +1562,30 @@ function MonitoringTab({
 function ContainerCard({ container }: { container: ContainerStats }) {
   const { t } = useTranslation('common')
 
-  // Extract service name from container name (remove project prefix and replica suffix)
-  const serviceName = useMemo(() => {
-    const parts = container.name.split(/[-_]/)
-    // Usually the service name is the second part: project_service_1 or project-service-1
-    if (parts.length >= 2) {
-      return parts[1]
-    }
-    return container.name
-  }, [container.name])
+  // Use the extractServiceName helper
+  const serviceName = useMemo(() => extractServiceName(container.name), [container.name])
 
   return (
     <Card className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="min-w-0">
-          <h4 className="font-medium truncate" title={container.name}>
-            {serviceName}
-          </h4>
-          <p className="text-xs text-muted-foreground truncate" title={container.name}>
-            {container.name}
-          </p>
-        </div>
+      <div className="mb-3">
+        <h4 className="font-medium truncate" title={container.name}>
+          {serviceName}
+        </h4>
+        <p className="text-xs text-muted-foreground truncate" title={container.name}>
+          {container.name}
+        </p>
       </div>
 
-      <div className="flex justify-around">
-        <ResourceGauge
-          percent={container.cpuPercent}
-          label={t('apps.monitoring.cpu')}
-          value={`${container.cpuPercent.toFixed(1)}%`}
-        />
-        <ResourceGauge
-          percent={container.memoryPercent}
-          label={t('apps.monitoring.memory')}
-          value={`${container.memoryMB.toFixed(0)} MB`}
-        />
-      </div>
-
-      {container.memoryLimit > 0 && (
-        <div className="mt-3 pt-3 border-t">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{t('apps.monitoring.memoryLimit')}</span>
-            <span>{container.memoryLimit.toFixed(0)} MB</span>
-          </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-xs text-muted-foreground">{t('apps.monitoring.cpu')}</p>
+          <p className="text-lg font-semibold tabular-nums">{container.cpuPercent.toFixed(1)}%</p>
         </div>
-      )}
+        <div>
+          <p className="text-xs text-muted-foreground">{t('apps.monitoring.memory')}</p>
+          <p className="text-lg font-semibold tabular-nums">{container.memoryMB.toFixed(0)} MB</p>
+        </div>
+      </div>
     </Card>
   )
 }
