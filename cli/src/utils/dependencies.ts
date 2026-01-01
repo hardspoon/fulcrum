@@ -106,11 +106,35 @@ export function detectPackageManager(): 'brew' | 'apt' | 'dnf' | 'pacman' | null
 }
 
 /**
- * Check if a command is installed.
+ * Check if a command is installed (either as an executable in PATH or as a shell alias).
  */
 export function isCommandInstalled(command: string): boolean {
+  // First try `which` for executables in PATH (fast path)
   try {
     execSync(`which ${command}`, { stdio: 'ignore' })
+    return true
+  } catch {
+    // Not in PATH, continue to check for aliases
+  }
+
+  // Check for shell aliases by running an interactive shell
+  // This loads the user's shell config (.bashrc, .zshrc, etc.)
+  return isShellAlias(command)
+}
+
+/**
+ * Check if a command is defined as a shell alias.
+ * Uses an interactive shell to load the user's shell configuration.
+ */
+export function isShellAlias(command: string): boolean {
+  const shell = process.env.SHELL || '/bin/bash'
+  const shellName = shell.split('/').pop() || 'bash'
+
+  // Use `type` builtin which works in both bash and zsh
+  // The -i flag makes the shell interactive, loading aliases from config files
+  // We need to redirect stderr because some shells print warnings
+  try {
+    execSync(`${shellName} -ic "type ${command}" 2>/dev/null`, { stdio: 'ignore' })
     return true
   } catch {
     return false
@@ -119,11 +143,25 @@ export function isCommandInstalled(command: string): boolean {
 
 /**
  * Get the version of an installed command.
+ * Falls back to interactive shell if direct execution fails (for aliases).
  */
 export function getCommandVersion(command: string): string | null {
+  // Try direct execution first (fast path for executables in PATH)
   try {
     const output = execSync(`${command} --version`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] })
-    // Return first line, trimmed
+    return output.trim().split('\n')[0]
+  } catch {
+    // Direct execution failed, try via interactive shell for aliases
+  }
+
+  // Try via interactive shell (for aliases)
+  const shell = process.env.SHELL || '/bin/bash'
+  const shellName = shell.split('/').pop() || 'bash'
+  try {
+    const output = execSync(`${shellName} -ic "${command} --version" 2>/dev/null`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    })
     return output.trim().split('\n')[0]
   } catch {
     return null
