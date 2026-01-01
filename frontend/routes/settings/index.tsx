@@ -833,7 +833,7 @@ function SettingsPage() {
                             type="password"
                             value={localCloudflareToken}
                             onChange={(e) => setLocalCloudflareToken(e.target.value)}
-                            placeholder={t('fields.cloudflare.placeholder')}
+                            placeholder={deploymentSettings?.cloudflareApiToken || t('fields.cloudflare.placeholder')}
                             disabled={isLoading}
                             className="flex-1 font-mono text-sm"
                           />
@@ -855,7 +855,7 @@ function SettingsPage() {
                             type="password"
                             value={localCloudflareAccountId}
                             onChange={(e) => setLocalCloudflareAccountId(e.target.value)}
-                            placeholder="Cloudflare Account ID"
+                            placeholder={deploymentSettings?.cloudflareAccountId || 'Cloudflare Account ID'}
                             disabled={isLoading}
                             className="flex-1 font-mono text-sm"
                           />
