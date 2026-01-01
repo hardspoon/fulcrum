@@ -101,17 +101,17 @@ See all your Claude Code sessions across every task and worktree in a single par
 
 ![Task Terminals View](./screenshots/terminals-view-with-tests.png)
 
+### App Deployment
+
+Deploy applications directly from Vibora with Docker Compose. Edit compose files inline, configure environment variables, and manage services with automatic Traefik routing and optional Cloudflare DNS integration.
+
+![App Deployment](./screenshots/app-deployment-config.png)
+
 ### Repositories
 
 Manage your projects with quick actions. Create new tasks, open terminals, and configure repository settings from one place.
 
 ![Repositories](./screenshots/repositories-view.png)
-
-### PR Review
-
-Monitor pull requests across all your repositories. Filter by status, organization, and more.
-
-![PR Review](./screenshots/review-pull-requests.png)
 
 ### System Monitoring
 
