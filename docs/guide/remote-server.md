@@ -11,6 +11,36 @@ As AI becomes more capable of autonomous work, running agents on a remote server
 - **Availability** — Access your workspace from anywhere
 - **Reliability** — Server stays up even when your laptop sleeps
 
+## Installation
+
+### Install Script (Recommended)
+
+For remote servers, use the install script—it automatically installs all dependencies with a single command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/knowsuchagency/vibora/main/install.sh | bash
+```
+
+This installs:
+- **bun** — JavaScript runtime
+- **dtach** — Terminal session persistence
+- **uv** — Python package manager
+- **Claude Code** — AI coding agent
+- **gh** — GitHub CLI
+- **Docker** — Container runtime
+- **cloudflared** — Cloudflare tunnels
+- **vibora** — CLI and Claude Code plugin
+
+The script detects your package manager (apt, dnf, pacman, Homebrew) and installs everything automatically.
+
+### Using npx
+
+If you already have bun/Node.js installed and prefer manual control:
+
+```bash
+npx vibora@latest up
+```
+
 ## Desktop App: SSH Port Forwarding
 
 The desktop app connects to `localhost:7777`. Use SSH port forwarding to tunnel to your remote server.
@@ -31,11 +61,7 @@ ssh -fN -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
 
 ### On the Remote Server
 
-Start Vibora:
-
-```bash
-npx vibora@latest up
-```
+Install and start Vibora using the [install script](#install-script-recommended) or `npx vibora@latest up`.
 
 The desktop app will connect through the tunnel automatically.
 
@@ -56,10 +82,7 @@ For browser-only access, use Tailscale or Cloudflare Tunnels to expose your serv
 ### Tailscale
 
 1. Install Tailscale on both machines
-2. Start Vibora on the remote server:
-   ```bash
-   npx vibora@latest up
-   ```
+2. Start Vibora on the remote server using the [install script](#install-script-recommended) or `npx vibora@latest up`
 3. Access via browser:
    ```
    http://your-server.tailnet.ts.net:7777

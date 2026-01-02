@@ -44,12 +44,44 @@ The desktop app bundles everything—just install and run. It will start the ser
 4. Confirm by clicking **Open Anyway** in the dialog
 :::
 
-### Install Script
+### Install Script (Recommended for Remote Servers)
 
-For automated installation (useful for remote servers):
+For remote servers or VPS, use the install script—it auto-installs all dependencies:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/knowsuchagency/vibora/main/install.sh | bash
+```
+
+This installs bun, dtach, uv, Claude Code, GitHub CLI, Docker, cloudflared, and the vibora CLI + Claude Code plugin.
+
+## Dependencies
+
+### Required
+
+These must be installed for Vibora to work:
+
+| Dependency | Purpose |
+|------------|---------|
+| **git** | Version control (must be pre-installed) |
+| **bun** | JavaScript runtime |
+| **dtach** | Terminal session persistence |
+| **Claude Code** | AI coding agent |
+
+### Optional
+
+These enable additional features:
+
+| Dependency | Feature |
+|------------|---------|
+| **uv** | Python package manager for Python-based skills |
+| **gh** (GitHub CLI) | PR creation and GitHub integration |
+| **Docker** | App deployment with Docker Compose |
+| **cloudflared** | Cloudflare tunnels for secure remote access |
+
+Check your setup:
+
+```bash
+vibora doctor
 ```
 
 ## Install the Claude Code Plugin

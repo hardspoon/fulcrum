@@ -70,13 +70,15 @@ The desktop app bundles everything—just install and run. It will start the ser
 
 </details>
 
-### Install Script
+### Install Script (Recommended for Remote Servers)
 
-For automated installation (useful for remote servers):
+For remote servers or VPS, use the install script—it auto-installs all dependencies:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/knowsuchagency/vibora/main/install.sh | bash
 ```
+
+This installs bun, dtach, uv, Claude Code, GitHub CLI, Docker, cloudflared, and the vibora CLI + Claude Code plugin.
 
 ### Claude Code Plugin
 
