@@ -120,7 +120,7 @@ See [frontend/stores/terminal-architecture.md](frontend/stores/terminal-architec
 
 ## CLI Package
 
-The `@vibora/cli` package provides a global CLI for running Vibora as a daemon. The built CLI package includes:
+The `vibora` package provides a global CLI for running Vibora as a daemon. The built CLI package includes:
 
 - `cli/server/index.js` - Bundled server
 - `cli/dist/` - Pre-built frontend assets

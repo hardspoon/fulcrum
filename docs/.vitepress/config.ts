@@ -35,7 +35,7 @@ export default defineConfig({
         text: 'Links',
         items: [
           { text: 'GitHub', link: 'https://github.com/knowsuchagency/vibora' },
-          { text: 'npm', link: 'https://www.npmjs.com/package/@vibora/cli' },
+          { text: 'npm', link: 'https://www.npmjs.com/package/vibora' },
         ],
       },
     ],

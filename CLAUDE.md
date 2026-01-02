@@ -30,7 +30,7 @@ mise run bump         # Bump patch version (or: bump major, bump minor)
 
 ## CLI
 
-The `@vibora/cli` package provides a global CLI for running vibora as a daemon:
+The `vibora` package provides a global CLI for running vibora as a daemon:
 
 ```bash
 vibora up             # Start the bundled server as daemon
