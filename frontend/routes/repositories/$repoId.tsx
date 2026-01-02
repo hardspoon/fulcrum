@@ -15,6 +15,7 @@ import {
   ArrowLeft02Icon,
   Delete02Icon,
   Folder01Icon,
+  FolderAddIcon,
   Loading03Icon,
   Alert02Icon,
   TaskAdd01Icon,
@@ -38,6 +39,7 @@ import { toast } from 'sonner'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
 import { DeleteRepositoryDialog } from '@/components/repositories/delete-repository-dialog'
+import { NewProjectDialog } from '@/components/repositories/new-project-dialog'
 import { useAppByRepository, useFindCompose } from '@/hooks/use-apps'
 import { ClaudeOptionsEditor } from '@/components/repositories/claude-options-editor'
 import { FilesViewer } from '@/components/viewer/files-viewer'
@@ -114,6 +116,7 @@ function RepositoryDetailView() {
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [composeWarningOpen, setComposeWarningOpen] = useState(false)
+  const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false)
   const [mobileWorkspaceTab, setMobileWorkspaceTab] = useState<'terminal' | 'files'>('terminal')
 
   // Terminal state
@@ -412,6 +415,18 @@ function RepositoryDetailView() {
             <HugeiconsIcon icon={TaskAdd01Icon} size={16} strokeWidth={2} data-slot="icon" className="-translate-y-px" />
             <span className="max-sm:hidden">{t('newTask')}</span>
           </Button>
+
+          {repository.isCopierTemplate && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setNewProjectDialogOpen(true)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <HugeiconsIcon icon={FolderAddIcon} size={16} strokeWidth={2} data-slot="icon" />
+              <span className="max-sm:hidden">{t('newProject.button')}</span>
+            </Button>
+          )}
 
           <Button
             variant="ghost"
@@ -715,6 +730,13 @@ function RepositoryDetailView() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onDelete={handleDelete}
+      />
+
+      <NewProjectDialog
+        initialTemplateId={repository.id}
+        open={newProjectDialogOpen}
+        onOpenChange={setNewProjectDialogOpen}
+        trigger={null}
       />
 
       <Dialog open={composeWarningOpen} onOpenChange={setComposeWarningOpen}>

@@ -46,11 +46,34 @@ import type { CopierQuestion } from '@/types'
 
 type WizardStep = 'template' | 'questions' | 'output' | 'creating'
 
-export function NewProjectDialog() {
+interface NewProjectDialogProps {
+  /** Pre-select a template and skip template selection step */
+  initialTemplateId?: string
+  /** Control dialog open state externally */
+  open?: boolean
+  /** Callback when dialog open state changes */
+  onOpenChange?: (open: boolean) => void
+  /** Custom trigger element, or null to hide the default trigger */
+  trigger?: React.ReactNode | null
+}
+
+export function NewProjectDialog({
+  initialTemplateId,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  trigger,
+}: NewProjectDialogProps = {}) {
   const { t } = useTranslation('repositories')
   const navigate = useNavigate()
-  const [open, setOpen] = useState(false)
-  const [step, setStep] = useState<WizardStep>('template')
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : uncontrolledOpen
+  const setOpen = isControlled ? (controlledOnOpenChange ?? (() => {})) : setUncontrolledOpen
+
+  // Start at questions step if initialTemplateId is provided
+  const [step, setStep] = useState<WizardStep>(initialTemplateId ? 'questions' : 'template')
   const [browserOpen, setBrowserOpen] = useState(false)
   const [hasMoreContent, setHasMoreContent] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -79,9 +102,16 @@ export function NewProjectDialog() {
   // Reset when dialog opens
   useEffect(() => {
     if (open) {
-      setStep('template')
-      setTemplateSource('')
-      setCustomTemplateUrl('')
+      // If initialTemplateId is provided, skip template step
+      if (initialTemplateId) {
+        setStep('questions')
+        setTemplateSource(initialTemplateId)
+        setCustomTemplateUrl('')
+      } else {
+        setStep('template')
+        setTemplateSource('')
+        setCustomTemplateUrl('')
+      }
       setAnswers({})
       setOutputPath(defaultGitReposDir || '')
       setProjectName('')
@@ -89,7 +119,7 @@ export function NewProjectDialog() {
       setTrust(false)
       setNeedsTrust(false)
     }
-  }, [open, defaultGitReposDir])
+  }, [open, defaultGitReposDir, initialTemplateId])
 
   // Initialize answers with defaults when questions load (only for questions not already answered)
   useEffect(() => {
@@ -137,7 +167,12 @@ export function NewProjectDialog() {
 
   const handleBack = () => {
     if (step === 'questions') {
-      setStep('template')
+      // If we started with a template, close the dialog instead of going back
+      if (initialTemplateId) {
+        setOpen(false)
+      } else {
+        setStep('template')
+      }
     } else if (step === 'output') {
       setStep('questions')
     }
@@ -275,13 +310,18 @@ export function NewProjectDialog() {
   const canProceedFromQuestions = questionsData && !questionsLoading && missingRequiredQuestions.length === 0
   const canCreate = projectName.trim() && outputPath.trim()
 
+  // Default trigger button
+  const defaultTrigger = (
+    <DialogTrigger render={<Button variant="outline" size="sm" />}>
+      <HugeiconsIcon icon={FolderAddIcon} size={16} strokeWidth={2} data-slot="icon" />
+      <span className="max-sm:hidden">{t('newProject.button')}</span>
+    </DialogTrigger>
+  )
+
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger render={<Button variant="outline" size="sm" />}>
-          <HugeiconsIcon icon={FolderAddIcon} size={16} strokeWidth={2} data-slot="icon" />
-          <span className="max-sm:hidden">{t('newProject.button')}</span>
-        </DialogTrigger>
+        {trigger === null ? null : trigger !== undefined ? trigger : defaultTrigger}
         <DialogContent className="sm:max-w-lg max-h-[80dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">

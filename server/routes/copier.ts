@@ -7,6 +7,7 @@ import { execSync } from 'node:child_process'
 import { db, repositories, type NewRepository } from '../db'
 import { eq } from 'drizzle-orm'
 import { log } from '../lib/logger'
+import { expandPath } from '../lib/settings'
 import { isGitUrl } from '../lib/git-utils'
 import type {
   CopierQuestion,
@@ -223,12 +224,15 @@ app.post('/create', async (c) => {
     }
 
     const body = await c.req.json<CreateProjectRequest>()
-    const { templateSource, outputPath, answers, projectName, trust } = body
+    const { templateSource, outputPath: rawOutputPath, answers, projectName, trust } = body
 
     // Validate inputs
-    if (!templateSource || !outputPath || !projectName) {
+    if (!templateSource || !rawOutputPath || !projectName) {
       return c.json({ error: 'templateSource, outputPath, and projectName are required' }, 400)
     }
+
+    // Expand tilde in output path
+    const outputPath = expandPath(rawOutputPath)
 
     // Resolve template path
     const repo = db.select().from(repositories).where(eq(repositories.id, templateSource)).get()
