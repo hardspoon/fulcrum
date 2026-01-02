@@ -24,7 +24,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Loading03Icon,
@@ -33,7 +32,6 @@ import {
   Link01Icon,
   CheckmarkCircle02Icon,
   Search01Icon,
-  HelpCircleIcon,
 } from '@hugeicons/core-free-icons'
 import { useDefaultGitReposDir } from '@/hooks/use-config'
 import {
@@ -132,8 +130,7 @@ export function AddRepositoryDialog({
   const [outputPath, setOutputPath] = useState('')
   const [projectName, setProjectName] = useState('')
   const [templateError, setTemplateError] = useState<string | null>(null)
-  const [trust, setTrust] = useState(false)
-  const [needsTrust, setNeedsTrust] = useState(false)
+  const [trust, setTrust] = useState(true)
   const [outputBrowserOpen, setOutputBrowserOpen] = useState(false)
 
   const { data: defaultGitReposDir } = useDefaultGitReposDir()
@@ -373,8 +370,7 @@ export function AddRepositoryDialog({
     setOutputPath(defaultGitReposDir || '')
     setProjectName('')
     setTemplateError(null)
-    setTrust(false)
-    setNeedsTrust(false)
+    setTrust(true)
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -388,9 +384,8 @@ export function AddRepositoryDialog({
   }
 
   // Template tab handlers
-  // Auto-trust saved templates (they're already in Vibora), only require explicit trust for custom URLs
-  const isSavedTemplate = !!templateSource
-  const shouldTrust = isSavedTemplate || trust
+  // Saved templates are always trusted; for custom URLs, use the trust toggle
+  const shouldTrust = !!templateSource || trust
 
   const handleCreateFromTemplate = () => {
     setTemplateError(null)
@@ -410,9 +405,6 @@ export function AddRepositoryDialog({
         },
         onError: (error) => {
           setTemplateError(error.message)
-          if (error.message.includes('unsafe') || error.message.includes('--trust')) {
-            setNeedsTrust(true)
-          }
         },
       }
     )
@@ -830,32 +822,28 @@ export function AddRepositoryDialog({
             </TabsContent>
 
             {/* Template Tab */}
-            <TabsContent value="template">
-              <div className="space-y-4 pt-4 max-h-[60vh] overflow-y-auto">
+            <TabsContent value="template" className="flex flex-col">
+              <div className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto">
                 {/* Template Source */}
+                <div className="space-y-1">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    {t('newProject.steps.template.sectionTitle')}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {t('newProject.steps.template.sectionDescription')}{' '}
+                    <a
+                      href="https://copier.readthedocs.io/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:opacity-80"
+                    >
+                      {t('newProject.steps.template.learnMore')}
+                    </a>
+                  </div>
+                </div>
                 <FieldGroup>
                   <Field>
-                    <div className="flex items-center gap-2">
-                      <FieldLabel>{t('newProject.steps.template.savedTemplates')}</FieldLabel>
-                      <Tooltip>
-                        <TooltipTrigger className="text-muted-foreground hover:text-foreground transition-colors">
-                          <HugeiconsIcon icon={HelpCircleIcon} size={14} strokeWidth={2} />
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs">
-                          <p>
-                            {t('newProject.steps.template.help')}{' '}
-                            <a
-                              href="https://copier.readthedocs.io/"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline hover:opacity-80"
-                            >
-                              {t('newProject.steps.template.learnMore')}
-                            </a>
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
+                    <FieldLabel>{t('newProject.steps.template.savedTemplates')}</FieldLabel>
                     <div className="flex gap-2">
                       <Select
                         value={templateSource}
@@ -920,7 +908,6 @@ export function AddRepositoryDialog({
                           placeholder="https://github.com/user/template or /path/to/template"
                           disabled={isTemplatePending}
                         />
-                        <FieldDescription>{t('newProject.steps.template.customUrlHelp')}</FieldDescription>
                       </Field>
                     </>
                   )}
@@ -1003,28 +990,6 @@ export function AddRepositoryDialog({
                         {t('newProject.steps.output.willCreate')}: {outputPath}/{projectName}
                       </FieldDescription>
                     )}
-
-                    {/* Only show trust checkbox for custom URLs - saved templates are auto-trusted */}
-                    {needsTrust && !isSavedTemplate && (
-                      <Field>
-                        <div className="flex items-start gap-2">
-                          <Checkbox
-                            checked={trust}
-                            onCheckedChange={(checked) => setTrust(checked === true)}
-                            className="mt-0.5"
-                            disabled={isTemplatePending}
-                          />
-                          <div>
-                            <FieldLabel className="cursor-pointer">
-                              {t('newProject.steps.output.trustTemplate')}
-                            </FieldLabel>
-                            <FieldDescription>
-                              {t('newProject.steps.output.trustWarning')}
-                            </FieldDescription>
-                          </div>
-                        </div>
-                      </Field>
-                    )}
                   </div>
                 )}
 
@@ -1053,8 +1018,24 @@ export function AddRepositoryDialog({
                     <span>{templateError}</span>
                   </div>
                 )}
+              </div>
 
-                <DialogFooter>
+              <DialogFooter className="flex items-center justify-between sm:justify-between pt-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="trust-template"
+                    checked={trust}
+                    onCheckedChange={(checked) => setTrust(checked === true)}
+                    disabled={isTemplatePending}
+                  />
+                  <label
+                    htmlFor="trust-template"
+                    className="text-xs text-muted-foreground cursor-pointer"
+                  >
+                    {t('newProject.steps.output.trust')}
+                  </label>
+                </div>
+                <div className="flex gap-2">
                   <DialogClose render={<Button variant="outline" disabled={isTemplatePending} />}>
                     {t('addModal.cancel')}
                   </DialogClose>
@@ -1064,8 +1045,8 @@ export function AddRepositoryDialog({
                   >
                     {t('newProject.create')}
                   </Button>
-                </DialogFooter>
-              </div>
+                </div>
+              </DialogFooter>
             </TabsContent>
           </Tabs>
         </DialogContent>

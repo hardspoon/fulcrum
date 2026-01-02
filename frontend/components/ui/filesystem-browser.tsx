@@ -92,7 +92,7 @@ export function FilesystemBrowser({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg overflow-hidden">
+      <DialogContent className="sm:max-w-lg overflow-x-hidden max-w-[calc(100vw-2rem)]">
         <DialogHeader>
           <DialogTitle>Select Git Repository</DialogTitle>
           <DialogDescription>
@@ -107,24 +107,24 @@ export function FilesystemBrowser({
         <Separator />
 
         {/* Manual path input */}
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-xs font-medium">Enter path manually:</label>
-          <div className="flex gap-2">
+          <div className="flex gap-2 min-w-0">
             <Input
               value={manualPath}
               onChange={(e) => setManualPath(e.target.value)}
               placeholder="/path/to/your/project"
               onKeyDown={(e) => e.key === 'Enter' && handleManualGo()}
-              className="flex-1"
+              className="flex-1 min-w-0"
             />
-            <Button variant="outline" size="sm" onClick={handleManualGo}>
+            <Button variant="outline" size="sm" onClick={handleManualGo} className="shrink-0">
               Go
             </Button>
           </div>
         </div>
 
         {/* Search filter */}
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-xs font-medium">Search current directory:</label>
           <div className="relative">
             <HugeiconsIcon
@@ -180,8 +180,8 @@ export function FilesystemBrowser({
         </div>
 
         {/* Directory listing */}
-        <ScrollArea className="h-64 border rounded-md">
-          <div className="p-1">
+        <ScrollArea className="h-64 border rounded-md min-w-0">
+          <div className="p-1 min-w-0">
             {isLoading && (
               <div className="text-muted-foreground text-xs p-3">Loading...</div>
             )}
@@ -199,7 +199,7 @@ export function FilesystemBrowser({
                 {filteredEntries.map((entry) => (
                   <div
                     key={entry.name}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted group"
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted group min-w-0"
                   >
                     {entry.type === 'directory' ? (
                       <>
@@ -207,15 +207,11 @@ export function FilesystemBrowser({
                           icon={entry.isGitRepo ? FolderOpenIcon : Folder01Icon}
                           size={16}
                           strokeWidth={2}
-                          className={
-                            entry.isGitRepo
-                              ? 'text-accent'
-                              : 'text-accent'
-                          }
+                          className="text-accent shrink-0"
                         />
                         <button
                           onClick={() => handleNavigate(entry.name)}
-                          className="flex-1 text-left text-xs truncate hover:underline"
+                          className="flex-1 text-left text-xs truncate hover:underline min-w-0"
                         >
                           {entry.name}
                         </button>
@@ -228,8 +224,8 @@ export function FilesystemBrowser({
                       </>
                     ) : (
                       <>
-                        <span className="w-4" />
-                        <span className="flex-1 text-xs text-muted-foreground truncate">
+                        <span className="w-4 shrink-0" />
+                        <span className="flex-1 text-xs text-muted-foreground truncate min-w-0">
                           {entry.name}
                         </span>
                       </>

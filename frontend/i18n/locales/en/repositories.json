@@ -76,13 +76,13 @@
     "steps": {
       "template": {
         "description": "Select a template to create your project from.",
-        "help": "Copier generates new projects from templates, letting you scaffold applications with pre-configured settings.",
-        "learnMore": "Learn more about Copier",
+        "sectionTitle": "Copier Template",
+        "sectionDescription": "Select a saved template or enter a URL/path.",
+        "learnMore": "Learn more",
         "savedTemplates": "Saved Templates",
         "selectTemplate": "Select a template...",
         "or": "or",
-        "customUrl": "Custom Template URL/Path",
-        "customUrlHelp": "Git URL or local path to a Copier template."
+        "customUrl": "Custom Template URL/Path"
       },
       "questions": {
         "title": "Template Questions",
@@ -96,8 +96,7 @@
         "outputDirectory": "Output Directory",
         "selectDirectory": "Select directory...",
         "willCreate": "Will create",
-        "trustTemplate": "Trust this template",
-        "trustWarning": "This template runs code during project creation. Only enable if you trust the source."
+        "trust": "Trust template"
       },
       "creating": {
         "description": "Creating your project...",

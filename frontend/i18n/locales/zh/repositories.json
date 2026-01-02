@@ -92,13 +92,13 @@
     "steps": {
       "template": {
         "description": "选择一个模板来创建您的项目。",
-        "help": "Copier 从模板生成新项目，让您可以使用预配置的设置快速搭建应用程序。",
-        "learnMore": "了解更多关于 Copier",
+        "sectionTitle": "Copier 模板",
+        "sectionDescription": "选择已保存的模板或输入 URL/路径。",
+        "learnMore": "了解更多",
         "savedTemplates": "已保存的模板",
         "selectTemplate": "选择模板...",
         "or": "或",
-        "customUrl": "自定义模板 URL/路径",
-        "customUrlHelp": "Copier 模板的 Git URL 或本地路径。"
+        "customUrl": "自定义模板 URL/路径"
       },
       "questions": {
         "title": "模板问题",
@@ -112,8 +112,7 @@
         "outputDirectory": "输出目录",
         "selectDirectory": "选择目录...",
         "willCreate": "将创建",
-        "trustTemplate": "信任此模板",
-        "trustWarning": "此模板在项目创建期间运行代码。仅在您信任来源时启用。"
+        "trust": "信任模板"
       },
       "creating": {
         "description": "正在创建您的项目...",
