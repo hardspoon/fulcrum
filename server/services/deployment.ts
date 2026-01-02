@@ -346,13 +346,21 @@ export async function deployApp(
       where: eq(appServices.appId, appId),
     })
 
-    // Validate: exposed services with domains must have a container port
+    // Validate: exposed services with domains must have a valid container port
     for (const service of services) {
-      if (service.exposed && service.domain && !service.containerPort) {
-        throw new Error(
-          `Service "${service.serviceName}" is exposed with domain "${service.domain}" but has no container port configured. ` +
-          `Add a port mapping to your compose file or configure the container port in the service settings.`
-        )
+      if (service.exposed && service.domain) {
+        if (!service.containerPort) {
+          throw new Error(
+            `Service "${service.serviceName}" is exposed with domain "${service.domain}" but has no container port configured. ` +
+            `Add a port mapping to your compose file or configure the container port in the service settings.`
+          )
+        }
+        if (service.containerPort <= 0 || service.containerPort > 65535) {
+          throw new Error(
+            `Service "${service.serviceName}" has invalid container port ${service.containerPort}. ` +
+            `Port must be between 1 and 65535. Check your compose file port configuration.`
+          )
+        }
       }
     }
 

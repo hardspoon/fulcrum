@@ -46,15 +46,85 @@ export async function findComposeFile(repoPath: string): Promise<string | null> 
 }
 
 /**
+ * Expand shell-style environment variable syntax to extract values
+ * Handles: ${VAR}, ${VAR:-default}, ${VAR-default}, ${VAR:=default}, ${VAR=default}
+ * Returns the default value if present, otherwise null (variable reference)
+ */
+function expandEnvVar(str: string): string | null {
+  // Match ${VAR:-default} or ${VAR-default} patterns
+  const match = str.match(/^\$\{[^}]+:?[-=](.+)\}$/)
+  if (match) {
+    return match[1]
+  }
+  // If it's just ${VAR} with no default, we can't resolve it
+  if (str.match(/^\$\{[^}]+\}$/) || str.match(/^\$[A-Za-z_][A-Za-z0-9_]*$/)) {
+    return null
+  }
+  return str
+}
+
+/**
+ * Parse a port value that may contain environment variable syntax
+ * Returns the numeric port or null if it can't be parsed
+ */
+function parsePortValue(value: string): number | null {
+  // Try to expand env var syntax first
+  const expanded = expandEnvVar(value)
+  if (expanded === null) {
+    // Contains unresolvable env var reference
+    return null
+  }
+  const port = parseInt(expanded, 10)
+  // Validate port is a positive integer in valid range
+  if (isNaN(port) || port <= 0 || port > 65535) {
+    return null
+  }
+  return port
+}
+
+/**
+ * Split port string on colon, but respect ${VAR:-default} syntax
+ * The colon in :- or := should not be treated as a separator
+ */
+function splitPortString(portStr: string): string[] {
+  const parts: string[] = []
+  let current = ''
+  let braceDepth = 0
+
+  for (let i = 0; i < portStr.length; i++) {
+    const char = portStr[i]
+    if (char === '{' && i > 0 && portStr[i - 1] === '$') {
+      braceDepth++
+      current += char
+    } else if (char === '}' && braceDepth > 0) {
+      braceDepth--
+      current += char
+    } else if (char === ':' && braceDepth === 0) {
+      parts.push(current)
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  parts.push(current)
+  return parts
+}
+
+/**
  * Parse a port specification from docker-compose
  * Handles formats:
  *   - "8080:80" (host:container)
  *   - "80" (container only)
  *   - "8080:80/tcp" (with protocol)
+ *   - "${PORT:-8080}:${PORT:-8080}" (with env var defaults)
  *   - { target: 80, published: 8080 } (long syntax)
  */
 function parsePort(port: unknown): ComposePort | null {
   if (typeof port === 'number') {
+    if (port <= 0 || port > 65535) {
+      log.deploy.warn('Invalid port number', { port })
+      return null
+    }
     return { container: port }
   }
 
@@ -70,24 +140,30 @@ function parsePort(port: unknown): ComposePort | null {
       portStr = port.slice(0, -4)
     }
 
-    // Parse host:container format
-    if (portStr.includes(':')) {
-      const parts = portStr.split(':')
-      // Handle IP:hostPort:containerPort or hostPort:containerPort
-      const containerPort = parseInt(parts[parts.length - 1], 10)
-      const hostPort = parseInt(parts[parts.length - 2], 10)
-      if (!isNaN(containerPort)) {
+    // Split respecting env var syntax
+    const parts = splitPortString(portStr)
+
+    if (parts.length >= 2) {
+      // Format: host:container or IP:host:container
+      const containerPort = parsePortValue(parts[parts.length - 1])
+      const hostPort = parsePortValue(parts[parts.length - 2])
+
+      if (containerPort !== null) {
         return {
           container: containerPort,
-          host: isNaN(hostPort) ? undefined : hostPort,
+          host: hostPort ?? undefined,
           protocol,
         }
       }
+      // If container port has unresolvable env var, log warning
+      log.deploy.warn('Could not parse port with env var reference', { port: portStr })
     } else {
-      const containerPort = parseInt(portStr, 10)
-      if (!isNaN(containerPort)) {
+      // Single port value
+      const containerPort = parsePortValue(portStr)
+      if (containerPort !== null) {
         return { container: containerPort, protocol }
       }
+      log.deploy.warn('Could not parse port value', { port: portStr })
     }
   }
 
@@ -96,6 +172,10 @@ function parsePort(port: unknown): ComposePort | null {
     const portObj = port as Record<string, unknown>
     const target = portObj.target ?? portObj.container_port
     if (typeof target === 'number') {
+      if (target <= 0 || target > 65535) {
+        log.deploy.warn('Invalid port number in long syntax', { target })
+        return null
+      }
       return {
         container: target,
         host: typeof portObj.published === 'number' ? portObj.published : undefined,

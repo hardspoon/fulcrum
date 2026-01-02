@@ -353,6 +353,104 @@ version: "3"
       await expect(parseComposeFile(tempDir)).rejects.toThrow()
     })
 
+    test('handles port with env var default syntax ${VAR:-default}', async () => {
+      const yaml = `
+services:
+  app:
+    image: app
+    ports:
+      - "\${PORT:-3000}:\${PORT:-3000}"
+`
+      writeFileSync(join(tempDir, 'compose.yml'), yaml)
+
+      const result = await parseComposeFile(tempDir)
+
+      expect(result.services[0].ports![0].container).toBe(3000)
+      expect(result.services[0].ports![0].host).toBe(3000)
+    })
+
+    test('handles port with env var alternate syntax ${VAR-default}', async () => {
+      const yaml = `
+services:
+  app:
+    image: app
+    ports:
+      - "\${PORT-8080}:\${PORT-8080}"
+`
+      writeFileSync(join(tempDir, 'compose.yml'), yaml)
+
+      const result = await parseComposeFile(tempDir)
+
+      expect(result.services[0].ports![0].container).toBe(8080)
+      expect(result.services[0].ports![0].host).toBe(8080)
+    })
+
+    test('handles mixed literal and env var ports', async () => {
+      const yaml = `
+services:
+  app:
+    image: app
+    ports:
+      - "8080:\${PORT:-3000}"
+`
+      writeFileSync(join(tempDir, 'compose.yml'), yaml)
+
+      const result = await parseComposeFile(tempDir)
+
+      expect(result.services[0].ports![0].container).toBe(3000)
+      expect(result.services[0].ports![0].host).toBe(8080)
+    })
+
+    test('filters out ports with unresolvable env vars (no default)', async () => {
+      const yaml = `
+services:
+  app:
+    image: app
+    ports:
+      - "\${PORT}:\${PORT}"
+      - "8080:3000"
+`
+      writeFileSync(join(tempDir, 'compose.yml'), yaml)
+
+      const result = await parseComposeFile(tempDir)
+
+      // Only the literal port should be parsed
+      expect(result.services[0].ports).toHaveLength(1)
+      expect(result.services[0].ports![0].container).toBe(3000)
+    })
+
+    test('rejects invalid port numbers (negative)', async () => {
+      const yaml = `
+services:
+  app:
+    image: app
+    ports:
+      - "-100:80"
+`
+      writeFileSync(join(tempDir, 'compose.yml'), yaml)
+
+      const result = await parseComposeFile(tempDir)
+
+      // Port with negative host should still parse container port
+      expect(result.services[0].ports![0].container).toBe(80)
+      expect(result.services[0].ports![0].host).toBeUndefined()
+    })
+
+    test('rejects invalid port numbers (out of range)', async () => {
+      const yaml = `
+services:
+  app:
+    image: app
+    ports:
+      - 70000
+`
+      writeFileSync(join(tempDir, 'compose.yml'), yaml)
+
+      const result = await parseComposeFile(tempDir)
+
+      expect(result.services[0].ports).toHaveLength(0)
+    })
+
     test('uses specified compose file name', async () => {
       const yaml = `
 services:
