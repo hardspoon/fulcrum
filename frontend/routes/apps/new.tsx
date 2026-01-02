@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { useRepositories } from '@/hooks/use-repositories'
 import { useParseCompose, useFindCompose, useCreateApp, useDeploymentSettings } from '@/hooks/use-apps'
+import { useBranches } from '@/hooks/use-filesystem'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -58,7 +59,7 @@ function CreateAppWizard() {
 
   // Step 2 state (declared before useEffect that uses them)
   const [appName, setAppName] = useState('')
-  const [branch, setBranch] = useState('main')
+  const [branch, setBranch] = useState('')
   const [autoDeployEnabled, setAutoDeployEnabled] = useState(false)
   const [services, setServices] = useState<ServiceConfig[]>([])
 
@@ -93,6 +94,16 @@ function CreateAppWizard() {
     composeInfo?.found ? selectedRepo?.id ?? null : null
   )
 
+  // Fetch branch info to get default branch
+  const { data: branchData } = useBranches(selectedRepo?.path ?? null)
+
+  // Set branch to default when branch data is loaded
+  useEffect(() => {
+    if (branchData?.defaultBranch && !branch) {
+      setBranch(branchData.defaultBranch)
+    }
+  }, [branchData?.defaultBranch, branch])
+
   // Filter repositories
   const filteredRepos = useMemo(() => {
     if (!repositories) return []
@@ -124,6 +135,7 @@ function CreateAppWizard() {
   const handleSelectRepo = (repo: Repository) => {
     setSelectedRepo(repo)
     setAppName(repo.displayName)
+    setBranch('') // Reset branch so it gets set to new repo's default
   }
 
   // Proceed to step 2
@@ -147,7 +159,7 @@ function CreateAppWizard() {
       const result = await createApp.mutateAsync({
         name: appName,
         repositoryId: selectedRepo.id,
-        branch,
+        branch: branch || branchData?.defaultBranch || 'main',
         composeFile: parsedCompose.file,
         autoDeployEnabled,
         services: services.map((s) => ({
@@ -305,7 +317,7 @@ function CreateAppWizard() {
                     id="branch"
                     value={branch}
                     onChange={(e) => setBranch(e.target.value)}
-                    placeholder="main"
+                    placeholder={branchData?.defaultBranch ?? 'main'}
                   />
                 </div>
 
