@@ -1472,7 +1472,7 @@ function ServiceSummaryCard({ containers }: { containers: ContainerStats[] }) {
     <Card className="p-4 mb-6">
       <h4 className="text-sm font-medium mb-4">{t('apps.monitoring.serviceTotal')}</h4>
 
-      <div className="flex items-center justify-around">
+      <div className="flex items-center justify-center gap-8">
         <DistributionRing
           data={cpuData}
           label={t('apps.monitoring.cpu')}
