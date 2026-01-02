@@ -355,6 +355,10 @@ export async function stackDeploy(
 
   const args = ['stack', 'deploy']
 
+  // Force Swarm to check local image digests rather than using cached ones
+  // Without this, Swarm won't pick up locally rebuilt images with the same tag
+  args.push('--resolve-image', 'always')
+
   // Add compose file
   const composeFile = options.composeFile || 'docker-compose.yml'
   args.push('-c', composeFile)
