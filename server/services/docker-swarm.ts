@@ -4,6 +4,7 @@ import { join, resolve, isAbsolute } from 'path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { log } from '../lib/logger'
 import { getShellEnv } from '../lib/env'
+import { expandEnvVar, splitRespectingEnvVars } from '../lib/env-expand'
 
 export interface SwarmServiceStatus {
   id: string
@@ -636,31 +637,44 @@ function sleep(ms: number): Promise<void> {
 /**
  * Resolve a volume path to an absolute path if it's relative
  * Named volumes (no slashes) and absolute paths are returned as-is
+ * Handles env var syntax like ${DATA_DIR:-./data}
  */
 function resolveVolumePath(volumePath: string, basePath: string): string {
+  // Try to expand env var syntax first
+  const expanded = expandEnvVar(volumePath)
+  const pathToCheck = expanded ?? volumePath // Use original if can't expand
+
   // Named volumes don't have slashes in the host part
   // Examples: "my-data", "app-data"
-  if (!volumePath.includes('/') && !volumePath.startsWith('.')) {
-    return volumePath // Named volume, return as-is
+  if (!pathToCheck.includes('/') && !pathToCheck.startsWith('.')) {
+    return volumePath // Named volume, return as-is (preserve original syntax)
   }
 
-  // Already absolute
-  if (isAbsolute(volumePath)) {
+  // If we couldn't expand the env var and it contains ${, return as-is
+  // Docker will handle the expansion at runtime
+  if (expanded === null && volumePath.includes('${')) {
     return volumePath
   }
 
+  // Already absolute
+  if (isAbsolute(pathToCheck)) {
+    return expanded ?? volumePath
+  }
+
   // Relative path - resolve against basePath
-  return resolve(basePath, volumePath)
+  return resolve(basePath, pathToCheck)
 }
 
 /**
  * Parse and transform volume entries to resolve relative paths
  * Handles both short syntax ("./host:/container") and long syntax ({ type: bind, source: ./host, target: /container })
+ * Also handles env var syntax like "${DATA_DIR:-./data}:/app/data"
  */
 function resolveVolumeEntry(volume: unknown, basePath: string): unknown {
   // Short syntax: string like "./host:/container:ro" or "volume_name:/container"
   if (typeof volume === 'string') {
-    const parts = volume.split(':')
+    // Use splitRespectingEnvVars to handle ${VAR:-default} syntax
+    const parts = splitRespectingEnvVars(volume)
     if (parts.length >= 2) {
       // Format: host:container or host:container:options
       const hostPath = parts[0]

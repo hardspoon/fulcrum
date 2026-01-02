@@ -2,6 +2,7 @@ import { readFile, access } from 'fs/promises'
 import { join } from 'path'
 import { parse as parseYaml } from 'yaml'
 import { log } from '../lib/logger'
+import { expandEnvVar, splitRespectingEnvVars } from '../lib/env-expand'
 
 export interface ComposePort {
   container: number
@@ -46,24 +47,6 @@ export async function findComposeFile(repoPath: string): Promise<string | null> 
 }
 
 /**
- * Expand shell-style environment variable syntax to extract values
- * Handles: ${VAR}, ${VAR:-default}, ${VAR-default}, ${VAR:=default}, ${VAR=default}
- * Returns the default value if present, otherwise null (variable reference)
- */
-function expandEnvVar(str: string): string | null {
-  // Match ${VAR:-default} or ${VAR-default} patterns
-  const match = str.match(/^\$\{[^}]+:?[-=](.+)\}$/)
-  if (match) {
-    return match[1]
-  }
-  // If it's just ${VAR} with no default, we can't resolve it
-  if (str.match(/^\$\{[^}]+\}$/) || str.match(/^\$[A-Za-z_][A-Za-z0-9_]*$/)) {
-    return null
-  }
-  return str
-}
-
-/**
  * Parse a port value that may contain environment variable syntax
  * Returns the numeric port or null if it can't be parsed
  */
@@ -80,34 +63,6 @@ function parsePortValue(value: string): number | null {
     return null
   }
   return port
-}
-
-/**
- * Split port string on colon, but respect ${VAR:-default} syntax
- * The colon in :- or := should not be treated as a separator
- */
-function splitPortString(portStr: string): string[] {
-  const parts: string[] = []
-  let current = ''
-  let braceDepth = 0
-
-  for (let i = 0; i < portStr.length; i++) {
-    const char = portStr[i]
-    if (char === '{' && i > 0 && portStr[i - 1] === '$') {
-      braceDepth++
-      current += char
-    } else if (char === '}' && braceDepth > 0) {
-      braceDepth--
-      current += char
-    } else if (char === ':' && braceDepth === 0) {
-      parts.push(current)
-      current = ''
-    } else {
-      current += char
-    }
-  }
-  parts.push(current)
-  return parts
 }
 
 /**
@@ -141,7 +96,7 @@ function parsePort(port: unknown): ComposePort | null {
     }
 
     // Split respecting env var syntax
-    const parts = splitPortString(portStr)
+    const parts = splitRespectingEnvVars(portStr)
 
     if (parts.length >= 2) {
       // Format: host:container or IP:host:container
