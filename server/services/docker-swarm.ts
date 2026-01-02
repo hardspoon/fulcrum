@@ -246,6 +246,15 @@ export async function generateSwarmComposeFile(
         )
       }
 
+      // Convert ports to host mode to bypass ingress routing mesh
+      // This avoids IPVS load balancer issues and provides more predictable routing
+      if (Array.isArray(serviceConfig.ports)) {
+        serviceConfig.ports = serviceConfig.ports.map((port: unknown) =>
+          convertPortToHostMode(port)
+        )
+        log.deploy.debug('Converted ports to host mode', { service: serviceName })
+      }
+
       // Remove fields not supported by Docker Swarm
       // These would cause "unsupported" errors or be silently ignored
       const unsupportedFields = [
@@ -632,6 +641,93 @@ export async function waitForServicesHealthy(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
+}
+
+/**
+ * Convert a port specification to host mode (bypasses ingress routing mesh)
+ *
+ * Handles Docker Compose port formats:
+ * - Short syntax: "3001", "3001:3001", "8080:80/tcp", "127.0.0.1:3001:3001"
+ * - Env var syntax: "${PORT:-3001}:${PORT:-3001}"
+ * - Long syntax: { target: 80, published: 8080 }
+ *
+ * Returns long syntax with mode: host
+ */
+function convertPortToHostMode(port: unknown): unknown {
+  // Already long syntax (object)
+  if (typeof port === 'object' && port !== null) {
+    const portObj = port as Record<string, unknown>
+    return {
+      ...portObj,
+      mode: 'host',
+    }
+  }
+
+  // Short syntax (string)
+  // Formats: "target", "published:target", "ip:published:target", with optional /protocol
+  if (typeof port === 'string') {
+    // Split off protocol first (protocol won't contain env vars)
+    const slashIdx = port.lastIndexOf('/')
+    const portSpec = slashIdx > -1 ? port.slice(0, slashIdx) : port
+    const protocol = slashIdx > -1 ? port.slice(slashIdx + 1) : undefined
+
+    // Use splitRespectingEnvVars to handle ${VAR:-default} syntax
+    const parts = splitRespectingEnvVars(portSpec, ':')
+
+    let targetStr: string
+    let publishedStr: string
+
+    if (parts.length === 1) {
+      // Just "3001" or "${PORT:-3001}"
+      targetStr = parts[0]
+      publishedStr = parts[0]
+    } else if (parts.length === 2) {
+      // "published:target"
+      publishedStr = parts[0]
+      targetStr = parts[1]
+    } else if (parts.length === 3) {
+      // "ip:published:target" - ignore the IP for host mode
+      publishedStr = parts[1]
+      targetStr = parts[2]
+    } else {
+      // Unknown format, return original
+      return port
+    }
+
+    // Expand env vars to get actual values
+    const targetExpanded = expandEnvVar(targetStr)
+    const publishedExpanded = expandEnvVar(publishedStr)
+
+    // Parse to numbers
+    const target = targetExpanded ? parseInt(targetExpanded, 10) : NaN
+    const published = publishedExpanded ? parseInt(publishedExpanded, 10) : NaN
+
+    // Validate parsed values
+    if (isNaN(target) || isNaN(published)) {
+      log.deploy.warn('Could not parse port for host mode conversion', { port })
+      return port
+    }
+
+    return {
+      target,
+      published,
+      protocol: protocol || 'tcp',
+      mode: 'host',
+    }
+  }
+
+  // Number - just a port
+  if (typeof port === 'number') {
+    return {
+      target: port,
+      published: port,
+      protocol: 'tcp',
+      mode: 'host',
+    }
+  }
+
+  // Unknown format, return as-is
+  return port
 }
 
 /**
