@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { mkdir, readFile, writeFile } from 'fs/promises'
-import { join } from 'path'
+import { join, resolve, isAbsolute } from 'path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { log } from '../lib/logger'
 import { getShellEnv } from '../lib/env'
@@ -234,6 +234,15 @@ export async function generateSwarmComposeFile(
           original: conditions,
         })
         serviceConfig.depends_on = Object.keys(serviceConfig.depends_on)
+      }
+
+      // Resolve relative volume paths to absolute paths
+      // When the swarm compose file is written to VIBORA_DIR, relative paths
+      // like ".:/app" would resolve to that directory instead of the repo
+      if (Array.isArray(serviceConfig.volumes)) {
+        serviceConfig.volumes = serviceConfig.volumes.map((vol: unknown) =>
+          resolveVolumeEntry(vol, cwd)
+        )
       }
 
       // Remove fields not supported by Docker Swarm
@@ -621,7 +630,76 @@ export async function waitForServicesHealthy(
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+/**
+ * Resolve a volume path to an absolute path if it's relative
+ * Named volumes (no slashes) and absolute paths are returned as-is
+ */
+function resolveVolumePath(volumePath: string, basePath: string): string {
+  // Named volumes don't have slashes in the host part
+  // Examples: "my-data", "app-data"
+  if (!volumePath.includes('/') && !volumePath.startsWith('.')) {
+    return volumePath // Named volume, return as-is
+  }
+
+  // Already absolute
+  if (isAbsolute(volumePath)) {
+    return volumePath
+  }
+
+  // Relative path - resolve against basePath
+  return resolve(basePath, volumePath)
+}
+
+/**
+ * Parse and transform volume entries to resolve relative paths
+ * Handles both short syntax ("./host:/container") and long syntax ({ type: bind, source: ./host, target: /container })
+ */
+function resolveVolumeEntry(volume: unknown, basePath: string): unknown {
+  // Short syntax: string like "./host:/container:ro" or "volume_name:/container"
+  if (typeof volume === 'string') {
+    const parts = volume.split(':')
+    if (parts.length >= 2) {
+      // Format: host:container or host:container:options
+      const hostPath = parts[0]
+      const containerPath = parts[1]
+      const options = parts.slice(2).join(':')
+
+      const resolvedHost = resolveVolumePath(hostPath, basePath)
+
+      // Only log if we actually resolved a relative path
+      if (resolvedHost !== hostPath) {
+        log.deploy.debug('Resolved relative volume path', {
+          original: hostPath,
+          resolved: resolvedHost,
+        })
+      }
+
+      return options ? `${resolvedHost}:${containerPath}:${options}` : `${resolvedHost}:${containerPath}`
+    }
+    // Just container path (anonymous volume), return as-is
+    return volume
+  }
+
+  // Long syntax: object with type, source, target
+  if (typeof volume === 'object' && volume !== null) {
+    const vol = volume as Record<string, unknown>
+    if (vol.type === 'bind' && typeof vol.source === 'string') {
+      const resolvedSource = resolveVolumePath(vol.source, basePath)
+      if (resolvedSource !== vol.source) {
+        log.deploy.debug('Resolved relative volume path (long syntax)', {
+          original: vol.source,
+          resolved: resolvedSource,
+        })
+        return { ...vol, source: resolvedSource }
+      }
+    }
+    return vol
+  }
+
+  return volume
 }
 
 export interface CloudflaredServiceConfig {
