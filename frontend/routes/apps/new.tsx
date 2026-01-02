@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { useRepositories } from '@/hooks/use-repositories'
 import { useParseCompose, useFindCompose, useCreateApp, useDeploymentSettings } from '@/hooks/use-apps'
@@ -54,6 +54,7 @@ function CreateAppWizard() {
   const [step, setStep] = useState<Step>('select-repo')
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Step 2 state (declared before useEffect that uses them)
   const [appName, setAppName] = useState('')
@@ -71,6 +72,18 @@ function CreateAppWizard() {
       }
     }
   }, [repoId, repositories, selectedRepo, setAppName])
+
+  // Scroll to selected repo when auto-selected from URL
+  useEffect(() => {
+    if (repoId && selectedRepo && scrollContainerRef.current) {
+      const selectedElement = scrollContainerRef.current.querySelector(
+        `[data-repo-id="${selectedRepo.id}"]`
+      )
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+    }
+  }, [repoId, selectedRepo])
 
   // Fetch compose info for selected repo
   const { data: composeInfo, isLoading: composeLoading, error: composeError } = useFindCompose(
@@ -201,7 +214,7 @@ function CreateAppWizard() {
                     />
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-80 overflow-auto">
+                  <div ref={scrollContainerRef} className="space-y-2 max-h-80 overflow-auto">
                     {filteredRepos.map((repo) => (
                       <RepoOption
                         key={repo.id}
@@ -440,6 +453,7 @@ function RepoOption({
   return (
     <button
       type="button"
+      data-repo-id={repo.id}
       onClick={onSelect}
       className={`w-full rounded-lg border p-3 text-left transition-colors ${
         selected
