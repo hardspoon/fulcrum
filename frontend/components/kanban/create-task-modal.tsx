@@ -178,11 +178,15 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
 
       // Valid git repo - set the path
       setRepoPath(path)
-      setSelectedRepoId(null) // Clear saved selection when browsing
 
-      // Auto-add to repositories if not already saved
+      // Check if this path matches an existing saved repository
       const existingRepo = repositories?.find((r) => r.path === path)
-      if (!existingRepo) {
+      if (existingRepo) {
+        // Use the existing repo's settings (copyFiles, startupScript, etc.)
+        setSelectedRepoId(existingRepo.id)
+      } else {
+        setSelectedRepoId(null)
+        // Auto-add to repositories if not already saved
         const displayName = path.split('/').pop() || 'Unknown'
         createRepository.mutate({
           path,
