@@ -188,8 +188,14 @@ export async function checkConfigDirWritable(configDir: string): Promise<boolean
 
 /**
  * Generate Traefik config filename for an app
+ * Format: vibora-{appName}-{appId}.yml for human readability
  */
-function getConfigFilename(appId: string): string {
+function getConfigFilename(appId: string, appName?: string): string {
+  if (appName) {
+    // Sanitize app name for filesystem: lowercase, replace spaces/special chars with hyphens
+    const sanitized = appName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    return `vibora-${sanitized}-${appId}.yml`
+  }
   return `vibora-${appId}.yml`
 }
 
@@ -242,6 +248,8 @@ export interface AddRouteOptions {
     /** Path to key file inside container (e.g., /certs/example.com/key.pem) */
     keyFile: string
   }
+  /** App name for human-readable config filename */
+  appName?: string
 }
 
 /**
@@ -268,7 +276,7 @@ export async function addRoute(
   }
 
   const routerId = `vibora-${appId}`
-  const filename = getConfigFilename(appId)
+  const filename = getConfigFilename(appId, options?.appName)
   const filepath = join(config.configDir, filename)
 
   // Build TLS config - use file cert if provided, otherwise use ACME resolver
@@ -356,26 +364,40 @@ export async function addRoute(
  */
 export async function removeRoute(
   config: TraefikConfig,
-  appId: string
+  appId: string,
+  appName?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const filename = getConfigFilename(appId)
-  const filepath = join(config.configDir, filename)
+  // Try both new format (with app name) and legacy format (id only)
+  const filesToTry = [
+    appName ? getConfigFilename(appId, appName) : null,
+    getConfigFilename(appId), // Legacy format fallback
+  ].filter(Boolean) as string[]
 
-  try {
-    await unlink(filepath)
-    log.deploy.info('Removed Traefik route', { appId, filepath })
-    return { success: true }
-  } catch (err) {
-    // File not existing is not an error
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      log.deploy.debug('Traefik route file not found, nothing to remove', { appId })
-      return { success: true }
+  let deleted = false
+  let lastError: string | undefined
+
+  for (const filename of filesToTry) {
+    const filepath = join(config.configDir, filename)
+    try {
+      await unlink(filepath)
+      log.deploy.info('Removed Traefik route', { appId, filepath })
+      deleted = true
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        lastError = err instanceof Error ? err.message : String(err)
+      }
     }
-
-    const error = err instanceof Error ? err.message : String(err)
-    log.deploy.error('Failed to remove Traefik route', { appId, error })
-    return { success: false, error }
   }
+
+  if (deleted || !lastError) {
+    if (!deleted) {
+      log.deploy.debug('Traefik route file not found, nothing to remove', { appId })
+    }
+    return { success: true }
+  }
+
+  log.deploy.error('Failed to remove Traefik route', { appId, error: lastError })
+  return { success: false, error: lastError }
 }
 
 /**

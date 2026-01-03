@@ -398,18 +398,16 @@ export async function deployApp(
       const upstreamUrl = `http://${projectName}_${service.serviceName}:${service.containerPort}`
 
       // Try to generate Origin CA certificate if Cloudflare is configured
-      let routeOptions: AddRouteOptions | undefined
+      const routeOptions: AddRouteOptions = { appName: app.name }
       if (settings.integrations.cloudflareApiToken && rootDomain) {
         onProgress?.({ stage: 'configuring', message: `Generating SSL certificate for ${rootDomain}...` })
 
         const certResult = await createOriginCACertificate(rootDomain)
         if (certResult.success && certResult.certPath && certResult.keyPath) {
           // Use file-based TLS with paths inside the container
-          routeOptions = {
-            tlsCert: {
-              certFile: `${TRAEFIK_CERTS_MOUNT}/${rootDomain}/cert.pem`,
-              keyFile: `${TRAEFIK_CERTS_MOUNT}/${rootDomain}/key.pem`,
-            },
+          routeOptions.tlsCert = {
+            certFile: `${TRAEFIK_CERTS_MOUNT}/${rootDomain}/cert.pem`,
+            keyFile: `${TRAEFIK_CERTS_MOUNT}/${rootDomain}/key.pem`,
           }
           log.deploy.info('Using Origin CA certificate for TLS', {
             domain: service.domain,
@@ -774,7 +772,7 @@ export async function stopApp(appId: string): Promise<{ success: boolean; error?
     if (service.exposed && service.domain) {
       // Remove Traefik route
       if (traefikConfig) {
-        await removeRoute(traefikConfig, appId)
+        await removeRoute(traefikConfig, appId, app.name)
       }
 
       // Delete DNS record (both A records and CNAMEs use same function)

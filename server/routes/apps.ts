@@ -425,7 +425,7 @@ app.delete('/:id', async (c) => {
   // Clean up Traefik routes (always, regardless of app status)
   const traefikConfig = await detectTraefik()
   if (traefikConfig) {
-    await removeRoute(traefikConfig, id).catch((err) => {
+    await removeRoute(traefikConfig, id, existing.name).catch((err) => {
       log.deploy.warn('Failed to remove Traefik route during app deletion', {
         appId: id,
         error: String(err),
