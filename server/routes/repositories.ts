@@ -62,6 +62,11 @@ app.post('/', async (c) => {
     // Expand tilde in path
     const repoPath = expandPath(body.path)
 
+    // Check if directory exists
+    if (!existsSync(repoPath)) {
+      return c.json({ error: `Directory does not exist: ${repoPath}` }, 400)
+    }
+
     // Check for duplicate path
     const existing = db
       .select()
@@ -239,16 +244,26 @@ app.patch('/:id', async (c) => {
       isCopierTemplate?: boolean
     }>()
 
-    // If path is changing, check for duplicates
+    // If path is changing, validate and check for duplicates
     if (body.path && body.path !== existing.path) {
+      const newPath = expandPath(body.path)
+
+      // Check if directory exists
+      if (!existsSync(newPath)) {
+        return c.json({ error: `Directory does not exist: ${newPath}` }, 400)
+      }
+
       const duplicate = db
         .select()
         .from(repositories)
-        .where(eq(repositories.path, body.path))
+        .where(eq(repositories.path, newPath))
         .get()
       if (duplicate) {
         return c.json({ error: 'Repository with this path already exists' }, 400)
       }
+
+      // Update body.path with expanded path
+      body.path = newPath
     }
 
     const now = new Date().toISOString()

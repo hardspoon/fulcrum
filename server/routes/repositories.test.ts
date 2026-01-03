@@ -1,4 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { createTestApp } from '../__tests__/fixtures/app'
 import { setupTestEnv, type TestEnv } from '../__tests__/utils/env'
 import { db, repositories } from '../db'
@@ -112,15 +114,19 @@ describe('Repositories Routes', () => {
 
   describe('POST /api/repositories', () => {
     test('creates a repository with required fields', async () => {
+      // Create a real directory
+      const repoPath = join(testEnv.viboraDir, 'new-repo')
+      mkdirSync(repoPath, { recursive: true })
+
       const { post } = createTestApp()
       const res = await post('/api/repositories', {
-        path: '/path/to/new/repo',
+        path: repoPath,
         displayName: 'New Repository',
       })
       const body = await res.json()
 
       expect(res.status).toBe(201)
-      expect(body.path).toBe('/path/to/new/repo')
+      expect(body.path).toBe(repoPath)
       expect(body.displayName).toBe('New Repository')
       expect(body.id).toBeDefined()
       expect(body.startupScript).toBeNull()
@@ -128,9 +134,13 @@ describe('Repositories Routes', () => {
     })
 
     test('creates a repository with optional fields', async () => {
+      // Create a real directory
+      const repoPath = join(testEnv.viboraDir, 'full-repo')
+      mkdirSync(repoPath, { recursive: true })
+
       const { post } = createTestApp()
       const res = await post('/api/repositories', {
-        path: '/path/to/repo',
+        path: repoPath,
         displayName: 'Full Repository',
         startupScript: 'bun run dev',
         copyFiles: '.env.example\nREADME.md',
@@ -145,9 +155,13 @@ describe('Repositories Routes', () => {
     })
 
     test('derives displayName from path if not provided', async () => {
+      // Create a real directory
+      const repoPath = join(testEnv.viboraDir, 'my-project')
+      mkdirSync(repoPath, { recursive: true })
+
       const { post } = createTestApp()
       const res = await post('/api/repositories', {
-        path: '/path/to/my-project',
+        path: repoPath,
         displayName: '',
       })
       const body = await res.json()
@@ -167,12 +181,28 @@ describe('Repositories Routes', () => {
       expect(body.error).toContain('path is required')
     })
 
+    test('returns 400 for non-existent directory', async () => {
+      const { post } = createTestApp()
+      const res = await post('/api/repositories', {
+        path: '/nonexistent/path/to/repo',
+        displayName: 'Ghost Repo',
+      })
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toContain('does not exist')
+    })
+
     test('returns 400 for duplicate path', async () => {
+      // Create a real directory
+      const repoPath = join(testEnv.viboraDir, 'existing-repo')
+      mkdirSync(repoPath, { recursive: true })
+
       const now = new Date().toISOString()
       db.insert(repositories)
         .values({
           id: 'existing-repo',
-          path: '/existing/path',
+          path: repoPath,
           displayName: 'Existing',
           createdAt: now,
           updatedAt: now,
@@ -181,7 +211,7 @@ describe('Repositories Routes', () => {
 
       const { post } = createTestApp()
       const res = await post('/api/repositories', {
-        path: '/existing/path',
+        path: repoPath,
         displayName: 'Duplicate',
       })
       const body = await res.json()
@@ -239,11 +269,17 @@ describe('Repositories Routes', () => {
     })
 
     test('updates repository path', async () => {
+      // Create real directories
+      const oldPath = join(testEnv.viboraDir, 'old-path')
+      const newPath = join(testEnv.viboraDir, 'new-path')
+      mkdirSync(oldPath, { recursive: true })
+      mkdirSync(newPath, { recursive: true })
+
       const now = new Date().toISOString()
       db.insert(repositories)
         .values({
           id: 'path-repo',
-          path: '/old/path',
+          path: oldPath,
           displayName: 'Path Repo',
           createdAt: now,
           updatedAt: now,
@@ -252,12 +288,38 @@ describe('Repositories Routes', () => {
 
       const { patch } = createTestApp()
       const res = await patch('/api/repositories/path-repo', {
-        path: '/new/path',
+        path: newPath,
       })
       const body = await res.json()
 
       expect(res.status).toBe(200)
-      expect(body.path).toBe('/new/path')
+      expect(body.path).toBe(newPath)
+    })
+
+    test('returns 400 when updating path to non-existent directory', async () => {
+      // Create only the original directory
+      const oldPath = join(testEnv.viboraDir, 'original-path')
+      mkdirSync(oldPath, { recursive: true })
+
+      const now = new Date().toISOString()
+      db.insert(repositories)
+        .values({
+          id: 'path-check-repo',
+          path: oldPath,
+          displayName: 'Path Check Repo',
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run()
+
+      const { patch } = createTestApp()
+      const res = await patch('/api/repositories/path-check-repo', {
+        path: '/nonexistent/path',
+      })
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toContain('does not exist')
     })
 
     test('returns 404 for non-existent repository', async () => {
@@ -270,19 +332,25 @@ describe('Repositories Routes', () => {
     })
 
     test('returns 400 when changing path to duplicate', async () => {
+      // Create real directories
+      const pathOne = join(testEnv.viboraDir, 'path-one')
+      const pathTwo = join(testEnv.viboraDir, 'path-two')
+      mkdirSync(pathOne, { recursive: true })
+      mkdirSync(pathTwo, { recursive: true })
+
       const now = new Date().toISOString()
       db.insert(repositories)
         .values([
           {
             id: 'dup-repo-1',
-            path: '/path/one',
+            path: pathOne,
             displayName: 'Repo One',
             createdAt: now,
             updatedAt: now,
           },
           {
             id: 'dup-repo-2',
-            path: '/path/two',
+            path: pathTwo,
             displayName: 'Repo Two',
             createdAt: now,
             updatedAt: now,
@@ -292,7 +360,7 @@ describe('Repositories Routes', () => {
 
       const { patch } = createTestApp()
       const res = await patch('/api/repositories/dup-repo-2', {
-        path: '/path/one', // Duplicate of repo-1
+        path: pathOne, // Duplicate of repo-1
       })
       const body = await res.json()
 
