@@ -311,6 +311,7 @@ export function useDeployments(appId: string | null) {
     queryKey: ['apps', appId, 'deployments'],
     queryFn: () => fetchJSON<Deployment[]>(`${API_BASE}/api/apps/${appId}/deployments`),
     enabled: !!appId,
+    refetchInterval: 5000, // Refresh every 5 seconds to show new deployments
   })
 }
 

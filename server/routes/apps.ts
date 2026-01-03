@@ -5,9 +5,19 @@ import { join } from 'path'
 import { nanoid } from 'nanoid'
 import { eq, desc } from 'drizzle-orm'
 import { db } from '../db'
-import { apps, appServices, deployments, repositories } from '../db/schema'
+import { apps, appServices, deployments, repositories, tunnels } from '../db/schema'
 import { findComposeFile, parseComposeFile } from '../services/compose-parser'
-import { deployApp, stopApp, getDeploymentHistory, getProjectName, cancelDeploymentByAppId } from '../services/deployment'
+import {
+  deployApp,
+  stopApp,
+  getDeploymentHistory,
+  getProjectName,
+  cancelDeploymentByAppId,
+  broadcastProgress,
+  subscribeToDeploymentLogs,
+  hasActiveDeploymentLogs,
+  clearDeploymentLogs,
+} from '../services/deployment'
 import { stackServices, serviceLogs, stackRemove } from '../services/docker-swarm'
 import { checkDockerInstalled, checkDockerRunning } from '../services/docker-compose'
 import { refreshGitWatchers } from '../services/git-watcher'
@@ -393,8 +403,8 @@ app.delete('/:id', async (c) => {
   if (stopContainers) {
     const projectName = getProjectName(id, repo?.displayName)
 
-    if (existing.status === 'running') {
-      // Full stop with Traefik cleanup
+    if (existing.status === 'running' || existing.status === 'building') {
+      // Full stop with Traefik cleanup (also handles building status after deployment cancellation)
       const stopResult = await stopApp(id)
       if (!stopResult.success) {
         log.deploy.warn('stopApp failed during app deletion, attempting direct stack removal', {
@@ -468,6 +478,9 @@ app.delete('/:id', async (c) => {
 
   // Delete deployments
   await db.delete(deployments).where(eq(deployments.appId, id))
+
+  // Delete tunnel records
+  await db.delete(tunnels).where(eq(tunnels.appId, id))
 
   // Delete app
   await db.delete(apps).where(eq(apps.id, id))
@@ -602,6 +615,9 @@ app.get('/:id/deploy/stream', async (c) => {
     return c.json({ error: 'App not found' }, 404)
   }
 
+  // Clear any previous deployment logs for this app
+  clearDeploymentLogs(id)
+
   // Disable proxy buffering for SSE (required for Cloudflare tunnels)
   c.header('X-Accel-Buffering', 'no')
 
@@ -615,6 +631,9 @@ app.get('/:id/deploy/stream', async (c) => {
       id,
       { deployedBy: 'manual' },
       async (progress) => {
+        // Broadcast to all subscribers (including late-joiners via /deploy/watch)
+        broadcastProgress(id, progress)
+
         try {
           await stream.writeSSE({
             event: 'progress',
@@ -626,18 +645,91 @@ app.get('/:id/deploy/stream', async (c) => {
       }
     )
 
-    // Send final result
+    // Send final result and broadcast it
     if (result.success) {
+      const finalProgress = { stage: 'done' as const, message: 'Deployment complete' }
+      broadcastProgress(id, finalProgress)
+
       await stream.writeSSE({
         event: 'complete',
         data: JSON.stringify({ success: true, deployment: result.deployment }),
       })
     } else {
+      const finalProgress = { stage: 'failed' as const, message: result.error || 'Deployment failed' }
+      broadcastProgress(id, finalProgress)
+
       await stream.writeSSE({
         event: 'error',
         data: JSON.stringify({ success: false, error: result.error }),
       })
     }
+  })
+})
+
+// GET /api/apps/:id/deploy/watch - Watch logs of an in-progress deployment via SSE
+// Unlike /deploy/stream, this doesn't start a new deployment - it just subscribes to logs
+app.get('/:id/deploy/watch', async (c) => {
+  const id = c.req.param('id')
+
+  const existing = await db.query.apps.findFirst({
+    where: eq(apps.id, id),
+  })
+
+  if (!existing) {
+    return c.json({ error: 'App not found' }, 404)
+  }
+
+  // Check if there's an active deployment to watch
+  if (!hasActiveDeploymentLogs(id) && existing.status !== 'building' && existing.status !== 'pending') {
+    return c.json({ error: 'No deployment in progress' }, 404)
+  }
+
+  // Disable proxy buffering for SSE (required for Cloudflare tunnels)
+  c.header('X-Accel-Buffering', 'no')
+
+  return streamSSE(c, async (stream) => {
+    // Send immediate ping to establish connection
+    await stream.write(': ping\n\n')
+
+    // Subscribe to deployment logs (will replay buffered logs first)
+    const { unsubscribe, isComplete, finalEvent } = subscribeToDeploymentLogs(id, (progress) => {
+      try {
+        stream.writeSSE({
+          event: 'progress',
+          data: JSON.stringify(progress),
+        })
+      } catch {
+        // Client disconnected
+      }
+    })
+
+    // If deployment already complete, send final event and close
+    if (isComplete && finalEvent) {
+      const event = finalEvent.stage === 'done' ? 'complete' : 'error'
+      const data =
+        finalEvent.stage === 'done'
+          ? { success: true }
+          : { success: false, error: finalEvent.message }
+
+      await stream.writeSSE({
+        event,
+        data: JSON.stringify(data),
+      })
+      unsubscribe()
+      return
+    }
+
+    // Keep connection open until deployment completes or client disconnects
+    // The stream will be closed by Hono when the client disconnects
+    await new Promise<void>((resolve) => {
+      const checkComplete = setInterval(() => {
+        if (!hasActiveDeploymentLogs(id)) {
+          clearInterval(checkComplete)
+          unsubscribe()
+          resolve()
+        }
+      }, 1000)
+    })
   })
 })
 
@@ -672,6 +764,14 @@ app.post('/:id/stop', async (c) => {
 
   if (!existing) {
     return c.json({ error: 'App not found' }, 404)
+  }
+
+  // Cancel any active deployment first (must complete before stop)
+  if (existing.status === 'building') {
+    log.deploy.info('Cancelling active deployment before stop', { appId: id })
+    await cancelDeploymentByAppId(id)
+    // Give deployment time to clean up
+    await new Promise((resolve) => setTimeout(resolve, 1000))
   }
 
   const result = await stopApp(id)

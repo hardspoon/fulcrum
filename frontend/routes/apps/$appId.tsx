@@ -18,7 +18,7 @@ import {
   useDeploymentPrerequisites,
   useDeploymentSettings,
 } from '@/hooks/use-apps'
-import { useDeploymentStore, DeploymentStoreProvider, type DeploymentStage } from '@/stores'
+import { useDeploymentStore, DeploymentStoreProvider, type DeploymentStage, type IDeploymentStreamStore } from '@/stores'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -81,6 +81,7 @@ type AppTab = 'general' | 'deployments' | 'logs' | 'monitoring'
 
 interface AppDetailSearch {
   tab?: AppTab
+  action?: 'deploy'
 }
 
 // Wrap AppDetailView with DeploymentStoreProvider so all child components can access deployment state
@@ -98,6 +99,7 @@ export const Route = createFileRoute('/apps/$appId')({
     tab: ['general', 'deployments', 'logs', 'monitoring'].includes(search.tab as string)
       ? (search.tab as AppTab)
       : undefined,
+    action: search.action === 'deploy' ? 'deploy' : undefined,
   }),
 })
 
@@ -129,7 +131,7 @@ function formatRelativeTime(date: string): string {
 const AppDetailView = observer(function AppDetailView() {
   const { t } = useTranslation('common')
   const { appId } = Route.useParams()
-  const { tab } = Route.useSearch()
+  const { tab, action } = Route.useSearch()
   const navigate = useNavigate()
   const { data: app, isLoading, error } = useApp(appId)
   const { data: prereqs } = useDeploymentPrerequisites()
@@ -156,6 +158,33 @@ const AppDetailView = observer(function AppDetailView() {
       setTimeout(() => deployStore.reset(), 300)
     }
   }, [deployStore])
+
+  // Track if we've consumed the action param to prevent double-triggers
+  const actionConsumedRef = useRef(false)
+
+  // Handle action=deploy from navigation (e.g., from app list deploy button)
+  useEffect(() => {
+    if (action === 'deploy' && app && !actionConsumedRef.current && !deployStore.isDeploying) {
+      actionConsumedRef.current = true
+
+      // Clear action param from URL (prevents re-trigger on refresh)
+      navigate({
+        to: '/apps/$appId',
+        params: { appId },
+        search: tab ? { tab } : {},
+        replace: true,
+      })
+
+      // Trigger deployment and show modal
+      deployStore.deploy(appId)
+      setShowStreamingLogs(true)
+    }
+  }, [action, app, appId, deployStore, navigate, tab])
+
+  // Reset consumed ref when navigating to different app
+  useEffect(() => {
+    actionConsumedRef.current = false
+  }, [appId])
 
   // Show DNS warning if Cloudflare is not configured
   const showDnsWarning = prereqs && !prereqs.settings.cloudflareConfigured
@@ -288,7 +317,11 @@ const AppDetailView = observer(function AppDetailView() {
           </TabsContent>
 
           <TabsContent value="deployments" className="mt-0">
-            <DeploymentsTab appId={appId} onViewStreamingLogs={() => setShowStreamingLogs(true)} />
+            <DeploymentsTab
+              appId={appId}
+              deployStore={deployStore}
+              onViewStreamingLogs={() => setShowStreamingLogs(true)}
+            />
           </TabsContent>
 
           <TabsContent value="logs" className="mt-0">
@@ -925,9 +958,11 @@ function LogsTab({
 // Deployments tab - Dokploy style clean list
 function DeploymentsTab({
   appId,
+  deployStore,
   onViewStreamingLogs,
 }: {
   appId: string
+  deployStore: IDeploymentStreamStore
   onViewStreamingLogs: () => void
 }) {
   const { t } = useTranslation('common')
@@ -938,6 +973,10 @@ function DeploymentsTab({
     // If deployment is in progress (building/pending), show streaming modal
     // Otherwise show the database logs modal
     if (deployment.status === 'building' || deployment.status === 'pending') {
+      // If not already streaming this deployment, reconnect to watch the logs
+      if (!deployStore.isDeploying || deployStore.appId !== appId) {
+        deployStore.watchDeployment(appId)
+      }
       onViewStreamingLogs()
     } else {
       setSelectedDeployment(deployment)

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useEffect } from 'react'
+import React, { createContext, useContext, useMemo, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { DeploymentStreamStore, type IDeploymentStreamStore } from '../deployment-store'
 import { log } from '@/lib/logger'
@@ -49,12 +49,16 @@ export function DeploymentStoreProvider({ children }: { children: React.ReactNod
     )
   }, [queryClient])
 
-  // Cleanup on unmount
+  // Keep ref to store for cleanup
+  const storeRef = useRef(store)
+  storeRef.current = store
+
+  // Cleanup on unmount only (not on store changes)
   useEffect(() => {
     return () => {
-      store.disconnect()
+      storeRef.current?.disconnect()
     }
-  }, [store])
+  }, [])
 
   return (
     <DeploymentStoreContext.Provider value={store}>

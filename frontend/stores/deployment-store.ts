@@ -211,6 +211,89 @@ export const DeploymentStreamStore = types
       },
 
       /**
+       * Watch an existing in-progress deployment (reconnect to logs)
+       * Unlike deploy(), this doesn't start a new deployment - it just subscribes to logs
+       */
+      watchDeployment(appId: string) {
+        const log = getLog()
+
+        // Close any existing connection
+        if (self.eventSource) {
+          log.debug('Closing existing EventSource before watching', { appId: self.appId })
+          self.eventSource.close()
+          self.eventSource = null
+        }
+
+        // Reset state
+        log.info('Watching deployment', { appId })
+        self.appId = appId
+        self.isDeploying = true
+        self.logs.clear()
+        self.stage = null
+        self.error = null
+        self.deployment = null
+
+        // Create EventSource for SSE - using /watch endpoint which replays buffered logs
+        const eventSource = new EventSource(`${API_BASE}/api/apps/${appId}/deploy/watch`)
+        self.eventSource = eventSource
+
+        // Store reference to actions for callbacks
+        const store = self as IDeploymentStreamStore
+
+        eventSource.addEventListener('progress', (e) => {
+          try {
+            const progress = JSON.parse(e.data) as DeploymentProgress
+            store._handleProgress(progress)
+          } catch (err) {
+            log.warn('Failed to parse progress event', { error: String(err) })
+          }
+        })
+
+        eventSource.addEventListener('complete', (e) => {
+          try {
+            const result = JSON.parse(e.data) as { success: boolean; deployment?: Deployment }
+            // For watch, we might not get the deployment object
+            store._handleComplete({ success: true, deployment: result.deployment || { id: '', appId, status: 'success', startedAt: '' } })
+          } catch (err) {
+            log.warn('Failed to parse complete event', { error: String(err) })
+          }
+        })
+
+        eventSource.addEventListener('error', (e) => {
+          if (e instanceof MessageEvent) {
+            try {
+              const result = JSON.parse(e.data) as { success: boolean; error: string }
+              store._handleError(result.error)
+            } catch {
+              store._handleError('Deployment failed')
+            }
+          } else {
+            // SSE connection error - might be 404 if no deployment in progress
+            // Don't treat this as a deployment error, just close quietly
+            log.debug('Watch connection ended', { appId })
+            self.isDeploying = false
+            if (self.eventSource) {
+              self.eventSource.close()
+              self.eventSource = null
+            }
+          }
+        })
+
+        eventSource.onerror = () => {
+          // For watch, connection closing is expected when deployment ends
+          // Only log an error if we were still expecting data
+          if (self.isDeploying && !self.stage) {
+            log.warn('Watch connection failed - no deployment in progress?', { appId })
+          }
+          self.isDeploying = false
+          if (self.eventSource) {
+            self.eventSource.close()
+            self.eventSource = null
+          }
+        }
+      },
+
+      /**
        * Reset store state (for starting fresh)
        */
       reset() {

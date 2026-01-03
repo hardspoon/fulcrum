@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { fuzzyScore } from '@/lib/fuzzy-search'
-import { useApps, useDeployApp, useStopApp, useDeleteApp, useDeploymentPrerequisites } from '@/hooks/use-apps'
+import { useApps, useStopApp, useDeleteApp, useDeploymentPrerequisites } from '@/hooks/use-apps'
 import type { AppWithServices } from '@/hooks/use-apps'
 import { DeploymentSetupWizard } from '@/components/apps/deployment-setup-wizard'
 import { Button } from '@/components/ui/button'
@@ -192,7 +192,6 @@ function AppsView() {
   const { t } = useTranslation('common')
   const { data: apps, isLoading, error } = useApps()
   const { data: prereqs, isLoading: prereqsLoading } = useDeploymentPrerequisites()
-  const deployApp = useDeployApp()
   const stopApp = useStopApp()
   const deleteApp = useDeleteApp()
   const navigate = useNavigate()
@@ -255,8 +254,13 @@ function AppsView() {
     return result
   }, [apps, repoFilter, searchQuery])
 
-  const handleDeploy = async (appId: string) => {
-    await deployApp.mutateAsync(appId)
+  const handleDeploy = (appId: string) => {
+    // Navigate to app detail with action=deploy to trigger streaming deployment
+    navigate({
+      to: '/apps/$appId',
+      params: { appId },
+      search: { action: 'deploy' },
+    })
   }
 
   const handleStop = async (appId: string) => {

@@ -21,6 +21,7 @@ import {
   createTunnel,
   configureTunnelIngress,
   createTunnelCname,
+  deleteTunnel,
   isTunnelAvailable,
   type TunnelIngress,
 } from './cloudflare-tunnel'
@@ -44,6 +45,103 @@ let cachedTraefikConfig: TraefikConfig | null = null
 
 // Cache detected public IP to avoid repeated detection
 let cachedPublicIp: string | null = null
+
+/**
+ * Deployment log broadcaster - enables multiple SSE connections to receive logs from a single deployment.
+ * Buffers logs for late-joining subscribers and broadcasts progress to all connected clients.
+ */
+interface DeploymentLogState {
+  logs: DeploymentProgress[]
+  subscribers: Set<(progress: DeploymentProgress) => void>
+  isComplete: boolean
+  finalEvent?: DeploymentProgress
+}
+
+const deploymentLogStates = new Map<string, DeploymentLogState>()
+
+function getOrCreateLogState(appId: string): DeploymentLogState {
+  let state = deploymentLogStates.get(appId)
+  if (!state) {
+    state = {
+      logs: [],
+      subscribers: new Set(),
+      isComplete: false,
+    }
+    deploymentLogStates.set(appId, state)
+  }
+  return state
+}
+
+/**
+ * Broadcast a progress event to all subscribers for an app.
+ * Also buffers the log for late-joining subscribers.
+ */
+export function broadcastProgress(appId: string, progress: DeploymentProgress): void {
+  const state = getOrCreateLogState(appId)
+  state.logs.push(progress)
+
+  // Mark as complete if done/failed/cancelled
+  if (progress.stage === 'done' || progress.stage === 'failed' || progress.stage === 'cancelled') {
+    state.isComplete = true
+    state.finalEvent = progress
+  }
+
+  // Broadcast to all subscribers
+  for (const subscriber of state.subscribers) {
+    try {
+      subscriber(progress)
+    } catch {
+      // Subscriber disconnected, will be cleaned up
+    }
+  }
+}
+
+/**
+ * Subscribe to deployment logs for an app.
+ * Immediately receives all buffered logs, then receives live updates.
+ * Returns unsubscribe function.
+ */
+export function subscribeToDeploymentLogs(
+  appId: string,
+  onProgress: (progress: DeploymentProgress) => void
+): { unsubscribe: () => void; isComplete: boolean; finalEvent?: DeploymentProgress } {
+  const state = getOrCreateLogState(appId)
+
+  // Send all buffered logs immediately
+  for (const progress of state.logs) {
+    try {
+      onProgress(progress)
+    } catch {
+      // Ignore errors during replay
+    }
+  }
+
+  // Add subscriber for future updates
+  state.subscribers.add(onProgress)
+
+  return {
+    unsubscribe: () => {
+      state.subscribers.delete(onProgress)
+    },
+    isComplete: state.isComplete,
+    finalEvent: state.finalEvent,
+  }
+}
+
+/**
+ * Check if there's an active deployment for an app
+ */
+export function hasActiveDeploymentLogs(appId: string): boolean {
+  const state = deploymentLogStates.get(appId)
+  return !!state && !state.isComplete
+}
+
+/**
+ * Clean up deployment logs for an app (call when deployment is no longer needed)
+ */
+export function clearDeploymentLogs(appId: string): void {
+  deploymentLogStates.delete(appId)
+}
 
 /**
  * Detect the server's public IP address
@@ -793,6 +891,24 @@ export async function stopApp(appId: string): Promise<{ success: boolean; error?
         .set({ status: 'stopped', containerId: null, updatedAt: new Date().toISOString() })
         .where(eq(appServices.id, service.id))
     }
+  }
+
+  // Delete tunnel if exists
+  const tunnel = await db.query.tunnels.findFirst({
+    where: eq(tunnels.appId, appId),
+  })
+  if (tunnel) {
+    try {
+      await deleteTunnel(tunnel.tunnelId)
+      log.deploy.info('Deleted Cloudflare tunnel', { tunnelId: tunnel.tunnelId, appId })
+    } catch (err) {
+      log.deploy.warn('Failed to delete Cloudflare tunnel', {
+        tunnelId: tunnel.tunnelId,
+        appId,
+        error: String(err),
+      })
+    }
+    await db.delete(tunnels).where(eq(tunnels.appId, appId))
   }
 
   // Update app status
