@@ -45,6 +45,7 @@ export function Header({ onNewTaskRef, onOpenCommandPalette }: HeaderProps) {
   const { location } = useRouterState()
   const pathname = location.pathname
   const [createTaskOpen, setCreateTaskOpen] = useState(false)
+  const [menuValue, setMenuValue] = useState('')
 
   const isActive = (to: string, matchPrefix: boolean) =>
     matchPrefix ? pathname.startsWith(to) : pathname === to
@@ -59,7 +60,7 @@ export function Header({ onNewTaskRef, onOpenCommandPalette }: HeaderProps) {
       <div className="flex min-w-0 items-center gap-4 max-sm:gap-2">
 
         {/* Mobile navigation menu (hamburger) */}
-        <NavigationMenu className="sm:hidden">
+        <NavigationMenu className="sm:hidden" value={menuValue} onValueChange={setMenuValue}>
           <NavigationMenuList>
             <NavigationMenuItem>
               <NavigationMenuTrigger className="bg-transparent hover:bg-muted/50 data-open:bg-muted/50 gap-1 px-2">
@@ -73,6 +74,7 @@ export function Header({ onNewTaskRef, onOpenCommandPalette }: HeaderProps) {
                     href={item.to}
                     active={isActive(item.to, item.matchPrefix)}
                     render={<Link to={item.to} />}
+                    onClick={() => setMenuValue('')}
                   >
                     <HugeiconsIcon icon={item.icon} size={16} strokeWidth={2} />
                     {t(item.labelKey)}
