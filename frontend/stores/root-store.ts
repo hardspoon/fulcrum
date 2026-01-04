@@ -573,6 +573,7 @@ export const RootStore = types
           //    We keep: clicks (0-2), drags (32-34), wheel (64-65)
           //
           // 2. OSC responses (ESC ]) - color/capability query responses
+          //    EXCEPT OSC 10/11 which are needed for theme detection
           //    e.g., background color: ESC]11;rgb:0a0a/0a0a/0a0aST
           //
           // 3. DCS responses (ESC P) - DECRQSS and other device control responses
@@ -589,7 +590,7 @@ export const RootStore = types
           const ESC = '\u001b'
           if (
             new RegExp(`^${ESC}\\[<35;\\d+;\\d+[Mm]$`).test(data) || // Mouse motion
-            new RegExp(`^${ESC}\\]`).test(data) || // OSC sequences
+            (new RegExp(`^${ESC}\\]`).test(data) && !new RegExp(`^${ESC}\\](10|11);`).test(data)) || // OSC sequences (except 10/11 for theme detection)
             new RegExp(`^${ESC}P`).test(data) || // DCS sequences
             /\$y/.test(data) || // DECRQSS content (anywhere in data)
             new RegExp(`^${ESC}\\[\\d+;\\d+R$`).test(data) || // CPR (Cursor Position Report) response
