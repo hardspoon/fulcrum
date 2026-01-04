@@ -27,16 +27,40 @@ interface BufferFileV2 {
   content: string // base64 encoded
 }
 
+interface BufferFileV3 {
+  version: 3
+  content: string // base64 encoded
+  mouseMode: {
+    x10: boolean
+    buttonEvent: boolean
+    anyEvent: boolean
+    sgr: boolean
+  }
+}
+
 export class BufferManager {
   private chunks: BufferChunk[] = []
   private totalBytes: number = 0
   private terminalId: string | null = null
+
+  // Track mouse tracking mode state so we can restore it after buffer replay.
+  // When old chunks are evicted, we may lose the original enable sequences,
+  // but we still know the current state and can re-apply it.
+  private mouseMode = {
+    x10: false, // ESC[?1000h/l - Basic mouse tracking (X10)
+    buttonEvent: false, // ESC[?1002h/l - Button event tracking
+    anyEvent: false, // ESC[?1003h/l - Any event (all motion) tracking
+    sgr: false, // ESC[?1006h/l - SGR extended mouse mode
+  }
 
   setTerminalId(id: string): void {
     this.terminalId = id
   }
 
   append(data: string): void {
+    // Track mouse mode changes before storing
+    this.trackMouseModes(data)
+
     // Store raw data without any parsing - preserves escape sequences
     this.chunks.push({ data, timestamp: Date.now() })
     this.totalBytes += data.length
@@ -46,6 +70,37 @@ export class BufferManager {
       const removed = this.chunks.shift()!
       this.totalBytes -= removed.data.length
     }
+  }
+
+  /**
+   * Track mouse mode enable/disable sequences in the output.
+   * This allows us to restore the correct state even if the original
+   * sequences were evicted from the buffer.
+   */
+  private trackMouseModes(data: string): void {
+    const ESC = '\u001b'
+    // Check for mouse mode sequences
+    if (new RegExp(`${ESC}\\[\\?1000h`).test(data)) this.mouseMode.x10 = true
+    if (new RegExp(`${ESC}\\[\\?1000l`).test(data)) this.mouseMode.x10 = false
+    if (new RegExp(`${ESC}\\[\\?1002h`).test(data)) this.mouseMode.buttonEvent = true
+    if (new RegExp(`${ESC}\\[\\?1002l`).test(data)) this.mouseMode.buttonEvent = false
+    if (new RegExp(`${ESC}\\[\\?1003h`).test(data)) this.mouseMode.anyEvent = true
+    if (new RegExp(`${ESC}\\[\\?1003l`).test(data)) this.mouseMode.anyEvent = false
+    if (new RegExp(`${ESC}\\[\\?1006h`).test(data)) this.mouseMode.sgr = true
+    if (new RegExp(`${ESC}\\[\\?1006l`).test(data)) this.mouseMode.sgr = false
+  }
+
+  /**
+   * Generate escape sequences to restore the current mouse mode state.
+   */
+  private getMouseModeSequences(): string {
+    const ESC = '\u001b'
+    let sequences = ''
+    if (this.mouseMode.x10) sequences += `${ESC}[?1000h`
+    if (this.mouseMode.buttonEvent) sequences += `${ESC}[?1002h`
+    if (this.mouseMode.anyEvent) sequences += `${ESC}[?1003h`
+    if (this.mouseMode.sgr) sequences += `${ESC}[?1006h`
+    return sequences
   }
 
   /**
@@ -76,12 +131,17 @@ export class BufferManager {
 
   getContents(): string {
     const raw = this.chunks.map((c) => c.data).join('')
-    return this.filterProblematicSequences(raw)
+    const filtered = this.filterProblematicSequences(raw)
+    // Prepend mouse mode sequences to restore the current state.
+    // This ensures mouse tracking works correctly after buffer replay,
+    // even if the original enable sequences were evicted from the buffer.
+    return this.getMouseModeSequences() + filtered
   }
 
   clear(): void {
     this.chunks = []
     this.totalBytes = 0
+    this.mouseMode = { x10: false, buttonEvent: false, anyEvent: false, sgr: false }
   }
 
   getLineCount(): number {
@@ -95,10 +155,13 @@ export class BufferManager {
     if (!this.terminalId) return
     const filePath = path.join(getBuffersDir(), `${this.terminalId}.buf`)
     try {
-      const content = this.getContents()
-      const fileData: BufferFileV2 = {
-        version: 2,
+      // Get raw content without prepending mouse mode (we save state separately)
+      const raw = this.chunks.map((c) => c.data).join('')
+      const content = this.filterProblematicSequences(raw)
+      const fileData: BufferFileV3 = {
+        version: 3,
         content: Buffer.from(content).toString('base64'),
+        mouseMode: { ...this.mouseMode },
       }
       writeFileSync(filePath, JSON.stringify(fileData), 'utf-8')
     } catch (err) {
@@ -106,7 +169,7 @@ export class BufferManager {
     }
   }
 
-  // Load buffer from disk, auto-migrating legacy format
+  // Load buffer from disk, auto-migrating legacy formats
   loadFromDisk(): void {
     if (!this.terminalId) return
     const filePath = path.join(getBuffersDir(), `${this.terminalId}.buf`)
@@ -117,8 +180,19 @@ export class BufferManager {
         let content: string
         try {
           const parsed = JSON.parse(raw)
-          if (parsed.version === 2 && typeof parsed.content === 'string') {
-            // V2 format: base64 encoded
+          if (parsed.version === 3 && typeof parsed.content === 'string') {
+            // V3 format: base64 encoded with mouse mode state
+            content = Buffer.from(parsed.content, 'base64').toString()
+            if (parsed.mouseMode) {
+              this.mouseMode = {
+                x10: !!parsed.mouseMode.x10,
+                buttonEvent: !!parsed.mouseMode.buttonEvent,
+                anyEvent: !!parsed.mouseMode.anyEvent,
+                sgr: !!parsed.mouseMode.sgr,
+              }
+            }
+          } else if (parsed.version === 2 && typeof parsed.content === 'string') {
+            // V2 format: base64 encoded (no mouse mode)
             content = Buffer.from(parsed.content, 'base64').toString()
           } else {
             // Unknown JSON format, treat as legacy
