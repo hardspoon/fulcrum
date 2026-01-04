@@ -49,27 +49,34 @@ export class BufferManager {
   }
 
   /**
-   * Filter out alternate screen buffer escape sequences.
-   * TUI applications like OpenCode use these to switch to a full-screen mode
-   * that doesn't preserve scrollback. By filtering them, we ensure the content
-   * goes to the main buffer where scrollback is preserved.
+   * Filter out escape sequences that cause display issues when replaying buffer.
    */
-  private filterAlternateScreenSequences(data: string): string {
+  private filterProblematicSequences(data: string): string {
     // Using RegExp constructor to avoid eslint no-control-regex warnings
     // ESC = \x1b = \u001b
     const ESC = '\u001b'
     return data
+      // Alternate screen buffer sequences (TUI apps like OpenCode)
       // ESC[?1049h/l - save cursor & switch to/from alternate screen (most common)
       .replace(new RegExp(`${ESC}\\[\\?1049[hl]`, 'g'), '')
       // ESC[?47h/l - older alternate screen switch
       .replace(new RegExp(`${ESC}\\[\\?47[hl]`, 'g'), '')
       // ESC[?1047h/l - alternate screen without cursor save
       .replace(new RegExp(`${ESC}\\[\\?1047[hl]`, 'g'), '')
+      // DECRQSS responses - terminal capability query responses
+      // Pattern: digits;digits$y (e.g., "1016;2$y2027;0$y...")
+      .replace(/\d+;\d+\$y/g, '')
+      // CPR (Cursor Position Report) responses - ESC[row;colR
+      .replace(new RegExp(`${ESC}\\[\\d+;\\d+R`, 'g'), '')
+      // DA (Device Attributes) responses - ESC[...c
+      .replace(new RegExp(`${ESC}\\[[\\?>\\d;]*c`, 'g'), '')
+      // Bare R characters from stripped responses
+      .replace(/(?<![a-zA-Z])R+(?![a-zA-Z])/g, '')
   }
 
   getContents(): string {
     const raw = this.chunks.map((c) => c.data).join('')
-    return this.filterAlternateScreenSequences(raw)
+    return this.filterProblematicSequences(raw)
   }
 
   clear(): void {
