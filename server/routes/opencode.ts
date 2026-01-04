@@ -60,6 +60,7 @@ async function fetchConfiguredProviders(): Promise<string[]> {
       // Parse lines like "●  Anthropic [90moauth" or "●  Z.AI Coding Plan [90mapi"
       // The ● is Unicode (U+25CF), and there may be ANSI codes
       // Strip all ANSI escape codes first
+      // eslint-disable-next-line no-control-regex
       const cleanOutput = stdout.replace(/\x1b\[[0-9;]*m/g, '')
 
       const providers: string[] = []

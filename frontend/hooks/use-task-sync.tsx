@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 
 interface TaskUpdatedMessage {
@@ -37,7 +36,6 @@ const RECONNECT_INTERVAL = 2000
 export function useTaskSync() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const { resolvedTheme } = useTheme()
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const reconnectAttemptsRef = useRef(0)
@@ -192,7 +190,7 @@ export function useTaskSync() {
         // Ignore parse errors
       }
     },
-    [queryClient, navigate, resolvedTheme]
+    [queryClient, navigate]
   )
 
   const connect = useCallback(() => {
