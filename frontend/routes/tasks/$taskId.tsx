@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate, useLocation } from '@tanstack/react-router'
+import { log } from '@/lib/logger'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { reaction } from 'mobx'
@@ -131,9 +132,17 @@ function TaskView() {
   const repository = repositories.find((r) => r.path === task?.repoPath)
 
   // Read AI mode state - prefer persisted task data, fall back to navigation state for backward compat
-  const navState = location.state as { aiMode?: 'default' | 'plan'; description?: string } | undefined
+  const navState = location.state as { aiMode?: 'default' | 'plan'; description?: string; focusTerminal?: boolean } | undefined
   const aiMode = (task?.aiMode as 'default' | 'plan' | undefined) ?? navState?.aiMode
   const aiModeDescription = task?.description ?? navState?.description
+
+  // Capture focusTerminal on first render before TanStack Router replaces the state
+  const initialFocusTerminalRef = useRef<boolean | undefined>(undefined)
+  if (initialFocusTerminalRef.current === undefined && navState?.focusTerminal !== undefined) {
+    initialFocusTerminalRef.current = navState.focusTerminal
+    log.taskPage.info('captured focusTerminal', { focusTerminal: navState.focusTerminal })
+  }
+  const shouldAutoFocus = initialFocusTerminalRef.current ?? false
 
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -922,6 +931,7 @@ function TaskView() {
               startupScript={task.startupScript}
               agentOptions={task.agentOptions}
               serverPort={serverPort}
+              autoFocus={shouldAutoFocus}
             />
           </TabsContent>
 
@@ -977,6 +987,7 @@ function TaskView() {
               startupScript={task.startupScript}
               agentOptions={task.agentOptions}
               serverPort={serverPort}
+              autoFocus={shouldAutoFocus}
             />
           </ResizablePanel>
 

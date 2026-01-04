@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useHotkeys } from '@/hooks/use-hotkeys'
+import { log } from '@/lib/logger'
 import {
   Dialog,
   DialogContent,
@@ -245,8 +246,8 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
       {
         onSuccess: (task) => {
           const navState = description.trim()
-            ? { aiMode, description: description.trim() }
-            : { aiMode }
+            ? { aiMode, description: description.trim(), focusTerminal: true }
+            : { aiMode, focusTerminal: true }
           setOpen(false)
           setTitle('')
           setDescription('')
@@ -262,6 +263,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
           setRepoError(null)
           // Reset tab to saved if repositories exist, otherwise browse
           setRepoTab(repositories && repositories.length > 0 ? 'saved' : 'browse')
+          log.createTaskModal.info('navigating with navState', { navState, taskId: task.id })
           navigate({ to: '/tasks/$taskId', params: { taskId: task.id }, state: navState as Record<string, unknown> })
         },
         onError: (error) => {

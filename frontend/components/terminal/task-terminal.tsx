@@ -26,11 +26,14 @@ interface TaskTerminalProps {
   startupScript?: string | null
   agentOptions?: Record<string, string> | null
   serverPort?: number
+  autoFocus?: boolean
 }
 
-export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMode, description, startupScript, agentOptions, serverPort = 7777 }: TaskTerminalProps) {
+export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMode, description, startupScript, agentOptions, serverPort = 7777, autoFocus = false }: TaskTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XTerm | null>(null)
+  const hasFocusedRef = useRef(false)
+  const autoFocusRef = useRef(autoFocus)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const createdTerminalRef = useRef(false)
   const attachedRef = useRef(false)
@@ -49,6 +52,7 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
     log.taskTerminal.debug('cwd changed, resetting refs', { cwd })
     createdTerminalRef.current = false
     attachedRef.current = false
+    hasFocusedRef.current = false
     setTerminalId(null)
     setIsCreating(false)
   }, [cwd])
@@ -80,6 +84,7 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
   useEffect(() => { writeToTerminalRef.current = writeToTerminal }, [writeToTerminal])
   useEffect(() => { consumePendingStartupRef.current = consumePendingStartup }, [consumePendingStartup])
   useEffect(() => { clearStartingUpRef.current = clearStartingUp }, [clearStartingUp])
+  useEffect(() => { autoFocusRef.current = autoFocus }, [autoFocus])
 
   // Get the current terminal's status
   const currentTerminal = terminalId ? terminals.find((t) => t.id === terminalId) : null
@@ -318,63 +323,134 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
       })
 
       // Run startup commands only if this is a newly created terminal (not restored from persistence)
-      if (pendingStartup) {
-        log.taskTerminal.info('onAttached: running startup commands', { terminalId: actualTerminalId })
-        setIsStartingAgent(true)
-        const {
-          startupScript: currentStartupScript,
-          agent: currentAgent = 'claude',
-          agentOptions: currentAgentOptions,
-          aiMode: currentAiMode,
-          description: currentDescription,
-          taskName: currentTaskName,
-          serverPort: currentServerPort,
-        } = pendingStartup
-
-        // 1. Run startup script first (e.g., mise trust, mkdir .vibora, export VIBORA_DIR)
-        // Use source with heredoc so exports persist in the current shell
-        if (currentStartupScript) {
-          setTimeout(() => {
-            const delimiter = 'VIBORA_STARTUP_' + Date.now()
-            const wrappedScript = `source /dev/stdin <<'${delimiter}'\n${currentStartupScript}\n${delimiter}`
-            writeToTerminalRef.current(actualTerminalId, wrappedScript + '\r')
-          }, 100)
-        }
-
-        // 2. Build the agent command using the command builder abstraction
-        const effectivePort = currentServerPort ?? 7777
-        const portFlag = effectivePort !== 7777 ? ` --port=${effectivePort}` : ''
-        const systemPrompt = 'You are working in a Vibora task worktree. ' +
-          'Commit after completing each logical unit of work (feature, fix, refactor) to preserve progress. ' +
-          `When you finish working and need user input, run: vibora current-task review${portFlag}. ` +
-          `When linking a PR: vibora current-task pr <url>${portFlag}. ` +
-          `When linking a Linear ticket: vibora current-task linear <url-or-ticket>${portFlag}. ` +
-          `For notifications: vibora notify "Title" "Message"${portFlag}.`
-        const taskInfo = currentDescription ? `${currentTaskName}: ${currentDescription}` : currentTaskName
-
-        // Use the agent command builder to construct the appropriate CLI command
-        const taskCommand = buildAgentCommand(currentAgent as AgentType, {
-          prompt: taskInfo,
-          systemPrompt,
-          sessionId: actualTerminalId,
-          mode: currentAiMode === 'plan' ? 'plan' : 'default',
-          additionalOptions: currentAgentOptions ?? {},
+      if (!pendingStartup) {
+        // No startup commands - focus immediately if autoFocus is enabled
+        log.taskTerminal.info('onAttached: no pending startup', {
+          autoFocus: autoFocusRef.current,
+          hasFocused: hasFocusedRef.current,
+          hasTermRef: !!termRef.current,
         })
-
-        // Wait longer for startup script to complete before sending agent command
-        // 5 seconds should be enough for most scripts (mise trust, mkdir, export, etc.)
-        setTimeout(() => {
-          log.taskTerminal.debug('writing agent command to terminal', {
-            terminalId: actualTerminalId,
-            agent: currentAgent,
-            taskCommand: taskCommand.substring(0, 50) + '...',
-          })
-          writeToTerminalRef.current(actualTerminalId, taskCommand + '\r')
-          setIsStartingAgent(false)
-          // Clear the MST store's isStartingUp flag (for /terminals view)
-          clearStartingUpRef.current(actualTerminalId)
-        }, currentStartupScript ? 5000 : 100)
+        if (autoFocusRef.current && !hasFocusedRef.current && termRef.current) {
+          const focusTerminal = (attempt: number) => {
+            const term = termRef.current
+            log.taskTerminal.info('focusTerminal attempt (no startup)', {
+              attempt,
+              hasFocused: hasFocusedRef.current,
+              hasTermRef: !!term,
+              hasTextarea: !!term?.textarea,
+              activeElementBefore: document.activeElement?.tagName,
+            })
+            if (!hasFocusedRef.current && term) {
+              term.focus()
+              const success = term.textarea === document.activeElement
+              log.taskTerminal.info('focusTerminal result (no startup)', {
+                attempt,
+                success,
+                activeElementAfter: document.activeElement?.tagName,
+                textareaElement: term.textarea?.tagName,
+              })
+              if (success) {
+                hasFocusedRef.current = true
+              }
+            }
+          }
+          setTimeout(() => focusTerminal(1), 50)
+          setTimeout(() => focusTerminal(2), 200)
+          setTimeout(() => focusTerminal(3), 500)
+        }
+        return
       }
+
+      log.taskTerminal.info('onAttached: running startup commands', { terminalId: actualTerminalId })
+      setIsStartingAgent(true)
+      const {
+        startupScript: currentStartupScript,
+        agent: currentAgent = 'claude',
+        agentOptions: currentAgentOptions,
+        aiMode: currentAiMode,
+        description: currentDescription,
+        taskName: currentTaskName,
+        serverPort: currentServerPort,
+      } = pendingStartup
+
+      // 1. Run startup script first (e.g., mise trust, mkdir .vibora, export VIBORA_DIR)
+      // Use source with heredoc so exports persist in the current shell
+      if (currentStartupScript) {
+        setTimeout(() => {
+          const delimiter = 'VIBORA_STARTUP_' + Date.now()
+          const wrappedScript = `source /dev/stdin <<'${delimiter}'\n${currentStartupScript}\n${delimiter}`
+          writeToTerminalRef.current(actualTerminalId, wrappedScript + '\r')
+        }, 100)
+      }
+
+      // 2. Build the agent command using the command builder abstraction
+      const effectivePort = currentServerPort ?? 7777
+      const portFlag = effectivePort !== 7777 ? ` --port=${effectivePort}` : ''
+      const systemPrompt = 'You are working in a Vibora task worktree. ' +
+        'Commit after completing each logical unit of work (feature, fix, refactor) to preserve progress. ' +
+        `When you finish working and need user input, run: vibora current-task review${portFlag}. ` +
+        `When linking a PR: vibora current-task pr <url>${portFlag}. ` +
+        `When linking a Linear ticket: vibora current-task linear <url-or-ticket>${portFlag}. ` +
+        `For notifications: vibora notify "Title" "Message"${portFlag}.`
+      const taskInfo = currentDescription ? `${currentTaskName}: ${currentDescription}` : currentTaskName
+
+      // Use the agent command builder to construct the appropriate CLI command
+      const taskCommand = buildAgentCommand(currentAgent as AgentType, {
+        prompt: taskInfo,
+        systemPrompt,
+        sessionId: actualTerminalId,
+        mode: currentAiMode === 'plan' ? 'plan' : 'default',
+        additionalOptions: currentAgentOptions ?? {},
+      })
+
+      // Wait longer for startup script to complete before sending agent command
+      // 5 seconds should be enough for most scripts (mise trust, mkdir, export, etc.)
+      setTimeout(() => {
+        log.taskTerminal.debug('writing agent command to terminal', {
+          terminalId: actualTerminalId,
+          agent: currentAgent,
+          taskCommand: taskCommand.substring(0, 50) + '...',
+        })
+        writeToTerminalRef.current(actualTerminalId, taskCommand + '\r')
+        setIsStartingAgent(false)
+        // Clear the MST store's isStartingUp flag (for /terminals view)
+        clearStartingUpRef.current(actualTerminalId)
+        // Auto-focus terminal after agent starts
+        log.taskTerminal.info('after agent command: checking focus', {
+          autoFocus: autoFocusRef.current,
+          hasFocused: hasFocusedRef.current,
+          hasTermRef: !!termRef.current,
+        })
+        if (autoFocusRef.current && !hasFocusedRef.current && termRef.current) {
+          // Try multiple times to ensure focus sticks
+          const focusTerminal = (attempt: number) => {
+            const term = termRef.current
+            log.taskTerminal.info('focusTerminal attempt (after agent)', {
+              attempt,
+              hasFocused: hasFocusedRef.current,
+              hasTermRef: !!term,
+              hasTextarea: !!term?.textarea,
+              activeElementBefore: document.activeElement?.tagName,
+            })
+            if (!hasFocusedRef.current && term) {
+              term.focus()
+              const success = term.textarea === document.activeElement
+              log.taskTerminal.info('focusTerminal result (after agent)', {
+                attempt,
+                success,
+                activeElementAfter: document.activeElement?.tagName,
+                textareaElement: term.textarea?.tagName,
+              })
+              if (success) {
+                hasFocusedRef.current = true
+              }
+            }
+          }
+          setTimeout(() => focusTerminal(1), 50)
+          setTimeout(() => focusTerminal(2), 200)
+          setTimeout(() => focusTerminal(3), 500)
+        }
+      }, currentStartupScript ? 5000 : 100)
     }
 
     const cleanup = attachXtermRef.current(terminalId, termRef.current, { onAttached })
@@ -399,6 +475,58 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
     if (!termRef.current) return
     termRef.current.options.theme = terminalTheme
   }, [terminalTheme])
+
+  // Auto-focus terminal when ready - try multiple times to be aggressive
+  useEffect(() => {
+    log.taskTerminal.info('useEffect focus check', {
+      autoFocus,
+      hasFocused: hasFocusedRef.current,
+      hasTermRef: !!termRef.current,
+      terminalId,
+      isCreating,
+      isStartingAgent,
+    })
+    if (!autoFocus || hasFocusedRef.current) return
+    if (!termRef.current || !terminalId) return
+    // Don't focus while overlay is showing
+    if (isCreating || isStartingAgent) return
+
+    log.taskTerminal.info('useEffect focus: starting focus attempts')
+
+    // Try focusing multiple times with increasing delays
+    const focusAttempts = [0, 50, 150, 300, 500]
+    const timeouts: ReturnType<typeof setTimeout>[] = []
+
+    focusAttempts.forEach((delay, index) => {
+      const timeout = setTimeout(() => {
+        const term = termRef.current
+        log.taskTerminal.info('useEffect focusTerminal attempt', {
+          attempt: index + 1,
+          delay,
+          hasFocused: hasFocusedRef.current,
+          hasTermRef: !!term,
+          activeElementBefore: document.activeElement?.tagName,
+        })
+        if (!hasFocusedRef.current && term) {
+          term.focus()
+          const success = term.textarea === document.activeElement
+          log.taskTerminal.info('useEffect focusTerminal result', {
+            attempt: index + 1,
+            success,
+            activeElementAfter: document.activeElement?.tagName,
+          })
+          if (success) {
+            hasFocusedRef.current = true
+          }
+        }
+      }, delay)
+      timeouts.push(timeout)
+    })
+
+    return () => {
+      timeouts.forEach(clearTimeout)
+    }
+  }, [autoFocus, isCreating, isStartingAgent, terminalId])
 
   // Detect "command not found" for any AI agent CLI
   // This helps users who haven't installed the required agent yet
