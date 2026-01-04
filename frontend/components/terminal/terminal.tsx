@@ -4,7 +4,6 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { cn } from '@/lib/utils'
-import { desktopZoom } from '@/main'
 import { useKeyboardContext } from '@/contexts/keyboard-context'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDownDoubleIcon } from '@hugeicons/core-free-icons'
@@ -66,9 +65,8 @@ export function Terminal({ className, onReady, onResize, onContainerReady, termi
 
     const term = new XTerm({
       cursorBlink: true,
-      fontSize: Math.round(13 * desktopZoom),
-      fontFamily: 'JetBrains Mono Variable, PureNerdFont, Menlo, Monaco, monospace',
-      lineHeight: 1.2,
+      fontSize: 14,
+      fontFamily: 'monospace',
       theme: terminalTheme,
       scrollback: 10000,
     })
