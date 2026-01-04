@@ -25,11 +25,12 @@ interface TaskTerminalProps {
   description?: string
   startupScript?: string | null
   agentOptions?: Record<string, string> | null
+  opencodeModel?: string | null
   serverPort?: number
   autoFocus?: boolean
 }
 
-export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMode, description, startupScript, agentOptions, serverPort = 7777, autoFocus = false }: TaskTerminalProps) {
+export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMode, description, startupScript, agentOptions, opencodeModel, serverPort = 7777, autoFocus = false }: TaskTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XTerm | null>(null)
   const hasFocusedRef = useRef(false)
@@ -243,6 +244,7 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
           startupScript,
           agent,
           agentOptions,
+          opencodeModel,
           aiMode,
           description,
           taskName,
@@ -341,11 +343,13 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
         }
         return
       }
+      log.taskTerminal.info('onAttached: running startup commands', { terminalId: actualTerminalId })
       setIsStartingAgent(true)
       const {
         startupScript: currentStartupScript,
         agent: currentAgent = 'claude',
         agentOptions: currentAgentOptions,
+        opencodeModel: currentOpencodeModel,
         aiMode: currentAiMode,
         description: currentDescription,
         taskName: currentTaskName,
@@ -380,6 +384,7 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
         sessionId: actualTerminalId,
         mode: currentAiMode === 'plan' ? 'plan' : 'default',
         additionalOptions: currentAgentOptions ?? {},
+        opencodeModel: currentOpencodeModel,
       })
 
       // Wait longer for startup script to complete before sending agent command

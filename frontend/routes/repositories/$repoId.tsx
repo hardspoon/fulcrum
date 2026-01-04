@@ -60,6 +60,7 @@ import { useEditorApp, useEditorHost, useEditorSshPort } from '@/hooks/use-confi
 import { buildEditorUrl, getEditorDisplayName, openExternalUrl } from '@/lib/editor-url'
 import type { Terminal as XTerm } from '@xterm/xterm'
 import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
+import { ModelPicker } from '@/components/opencode/model-picker'
 
 /**
  * Convert a git URL (SSH or HTTPS) to a web-browsable HTTPS URL
@@ -120,6 +121,7 @@ function RepositoryDetailView() {
   const [copyFiles, setCopyFiles] = useState('')
   const [claudeOptions, setClaudeOptions] = useState<Record<string, string>>({})
   const [opencodeOptions, setOpencodeOptions] = useState<Record<string, string>>({})
+  const [opencodeModel, setOpencodeModel] = useState<string | null>(null)
   const [defaultAgent, setDefaultAgent] = useState<AgentType | null>(null)
   const [isCopierTemplate, setIsCopierTemplate] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
@@ -221,6 +223,7 @@ function RepositoryDetailView() {
       setCopyFiles(repository.copyFiles || '')
       setClaudeOptions(repository.claudeOptions || {})
       setOpencodeOptions(repository.opencodeOptions || {})
+      setOpencodeModel(repository.opencodeModel ?? null)
       setDefaultAgent(repository.defaultAgent ?? null)
       setIsCopierTemplate(repository.isCopierTemplate ?? false)
       setHasChanges(false)
@@ -236,11 +239,12 @@ function RepositoryDetailView() {
         copyFiles !== (repository.copyFiles || '') ||
         JSON.stringify(claudeOptions) !== JSON.stringify(repository.claudeOptions || {}) ||
         JSON.stringify(opencodeOptions) !== JSON.stringify(repository.opencodeOptions || {}) ||
+        opencodeModel !== (repository.opencodeModel ?? null) ||
         defaultAgent !== (repository.defaultAgent ?? null) ||
         isCopierTemplate !== (repository.isCopierTemplate ?? false)
       setHasChanges(changed)
     }
-  }, [displayName, startupScript, copyFiles, claudeOptions, opencodeOptions, defaultAgent, isCopierTemplate, repository])
+  }, [displayName, startupScript, copyFiles, claudeOptions, opencodeOptions, opencodeModel, defaultAgent, isCopierTemplate, repository])
 
   const handleSave = () => {
     if (!repository) return
@@ -254,6 +258,7 @@ function RepositoryDetailView() {
           copyFiles: copyFiles.trim() || null,
           claudeOptions: Object.keys(claudeOptions).length > 0 ? claudeOptions : null,
           opencodeOptions: Object.keys(opencodeOptions).length > 0 ? opencodeOptions : null,
+          opencodeModel,
           defaultAgent,
           isCopierTemplate,
         },
@@ -546,121 +551,146 @@ function RepositoryDetailView() {
         <TabsContent value="settings" className="flex-1 overflow-hidden mt-0">
           <ScrollArea className="h-full">
             <div className="p-4">
-              <div className="mx-auto max-w-xl space-y-6 bg-card rounded-lg p-6 border border-border">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={2} />
-                  <span className="font-mono break-all">{repository.path}</span>
-                </div>
+              {/* Repository path header */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={2} />
+                <span className="font-mono break-all">{repository.path}</span>
+              </div>
 
-                <FieldGroup>
-                  <Field>
-                    <FieldLabel htmlFor="displayName">{t('detailView.settings.displayName')}</FieldLabel>
-                    <Input
-                      id="displayName"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder={repository.path.split('/').pop() || 'My Project'}
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel>{t('detailView.settings.defaultAgent')}</FieldLabel>
-                    <Select
-                      value={defaultAgent ?? 'inherit'}
-                      onValueChange={(value) => setDefaultAgent(value === 'inherit' ? null : value as AgentType)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent alignItemWithTrigger={false}>
-                        <SelectItem value="inherit">
-                          {t('detailView.settings.defaultAgentInherit')}
-                        </SelectItem>
-                        {(Object.keys(AGENT_DISPLAY_NAMES) as AgentType[]).map((agentType) => (
-                          <SelectItem key={agentType} value={agentType}>
-                            {AGENT_DISPLAY_NAMES[agentType]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FieldDescription>
-                      {t('detailView.settings.defaultAgentDescription')}
-                    </FieldDescription>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel htmlFor="startupScript">{t('detailView.settings.startupScript')}</FieldLabel>
-                    <Textarea
-                      id="startupScript"
-                      value={startupScript}
-                      onChange={(e) => setStartupScript(e.target.value)}
-                      placeholder={t('detailView.settings.startupScriptPlaceholder')}
-                      rows={3}
-                    />
-                    <FieldDescription>
-                      {t('detailView.settings.startupScriptDescription')}
-                    </FieldDescription>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel>{t('detailView.settings.claudeOptions')}</FieldLabel>
-                    <FieldDescription className="mb-2">
-                      {t('detailView.settings.claudeOptionsDescription')}
-                    </FieldDescription>
-                    <AgentOptionsEditor
-                      value={claudeOptions}
-                      onChange={setClaudeOptions}
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel>{t('detailView.settings.opencodeOptions')}</FieldLabel>
-                    <FieldDescription className="mb-2">
-                      {t('detailView.settings.opencodeOptionsDescription')}
-                    </FieldDescription>
-                    <AgentOptionsEditor
-                      value={opencodeOptions}
-                      onChange={setOpencodeOptions}
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel htmlFor="copyFiles">{t('detailView.settings.copyFiles')}</FieldLabel>
-                    <Input
-                      id="copyFiles"
-                      value={copyFiles}
-                      onChange={(e) => setCopyFiles(e.target.value)}
-                      placeholder={t('detailView.settings.copyFilesPlaceholder')}
-                    />
-                    <FieldDescription>
-                      {t('detailView.settings.copyFilesDescription')}
-                    </FieldDescription>
-                  </Field>
-
-                  <Field>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={isCopierTemplate}
-                        onCheckedChange={(checked) => setIsCopierTemplate(checked === true)}
+              {/* Two-column layout */}
+              <div className="flex flex-col lg:flex-row gap-4">
+                {/* Left column: General settings */}
+                <div className="flex-1 bg-card rounded-lg p-6 border border-border">
+                  <h3 className="text-sm font-medium mb-4">{t('detailView.settings.generalTitle')}</h3>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel htmlFor="displayName">{t('detailView.settings.displayName')}</FieldLabel>
+                      <Input
+                        id="displayName"
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        placeholder={repository.path.split('/').pop() || 'My Project'}
                       />
-                      <FieldLabel className="cursor-pointer">{t('detailView.settings.isCopierTemplate')}</FieldLabel>
-                    </div>
-                    <FieldDescription>
-                      {t('detailView.settings.isCopierTemplateDescription')}
-                    </FieldDescription>
-                  </Field>
-                </FieldGroup>
+                    </Field>
 
-                <div className="flex items-center justify-end pt-4 border-t border-border">
-                  <Button
-                    size="sm"
-                    onClick={handleSave}
-                    disabled={!hasChanges || updateRepository.isPending}
-                  >
-                    <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} data-slot="icon" />
-                    {updateRepository.isPending ? t('detailView.saving') : t('detailView.save')}
-                  </Button>
+                    <Field>
+                      <FieldLabel>{t('detailView.settings.defaultAgent')}</FieldLabel>
+                      <Select
+                        value={defaultAgent ?? 'inherit'}
+                        onValueChange={(value) => setDefaultAgent(value === 'inherit' ? null : value as AgentType)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectItem value="inherit">
+                            {t('detailView.settings.defaultAgentInherit')}
+                          </SelectItem>
+                          {(Object.keys(AGENT_DISPLAY_NAMES) as AgentType[]).map((agentType) => (
+                            <SelectItem key={agentType} value={agentType}>
+                              {AGENT_DISPLAY_NAMES[agentType]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>
+                        {t('detailView.settings.defaultAgentDescription')}
+                      </FieldDescription>
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor="startupScript">{t('detailView.settings.startupScript')}</FieldLabel>
+                      <Textarea
+                        id="startupScript"
+                        value={startupScript}
+                        onChange={(e) => setStartupScript(e.target.value)}
+                        placeholder={t('detailView.settings.startupScriptPlaceholder')}
+                        rows={3}
+                      />
+                      <FieldDescription>
+                        {t('detailView.settings.startupScriptDescription')}
+                      </FieldDescription>
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor="copyFiles">{t('detailView.settings.copyFiles')}</FieldLabel>
+                      <Input
+                        id="copyFiles"
+                        value={copyFiles}
+                        onChange={(e) => setCopyFiles(e.target.value)}
+                        placeholder={t('detailView.settings.copyFilesPlaceholder')}
+                      />
+                      <FieldDescription>
+                        {t('detailView.settings.copyFilesDescription')}
+                      </FieldDescription>
+                    </Field>
+
+                    <Field>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={isCopierTemplate}
+                          onCheckedChange={(checked) => setIsCopierTemplate(checked === true)}
+                        />
+                        <FieldLabel className="cursor-pointer">{t('detailView.settings.isCopierTemplate')}</FieldLabel>
+                      </div>
+                      <FieldDescription>
+                        {t('detailView.settings.isCopierTemplateDescription')}
+                      </FieldDescription>
+                    </Field>
+                  </FieldGroup>
                 </div>
+
+                {/* Right column: Agent settings */}
+                <div className="flex-1 bg-card rounded-lg p-6 border border-border">
+                  <h3 className="text-sm font-medium mb-4">{t('detailView.settings.agentTitle')}</h3>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel>{t('detailView.settings.claudeOptions')}</FieldLabel>
+                      <FieldDescription className="mb-2">
+                        {t('detailView.settings.claudeOptionsDescription')}
+                      </FieldDescription>
+                      <AgentOptionsEditor
+                        value={claudeOptions}
+                        onChange={setClaudeOptions}
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel>{t('detailView.settings.opencodeOptions')}</FieldLabel>
+                      <FieldDescription className="mb-2">
+                        {t('detailView.settings.opencodeOptionsDescription')}
+                      </FieldDescription>
+                      <AgentOptionsEditor
+                        value={opencodeOptions}
+                        onChange={setOpencodeOptions}
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel>{t('detailView.settings.opencodeModel')}</FieldLabel>
+                      <ModelPicker
+                        value={opencodeModel}
+                        onChange={setOpencodeModel}
+                        placeholder={t('detailView.settings.opencodeModelPlaceholder')}
+                      />
+                      <FieldDescription>
+                        {t('detailView.settings.opencodeModelDescription')}
+                      </FieldDescription>
+                    </Field>
+                  </FieldGroup>
+                </div>
+              </div>
+
+              {/* Save button */}
+              <div className="flex items-center justify-end mt-4">
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={!hasChanges || updateRepository.isPending}
+                >
+                  <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} data-slot="icon" />
+                  {updateRepository.isPending ? t('detailView.saving') : t('detailView.save')}
+                </Button>
               </div>
             </div>
           </ScrollArea>

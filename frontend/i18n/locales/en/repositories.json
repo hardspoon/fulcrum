@@ -145,6 +145,8 @@
       "files": "Files"
     },
     "settings": {
+      "generalTitle": "General",
+      "agentTitle": "Agent Options",
       "displayName": "Display Name",
       "defaultAgent": "Default Agent",
       "defaultAgentInherit": "Use global default",
@@ -156,6 +158,9 @@
       "claudeOptionsDescription": "CLI flags passed to Claude Code when starting a task.",
       "opencodeOptions": "OpenCode Options",
       "opencodeOptionsDescription": "CLI flags passed to OpenCode when starting a task.",
+      "opencodeModel": "OpenCode Model",
+      "opencodeModelPlaceholder": "Select model",
+      "opencodeModelDescription": "Default OpenCode model for tasks created from this repository.",
       "agentOptionsFlag": "Flag",
       "agentOptionsValue": "Value",
       "addAgentOption": "Add option",
