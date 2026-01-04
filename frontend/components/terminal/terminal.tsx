@@ -193,6 +193,7 @@ export function Terminal({ className, onReady, onResize, onContainerReady, termi
           <HugeiconsIcon icon={ArrowDownDoubleIcon} size={20} strokeWidth={2} />
         </button>
       </div>
+      <div className="h-2 shrink-0 bg-terminal-background" />
       {onSend && <MobileTerminalControls onSend={onSend} />}
     </div>
   )

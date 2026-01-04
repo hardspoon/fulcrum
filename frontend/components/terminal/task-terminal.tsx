@@ -619,6 +619,8 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
         </button>
       </div>
 
+      <div className="h-2 shrink-0 bg-terminal-background" />
+
       {/* Mobile Controls */}
       <MobileTerminalControls onSend={handleMobileSend} />
     </div>
