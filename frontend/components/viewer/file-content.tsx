@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react'
+import { useCallback, useRef, useEffect, useContext } from 'react'
 import { observer } from 'mobx-react-lite'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon, TextIcon, SourceCodeIcon } from '@hugeicons/core-free-icons'
@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useFilesStoreActions } from '@/stores'
 import { MonacoEditor } from './monaco-editor'
 import { MarkdownRenderer } from './markdown-renderer'
+import { CallbacksContext } from './files-viewer'
 
 const AUTO_SAVE_DELAY = 1000 // 1 second debounce
 
@@ -14,6 +15,7 @@ interface FileContentProps {
 }
 
 export const FileContent = observer(function FileContent({ onBack }: FileContentProps) {
+  const { onFileSaved } = useContext(CallbacksContext)
   const {
     worktreePath,
     readOnly,
@@ -53,12 +55,16 @@ export const FileContent = observer(function FileContent({ onBack }: FileContent
 
       // Set new debounced save
       saveTimerRef.current = setTimeout(() => {
-        saveFile(selectedFile).catch((err) => {
-          console.error('Auto-save failed:', err)
-        })
+        saveFile(selectedFile)
+          .then(() => {
+            onFileSaved?.(selectedFile)
+          })
+          .catch((err) => {
+            console.error('Auto-save failed:', err)
+          })
       }, AUTO_SAVE_DELAY)
     },
-    [selectedFile, readOnly, updateContent, saveFile]
+    [selectedFile, readOnly, updateContent, saveFile, onFileSaved]
   )
 
   const handleBack = useCallback(() => {

@@ -103,20 +103,27 @@
       "deployments": "部署记录",
       "logs": "日志",
       "environment": "环境变量",
-      "domains": "域名"
+      "domains": "域名",
+      "monitoring": "监控",
+      "workspace": "工作区"
     },
     "general": {
       "deploy": "部署",
+      "deployOptions": "部署选项",
       "autodeploy": "自动部署",
       "noCache": "无缓存",
       "notifications": "通知",
       "services": "服务",
       "noServicesConfigured": "未配置服务"
     },
+    "workspace": {
+      "noRepository": "此应用未关联仓库"
+    },
     "compose": {
       "title": "Compose 文件",
       "repoNotFound": "未找到仓库路径",
-      "unsaved": "未保存",
+      "unsavedChanges": "未保存的更改",
+      "save": "保存",
       "edit": "编辑",
       "done": "完成"
     },

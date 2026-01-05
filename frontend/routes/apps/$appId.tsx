@@ -1,4 +1,5 @@
 import { useMemo, useEffect, useCallback, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { observer } from 'mobx-react-lite'
@@ -59,7 +60,6 @@ import {
   CheckmarkCircle02Icon,
   Delete02Icon,
   Copy01Icon,
-  Edit02Icon,
   PencilEdit02Icon,
   ArrowLeft01Icon,
   Cancel01Icon,
@@ -67,6 +67,11 @@ import {
   PackageIcon,
   ViewOffIcon,
   EyeIcon,
+  GridViewIcon,
+  Rocket01Icon,
+  TextIcon,
+  Chart02Icon,
+  WindowsOldIcon,
 } from '@hugeicons/core-free-icons'
 import { MonacoEditor } from '@/components/viewer/monaco-editor'
 import type { Deployment, ExposureMethod } from '@/types'
@@ -76,12 +81,14 @@ import { toast } from 'sonner'
 import { useDockerStats, type ContainerStats } from '@/hooks/use-monitoring'
 import { Card } from '@/components/ui/card'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
+import { WorkspacePanel } from '@/components/workspace/workspace-panel'
 
-type AppTab = 'general' | 'deployments' | 'logs' | 'monitoring'
+type AppTab = 'general' | 'deployments' | 'logs' | 'monitoring' | 'workspace'
 
 interface AppDetailSearch {
   tab?: AppTab
   action?: 'deploy'
+  file?: string
 }
 
 // Wrap AppDetailView with DeploymentStoreProvider so all child components can access deployment state
@@ -96,10 +103,11 @@ function AppDetailViewWithProvider() {
 export const Route = createFileRoute('/apps/$appId')({
   component: AppDetailViewWithProvider,
   validateSearch: (search: Record<string, unknown>): AppDetailSearch => ({
-    tab: ['general', 'deployments', 'logs', 'monitoring'].includes(search.tab as string)
+    tab: ['general', 'deployments', 'logs', 'monitoring', 'workspace'].includes(search.tab as string)
       ? (search.tab as AppTab)
       : undefined,
     action: search.action === 'deploy' ? 'deploy' : undefined,
+    file: typeof search.file === 'string' ? search.file : undefined,
   }),
 })
 
@@ -131,17 +139,21 @@ function formatRelativeTime(date: string): string {
 const AppDetailView = observer(function AppDetailView() {
   const { t } = useTranslation('common')
   const { appId } = Route.useParams()
-  const { tab, action } = Route.useSearch()
+  const { tab, action, file } = Route.useSearch()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data: app, isLoading, error } = useApp(appId)
   const { data: prereqs } = useDeploymentPrerequisites()
   const deleteApp = useDeleteApp()
+  const stopApp = useStopApp()
+  const cancelDeployment = useCancelDeployment()
   const activeTab = tab || 'general'
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Deployment state from MST store - provides predictable state and logging
   const deployStore = useDeploymentStore()
   const [showStreamingLogs, setShowStreamingLogs] = useState(false)
+  const isBuilding = deployStore.isDeploying || app?.status === 'building'
 
   const handleDeploy = useCallback(() => {
     if (app) {
@@ -194,16 +206,52 @@ const AppDetailView = observer(function AppDetailView() {
       navigate({
         to: '/apps/$appId',
         params: { appId },
-        search: newTab === 'general' ? {} : { tab: newTab },
+        search: newTab === 'general' ? {} : newTab === 'workspace' ? { tab: newTab, file } : { tab: newTab },
+        replace: true,
+      })
+    },
+    [navigate, appId, file]
+  )
+
+  const handleFileChange = useCallback(
+    (newFile: string | null) => {
+      navigate({
+        to: '/apps/$appId',
+        params: { appId },
+        search: { tab: 'workspace', file: newFile ?? undefined },
         replace: true,
       })
     },
     [navigate, appId]
   )
 
+  // Invalidate compose file query when a file is saved in the workspace
+  const handleFileSaved = useCallback(
+    (savedFile: string) => {
+      if (app?.repository?.path && app?.composeFile) {
+        // Check if the saved file matches the compose file
+        const composeFileName = app.composeFile
+        if (savedFile === composeFileName || savedFile.endsWith(`/${composeFileName}`)) {
+          queryClient.invalidateQueries({
+            queryKey: ['compose', 'file', app.repository.path, app.composeFile],
+          })
+        }
+      }
+    },
+    [app?.repository?.path, app?.composeFile, queryClient]
+  )
+
   const handleDelete = async () => {
     await deleteApp.mutateAsync({ id: appId })
     navigate({ to: '/apps' })
+  }
+
+  const handleStop = async () => {
+    await stopApp.mutateAsync(appId)
+  }
+
+  const handleCancelDeploy = async () => {
+    await cancelDeployment.mutateAsync(appId)
   }
 
   if (isLoading) {
@@ -241,31 +289,102 @@ const AppDetailView = observer(function AppDetailView() {
               <span className="text-sm font-medium">{t(`apps.tabs.${activeTab}`)}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setActiveTab('general')}>
+              <DropdownMenuItem onClick={() => setActiveTab('general')} className="gap-2">
+                <HugeiconsIcon icon={GridViewIcon} size={14} strokeWidth={2} />
                 {t('apps.tabs.general')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('deployments')}>
+              <DropdownMenuItem onClick={() => setActiveTab('deployments')} className="gap-2">
+                <HugeiconsIcon icon={Rocket01Icon} size={14} strokeWidth={2} />
                 {t('apps.tabs.deployments')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('logs')}>
+              <DropdownMenuItem onClick={() => setActiveTab('logs')} className="gap-2">
+                <HugeiconsIcon icon={TextIcon} size={14} strokeWidth={2} />
                 {t('apps.tabs.logs')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('monitoring')}>
+              <DropdownMenuItem onClick={() => setActiveTab('monitoring')} className="gap-2">
+                <HugeiconsIcon icon={Chart02Icon} size={14} strokeWidth={2} />
                 {t('apps.tabs.monitoring')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('workspace')} className="gap-2">
+                <HugeiconsIcon icon={WindowsOldIcon} size={14} strokeWidth={2} />
+                {t('apps.tabs.workspace')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
           {/* Desktop: tabs */}
           <TabsList variant="line" className="hidden sm:inline-flex">
-            <TabsTrigger value="general" className="px-3 py-1.5">{t('apps.tabs.general')}</TabsTrigger>
-            <TabsTrigger value="deployments" className="px-3 py-1.5">{t('apps.tabs.deployments')}</TabsTrigger>
-            <TabsTrigger value="logs" className="px-3 py-1.5">{t('apps.tabs.logs')}</TabsTrigger>
-            <TabsTrigger value="monitoring" className="px-3 py-1.5">{t('apps.tabs.monitoring')}</TabsTrigger>
+            <TabsTrigger value="general" className="gap-1.5 px-3 py-1.5">
+              <HugeiconsIcon icon={GridViewIcon} size={14} strokeWidth={2} />
+              {t('apps.tabs.general')}
+            </TabsTrigger>
+            <TabsTrigger value="deployments" className="gap-1.5 px-3 py-1.5">
+              <HugeiconsIcon icon={Rocket01Icon} size={14} strokeWidth={2} />
+              {t('apps.tabs.deployments')}
+            </TabsTrigger>
+            <TabsTrigger value="logs" className="gap-1.5 px-3 py-1.5">
+              <HugeiconsIcon icon={TextIcon} size={14} strokeWidth={2} />
+              {t('apps.tabs.logs')}
+            </TabsTrigger>
+            <TabsTrigger value="monitoring" className="gap-1.5 px-3 py-1.5">
+              <HugeiconsIcon icon={Chart02Icon} size={14} strokeWidth={2} />
+              {t('apps.tabs.monitoring')}
+            </TabsTrigger>
+            <TabsTrigger value="workspace" className="gap-1.5 px-3 py-1.5">
+              <HugeiconsIcon icon={WindowsOldIcon} size={14} strokeWidth={2} />
+              {t('apps.tabs.workspace')}
+            </TabsTrigger>
           </TabsList>
 
-          {/* App info on right */}
+          {/* Deploy/Stop buttons + App info on right */}
           <div className="flex items-center gap-2">
+            {/* Deploy/Stop buttons */}
+            <Button size="sm" onClick={handleDeploy} disabled={isBuilding}>
+              {isBuilding ? (
+                <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+              ) : (
+                <HugeiconsIcon icon={PlayIcon} size={14} strokeWidth={2} />
+              )}
+              <span className="hidden sm:inline">
+                {deployStore.isDeploying ? t('apps.deploying') : app.status === 'building' ? t('apps.building') : t('apps.deploy')}
+              </span>
+            </Button>
+            {isBuilding ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleCancelDeploy}
+                disabled={cancelDeployment.isPending}
+              >
+                {cancelDeployment.isPending ? (
+                  <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+                ) : (
+                  <HugeiconsIcon icon={StopIcon} size={14} strokeWidth={2} />
+                )}
+                <span className="hidden sm:inline">
+                  {cancelDeployment.isPending ? t('apps.cancelling') : t('apps.cancelDeploy')}
+                </span>
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleStop}
+                disabled={stopApp.isPending || app.status !== 'running'}
+              >
+                {stopApp.isPending ? (
+                  <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+                ) : (
+                  <HugeiconsIcon icon={StopIcon} size={14} strokeWidth={2} />
+                )}
+                <span className="hidden sm:inline">{t('apps.stop')}</span>
+              </Button>
+            )}
+
+            {/* Separator */}
+            <div className="h-4 w-px bg-border mx-1" />
+
+            {/* App info */}
             <span className="font-medium text-sm">{app.name}</span>
             {app.repository && (
               <Link
@@ -307,8 +426,8 @@ const AppDetailView = observer(function AppDetailView() {
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-4">
+        {/* Content - padded tabs */}
+        <div className={`flex-1 overflow-auto ${activeTab === 'workspace' ? '' : 'p-4'}`}>
           <TabsContent value="general" className="mt-0">
             <GeneralTab
               app={app}
@@ -330,6 +449,23 @@ const AppDetailView = observer(function AppDetailView() {
 
           <TabsContent value="monitoring" className="mt-0">
             <MonitoringTab appId={app.id} repoDisplayName={app.repository?.displayName} />
+          </TabsContent>
+
+          <TabsContent value="workspace" className="mt-0 h-full">
+            {app.repository?.path ? (
+              <WorkspacePanel
+                repoPath={app.repository.path}
+                repoDisplayName={app.repository.displayName}
+                activeTab={activeTab}
+                file={file}
+                onFileChange={handleFileChange}
+                onFileSaved={handleFileSaved}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center p-4">
+                <p className="text-muted-foreground">{t('apps.workspace.noRepository')}</p>
+              </div>
+            )}
           </TabsContent>
         </div>
       </Tabs>
@@ -366,7 +502,7 @@ const AppDetailView = observer(function AppDetailView() {
 })
 
 // General tab - dense 2-column layout
-const GeneralTab = observer(function GeneralTab({
+function GeneralTab({
   app,
   onDeploy,
 }: {
@@ -374,20 +510,7 @@ const GeneralTab = observer(function GeneralTab({
   onDeploy: () => void
 }) {
   const { t } = useTranslation('common')
-  const stopApp = useStopApp()
-  const cancelDeployment = useCancelDeployment()
   const updateApp = useUpdateApp()
-  const deployStore = useDeploymentStore()
-
-  const handleStop = async () => {
-    await stopApp.mutateAsync(app.id)
-  }
-
-  const handleCancelDeploy = async () => {
-    await cancelDeployment.mutateAsync(app.id)
-  }
-
-  const isBuilding = deployStore.isDeploying || app.status === 'building'
 
   const handleAutoDeployToggle = async (enabled: boolean) => {
     await updateApp.mutateAsync({
@@ -412,50 +535,11 @@ const GeneralTab = observer(function GeneralTab({
 
   return (
     <div className="space-y-4">
-      {/* Top row: Deploy + Services side by side */}
+      {/* Top row: Deploy options + Services side by side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Deploy section */}
+        {/* Deploy options - buttons moved to header */}
         <div className="rounded-lg border p-4 space-y-3">
-          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('apps.general.deploy')}</h4>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={onDeploy} disabled={isBuilding}>
-              {isBuilding ? (
-                <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-              ) : (
-                <HugeiconsIcon icon={PlayIcon} size={14} strokeWidth={2} />
-              )}
-              {deployStore.isDeploying ? t('apps.deploying') : app.status === 'building' ? t('apps.building') : t('apps.deploy')}
-            </Button>
-            {isBuilding ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleCancelDeploy}
-                disabled={cancelDeployment.isPending}
-              >
-                {cancelDeployment.isPending ? (
-                  <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-                ) : (
-                  <HugeiconsIcon icon={StopIcon} size={14} strokeWidth={2} />
-                )}
-                {cancelDeployment.isPending ? t('apps.cancelling') : t('apps.cancelDeploy')}
-              </Button>
-            ) : (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleStop}
-                disabled={stopApp.isPending || app.status !== 'running'}
-              >
-                {stopApp.isPending ? (
-                  <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-                ) : (
-                  <HugeiconsIcon icon={StopIcon} size={14} strokeWidth={2} />
-                )}
-                {t('apps.stop')}
-              </Button>
-            )}
-          </div>
+          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('apps.general.deployOptions')}</h4>
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
@@ -492,7 +576,7 @@ const GeneralTab = observer(function GeneralTab({
       <ComposeFileEditor app={app} />
     </div>
   )
-})
+}
 
 // Streaming deployment logs modal - shows real-time logs during deployment
 // Uses reaction() instead of observer for logs to ensure updates work when modal is closed/reopened
@@ -681,79 +765,43 @@ function ComposeFileEditor({ app }: { app: NonNullable<ReturnType<typeof useApp>
 
   // Local content state for editing
   const [content, setContent] = useState<string>('')
-  const [isEditing, setIsEditing] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
+  const [savedContent, setSavedContent] = useState<string>('')
   const [saved, setSaved] = useState(false)
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Sync content when data loads
   useEffect(() => {
     if (data?.content !== undefined) {
       setContent(data.content)
-      setHasChanges(false)
+      setSavedContent(data.content)
     }
   }, [data?.content])
 
-  // Debounced autosave
-  const handleChange = useCallback(
-    (newContent: string) => {
-      setContent(newContent)
-      setHasChanges(true)
-      setSaved(false)
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = content !== savedContent
 
-      // Clear any pending save
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-
-      // Autosave after 1 second of inactivity
-      if (isEditing && repoPath && app.composeFile) {
-        saveTimeoutRef.current = setTimeout(() => {
-          writeCompose.mutate(
-            { repoPath, composeFile: app.composeFile, content: newContent },
-            {
-              onSuccess: () => {
-                setHasChanges(false)
-                setSaved(true)
-                setTimeout(() => setSaved(false), 2000)
-                // Sync services to update ports from compose file
-                syncServices.mutate(app.id)
-              },
-            }
-          )
-        }, 1000)
-      }
-    },
-    [isEditing, repoPath, app.composeFile, app.id, writeCompose, syncServices]
-  )
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
+  // Handle content change - no autosave
+  const handleChange = useCallback((newContent: string) => {
+    setContent(newContent)
+    setSaved(false)
   }, [])
 
-  const toggleEdit = () => {
-    if (isEditing && hasChanges && repoPath && app.composeFile) {
-      // Save before exiting edit mode
-      writeCompose.mutate(
-        { repoPath, composeFile: app.composeFile, content },
-        {
-          onSuccess: () => {
-            setHasChanges(false)
-            setSaved(true)
-            setTimeout(() => setSaved(false), 2000)
-            // Sync services to update ports from compose file
-            syncServices.mutate(app.id)
-          },
-        }
-      )
-    }
-    setIsEditing(!isEditing)
-  }
+  // Handle explicit save
+  const handleSave = useCallback(() => {
+    if (!repoPath || !app.composeFile) return
+
+    writeCompose.mutate(
+      { repoPath, composeFile: app.composeFile, content },
+      {
+        onSuccess: () => {
+          setSavedContent(content)
+          setSaved(true)
+          setTimeout(() => setSaved(false), 2000)
+          // Sync services to update ports from compose file
+          syncServices.mutate(app.id)
+        },
+      }
+    )
+  }, [repoPath, app.composeFile, app.id, content, writeCompose, syncServices])
 
   if (!repoPath) {
     return (
@@ -792,33 +840,40 @@ function ComposeFileEditor({ app }: { app: NonNullable<ReturnType<typeof useApp>
     <div className="rounded-lg border p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('apps.compose.title')}</h4>
         <div className="flex items-center gap-2">
-          {/* Status indicators */}
-          {hasChanges && isEditing && (
-            <span className="text-xs text-muted-foreground">{t('apps.compose.unsaved')}</span>
+          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('apps.compose.title')}</h4>
+          {hasUnsavedChanges && (
+            <span className="text-xs text-amber-500">({t('apps.compose.unsavedChanges')})</span>
           )}
-          {saved && (
-            <span className="flex items-center gap-1 text-xs text-green-500">
-              <HugeiconsIcon icon={CheckmarkCircle02Icon} size={12} strokeWidth={2} />
-              {t('status.saved')}
-            </span>
-          )}
-          {writeCompose.isPending && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <HugeiconsIcon icon={Loading03Icon} size={12} strokeWidth={2} className="animate-spin" />
-              {t('status.saving')}
-            </span>
-          )}
+        </div>
+        <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">{app.composeFile}</span>
-          {/* Edit toggle */}
-          <Button
-            variant={isEditing ? 'default' : 'outline'}
-            size="sm"
-            onClick={toggleEdit}
-          >
-            <HugeiconsIcon icon={Edit02Icon} size={14} strokeWidth={2} />
-            {isEditing ? t('apps.compose.done') : t('apps.compose.edit')}
+          {hasUnsavedChanges && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setContent(savedContent)
+                setSaved(false)
+              }}
+            >
+              {t('apps.cancel')}
+            </Button>
+          )}
+          <Button size="sm" onClick={handleSave} disabled={writeCompose.isPending || !hasUnsavedChanges}>
+            {writeCompose.isPending ? (
+              <>
+                <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+                {t('status.saving')}
+              </>
+            ) : saved ? (
+              <>
+                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} strokeWidth={2} className="text-green-500" />
+                {t('status.saved')}
+              </>
+            ) : (
+              t('apps.compose.save')
+            )}
           </Button>
         </div>
       </div>
@@ -829,7 +884,6 @@ function ComposeFileEditor({ app }: { app: NonNullable<ReturnType<typeof useApp>
           filePath={app.composeFile}
           content={content}
           onChange={handleChange}
-          readOnly={!isEditing}
         />
       </div>
     </div>
@@ -1220,7 +1274,19 @@ function EnvironmentSection({ app }: { app: NonNullable<ReturnType<typeof useApp
             </TooltipTrigger>
             <TooltipContent>{masked ? t('apps.environment.showValues') : t('apps.environment.hideValues')}</TooltipContent>
           </Tooltip>
-          <Button size="sm" onClick={handleSaveEnv} disabled={updateApp.isPending}>
+          {hasUnsavedChanges && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEnvText(savedEnvText)
+                setEnvSaved(false)
+              }}
+            >
+              {t('apps.cancel')}
+            </Button>
+          )}
+          <Button size="sm" onClick={handleSaveEnv} disabled={updateApp.isPending || !hasUnsavedChanges}>
             {updateApp.isPending ? (
               <>
                 <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />

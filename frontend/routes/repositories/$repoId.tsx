@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowLeft02Icon,
@@ -33,6 +32,8 @@ import {
   ComputerTerminal01Icon,
   VisualStudioCodeIcon,
   Rocket01Icon,
+  Settings05Icon,
+  WindowsOldIcon,
 } from '@hugeicons/core-free-icons'
 import {
   Dialog,
@@ -49,16 +50,11 @@ import { DeleteRepositoryDialog } from '@/components/repositories/delete-reposit
 import { AddRepositoryDialog } from '@/components/repositories/add-repository-dialog'
 import { useAppByRepository, useFindCompose } from '@/hooks/use-apps'
 import { AgentOptionsEditor } from '@/components/repositories/agent-options-editor'
-import { FilesViewer } from '@/components/viewer/files-viewer'
 import { GitStatusBadge } from '@/components/viewer/git-status-badge'
-import { Terminal } from '@/components/terminal/terminal'
-import { useTerminalWS } from '@/hooks/use-terminal-ws'
-import { log } from '@/lib/logger'
-import { useIsMobile } from '@/hooks/use-is-mobile'
+import { WorkspacePanel } from '@/components/workspace/workspace-panel'
 import { useOpenInTerminal } from '@/hooks/use-open-in-terminal'
 import { useEditorApp, useEditorHost, useEditorSshPort } from '@/hooks/use-config'
 import { buildEditorUrl, getEditorDisplayName, openExternalUrl } from '@/lib/editor-url'
-import type { Terminal as XTerm } from '@xterm/xterm'
 import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
 import { ModelPicker } from '@/components/opencode/model-picker'
 
@@ -129,31 +125,8 @@ function RepositoryDetailView() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [composeWarningOpen, setComposeWarningOpen] = useState(false)
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false)
-  const [mobileWorkspaceTab, setMobileWorkspaceTab] = useState<'terminal' | 'files'>('terminal')
-
-  // Terminal state
-  const [terminalId, setTerminalId] = useState<string | null>(null)
-  const [isCreatingTerminal, setIsCreatingTerminal] = useState(false)
-  const [xtermReady, setXtermReady] = useState(false)
-  const [containerReady, setContainerReady] = useState(false)
-  const termRef = useRef<XTerm | null>(null)
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const createdTerminalRef = useRef(false)
-  const attachedRef = useRef(false)
-
-  const {
-    terminals,
-    terminalsLoaded,
-    connected,
-    createTerminal,
-    attachXterm,
-    resizeTerminal,
-    setupImagePaste,
-    writeToTerminal,
-  } = useTerminalWS()
 
   const activeTab = tab || 'settings'
-  const isMobile = useIsMobile()
   const { openInTerminal } = useOpenInTerminal()
   const { data: editorApp } = useEditorApp()
   const { data: editorHost } = useEditorHost()
@@ -173,23 +146,6 @@ function RepositoryDetailView() {
       navigate({ to: '/apps/new', search: { repoId } })
     }
   }
-
-  // Log on mount
-  useEffect(() => {
-    log.repoTerminal.info('component mounted', { repoId, tab, activeTab })
-  }, [repoId, tab, activeTab])
-
-  useEffect(() => {
-    log.repoTerminal.debug('state changed', {
-      terminalId,
-      xtermReady,
-      containerReady,
-      connected,
-      terminalsLoaded,
-      terminalCount: terminals.length,
-      repoPath: repository?.path,
-    })
-  }, [terminalId, xtermReady, containerReady, connected, terminalsLoaded, terminals.length, repository?.path])
 
   const setActiveTab = useCallback(
     (newTab: RepoTab) => {
@@ -282,114 +238,6 @@ function RepositoryDetailView() {
     await deleteRepository.mutateAsync({ id: repository.id, deleteDirectory })
     navigate({ to: '/repositories' })
   }
-
-  // Reset terminal state when repository changes
-  // Note: Don't reset xtermReady - the Terminal component stays mounted and reuses the same xterm instance
-  useEffect(() => {
-    createdTerminalRef.current = false
-    attachedRef.current = false
-    setTerminalId(null)
-    setIsCreatingTerminal(false)
-  }, [repository?.path])
-
-  // Find or create terminal when workspace tab is active
-  useEffect(() => {
-    if (!connected || !repository?.path || !terminalsLoaded || activeTab !== 'workspace' || !xtermReady) {
-      log.repoTerminal.debug('find/create: waiting', { connected, path: repository?.path, terminalsLoaded, activeTab, xtermReady })
-      return
-    }
-
-    // Look for existing running terminal with matching cwd
-    const existingTerminal = terminals.find((t) => t.cwd === repository.path && t.status === 'running')
-    if (existingTerminal) {
-      log.repoTerminal.info('found existing terminal', { id: existingTerminal.id, cwd: existingTerminal.cwd })
-      setTerminalId(existingTerminal.id)
-      return
-    }
-
-    // Create terminal only once
-    if (!createdTerminalRef.current && termRef.current) {
-      createdTerminalRef.current = true
-      setIsCreatingTerminal(true)
-      const { cols, rows } = termRef.current
-      log.repoTerminal.info('creating terminal', { name: repository.displayName, cwd: repository.path, cols, rows })
-      createTerminal({
-        name: repository.displayName,
-        cols,
-        rows,
-        cwd: repository.path,
-      })
-    }
-  }, [connected, repository?.path, repository?.displayName, terminalsLoaded, terminals, activeTab, createTerminal, xtermReady])
-
-  // Update terminalId when terminal appears in list
-  useEffect(() => {
-    if (!repository?.path) return
-
-    const matchingTerminal = terminals.find((t) => t.cwd === repository.path && t.status === 'running')
-    if (!matchingTerminal) return
-
-    const currentTerminalExists = terminalId && terminals.some((t) => t.id === terminalId)
-
-    if (!terminalId || !currentTerminalExists) {
-      setTerminalId(matchingTerminal.id)
-      setIsCreatingTerminal(false)
-      if (terminalId && !currentTerminalExists) {
-        attachedRef.current = false
-      }
-    }
-  }, [terminals, repository?.path, terminalId])
-
-  // Terminal callbacks
-  const handleTerminalReady = useCallback((xterm: XTerm) => {
-    log.repoTerminal.info('xterm ready')
-    termRef.current = xterm
-    setXtermReady(true)
-  }, [])
-
-  const handleTerminalResize = useCallback((cols: number, rows: number) => {
-    if (terminalId) {
-      resizeTerminal(terminalId, cols, rows)
-    }
-  }, [terminalId, resizeTerminal])
-
-  const handleTerminalContainerReady = useCallback((container: HTMLDivElement) => {
-    log.repoTerminal.info('container ready')
-    containerRef.current = container
-    setContainerReady(true)
-  }, [])
-
-  const handleTerminalSend = useCallback((data: string) => {
-    if (terminalId) {
-      writeToTerminal(terminalId, data)
-    }
-  }, [terminalId, writeToTerminal])
-
-  // Attach xterm to terminal once we have terminalId and both xterm/container are ready
-  useEffect(() => {
-    if (!terminalId || !xtermReady || !containerReady) {
-      log.repoTerminal.debug('attach effect: waiting', { terminalId, xtermReady, containerReady })
-      return
-    }
-    if (!termRef.current || !containerRef.current) {
-      log.repoTerminal.warn('attach effect: refs not set despite ready states', { terminalId })
-      return
-    }
-    if (attachedRef.current) {
-      log.repoTerminal.debug('attach effect: already attached', { terminalId })
-      return
-    }
-
-    log.repoTerminal.info('attaching terminal', { terminalId })
-    attachXterm(terminalId, termRef.current)
-    setupImagePaste(containerRef.current, terminalId)
-    attachedRef.current = true
-
-    return () => {
-      log.repoTerminal.debug('detaching terminal', { terminalId })
-      attachedRef.current = false
-    }
-  }, [terminalId, xtermReady, containerReady, attachXterm, setupImagePaste])
 
   if (isLoading) {
     return (
@@ -543,8 +391,14 @@ function RepositoryDetailView() {
       >
         <div className="shrink-0 border-b border-border bg-muted/50 px-4">
           <TabsList variant="line">
-            <TabsTrigger value="settings" className="px-3 py-1.5">{t('detailView.tabs.settings')}</TabsTrigger>
-            <TabsTrigger value="workspace" className="px-3 py-1.5">{t('detailView.tabs.workspace')}</TabsTrigger>
+            <TabsTrigger value="settings" className="gap-1.5 px-3 py-1.5">
+              <HugeiconsIcon icon={Settings05Icon} size={14} strokeWidth={2} />
+              {t('detailView.tabs.settings')}
+            </TabsTrigger>
+            <TabsTrigger value="workspace" className="gap-1.5 px-3 py-1.5">
+              <HugeiconsIcon icon={WindowsOldIcon} size={14} strokeWidth={2} />
+              {t('detailView.tabs.workspace')}
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -697,106 +551,13 @@ function RepositoryDetailView() {
         </TabsContent>
 
         <TabsContent value="workspace" className="flex-1 overflow-hidden mt-0">
-          {isMobile ? (
-            <Tabs
-              value={mobileWorkspaceTab}
-              onValueChange={(v) => setMobileWorkspaceTab(v as 'terminal' | 'files')}
-              className="flex min-h-0 flex-1 flex-col h-full"
-            >
-              <div className="shrink-0 border-b border-border px-2 py-1">
-                <TabsList className="w-full">
-                  <TabsTrigger value="terminal" className="flex-1">{t('detailView.mobileWorkspace.terminal')}</TabsTrigger>
-                  <TabsTrigger value="files" className="flex-1">{t('detailView.mobileWorkspace.files')}</TabsTrigger>
-                </TabsList>
-              </div>
-
-              <TabsContent value="terminal" className="flex-1 min-h-0">
-                <div className="h-full flex flex-col">
-                  {!connected && (
-                    <div className="shrink-0 px-2 py-1 bg-muted-foreground/20 text-muted-foreground text-xs">
-                      {t('detailView.workspace.connectingToTerminal')}
-                    </div>
-                  )}
-                  {isCreatingTerminal && !terminalId && (
-                    <div className="flex-1 flex items-center justify-center bg-terminal-background">
-                      <div className="flex flex-col items-center gap-3">
-                        <HugeiconsIcon
-                          icon={Loading03Icon}
-                          size={24}
-                          strokeWidth={2}
-                          className="animate-spin text-muted-foreground"
-                        />
-                        <span className="font-mono text-sm text-muted-foreground">
-                          {t('detailView.workspace.initializingTerminal')}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <Terminal
-                    className="flex-1"
-                    onReady={handleTerminalReady}
-                    onResize={handleTerminalResize}
-                    onContainerReady={handleTerminalContainerReady}
-                    terminalId={terminalId ?? undefined}
-                    setupImagePaste={setupImagePaste}
-                    onSend={handleTerminalSend}
-                  />
-                </div>
-              </TabsContent>
-
-              <TabsContent value="files" className="flex-1 min-h-0">
-                <FilesViewer
-                  worktreePath={repository.path}
-                  initialSelectedFile={file}
-                  onFileChange={handleFileChange}
-                />
-              </TabsContent>
-            </Tabs>
-          ) : (
-            <ResizablePanelGroup direction="horizontal" className="h-full">
-              <ResizablePanel defaultSize={50} minSize={30}>
-                <div className="h-full flex flex-col">
-                  {!connected && (
-                    <div className="shrink-0 px-2 py-1 bg-muted-foreground/20 text-muted-foreground text-xs">
-                      {t('detailView.workspace.connectingToTerminal')}
-                    </div>
-                  )}
-                  {isCreatingTerminal && !terminalId && (
-                    <div className="flex-1 flex items-center justify-center bg-terminal-background">
-                      <div className="flex flex-col items-center gap-3">
-                        <HugeiconsIcon
-                          icon={Loading03Icon}
-                          size={24}
-                          strokeWidth={2}
-                          className="animate-spin text-muted-foreground"
-                        />
-                        <span className="font-mono text-sm text-muted-foreground">
-                          {t('detailView.workspace.initializingTerminal')}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  <Terminal
-                    className="flex-1"
-                    onReady={handleTerminalReady}
-                    onResize={handleTerminalResize}
-                    onContainerReady={handleTerminalContainerReady}
-                    terminalId={terminalId ?? undefined}
-                    setupImagePaste={setupImagePaste}
-                    onSend={handleTerminalSend}
-                  />
-                </div>
-              </ResizablePanel>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={50} minSize={30}>
-                <FilesViewer
-                  worktreePath={repository.path}
-                  initialSelectedFile={file}
-                  onFileChange={handleFileChange}
-                />
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          )}
+          <WorkspacePanel
+            repoPath={repository.path}
+            repoDisplayName={repository.displayName}
+            activeTab={activeTab}
+            file={file}
+            onFileChange={handleFileChange}
+          />
         </TabsContent>
       </Tabs>
 

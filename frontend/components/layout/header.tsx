@@ -12,13 +12,13 @@ import {
 } from '@/components/ui/navigation-menu'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
-  GridViewIcon,
+  TaskDaily01Icon,
   ComputerTerminal01Icon,
   Settings01Icon,
   PackageIcon,
   GitPullRequestIcon,
   BrowserIcon,
-  ChartLineData01Icon,
+  Chart02Icon,
   More03Icon,
   Rocket01Icon,
   HelpCircleIcon,
@@ -32,12 +32,12 @@ interface HeaderProps {
 }
 
 const NAV_ITEMS = [
-  { to: '/tasks', icon: GridViewIcon, labelKey: 'header.tasks', matchPrefix: true },
+  { to: '/tasks', icon: TaskDaily01Icon, labelKey: 'header.tasks', matchPrefix: true },
   { to: '/terminals', icon: ComputerTerminal01Icon, labelKey: 'header.terminals', matchPrefix: false },
   { to: '/repositories', icon: PackageIcon, labelKey: 'header.repositories', matchPrefix: true },
   { to: '/apps', icon: Rocket01Icon, labelKey: 'header.apps', matchPrefix: true },
   { to: '/review', icon: GitPullRequestIcon, labelKey: 'header.review', matchPrefix: true },
-  { to: '/monitoring', icon: ChartLineData01Icon, labelKey: 'header.monitoring', matchPrefix: true },
+  { to: '/monitoring', icon: Chart02Icon, labelKey: 'header.monitoring', matchPrefix: true },
 ] as const
 
 export function Header({ onNewTaskRef, onOpenCommandPalette }: HeaderProps) {

@@ -104,20 +104,26 @@
       "logs": "Logs",
       "environment": "Environment",
       "domains": "Domains",
-      "monitoring": "Monitoring"
+      "monitoring": "Monitoring",
+      "workspace": "Workspace"
     },
     "general": {
       "deploy": "Deploy",
+      "deployOptions": "Deploy Options",
       "autodeploy": "Autodeploy",
       "noCache": "No-cache",
       "notifications": "Notifications",
       "services": "Services",
       "noServicesConfigured": "No services configured"
     },
+    "workspace": {
+      "noRepository": "No repository linked to this app"
+    },
     "compose": {
       "title": "Compose File",
       "repoNotFound": "Repository path not found",
-      "unsaved": "Unsaved",
+      "unsavedChanges": "unsaved changes",
+      "save": "Save",
       "edit": "Edit",
       "done": "Done"
     },

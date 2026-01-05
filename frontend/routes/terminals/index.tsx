@@ -8,7 +8,7 @@ import { TerminalTabBar } from '@/components/terminal/terminal-tab-bar'
 import { TabEditDialog } from '@/components/terminal/tab-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { GridViewIcon, FilterIcon, ComputerTerminal01Icon } from '@hugeicons/core-free-icons'
+import { TaskDaily01Icon, FilterIcon, ComputerTerminal01Icon } from '@hugeicons/core-free-icons'
 import {
   Select,
   SelectContent,
@@ -537,7 +537,7 @@ const TerminalsView = observer(function TerminalsView() {
               activeTabId === ALL_TASKS_TAB_ID ? 'after:opacity-100' : 'after:opacity-0'
             )}
           >
-            <HugeiconsIcon icon={GridViewIcon} size={12} strokeWidth={2} />
+            <HugeiconsIcon icon={TaskDaily01Icon} size={12} strokeWidth={2} />
             <span className="max-sm:hidden">{t('taskTerminals')}</span>
           </button>
           {/* Separator between Tasks and regular tabs */}

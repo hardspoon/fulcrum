@@ -4,10 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   CpuIcon,
-  Calendar02Icon,
+  GridViewIcon,
   GitBranchIcon,
   ClaudeIcon,
-  Chart02Icon,
+  ChartLineData01Icon,
   BrowserIcon,
   GridIcon,
 } from '@hugeicons/core-free-icons'
@@ -98,12 +98,12 @@ function MonitoringPage() {
             </TabsTrigger>
             {showJobsTab && (
               <TabsTrigger value="jobs" className="gap-1.5 data-[state=active]:bg-muted">
-                <HugeiconsIcon icon={Calendar02Icon} size={14} strokeWidth={2} />
+                <HugeiconsIcon icon={GridViewIcon} size={14} strokeWidth={2} />
                 <span className="max-sm:hidden">{t('tabs.jobs')}</span>
               </TabsTrigger>
             )}
             <TabsTrigger value="usage" className="gap-1.5 data-[state=active]:bg-muted">
-              <HugeiconsIcon icon={Chart02Icon} size={14} strokeWidth={2} />
+              <HugeiconsIcon icon={ChartLineData01Icon} size={14} strokeWidth={2} />
               <span className="max-sm:hidden">{t('tabs.usage')}</span>
             </TabsTrigger>
           </TabsList>

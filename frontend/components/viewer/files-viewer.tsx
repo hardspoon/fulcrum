@@ -13,16 +13,24 @@ interface FilesViewerProps {
   readOnly?: boolean
   initialSelectedFile?: string | null
   onFileChange?: (file: string | null) => void
+  onFileSaved?: (file: string) => void
 }
 
-// Context to pass onFileChange callback to inner component
-const FileChangeContext = createContext<((file: string | null) => void) | undefined>(undefined)
+// Context to pass callbacks to inner components
+interface FilesViewerCallbacks {
+  onFileChange?: (file: string | null) => void
+  onFileSaved?: (file: string) => void
+}
+const CallbacksContext = createContext<FilesViewerCallbacks>({})
+
+// Export context for FileContent to access onFileSaved
+export { CallbacksContext }
 
 /**
  * Inner component that uses the files store context
  */
 const FilesViewerInner = observer(function FilesViewerInner() {
-  const onFileChange = useContext(FileChangeContext)
+  const { onFileChange } = useContext(CallbacksContext)
   const {
     selectedFile,
     expandedDirs,
@@ -101,6 +109,7 @@ export function FilesViewer({
   readOnly = false,
   initialSelectedFile,
   onFileChange,
+  onFileSaved,
 }: FilesViewerProps) {
   const store = useCreateFilesStore(worktreePath, readOnly, initialSelectedFile)
 
@@ -114,9 +123,9 @@ export function FilesViewer({
 
   return (
     <FilesStoreContext.Provider value={store}>
-      <FileChangeContext.Provider value={onFileChange}>
+      <CallbacksContext.Provider value={{ onFileChange, onFileSaved }}>
         <FilesViewerInner />
-      </FileChangeContext.Provider>
+      </CallbacksContext.Provider>
     </FilesStoreContext.Provider>
   )
 }

@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
-  Task01Icon,
+  TaskDaily01Icon,
   PackageIcon,
   GitBranchIcon,
   Delete02Icon,
@@ -92,7 +92,7 @@ export function TaskTerminalHeader({
           params={{ taskId: taskInfo.taskId }}
           className="flex shrink-0 items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 max-w-[50%]"
         >
-          <HugeiconsIcon icon={Task01Icon} size={14} strokeWidth={2} className="shrink-0" />
+          <HugeiconsIcon icon={TaskDaily01Icon} size={12} strokeWidth={2} className="shrink-0" />
           <span className="truncate">{taskInfo.title}</span>
         </Link>
 
