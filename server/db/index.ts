@@ -246,11 +246,24 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
       }
 
       // For fresh DBs that never had system_prompt_addition, manually add claude_options
-      // since we marked 0013 as applied but the column doesn't exist yet
+      // since we marked 0013 as applied but the column doesn't exist yet.
+      // Check each table independently since migration 0018 renames tasks.claude_options to agent_options
       if (!hasSystemPromptAddition && !hasClaudeOptions) {
-        log.db.info('Adding claude_options columns for fresh database')
-        sqlite.exec("ALTER TABLE `repositories` ADD `claude_options` text")
-        sqlite.exec("ALTER TABLE `tasks` ADD `claude_options` text")
+        const repoHasClaudeOptions = sqlite
+          .query("SELECT name FROM pragma_table_info('repositories') WHERE name='claude_options'")
+          .get()
+        if (!repoHasClaudeOptions) {
+          log.db.info('Adding claude_options column to repositories for fresh database')
+          sqlite.exec("ALTER TABLE `repositories` ADD `claude_options` text")
+        }
+        // Only add to tasks if it doesn't have claude_options AND doesn't have agent_options (0018 renames it)
+        const tasksHasAgentOptions = sqlite
+          .query("SELECT name FROM pragma_table_info('tasks') WHERE name='agent_options'")
+          .get()
+        if (!tasksHasAgentOptions) {
+          log.db.info('Adding claude_options column to tasks for fresh database')
+          sqlite.exec("ALTER TABLE `tasks` ADD `claude_options` text")
+        }
       }
     }
   }
