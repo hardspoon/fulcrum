@@ -1,13 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { describe, test, expect, afterEach, mock, spyOn } from 'bun:test'
 import * as os from 'node:os'
 import * as childProcess from 'node:child_process'
 import * as fs from 'node:fs'
-
-// Store original functions
-const originalPlatform = os.platform
-const originalExecSync = childProcess.execSync
-const originalExistsSync = fs.existsSync
-const originalReaddirSync = fs.readdirSync
 
 // We need to reset the module cache to test isLaunchdAvailable with different platforms
 async function resetLaunchdModule() {
@@ -19,13 +14,6 @@ async function resetLaunchdModule() {
 }
 
 describe('launchd-service', () => {
-  // Import once for tests that don't need fresh module
-  let launchd: typeof import('./launchd-service')
-
-  beforeEach(async () => {
-    launchd = await import('./launchd-service')
-  })
-
   afterEach(() => {
     // Restore mocked functions
     mock.restore()
@@ -325,7 +313,7 @@ describe('launchd-service', () => {
     })
 
     test('scans system directories for system scope', async () => {
-      let scannedDirs: string[] = []
+      const scannedDirs: string[] = []
 
       const platformMock = spyOn(os, 'platform').mockReturnValue('darwin')
       const execMock = spyOn(childProcess, 'execSync').mockImplementation((cmd: string) => {

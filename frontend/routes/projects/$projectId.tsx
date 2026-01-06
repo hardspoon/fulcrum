@@ -222,6 +222,7 @@ const ProjectDetailView = observer(function ProjectDetailView() {
     if (projectId) {
       accessProject.mutate(projectId)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
   const { data: editorApp } = useEditorApp()

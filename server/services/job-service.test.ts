@@ -1,4 +1,5 @@
-import { describe, test, expect, beforeEach, afterEach, spyOn, mock } from 'bun:test'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { describe, test, expect, afterEach, spyOn, mock } from 'bun:test'
 import * as os from 'node:os'
 import * as childProcess from 'node:child_process'
 import * as fs from 'node:fs'

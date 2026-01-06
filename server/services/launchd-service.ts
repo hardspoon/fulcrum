@@ -241,7 +241,7 @@ function getCommand(plist: LaunchdPlist): string | null {
 }
 
 // Determine job state from launchctl list entry
-function getJobState(entry: LaunchctlListEntry | undefined, plist: LaunchdPlist): JobState {
+function getJobState(entry: LaunchctlListEntry | undefined): JobState {
   if (!entry) {
     return 'inactive' // Not loaded
   }
@@ -320,7 +320,7 @@ export function listJobs(scope: 'all' | 'user' | 'system' = 'all'): SystemdTimer
     }
 
     const entry = launchctlStatus.get(plist.Label)
-    const state = getJobState(entry, plist)
+    const state = getJobState(entry)
     const enabled = entry !== undefined && !plist.Disabled
 
     jobs.push({
@@ -409,7 +409,7 @@ export function getJob(name: string, scope: JobScope): SystemdTimerDetail | null
 
   const launchctlStatus = parseLaunchctlList()
   const entry = launchctlStatus.get(name)
-  const state = getJobState(entry, plist)
+  const state = getJobState(entry)
   const enabled = entry !== undefined && !plist.Disabled
 
   // Read plist content as string for display
