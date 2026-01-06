@@ -8,7 +8,7 @@ import { TerminalTabBar } from '@/components/terminal/terminal-tab-bar'
 import { TabEditDialog } from '@/components/terminal/tab-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { TaskDaily01Icon, FilterIcon, ComputerTerminal01Icon } from '@hugeicons/core-free-icons'
+import { TaskDaily01Icon, FilterIcon, ComputerTerminal01Icon, Folder01Icon, Loading03Icon } from '@hugeicons/core-free-icons'
 import {
   Select,
   SelectContent,
@@ -16,10 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import { useTerminalStore, useStore } from '@/stores'
 import type { ITerminal, ITab } from '@/stores'
 import { useTasks } from '@/hooks/use-tasks'
 import { useRepositories } from '@/hooks/use-repositories'
+import { useProjects } from '@/hooks/use-projects'
 import { useTerminalViewState } from '@/hooks/use-terminal-view-state'
 import { useHotkeys } from '@/hooks/use-hotkeys'
 import { cn } from '@/lib/utils'
@@ -60,12 +68,14 @@ function toTerminalTab(tab: ITab, index: number): TerminalTab {
 }
 
 const ALL_TASKS_TAB_ID = 'all-tasks'
+const ALL_PROJECTS_TAB_ID = 'all-projects'
 const ACTIVE_STATUSES: TaskStatus[] = ['IN_PROGRESS', 'IN_REVIEW']
 const LAST_TAB_STORAGE_KEY = 'vibora:lastTerminalTab'
 
 interface TerminalsSearch {
   tab?: string
   repo?: string
+  projects?: string // comma-separated project IDs for multi-select filter
 }
 
 /**
@@ -75,7 +85,7 @@ interface TerminalsSearch {
 const TerminalsView = observer(function TerminalsView() {
   const { t } = useTranslation('terminals')
   const navigate = useNavigate()
-  const { tab: tabFromUrl, repo: repoFilter } = useSearch({ from: '/terminals/' })
+  const { tab: tabFromUrl, repo: repoFilter, projects: projectsFilter } = useSearch({ from: '/terminals/' })
   const {
     terminals,
     tabs,
@@ -107,17 +117,18 @@ const TerminalsView = observer(function TerminalsView() {
   // URL is the source of truth for active tab
   // Fall back to first tab if URL doesn't specify a valid tab
   const tabIds = useMemo(() => tabs.map((t) => t.id), [tabs])
-  const isValidTab = tabFromUrl && (tabIds.includes(tabFromUrl) || tabFromUrl === ALL_TASKS_TAB_ID)
+  const isValidTab = tabFromUrl && (tabIds.includes(tabFromUrl) || tabFromUrl === ALL_TASKS_TAB_ID || tabFromUrl === ALL_PROJECTS_TAB_ID)
   const activeTabId = isValidTab ? tabFromUrl : (tabs[0]?.id ?? null)
 
   // Navigate to update URL when changing tabs
   const setActiveTab = useCallback(
     (tabId: string) => {
-      // Clear repo filter when switching away from Task Terminals
+      // Preserve filters only for the relevant tab type
       const repo = tabId === ALL_TASKS_TAB_ID ? repoFilter : undefined
-      navigate({ to: '/terminals', search: { tab: tabId, repo }, replace: true })
+      const projects = tabId === ALL_PROJECTS_TAB_ID ? projectsFilter : undefined
+      navigate({ to: '/terminals', search: { tab: tabId, repo, projects }, replace: true })
     },
-    [navigate, repoFilter]
+    [navigate, repoFilter, projectsFilter]
   )
 
   // Navigate to update URL when changing repo filter
@@ -192,7 +203,7 @@ const TerminalsView = observer(function TerminalsView() {
     // Redirect to valid tab if URL is invalid
     if (!isValidTab) {
       const lastTab = localStorage.getItem(LAST_TAB_STORAGE_KEY)
-      const targetTab = lastTab && (tabs.some(t => t.id === lastTab) || lastTab === ALL_TASKS_TAB_ID)
+      const targetTab = lastTab && (tabs.some(t => t.id === lastTab) || lastTab === ALL_TASKS_TAB_ID || lastTab === ALL_PROJECTS_TAB_ID)
         ? lastTab
         : tabs[0].id
       log.terminal.debug('Redirecting to tab', { targetTab })
@@ -209,6 +220,7 @@ const TerminalsView = observer(function TerminalsView() {
 
   const { data: tasks = [], status: tasksStatus } = useTasks()
   const { data: repositories = [] } = useRepositories()
+  const { data: allProjects = [] } = useProjects()
 
   // Map repository path to repository id for linking
   const repoIdByPath = useMemo(() => {
@@ -280,6 +292,109 @@ const TerminalsView = observer(function TerminalsView() {
     return Array.from(names).sort()
   }, [tasks])
 
+  // Map project repository path to project ID for linking terminals to projects
+  const projectRepoPaths = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const project of allProjects) {
+      if (project.repository?.path) {
+        map.set(project.repository.path, project.id)
+      }
+    }
+    return map
+  }, [allProjects])
+
+  // Map repository path to project info for navigation and display
+  const projectInfoByCwd = useMemo(() => {
+    const map = new Map<string, {
+      projectId: string
+      projectName: string
+      repoPath: string
+      appStatus: string | null
+    }>()
+    for (const project of allProjects) {
+      if (project.repository?.path) {
+        map.set(project.repository.path, {
+          projectId: project.id,
+          projectName: project.name,
+          repoPath: project.repository.path,
+          appStatus: project.app?.status ?? null,
+        })
+      }
+    }
+    return map
+  }, [allProjects])
+
+  // Parse selected project IDs from URL
+  const selectedProjectIds = useMemo(() => {
+    return projectsFilter?.split(',').filter(Boolean) ?? []
+  }, [projectsFilter])
+
+  // Track which project is currently loading (single project at a time)
+  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null)
+  const loadingStartTimeRef = useRef<number>(0)
+  const MIN_LOADING_DURATION = 400 // ms - minimum time to show spinner
+
+  // Toggle a project in the multi-select filter (max 6 projects)
+  const toggleProjectFilter = useCallback(
+    (projectId: string, checked: boolean) => {
+      log.projectTerminals.info('toggleProjectFilter called', { projectId, checked })
+      const currentIds = projectsFilter?.split(',').filter(Boolean) ?? []
+      // Limit to 6 projects max
+      if (checked && currentIds.length >= 6) return
+
+      // Set loading state when adding a project
+      if (checked) {
+        log.projectTerminals.info('Setting loadingProjectId', { projectId })
+        loadingStartTimeRef.current = Date.now()
+        setLoadingProjectId(projectId)
+      }
+
+      const newIds = checked
+        ? [...currentIds, projectId]
+        : currentIds.filter((id) => id !== projectId)
+      navigate({
+        to: '/terminals',
+        search: (prev) => ({ ...prev, projects: newIds.length > 0 ? newIds.join(',') : undefined }),
+        replace: true,
+      })
+    },
+    [navigate, projectsFilter]
+  )
+
+  // Auto-create terminals for selected projects that don't have one
+  useEffect(() => {
+    if (activeTabId !== ALL_PROJECTS_TAB_ID) return
+    if (!connected) return
+
+    log.projectTerminals.debug('Auto-create effect running', {
+      selectedProjectIds,
+      terminalCount: terminals.length,
+      terminalCwds: terminals.map(t => t.cwd),
+    })
+
+    for (const projectId of selectedProjectIds) {
+      const project = allProjects.find((p) => p.id === projectId)
+      if (!project?.repository?.path) continue
+
+      const repoPath = project.repository.path
+      // Check if terminal already exists for this project
+      const existingTerminal = terminals.find((t) => t.cwd === repoPath)
+      if (existingTerminal) {
+        log.projectTerminals.debug('Terminal already exists for project', { projectId, repoPath })
+        continue
+      }
+
+      // Create terminal for this project
+      log.projectTerminals.info('Creating terminal for project', { projectId, repoPath })
+      createTerminal({
+        name: project.name,
+        cwd: repoPath,
+        cols: 80,
+        rows: 24,
+      })
+    }
+  }, [activeTabId, selectedProjectIds, allProjects, terminals, connected, createTerminal])
+
   const cleanupFnsRef = useRef<Map<string, () => void>>(new Map())
   const terminalCountRef = useRef(0)
   // Guard against duplicate creations from React Strict Mode or double-click
@@ -305,12 +420,52 @@ const TerminalsView = observer(function TerminalsView() {
         })
         .map(toTerminalInfo)
     }
+    if (activeTabId === ALL_PROJECTS_TAB_ID) {
+      // Show terminals for projects - only show selected projects (default: none)
+      if (selectedProjectIds.length === 0) return []
+      return terminals
+        .filter((t) => t.cwd && projectRepoPaths.has(t.cwd))
+        .filter((t) => {
+          const projectId = projectRepoPaths.get(t.cwd!)
+          return projectId && selectedProjectIds.includes(projectId)
+        })
+        .map(toTerminalInfo)
+    }
     // Filter terminals by tabId, sorted by positionInTab
     return terminals
       .filter((t) => t.tabId === activeTabId)
       .sort((a, b) => a.positionInTab - b.positionInTab)
       .map(toTerminalInfo)
-  }, [activeTabId, terminals, activeTaskWorktrees, repoFilter, tasks])
+  }, [activeTabId, terminals, activeTaskWorktrees, repoFilter, tasks, projectRepoPaths, selectedProjectIds])
+
+  // Clear loading state when terminal appears (with minimum duration)
+  useEffect(() => {
+    if (!loadingProjectId) return
+    const project = allProjects.find(p => p.id === loadingProjectId)
+    if (!project?.repository?.path) return
+    const repoPath = project.repository.path
+    const hasTerminal = visibleTerminals.some(t => t.cwd === repoPath)
+    log.projectTerminals.debug('Clear loading effect', {
+      loadingProjectId,
+      repoPath,
+      hasTerminal,
+      visibleTerminalCwds: visibleTerminals.map(t => t.cwd),
+    })
+    if (hasTerminal) {
+      // Ensure minimum loading duration for visual feedback
+      const elapsed = Date.now() - loadingStartTimeRef.current
+      const remaining = MIN_LOADING_DURATION - elapsed
+      if (remaining > 0) {
+        const timer = setTimeout(() => {
+          log.projectTerminals.info('Clearing loadingProjectId after delay', { loadingProjectId })
+          setLoadingProjectId(null)
+        }, remaining)
+        return () => clearTimeout(timer)
+      }
+      log.projectTerminals.info('Clearing loadingProjectId', { loadingProjectId })
+      setLoadingProjectId(null)
+    }
+  }, [loadingProjectId, allProjects, visibleTerminals])
 
   const handleTerminalAdd = useCallback(() => {
     log.terminal.info('handleTerminalAdd called', {
@@ -503,23 +658,24 @@ const TerminalsView = observer(function TerminalsView() {
   )
 
   // Keyboard shortcuts (Cmd+D/W only work on desktop - browser intercepts on web)
+  const isSystemTab = activeTabId === ALL_TASKS_TAB_ID || activeTabId === ALL_PROJECTS_TAB_ID
   useHotkeys('meta+d', handleTerminalAdd, {
-    enabled: activeTabId !== ALL_TASKS_TAB_ID && connected,
+    enabled: !isSystemTab && connected,
     allowInTerminal: true,
-    deps: [handleTerminalAdd, activeTabId, connected],
+    deps: [handleTerminalAdd, isSystemTab, connected],
   })
 
   useHotkeys('meta+w', () => {
-    if (activeTabId && activeTabId !== ALL_TASKS_TAB_ID) {
+    if (activeTabId && !isSystemTab) {
       const focusedId = getFocusedTerminal(activeTabId)
       if (focusedId) {
         handleTerminalClose(focusedId)
       }
     }
   }, {
-    enabled: activeTabId !== ALL_TASKS_TAB_ID,
+    enabled: !isSystemTab,
     allowInTerminal: true,
-    deps: [activeTabId, getFocusedTerminal, handleTerminalClose],
+    deps: [activeTabId, isSystemTab, getFocusedTerminal, handleTerminalClose],
   })
 
   return (
@@ -542,7 +698,22 @@ const TerminalsView = observer(function TerminalsView() {
             <HugeiconsIcon icon={TaskDaily01Icon} size={12} strokeWidth={2} />
             <span className="max-sm:hidden">{t('taskTerminals')}</span>
           </button>
-          {/* Separator between Tasks and regular tabs */}
+          {/* Projects system tab */}
+          <button
+            onClick={() => setActiveTab(ALL_PROJECTS_TAB_ID)}
+            className={cn(
+              'relative flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors max-sm:px-2',
+              activeTabId === ALL_PROJECTS_TAB_ID
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-primary hover:bg-primary/5',
+              'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary after:transition-opacity',
+              activeTabId === ALL_PROJECTS_TAB_ID ? 'after:opacity-100' : 'after:opacity-0'
+            )}
+          >
+            <HugeiconsIcon icon={Folder01Icon} size={12} strokeWidth={2} />
+            <span className="max-sm:hidden">{t('projectTerminals')}</span>
+          </button>
+          {/* Separator between system tabs and regular tabs */}
           <div className="mx-2 h-4 w-px shrink-0 bg-border" />
           <div className="min-w-0 flex-1">
             <TerminalTabBar
@@ -579,11 +750,79 @@ const TerminalsView = observer(function TerminalsView() {
               </SelectContent>
             </Select>
           )}
+          {/* Project filter (only when Project Terminals is active) */}
+          {activeTabId === ALL_PROJECTS_TAB_ID && allProjects.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="outline" size="sm" className="max-sm:w-auto" />}
+              >
+                {loadingProjectId ? (
+                  <HugeiconsIcon icon={Loading03Icon} size={12} strokeWidth={2} className="animate-spin text-muted-foreground" />
+                ) : (
+                  <HugeiconsIcon icon={FilterIcon} size={12} strokeWidth={2} className="text-muted-foreground" />
+                )}
+                <span>
+                  {selectedProjectIds.length === 0
+                    ? t('selectProjects')
+                    : t('projectsSelected', { count: selectedProjectIds.length })}
+                </span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-64" align="end">
+                <div className="p-2 space-y-2">
+                  <div className="text-sm font-medium mb-2">{t('filterByProject')}</div>
+                  {allProjects.map((project) => {
+                    const isSelected = selectedProjectIds.includes(project.id)
+                    const isLoading = loadingProjectId === project.id
+                    const isDisabled = loadingProjectId !== null || (!isSelected && selectedProjectIds.length >= 6)
+                    return (
+                      <div key={project.id} className="flex items-center gap-2">
+                        {isLoading ? (
+                          <HugeiconsIcon
+                            icon={Loading03Icon}
+                            size={16}
+                            strokeWidth={2}
+                            className="animate-spin text-muted-foreground"
+                          />
+                        ) : (
+                          <Checkbox
+                            id={`project-filter-${project.id}`}
+                            checked={isSelected}
+                            disabled={isDisabled}
+                            onCheckedChange={(checked) => toggleProjectFilter(project.id, checked === true)}
+                          />
+                        )}
+                        <Label
+                          htmlFor={`project-filter-${project.id}`}
+                          className={`text-sm ${isDisabled ? 'text-muted-foreground cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          {project.name}
+                        </Label>
+                      </div>
+                    )
+                  })}
+                  {selectedProjectIds.length > 0 && !loadingProjectId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-2"
+                      onClick={() => navigate({
+                        to: '/terminals',
+                        search: (prev) => ({ ...prev, projects: undefined }),
+                        replace: true,
+                      })}
+                    >
+                      {t('clearFilter')}
+                    </Button>
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button
             variant="outline"
             size="sm"
             onClick={handleTerminalAdd}
-            disabled={!connected || activeTabId === ALL_TASKS_TAB_ID}
+            disabled={!connected || activeTabId === ALL_TASKS_TAB_ID || activeTabId === ALL_PROJECTS_TAB_ID}
             className="max-sm:px-2 border-transparent text-primary"
           >
             <HugeiconsIcon
@@ -601,15 +840,16 @@ const TerminalsView = observer(function TerminalsView() {
       <div className="min-w-0 flex-1 overflow-hidden">
         <TerminalGrid
           terminals={visibleTerminals}
-          onTerminalClose={activeTabId === ALL_TASKS_TAB_ID ? undefined : handleTerminalClose}
-          onTerminalAdd={connected && activeTabId !== ALL_TASKS_TAB_ID ? handleTerminalAdd : undefined}
+          onTerminalClose={activeTabId === ALL_TASKS_TAB_ID || activeTabId === ALL_PROJECTS_TAB_ID ? undefined : handleTerminalClose}
+          onTerminalAdd={connected && activeTabId !== ALL_TASKS_TAB_ID && activeTabId !== ALL_PROJECTS_TAB_ID ? handleTerminalAdd : undefined}
           onTerminalReady={handleTerminalReady}
           onTerminalResize={handleTerminalResize}
-          onTerminalRename={activeTabId === ALL_TASKS_TAB_ID ? undefined : handleTerminalRename}
+          onTerminalRename={activeTabId === ALL_TASKS_TAB_ID || activeTabId === ALL_PROJECTS_TAB_ID ? undefined : handleTerminalRename}
           setupImagePaste={setupImagePaste}
           writeToTerminal={writeToTerminal}
           sendInputToTerminal={sendInputToTerminal}
           taskInfoByCwd={activeTabId === ALL_TASKS_TAB_ID ? taskInfoByCwd : undefined}
+          projectInfoByCwd={activeTabId === ALL_PROJECTS_TAB_ID ? projectInfoByCwd : undefined}
         />
       </div>
 
@@ -635,5 +875,6 @@ export const Route = createFileRoute('/terminals/')({
   validateSearch: (search: Record<string, unknown>): TerminalsSearch => ({
     tab: typeof search.tab === 'string' ? search.tab : undefined,
     repo: typeof search.repo === 'string' ? search.repo : undefined,
+    projects: typeof search.projects === 'string' ? search.projects : undefined,
   }),
 })

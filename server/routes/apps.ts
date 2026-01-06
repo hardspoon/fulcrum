@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import { rm } from 'fs/promises'
+import { rm, readFile } from 'fs/promises'
 import { join } from 'path'
 import { nanoid } from 'nanoid'
 import { eq, desc } from 'drizzle-orm'
 import { db } from '../db'
-import { apps, appServices, deployments, repositories, tunnels } from '../db/schema'
+import { apps, appServices, deployments, repositories, tunnels, projects } from '../db/schema'
 import { findComposeFile, parseComposeFile } from '../services/compose-parser'
 import {
   deployApp,
@@ -221,6 +221,16 @@ app.post('/', async (c) => {
       where: eq(appServices.appId, appId),
     })
 
+    // Auto-link to project if one exists for this repository
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.repositoryId, body.repositoryId),
+    })
+    if (project && !project.appId) {
+      await db.update(projects)
+        .set({ appId, updatedAt: now })
+        .where(eq(projects.id, project.id))
+    }
+
     // Refresh git watchers for auto-deploy
     refreshGitWatchers().catch(() => {})
 
@@ -247,6 +257,7 @@ app.patch('/:id', async (c) => {
       name?: string
       branch?: string
       autoDeployEnabled?: boolean
+      autoPortAllocation?: boolean
       environmentVariables?: Record<string, string>
       noCacheBuild?: boolean
       notificationsEnabled?: boolean
@@ -267,6 +278,7 @@ app.patch('/:id', async (c) => {
     if (body.name !== undefined) updateData.name = body.name
     if (body.branch !== undefined) updateData.branch = body.branch
     if (body.autoDeployEnabled !== undefined) updateData.autoDeployEnabled = body.autoDeployEnabled
+    if (body.autoPortAllocation !== undefined) updateData.autoPortAllocation = body.autoPortAllocation
     if (body.environmentVariables !== undefined) {
       updateData.environmentVariables = JSON.stringify(body.environmentVariables)
     }
@@ -481,6 +493,16 @@ app.delete('/:id', async (c) => {
 
   // Delete tunnel records
   await db.delete(tunnels).where(eq(tunnels.appId, id))
+
+  // Unlink from project if linked
+  const project = await db.query.projects.findFirst({
+    where: eq(projects.appId, id),
+  })
+  if (project) {
+    await db.update(projects)
+      .set({ appId: null, updatedAt: new Date().toISOString() })
+      .where(eq(projects.id, project.id))
+  }
 
   // Delete app
   await db.delete(apps).where(eq(apps.id, id))
@@ -907,6 +929,70 @@ app.post('/:id/rollback/:deploymentId', async (c) => {
   }
 
   return c.json({ success: true, deployment: result.deployment })
+})
+
+// GET /api/apps/:id/swarm-compose - Preview the swarm compose file with current config
+app.get('/:id/swarm-compose', async (c) => {
+  const id = c.req.param('id')
+
+  const appRecord = await db.query.apps.findFirst({
+    where: eq(apps.id, id),
+  })
+
+  if (!appRecord) {
+    return c.json({ error: 'App not found' }, 404)
+  }
+
+  // Get the repository directly from the app's repositoryId
+  const repo = await db.query.repositories.findFirst({
+    where: eq(repositories.id, appRecord.repositoryId),
+  })
+  if (!repo) {
+    return c.json({ error: 'Repository not found for this app' }, 400)
+  }
+
+  // Parse current environment variables
+  let env: Record<string, string> = {}
+  if (appRecord.environmentVariables) {
+    try {
+      env = JSON.parse(appRecord.environmentVariables)
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  // Generate swarm compose file to temp location with current env vars
+  const { generateSwarmComposeFile } = await import('../services/docker-swarm')
+  const { getProjectName } = await import('../services/deployment')
+  const { tmpdir } = await import('os')
+  const tempDir = join(tmpdir(), `swarm-preview-${id}-${Date.now()}`)
+
+  try {
+    const projectName = getProjectName(id, repo.displayName)
+    const result = await generateSwarmComposeFile(
+      repo.path,
+      appRecord.composeFile,
+      projectName,
+      undefined, // No external network for preview
+      tempDir,
+      env
+    )
+
+    if (!result.success) {
+      return c.json({ error: result.error || 'Failed to generate preview' }, 500)
+    }
+
+    const content = await readFile(result.swarmFile, 'utf-8')
+
+    // Clean up temp file
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {})
+
+    return c.json({ content, preview: true })
+  } catch (err) {
+    // Clean up on error
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {})
+    throw err
+  }
 })
 
 export default app

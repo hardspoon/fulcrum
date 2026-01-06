@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { mkdir, readFile, writeFile } from 'fs/promises'
+import { createServer } from 'net'
 import { join, resolve, isAbsolute } from 'path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { log } from '../lib/logger'
@@ -157,6 +158,182 @@ export async function ensureSwarmMode(): Promise<{ initialized: boolean; error?:
 }
 
 /**
+ * Check if a port is available on the host
+ */
+export async function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = createServer()
+
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(false)
+      } else {
+        // Other errors (permission, etc.) - treat as unavailable
+        resolve(false)
+      }
+    })
+
+    server.once('listening', () => {
+      server.close(() => resolve(true))
+    })
+
+    server.listen(port, '0.0.0.0')
+  })
+}
+
+/**
+ * Find an available port starting from the given port
+ * Searches up to maxAttempts ports before giving up
+ */
+export async function findAvailablePort(
+  startPort: number,
+  maxAttempts = 100
+): Promise<number | null> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = startPort + i
+    if (port > 65535) break
+
+    if (await isPortAvailable(port)) {
+      return port
+    }
+  }
+  return null
+}
+
+export interface PortConflict {
+  serviceName: string
+  requestedPort: number
+  envVar?: string // The env var that defines this port (e.g., "PORT")
+}
+
+export interface PortValidationResult {
+  valid: boolean
+  conflicts: PortConflict[]
+  allocations?: Map<string, number> // envVar -> allocated port
+}
+
+/**
+ * Extract and validate ports from a compose file
+ * Returns conflicts if any ports are in use, or allocates new ports if requested
+ */
+export async function validateAndAllocatePorts(
+  cwd: string,
+  composeFile: string,
+  env: Record<string, string> = {},
+  autoAllocate = false
+): Promise<PortValidationResult> {
+  const conflicts: PortConflict[] = []
+  const allocations = new Map<string, number>()
+
+  try {
+    const content = await readFile(join(cwd, composeFile), 'utf-8')
+    const parsed = parseYaml(content) as Record<string, unknown>
+
+    const services = parsed.services as Record<string, Record<string, unknown>> | undefined
+    if (!services) {
+      return { valid: true, conflicts: [] }
+    }
+
+    // Track which env vars map to which ports for potential reallocation
+    const envVarPorts = new Map<string, { serviceName: string; port: number }>()
+
+    for (const [serviceName, serviceConfig] of Object.entries(services)) {
+      if (!Array.isArray(serviceConfig.ports)) continue
+
+      for (const portSpec of serviceConfig.ports) {
+        const portInfo = extractPortInfo(portSpec, env)
+        if (!portInfo) continue
+
+        const { publishedPort, envVar } = portInfo
+
+        // Check if port is available
+        const available = await isPortAvailable(publishedPort)
+
+        if (!available) {
+          conflicts.push({
+            serviceName,
+            requestedPort: publishedPort,
+            envVar,
+          })
+
+          if (autoAllocate && envVar) {
+            // Try to find an available port
+            const newPort = await findAvailablePort(publishedPort + 1)
+            if (newPort) {
+              allocations.set(envVar, newPort)
+              envVarPorts.set(envVar, { serviceName, port: newPort })
+              log.deploy.info('Auto-allocated port due to conflict', {
+                serviceName,
+                envVar,
+                requestedPort: publishedPort,
+                allocatedPort: newPort,
+              })
+            }
+          }
+        } else if (envVar) {
+          envVarPorts.set(envVar, { serviceName, port: publishedPort })
+        }
+      }
+    }
+
+    // If we have conflicts but successfully allocated alternatives, consider it valid
+    const unresolvedConflicts = conflicts.filter(
+      (c) => !c.envVar || !allocations.has(c.envVar)
+    )
+
+    return {
+      valid: unresolvedConflicts.length === 0,
+      conflicts: unresolvedConflicts,
+      allocations: allocations.size > 0 ? allocations : undefined,
+    }
+  } catch (err) {
+    log.deploy.error('Failed to validate ports', { error: String(err) })
+    return { valid: true, conflicts: [] } // Don't block deployment on parse errors
+  }
+}
+
+/**
+ * Extract port number and associated env var from a port specification
+ */
+function extractPortInfo(
+  portSpec: unknown,
+  env: Record<string, string>
+): { publishedPort: number; envVar?: string } | null {
+  if (typeof portSpec === 'string') {
+    // Short syntax: "8080:80", "${PORT}:${PORT}", "${PORT:-3000}:3000"
+    const [portPart] = portSpec.split('/')
+    const parts = splitRespectingEnvVars(portPart)
+    const publishedPart = parts[0]
+
+    // Check if it's an env var reference
+    const envVarMatch = publishedPart.match(/\$\{?(\w+)(?::-[^}]*)?\}?/)
+    const envVar = envVarMatch?.[1]
+
+    // Expand the env var
+    const expanded = expandEnvVar(publishedPart, env)
+    const port = expanded ? Number(expanded) : NaN
+
+    if (isNaN(port)) return null
+
+    return { publishedPort: port, envVar }
+  }
+
+  if (typeof portSpec === 'number') {
+    return { publishedPort: portSpec }
+  }
+
+  if (typeof portSpec === 'object' && portSpec !== null) {
+    const p = portSpec as Record<string, unknown>
+    const published = p.published as number
+    if (typeof published === 'number') {
+      return { publishedPort: published }
+    }
+  }
+
+  return null
+}
+
+/**
  * Generate a Swarm-compatible compose file
  *
  * Docker Swarm has different requirements than docker compose:
@@ -174,7 +351,8 @@ export async function generateSwarmComposeFile(
   composeFile: string,
   projectName: string,
   externalNetwork: string | undefined, // Optional external network for ingress (e.g., dokploy-network)
-  outputDir: string // Directory to write the swarm compose file (e.g., VIBORA_DIR/apps/{appId})
+  outputDir: string, // Directory to write the swarm compose file (e.g., VIBORA_DIR/apps/{appId})
+  env?: Record<string, string> // Environment variables for variable expansion (e.g., PORT=3005)
 ): Promise<{ success: boolean; swarmFile: string; error?: string }> {
   const swarmFileName = 'swarm-compose.yml'
   const originalPath = join(cwd, composeFile)
@@ -242,7 +420,7 @@ export async function generateSwarmComposeFile(
       // like ".:/app" would resolve to that directory instead of the repo
       if (Array.isArray(serviceConfig.volumes)) {
         serviceConfig.volumes = serviceConfig.volumes.map((vol: unknown) =>
-          resolveVolumeEntry(vol, cwd)
+          resolveVolumeEntry(vol, cwd, env)
         )
       }
 
@@ -251,7 +429,7 @@ export async function generateSwarmComposeFile(
       // causing connections to hang. Host mode binds directly to the node.
       if (Array.isArray(serviceConfig.ports)) {
         serviceConfig.ports = serviceConfig.ports.map((port: unknown) =>
-          convertPortToHostMode(port)
+          convertPortToHostMode(port, env)
         )
         log.deploy.debug('Converted ports to host mode', {
           service: serviceName,
@@ -666,7 +844,7 @@ interface SwarmPortConfig {
  *
  * We convert all to long syntax with mode: host to bypass the ingress routing mesh
  */
-function convertPortToHostMode(port: unknown): SwarmPortConfig {
+function convertPortToHostMode(port: unknown, env?: Record<string, string>): SwarmPortConfig {
   if (typeof port === 'string') {
     // Parse short syntax: "published:target", "published:target/protocol", or just "port"
     // Handle env var syntax like "${PORT:-3001}:${PORT:-3001}"
@@ -675,7 +853,7 @@ function convertPortToHostMode(port: unknown): SwarmPortConfig {
     // Expand env vars in port parts (use splitRespectingEnvVars for ${VAR:-default} syntax)
     const rawParts = splitRespectingEnvVars(portPart)
     const parts = rawParts.map((p) => {
-      const expanded = expandEnvVar(p)
+      const expanded = expandEnvVar(p, env)
       return expanded ? Number(expanded) : NaN
     })
 
@@ -733,9 +911,9 @@ function convertPortToHostMode(port: unknown): SwarmPortConfig {
  * Named volumes (no slashes) and absolute paths are returned as-is
  * Handles env var syntax like ${DATA_DIR:-./data}
  */
-function resolveVolumePath(volumePath: string, basePath: string): string {
+function resolveVolumePath(volumePath: string, basePath: string, env?: Record<string, string>): string {
   // Try to expand env var syntax first
-  const expanded = expandEnvVar(volumePath)
+  const expanded = expandEnvVar(volumePath, env)
   const pathToCheck = expanded ?? volumePath // Use original if can't expand
 
   // Named volumes don't have slashes in the host part
@@ -764,7 +942,7 @@ function resolveVolumePath(volumePath: string, basePath: string): string {
  * Handles both short syntax ("./host:/container") and long syntax ({ type: bind, source: ./host, target: /container })
  * Also handles env var syntax like "${DATA_DIR:-./data}:/app/data"
  */
-function resolveVolumeEntry(volume: unknown, basePath: string): unknown {
+function resolveVolumeEntry(volume: unknown, basePath: string, env?: Record<string, string>): unknown {
   // Short syntax: string like "./host:/container:ro" or "volume_name:/container"
   if (typeof volume === 'string') {
     // Use splitRespectingEnvVars to handle ${VAR:-default} syntax
@@ -775,7 +953,7 @@ function resolveVolumeEntry(volume: unknown, basePath: string): unknown {
       const containerPath = parts[1]
       const options = parts.slice(2).join(':')
 
-      const resolvedHost = resolveVolumePath(hostPath, basePath)
+      const resolvedHost = resolveVolumePath(hostPath, basePath, env)
 
       // Only log if we actually resolved a relative path
       if (resolvedHost !== hostPath) {
@@ -795,7 +973,7 @@ function resolveVolumeEntry(volume: unknown, basePath: string): unknown {
   if (typeof volume === 'object' && volume !== null) {
     const vol = volume as Record<string, unknown>
     if (vol.type === 'bind' && typeof vol.source === 'string') {
-      const resolvedSource = resolveVolumePath(vol.source, basePath)
+      const resolvedSource = resolveVolumePath(vol.source, basePath, env)
       if (resolvedSource !== vol.source) {
         log.deploy.debug('Resolved relative volume path (long syntax)', {
           original: vol.source,

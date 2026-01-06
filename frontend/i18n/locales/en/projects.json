@@ -1,0 +1,119 @@
+{
+  "title": "Projects",
+  "total": "{{count}} total",
+  "searchPlaceholder": "Search projects...",
+  "newTask": "New Task",
+  "terminal": "Terminal",
+  "editor": "Editor",
+  "deploy": "Deploy",
+  "stop": "Stop",
+  "newProjectButton": "New Project",
+  "empty": {
+    "noProjects": "No projects yet. Create a project to get started.",
+    "noMatches": "No projects match your search."
+  },
+  "error": {
+    "failedToLoad": "Failed to load projects: {{message}}"
+  },
+  "card": {
+    "noApp": "No app",
+    "running": "Running",
+    "building": "Building",
+    "stopped": "Stopped",
+    "failed": "Failed"
+  },
+  "delete": {
+    "title": "Delete Project",
+    "description": "This will remove the project \"{{name}}\".",
+    "button": "Delete",
+    "deleting": "Deleting...",
+    "alsoDeleteDirectory": "Also delete the directory",
+    "alsoDeleteApp": "Also delete the app and stop containers"
+  },
+  "detailView": {
+    "breadcrumb": "Projects",
+    "notFound": "Project not found",
+    "save": "Save",
+    "saving": "Saving...",
+    "tabs": {
+      "settings": "Task Settings",
+      "workspace": "Workspace",
+      "deploy": "Deploy",
+      "deployGeneral": "General",
+      "deployments": "Deployments",
+      "logs": "Logs",
+      "monitoring": "Monitoring"
+    },
+    "general": {
+      "repositoryTitle": "Repository",
+      "agentTitle": "Agent Options",
+      "path": "Path",
+      "displayName": "Display Name",
+      "startupScript": "Startup Script",
+      "copyFiles": "Copy Files",
+      "defaultAgent": "Default Agent",
+      "claudeOptions": "Claude Code Options",
+      "opencodeOptions": "OpenCode Options",
+      "opencodeModel": "OpenCode Model",
+      "noRepository": "No repository linked to this project."
+    },
+    "app": {
+      "title": "App Configuration",
+      "noApp": "No app configured for this project.",
+      "configureDeployment": "Configure Deployment",
+      "configureDeploymentDescription": "Set up Docker Compose deployment for this project",
+      "configuring": "Configuring...",
+      "deployOptions": "Deploy Options",
+      "autoDeployEnabled": "Auto-deploy on commit",
+      "autoPortAllocation": "Auto-allocate ports",
+      "noCacheBuild": "No-cache builds",
+      "notificationsEnabled": "Deployment notifications",
+      "services": "Services",
+      "environment": "Environment Variables",
+      "composeFile": "Compose File"
+    }
+  },
+  "newProject": {
+    "step": "Step {{current}} of {{total}}",
+    "selectRepository": "Select Repository",
+    "existingRepo": "Existing",
+    "addNewRepo": "Add New",
+    "searchRepos": "Search repositories...",
+    "noReposFound": "No repositories found",
+    "repoPathOrUrl": "Repository Path or URL",
+    "repoInputPlaceholder": "~/code/my-repo or https://github.com/user/repo",
+    "browse": "Browse",
+    "cloneOptions": "Clone Options",
+    "targetDirectory": "Target Directory",
+    "folderName": "Folder Name",
+    "willCloneTo": "Will clone to",
+    "cloning": "Cloning repository...",
+    "adding": "Adding repository...",
+    "cloneAndSelect": "Clone & Select",
+    "addAndSelect": "Add & Select",
+    "addRepoFailed": "Failed to add repository",
+    "checkingCompose": "Checking for compose file...",
+    "composeFound": "Found {{file}}",
+    "noCompose": "No compose file found",
+    "cancel": "Cancel",
+    "next": "Next",
+    "back": "Back",
+    "configureProject": "Configure Project",
+    "projectName": "Project Name",
+    "projectNamePlaceholder": "my-project",
+    "description": "Description",
+    "descriptionPlaceholder": "Optional project description",
+    "composeDetected": "Docker Compose detected: {{file}}",
+    "setupAppNow": "Set up app deployment after creation",
+    "createProject": "Create Project",
+    "creating": "Creating...",
+    "create": "Create"
+  },
+  "filter": {
+    "all": "All",
+    "hasApp": "With App",
+    "noApp": "Without App",
+    "running": "Running",
+    "archived": "Archived"
+  }
+}

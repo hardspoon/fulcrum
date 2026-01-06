@@ -142,6 +142,12 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
       const hasPinnedColumn = sqlite
         .query("SELECT name FROM pragma_table_info('tasks') WHERE name='pinned'")
         .get()
+      const hasProjectsTable = sqlite
+        .query("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
+        .get()
+      const hasAutoPortAllocationColumn = sqlite
+        .query("SELECT name FROM pragma_table_info('apps') WHERE name='auto_port_allocation'")
+        .get()
 
       // Determine which migrations should be marked as applied based on schema state
       const migrationsToMark: Array<{ tag: string; when: number }> = []
@@ -190,6 +196,14 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
         else if (entry.tag.startsWith('0021') && hasPinnedColumn) {
           shouldMark = true
         }
+        // 0022 creates projects table
+        else if (entry.tag.startsWith('0022') && hasProjectsTable) {
+          shouldMark = true
+        }
+        // 0023 adds auto_port_allocation column to apps
+        else if (entry.tag.startsWith('0023') && hasAutoPortAllocationColumn) {
+          shouldMark = true
+        }
 
         if (shouldMark) {
           migrationsToMark.push(entry)
@@ -213,6 +227,62 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
   }
 
   migrate(drizzleDb, { migrationsFolder: migrationsPath })
+
+  // Run data migrations after schema migrations
+  migrateRepositoriesToProjects(sqlite)
+}
+
+// Data migration: Create projects for existing repositories
+function migrateRepositoriesToProjects(sqlite: Database): void {
+  // Check if projects table exists
+  const hasProjectsTable = sqlite
+    .query("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
+    .get()
+
+  if (!hasProjectsTable) return
+
+  // Check if any repositories exist without projects
+  const orphanedRepos = sqlite
+    .query(`
+      SELECT r.id, r.display_name, r.path, r.last_used_at
+      FROM repositories r
+      WHERE NOT EXISTS (
+        SELECT 1 FROM projects p WHERE p.repository_id = r.id
+      )
+    `)
+    .all() as Array<{ id: string; display_name: string; path: string; last_used_at: string | null }>
+
+  if (orphanedRepos.length === 0) return
+
+  log.db.info('Migrating repositories to projects', { count: orphanedRepos.length })
+
+  const now = new Date().toISOString()
+  // Using dynamic import at top of module scope would cause issues during migration
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { nanoid } = require('nanoid')
+
+  for (const repo of orphanedRepos) {
+    // Find app linked to this repository (if any)
+    const linkedApp = sqlite
+      .query('SELECT id FROM apps WHERE repository_id = ?')
+      .get(repo.id) as { id: string } | null
+
+    // Create terminal tab for this project
+    const tabId = nanoid()
+    sqlite.exec(`
+      INSERT INTO terminal_tabs (id, name, position, directory, created_at, updated_at)
+      VALUES ('${tabId}', '${repo.display_name.replace(/'/g, "''")}', 0, '${repo.path.replace(/'/g, "''")}', '${now}', '${now}')
+    `)
+
+    // Create project
+    const projectId = nanoid()
+    sqlite.exec(`
+      INSERT INTO projects (id, name, repository_id, app_id, terminal_tab_id, status, last_accessed_at, created_at, updated_at)
+      VALUES ('${projectId}', '${repo.display_name.replace(/'/g, "''")}', '${repo.id}', ${linkedApp ? `'${linkedApp.id}'` : 'NULL'}, '${tabId}', 'active', ${repo.last_used_at ? `'${repo.last_used_at}'` : 'NULL'}, '${now}', '${now}')
+    `)
+  }
+
+  log.db.info('Migrated repositories to projects successfully', { count: orphanedRepos.length })
 }
 
 // Re-export schema for convenience

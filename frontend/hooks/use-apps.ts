@@ -83,6 +83,7 @@ export function useUpdateApp() {
         name?: string
         branch?: string
         autoDeployEnabled?: boolean
+        autoPortAllocation?: boolean
         environmentVariables?: Record<string, string>
         noCacheBuild?: boolean
         notificationsEnabled?: boolean
@@ -139,6 +140,8 @@ export function useDeployApp() {
       queryClient.invalidateQueries({ queryKey: ['apps'] })
       queryClient.invalidateQueries({ queryKey: ['apps', id] })
       queryClient.invalidateQueries({ queryKey: ['apps', id, 'deployments'] })
+      queryClient.invalidateQueries({ queryKey: ['apps', id, 'status'] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 }
@@ -190,6 +193,8 @@ export function useDeployAppStream() {
         queryClient.invalidateQueries({ queryKey: ['apps'] })
         queryClient.invalidateQueries({ queryKey: ['apps', id] })
         queryClient.invalidateQueries({ queryKey: ['apps', id, 'deployments'] })
+        queryClient.invalidateQueries({ queryKey: ['apps', id, 'status'] })
+        queryClient.invalidateQueries({ queryKey: ['projects'] })
       })
 
       eventSource.addEventListener('error', (e) => {
@@ -207,6 +212,8 @@ export function useDeployAppStream() {
         queryClient.invalidateQueries({ queryKey: ['apps'] })
         queryClient.invalidateQueries({ queryKey: ['apps', id] })
         queryClient.invalidateQueries({ queryKey: ['apps', id, 'deployments'] })
+        queryClient.invalidateQueries({ queryKey: ['apps', id, 'status'] })
+        queryClient.invalidateQueries({ queryKey: ['projects'] })
       })
 
       eventSource.onerror = () => {
@@ -259,6 +266,9 @@ export function useStopApp() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['apps'] })
       queryClient.invalidateQueries({ queryKey: ['apps', id] })
+      queryClient.invalidateQueries({ queryKey: ['apps', id, 'status'] })
+      // Also invalidate projects since they include app status
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 }
@@ -275,6 +285,8 @@ export function useCancelDeployment() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['apps'] })
       queryClient.invalidateQueries({ queryKey: ['apps', id] })
+      queryClient.invalidateQueries({ queryKey: ['apps', id, 'status'] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 }
@@ -500,5 +512,14 @@ export function useUpdateDeploymentSettings() {
       queryClient.invalidateQueries({ queryKey: ['deployment', 'settings'] })
       queryClient.invalidateQueries({ queryKey: ['deployment', 'prerequisites'] })
     },
+  })
+}
+
+// Fetch the generated swarm compose file for an app (lazy - only fetches when refetch is called)
+export function useSwarmComposeFile(appId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['apps', appId, 'swarm-compose'],
+    queryFn: () => fetchJSON<{ content: string; preview: boolean }>(`${API_BASE}/api/apps/${appId}/swarm-compose`),
+    enabled: false, // Only fetch when explicitly requested via refetch()
   })
 }
