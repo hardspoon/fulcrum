@@ -148,6 +148,9 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
       const hasAutoPortAllocationColumn = sqlite
         .query("SELECT name FROM pragma_table_info('apps') WHERE name='auto_port_allocation'")
         .get()
+      const hasSelectedProjectIdsColumn = sqlite
+        .query("SELECT name FROM pragma_table_info('terminal_view_state') WHERE name='selected_project_ids'")
+        .get()
 
       // Determine which migrations should be marked as applied based on schema state
       const migrationsToMark: Array<{ tag: string; when: number }> = []
@@ -202,6 +205,10 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
         }
         // 0023 adds auto_port_allocation column to apps
         else if (entry.tag.startsWith('0023') && hasAutoPortAllocationColumn) {
+          shouldMark = true
+        }
+        // 0024 adds selected_project_ids column to terminal_view_state
+        else if (entry.tag.startsWith('0024') && hasSelectedProjectIdsColumn) {
           shouldMark = true
         }
 
@@ -267,18 +274,11 @@ function migrateRepositoriesToProjects(sqlite: Database): void {
       .query('SELECT id FROM apps WHERE repository_id = ?')
       .get(repo.id) as { id: string } | null
 
-    // Create terminal tab for this project
-    const tabId = nanoid()
-    sqlite.exec(`
-      INSERT INTO terminal_tabs (id, name, position, directory, created_at, updated_at)
-      VALUES ('${tabId}', '${repo.display_name.replace(/'/g, "''")}', 0, '${repo.path.replace(/'/g, "''")}', '${now}', '${now}')
-    `)
-
-    // Create project
+    // Create project (without a dedicated terminal tab - use "All Projects" virtual tab instead)
     const projectId = nanoid()
     sqlite.exec(`
       INSERT INTO projects (id, name, repository_id, app_id, terminal_tab_id, status, last_accessed_at, created_at, updated_at)
-      VALUES ('${projectId}', '${repo.display_name.replace(/'/g, "''")}', '${repo.id}', ${linkedApp ? `'${linkedApp.id}'` : 'NULL'}, '${tabId}', 'active', ${repo.last_used_at ? `'${repo.last_used_at}'` : 'NULL'}, '${now}', '${now}')
+      VALUES ('${projectId}', '${repo.display_name.replace(/'/g, "''")}', '${repo.id}', ${linkedApp ? `'${linkedApp.id}'` : 'NULL'}, NULL, 'active', ${repo.last_used_at ? `'${repo.last_used_at}'` : 'NULL'}, '${now}', '${now}')
     `)
   }
 

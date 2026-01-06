@@ -111,8 +111,8 @@ const TerminalsView = observer(function TerminalsView() {
   // State for tab edit dialog
   const [editingTab, setEditingTab] = useState<TerminalTab | null>(null)
 
-  // View state for tracking focused terminals
-  const { getFocusedTerminal } = useTerminalViewState()
+  // View state for tracking focused terminals and selected projects
+  const { getFocusedTerminal, selectedProjectIds: persistedProjectIds, setSelectedProjects, isLoading: isViewStateLoading } = useTerminalViewState()
 
   // URL is the source of truth for active tab
   // Fall back to first tab if URL doesn't specify a valid tab
@@ -361,6 +361,43 @@ const TerminalsView = observer(function TerminalsView() {
     [navigate, projectsFilter]
   )
 
+  // Restore persisted project selection when navigating to Projects tab with no URL param
+  const hasRestoredRef = useRef(false)
+  useEffect(() => {
+    if (activeTabId !== ALL_PROJECTS_TAB_ID) {
+      hasRestoredRef.current = false
+      return
+    }
+    // Wait for view state to load before attempting restoration
+    if (isViewStateLoading) return
+    // Only restore once per tab visit and only if URL has no projects param
+    if (hasRestoredRef.current || projectsFilter) return
+    if (persistedProjectIds.length === 0) return
+
+    hasRestoredRef.current = true
+    navigate({
+      to: '/terminals',
+      search: (prev) => ({ ...prev, projects: persistedProjectIds.join(',') }),
+      replace: true,
+    })
+  }, [activeTabId, projectsFilter, persistedProjectIds, navigate, isViewStateLoading])
+
+  // Persist project selection to database when it changes
+  useEffect(() => {
+    if (activeTabId !== ALL_PROJECTS_TAB_ID) return
+    // Don't persist while still loading or before restoration has had a chance to run
+    if (isViewStateLoading) return
+    // Don't persist if URL has no projects param and we haven't restored yet
+    // (this prevents overwriting saved data before restoration completes)
+    if (!projectsFilter && !hasRestoredRef.current && persistedProjectIds.length > 0) return
+    // Only persist if different from what we have stored
+    const current = selectedProjectIds.join(',')
+    const persisted = persistedProjectIds.join(',')
+    if (current === persisted) return
+
+    setSelectedProjects(selectedProjectIds)
+  }, [activeTabId, selectedProjectIds, persistedProjectIds, setSelectedProjects, isViewStateLoading, projectsFilter])
+
   // Auto-create terminals for selected projects that don't have one
   useEffect(() => {
     if (activeTabId !== ALL_PROJECTS_TAB_ID) return
@@ -377,8 +414,8 @@ const TerminalsView = observer(function TerminalsView() {
       if (!project?.repository?.path) continue
 
       const repoPath = project.repository.path
-      // Check if terminal already exists for this project
-      const existingTerminal = terminals.find((t) => t.cwd === repoPath)
+      // Check if workspace terminal (no tabId) already exists for this project
+      const existingTerminal = terminals.find((t) => t.cwd === repoPath && !t.tabId)
       if (existingTerminal) {
         log.projectTerminals.debug('Terminal already exists for project', { projectId, repoPath })
         continue
@@ -421,10 +458,10 @@ const TerminalsView = observer(function TerminalsView() {
         .map(toTerminalInfo)
     }
     if (activeTabId === ALL_PROJECTS_TAB_ID) {
-      // Show terminals for projects - only show selected projects (default: none)
+      // Show workspace terminals (no tabId) for selected projects only
       if (selectedProjectIds.length === 0) return []
       return terminals
-        .filter((t) => t.cwd && projectRepoPaths.has(t.cwd))
+        .filter((t) => t.cwd && !t.tabId && projectRepoPaths.has(t.cwd))
         .filter((t) => {
           const projectId = projectRepoPaths.get(t.cwd!)
           return projectId && selectedProjectIds.includes(projectId)
@@ -850,6 +887,7 @@ const TerminalsView = observer(function TerminalsView() {
           sendInputToTerminal={sendInputToTerminal}
           taskInfoByCwd={activeTabId === ALL_TASKS_TAB_ID ? taskInfoByCwd : undefined}
           projectInfoByCwd={activeTabId === ALL_PROJECTS_TAB_ID ? projectInfoByCwd : undefined}
+          emptyMessage={activeTabId === ALL_PROJECTS_TAB_ID ? t('emptyProjects') : activeTabId === ALL_TASKS_TAB_ID ? t('emptyTasks') : undefined}
         />
       </div>
 
