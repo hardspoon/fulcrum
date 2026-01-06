@@ -1,22 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { DescriptionTextarea } from '@/components/ui/description-textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { useUpdateTask, useDeleteTask } from '@/hooks/use-tasks'
+import { DeleteTaskDialog } from '@/components/delete-task-dialog'
+import { useUpdateTask, usePinTask } from '@/hooks/use-tasks'
 import type { Task } from '@/types'
 
 interface TaskConfigModalProps {
@@ -32,10 +22,10 @@ function parseLinearUrl(url: string): string | null {
 
 export function TaskConfigModal({ task, open, onOpenChange }: TaskConfigModalProps) {
   const updateTask = useUpdateTask()
-  const deleteTask = useDeleteTask()
+  const pinTask = usePinTask()
 
   const [title, setTitle] = useState(task.title)
-  const [deleteLinkedWorktree, setDeleteLinkedWorktree] = useState(true)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [description, setDescription] = useState(task.description || '')
   const [prUrl, setPrUrl] = useState(task.prUrl || '')
   const [linearUrl, setLinearUrl] = useState(task.linearTicketUrl || '')
@@ -47,7 +37,7 @@ export function TaskConfigModal({ task, open, onOpenChange }: TaskConfigModalPro
       setDescription(task.description || '')
       setPrUrl(task.prUrl || '')
       setLinearUrl(task.linearTicketUrl || '')
-      setDeleteLinkedWorktree(true)
+      setDeleteDialogOpen(false)
     }
   }, [open, task])
 
@@ -91,15 +81,8 @@ export function TaskConfigModal({ task, open, onOpenChange }: TaskConfigModalPro
     }
   }
 
-  const handleDelete = () => {
-    deleteTask.mutate(
-      { taskId: task.id, deleteLinkedWorktree },
-      {
-        onSuccess: () => {
-          onOpenChange(false)
-        },
-      }
-    )
+  const handleTogglePin = () => {
+    pinTask.mutate({ taskId: task.id, pinned: !task.pinned })
   }
 
   return (
@@ -145,43 +128,32 @@ export function TaskConfigModal({ task, open, onOpenChange }: TaskConfigModalPro
               placeholder="https://linear.app/team/issue/TEAM-123"
             />
           </Field>
+          <div className="flex items-center gap-2 pt-2">
+            <Checkbox
+              id="config-pinned"
+              checked={task.pinned}
+              onCheckedChange={handleTogglePin}
+              disabled={pinTask.isPending}
+            />
+            <label htmlFor="config-pinned" className="text-sm cursor-pointer">
+              Pin worktree (exclude from bulk cleanup)
+            </label>
+          </div>
         </FieldGroup>
         <DialogFooter className="mt-4 flex-row justify-between sm:justify-between">
-          <AlertDialog>
-            <AlertDialogTrigger
-              render={<Button variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" disabled={deleteTask.isPending} />}
-            >
-              {deleteTask.isPending ? 'Deleting...' : 'Delete Task'}
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Task</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete this task. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="flex items-center gap-2 py-2">
-                <Checkbox
-                  id="delete-worktree"
-                  checked={deleteLinkedWorktree}
-                  onCheckedChange={(checked) => setDeleteLinkedWorktree(checked === true)}
-                />
-                <label htmlFor="delete-worktree" className="text-sm cursor-pointer">
-                  Also delete linked worktree
-                </label>
-              </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDelete}
-                  variant="destructive"
-                  disabled={deleteTask.isPending}
-                >
-                  {deleteTask.isPending ? 'Deleting...' : 'Delete'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button
+            variant="ghost"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            Delete Task
+          </Button>
+          <DeleteTaskDialog
+            task={task}
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            onDeleted={() => onOpenChange(false)}
+          />
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

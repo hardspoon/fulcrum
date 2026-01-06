@@ -20,6 +20,7 @@ export const tasks = sqliteTable('tasks', {
   aiMode: text('ai_mode'), // 'default' | 'plan' | null - AI mode for agent startup
   agentOptions: text('agent_options'), // JSON: { [flag]: value } - CLI options for agent
   opencodeModel: text('opencode_model'), // OpenCode model in format 'provider/model' - null means use default
+  pinned: integer('pinned', { mode: 'boolean' }).default(false), // Prevent cleanup from deleting this task's worktree
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

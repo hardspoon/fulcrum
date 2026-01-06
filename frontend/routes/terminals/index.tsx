@@ -249,6 +249,7 @@ const TerminalsView = observer(function TerminalsView() {
       baseBranch: string
       branch: string | null
       prUrl: string | null
+      pinned: boolean
     }>()
     for (const task of tasks) {
       if (task.worktreePath) {
@@ -262,6 +263,7 @@ const TerminalsView = observer(function TerminalsView() {
           baseBranch: task.baseBranch,
           branch: task.branch,
           prUrl: task.prUrl,
+          pinned: task.pinned,
         })
       }
     }

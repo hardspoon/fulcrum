@@ -12,7 +12,8 @@
     "alsoDeleteLinkedTasks": "同时删除关联的任务",
     "done": "已完成",
     "canceled": "已取消",
-    "cannotUndo": "此操作无法撤销。"
+    "cannotUndo": "此操作无法撤销。",
+    "pinnedSkipped": "将跳过 {{count}} 个已固定的工作树"
   },
   "delete": {
     "title": "删除工作树",
@@ -20,7 +21,12 @@
     "linkedTaskWillBeDeleted": "关联的任务 \"{{title}}\" 也将被删除。",
     "alsoDeleteLinkedTask": "同时删除关联的任务 \"{{title}}\"",
     "cannotUndo": "此操作无法撤销。",
-    "button": "删除 {{count}} 个"
+    "button": "删除 {{count}} 个",
+    "unpinFirst": "请先取消固定工作树再删除"
+  },
+  "pin": {
+    "pin": "固定工作树",
+    "unpin": "取消固定工作树"
   },
   "empty": {
     "noMatch": "没有匹配所选筛选条件的工作树。",

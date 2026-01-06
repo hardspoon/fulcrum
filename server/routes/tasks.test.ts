@@ -436,6 +436,71 @@ describe('Tasks Routes', () => {
       expect(taskA?.position).toBe(0)
       expect(taskC?.position).toBe(1)
     })
+
+    test('returns 400 when trying to delete worktree for a pinned task', async () => {
+      const now = new Date().toISOString()
+      db.insert(tasks)
+        .values({
+          id: 'pinned-task-1',
+          title: 'Pinned Task',
+          status: 'IN_PROGRESS',
+          position: 0,
+          repoPath: repo.path,
+          repoName: 'test-repo',
+          baseBranch: repo.defaultBranch,
+          worktreePath: '/some/path',
+          pinned: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run()
+
+      const { request } = createTestApp()
+      const res = await request('/api/tasks/pinned-task-1?deleteLinkedWorktree=true', {
+        method: 'DELETE',
+      })
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toContain('pinned')
+
+      // Task should still exist
+      const task = db.select().from(tasks).where(eq(tasks.id, 'pinned-task-1')).get()
+      expect(task).toBeDefined()
+    })
+
+    test('allows deleting task without worktree deletion when pinned', async () => {
+      const now = new Date().toISOString()
+      db.insert(tasks)
+        .values({
+          id: 'pinned-task-2',
+          title: 'Pinned Task 2',
+          status: 'IN_PROGRESS',
+          position: 0,
+          repoPath: repo.path,
+          repoName: 'test-repo',
+          baseBranch: repo.defaultBranch,
+          worktreePath: '/some/path',
+          pinned: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run()
+
+      const { request } = createTestApp()
+      // Without deleteLinkedWorktree=true, should succeed
+      const res = await request('/api/tasks/pinned-task-2', {
+        method: 'DELETE',
+      })
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+
+      // Task should be deleted
+      const task = db.select().from(tasks).where(eq(tasks.id, 'pinned-task-2')).get()
+      expect(task).toBeUndefined()
+    })
   })
 
   describe('DELETE /api/tasks/bulk', () => {
@@ -507,6 +572,60 @@ describe('Tasks Routes', () => {
 
       expect(res.status).toBe(400)
       expect(body.error).toContain('non-empty array')
+    })
+
+    test('skips worktree deletion for pinned tasks but still deletes tasks', async () => {
+      const now = new Date().toISOString()
+      db.insert(tasks)
+        .values([
+          {
+            id: 'bulk-pinned-1',
+            title: 'Pinned Bulk 1',
+            status: 'IN_PROGRESS',
+            position: 0,
+            repoPath: repo.path,
+            repoName: 'test-repo',
+            baseBranch: repo.defaultBranch,
+            worktreePath: '/fake/pinned/path',
+            pinned: true,
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: 'bulk-unpinned-1',
+            title: 'Unpinned Bulk 1',
+            status: 'IN_PROGRESS',
+            position: 1,
+            repoPath: repo.path,
+            repoName: 'test-repo',
+            baseBranch: repo.defaultBranch,
+            worktreePath: '/fake/unpinned/path',
+            pinned: false,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ])
+        .run()
+
+      const { request } = createTestApp()
+      // Delete both with deleteLinkedWorktrees=true
+      // The pinned task's worktree should be skipped, but both tasks should be deleted
+      const res = await request('/api/tasks/bulk', {
+        method: 'DELETE',
+        body: JSON.stringify({
+          ids: ['bulk-pinned-1', 'bulk-unpinned-1'],
+          deleteLinkedWorktrees: true,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.deleted).toBe(2)
+
+      // Both tasks should be deleted
+      const remaining = db.select().from(tasks).all()
+      expect(remaining.length).toBe(0)
     })
   })
 })

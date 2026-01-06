@@ -297,6 +297,38 @@ describe('Worktrees Routes', () => {
       const deletedTask = db.select().from(tasks).where(eq(tasks.id, task.id)).get()
       expect(deletedTask).toBeUndefined()
     })
+
+    test('returns 400 when trying to delete a pinned worktree', async () => {
+      const basePath = getWorktreeBasePath()
+
+      // Create worktree
+      const wt = createTestWorktree(repo, 'pinned-worktree')
+      const wtPath = join(basePath, 'pinned-worktree')
+      rmSync(wtPath, { recursive: true, force: true })
+      repo.git(`worktree move "${wt.path}" "${wtPath}"`)
+
+      // Create linked task with pinned=true
+      await insertTestTask({
+        title: 'Pinned Task',
+        repoPath: repo.path,
+        worktreePath: wtPath,
+        pinned: true,
+      })
+
+      const { request } = createTestApp()
+      const res = await request('/api/worktrees', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          worktreePath: wtPath,
+          repoPath: repo.path,
+        }),
+      })
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toContain('pinned')
+    })
   })
 
   // Note: The SSE endpoint (GET /api/worktrees) is harder to test because it streams events

@@ -12,7 +12,8 @@
     "alsoDeleteLinkedTasks": "Also delete linked tasks",
     "done": "Done",
     "canceled": "Canceled",
-    "cannotUndo": "This action cannot be undone."
+    "cannotUndo": "This action cannot be undone.",
+    "pinnedSkipped": "{{count}} pinned worktree(s) will be skipped"
   },
   "delete": {
     "title": "Delete Worktree",
@@ -20,7 +21,12 @@
     "linkedTaskWillBeDeleted": "The linked task \"{{title}}\" will also be deleted.",
     "alsoDeleteLinkedTask": "Also delete linked task \"{{title}}\"",
     "cannotUndo": "This action cannot be undone.",
-    "button": "Delete {{count}}"
+    "button": "Delete {{count}}",
+    "unpinFirst": "Unpin worktree before deleting"
+  },
+  "pin": {
+    "pin": "Pin worktree",
+    "unpin": "Unpin worktree"
   },
   "empty": {
     "noMatch": "No worktrees match the selected filters.",

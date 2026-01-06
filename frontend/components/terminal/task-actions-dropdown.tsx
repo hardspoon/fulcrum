@@ -51,6 +51,7 @@ interface TaskActionsDropdownProps {
   repoName: string
   terminalId?: string
   sendInputToTerminal?: (terminalId: string, text: string) => void
+  pinned?: boolean
 }
 
 export function TaskActionsDropdown({
@@ -64,6 +65,7 @@ export function TaskActionsDropdown({
   repoName,
   terminalId,
   sendInputToTerminal,
+  pinned,
 }: TaskActionsDropdownProps) {
   const { t } = useTranslation('common')
   const navigate = useNavigate()
@@ -190,7 +192,8 @@ export function TaskActionsDropdown({
   }
 
   const handleDeleteTask = () => {
-    deleteTask.mutate({ taskId, deleteLinkedWorktree: true })
+    // Never delete worktree for pinned tasks
+    deleteTask.mutate({ taskId, deleteLinkedWorktree: !pinned })
     setShowDeleteDialog(false)
   }
 

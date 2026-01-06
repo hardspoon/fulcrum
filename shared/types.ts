@@ -78,6 +78,7 @@ export interface Task {
   aiMode: 'default' | 'plan' | null
   agentOptions: Record<string, string> | null
   opencodeModel: string | null
+  pinned: boolean
   createdAt: string
   updatedAt: string
 }
@@ -118,6 +119,7 @@ export interface Worktree {
   taskTitle?: string
   taskStatus?: TaskStatus
   repoPath?: string
+  pinned?: boolean
 }
 
 // Basic worktree info (fast to compute - no du/git commands)
@@ -130,6 +132,7 @@ export interface WorktreeBasic {
   taskTitle?: string
   taskStatus?: TaskStatus
   repoPath?: string
+  pinned?: boolean
 }
 
 // Extended worktree details (slow to compute - requires du/git)

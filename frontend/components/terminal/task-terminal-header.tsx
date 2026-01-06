@@ -34,6 +34,7 @@ interface TaskInfo {
   baseBranch: string
   branch: string | null
   prUrl?: string | null
+  pinned?: boolean
 }
 
 interface TaskTerminalHeaderProps {
@@ -77,7 +78,8 @@ export function TaskTerminalHeader({
   const showBadge = containerWidth >= HIDE_BADGE_THRESHOLD
 
   const handleDeleteTask = () => {
-    deleteTask.mutate({ taskId: taskInfo.taskId, deleteLinkedWorktree: true })
+    // Never delete worktree for pinned tasks
+    deleteTask.mutate({ taskId: taskInfo.taskId, deleteLinkedWorktree: !taskInfo.pinned })
   }
 
   return (
@@ -114,6 +116,7 @@ export function TaskTerminalHeader({
                 repoName={taskInfo.repoName}
                 terminalId={terminalId}
                 sendInputToTerminal={sendInputToTerminal}
+                pinned={taskInfo.pinned}
               />
             </div>
           </>
@@ -165,7 +168,9 @@ export function TaskTerminalHeader({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete Task</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete this task and its worktree.
+                      {taskInfo.pinned
+                        ? 'This will permanently delete this task. The pinned worktree will be preserved.'
+                        : 'This will permanently delete this task and its worktree.'}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

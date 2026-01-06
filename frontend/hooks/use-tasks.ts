@@ -144,3 +144,26 @@ export function useBulkDeleteTasks() {
     },
   })
 }
+
+export function usePinTask() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      pinned,
+    }: {
+      taskId: string
+      pinned: boolean
+    }) =>
+      fetchJSON<Task>(`${API_BASE}/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ pinned }),
+      }),
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
+      queryClient.invalidateQueries({ queryKey: ['worktrees'] })
+    },
+  })
+}

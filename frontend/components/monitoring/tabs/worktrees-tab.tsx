@@ -12,6 +12,8 @@ import {
   HardDriveIcon,
   ArrowRight01Icon,
   CleanIcon,
+  PinIcon,
+  PinOffIcon,
 } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -27,7 +29,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { useWorktrees, useDeleteWorktree } from '@/hooks/use-worktrees'
+import { useWorktrees, useDeleteWorktree, usePinWorktree } from '@/hooks/use-worktrees'
 import { cn } from '@/lib/utils'
 import type { Worktree, TaskStatus } from '@/types'
 
@@ -74,11 +76,13 @@ export default function WorktreesTab() {
   const formatRelativeTime = useFormatRelativeTime()
   const { worktrees, summary, isLoading, isLoadingDetails, error, refetch } = useWorktrees()
   const deleteWorktree = useDeleteWorktree()
+  const pinWorktree = usePinWorktree()
   const [selectedStatuses, setSelectedStatuses] = useState<Set<StatusFilter>>(new Set())
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [bulkDeleteLinkedTasks, setBulkDeleteLinkedTasks] = useState(false)
   const [deletingPath, setDeletingPath] = useState<string | null>(null)
+  const [pinningPath, setPinningPath] = useState<string | null>(null)
   const [deleteDialogWorktree, setDeleteDialogWorktree] = useState<Worktree | null>(null)
   const [deleteLinkedTask, setDeleteLinkedTask] = useState(false)
 
@@ -111,11 +115,21 @@ export default function WorktreesTab() {
     return worktrees.filter((w) => w.taskStatus === 'DONE' || w.taskStatus === 'CANCELED')
   }, [worktrees])
 
+  // Worktrees eligible for bulk cleanup (completed and not pinned)
+  const deletableWorktrees = useMemo(() => {
+    return completedWorktrees.filter((w) => !w.pinned)
+  }, [completedWorktrees])
+
+  // Pinned completed worktrees (will be skipped during cleanup)
+  const pinnedCompletedWorktrees = useMemo(() => {
+    return completedWorktrees.filter((w) => w.pinned)
+  }, [completedWorktrees])
+
   const handleBulkDelete = async () => {
-    if (completedWorktrees.length === 0) return
+    if (deletableWorktrees.length === 0) return
     setIsBulkDeleting(true)
     try {
-      for (const worktree of completedWorktrees) {
+      for (const worktree of deletableWorktrees) {
         await deleteWorktree.mutateAsync({
           worktreePath: worktree.path,
           repoPath: worktree.repoPath,
@@ -128,6 +142,20 @@ export default function WorktreesTab() {
       // Keep dialog open on error
     } finally {
       setIsBulkDeleting(false)
+    }
+  }
+
+  const handleTogglePin = async (worktree: Worktree) => {
+    if (!worktree.taskId) return
+    setPinningPath(worktree.path)
+    try {
+      await pinWorktree.mutateAsync({
+        taskId: worktree.taskId,
+        pinned: !worktree.pinned,
+      })
+      refetch()
+    } finally {
+      setPinningPath(null)
     }
   }
 
@@ -184,7 +212,7 @@ export default function WorktreesTab() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {completedWorktrees.length > 0 && (
+          {deletableWorktrees.length > 0 && (
             <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={handleBulkDeleteDialogChange}>
               <AlertDialogTrigger
                 render={
@@ -197,16 +225,22 @@ export default function WorktreesTab() {
                 }
               >
                 <HugeiconsIcon icon={CleanIcon} size={12} strokeWidth={2} />
-                {tw('cleanup.button', { count: completedWorktrees.length })}
+                {tw('cleanup.button', { count: deletableWorktrees.length })}
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>{tw('cleanup.title')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {tw('cleanup.description', { count: completedWorktrees.length })}
+                    {tw('cleanup.description', { count: deletableWorktrees.length })}
                     {bulkDeleteLinkedTasks && ` ${tw('cleanup.linkedTasksWillBeDeleted')}`}
                   </AlertDialogDescription>
                   <div className="space-y-3">
+                    {pinnedCompletedWorktrees.length > 0 && (
+                      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <HugeiconsIcon icon={PinIcon} size={12} strokeWidth={2} />
+                        {tw('cleanup.pinnedSkipped', { count: pinnedCompletedWorktrees.length })}
+                      </p>
+                    )}
                     <label className="flex items-center gap-2 text-sm text-foreground">
                       <Checkbox
                         checked={bulkDeleteLinkedTasks}
@@ -231,7 +265,7 @@ export default function WorktreesTab() {
                     {isBulkDeleting && (
                       <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
                     )}
-                    {isBulkDeleting ? t('status.deleting') : tw('delete.button', { count: completedWorktrees.length })}
+                    {isBulkDeleting ? t('status.deleting') : tw('delete.button', { count: deletableWorktrees.length })}
                   </Button>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -355,20 +389,33 @@ export default function WorktreesTab() {
                     </div>
                   </div>
 
-                  <AlertDialog
-                    open={deleteDialogWorktree?.path === worktree.path}
-                    onOpenChange={handleDeleteDialogChange}
-                  >
-                    <AlertDialogTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="shrink-0 text-muted-foreground hover:text-destructive"
-                          disabled={isLoadingDetails || isDeleting}
-                          onClick={() => setDeleteDialogWorktree(worktree)}
-                        />
-                      }
+                  <div className="flex shrink-0 items-center gap-1">
+                    {hasLinkedTask && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className={cn(
+                          'text-muted-foreground',
+                          worktree.pinned ? 'text-primary hover:text-primary/80' : 'hover:text-foreground'
+                        )}
+                        disabled={isLoadingDetails || pinningPath === worktree.path}
+                        onClick={() => handleTogglePin(worktree)}
+                        title={worktree.pinned ? tw('pin.unpin') : tw('pin.pin')}
+                      >
+                        {pinningPath === worktree.path ? (
+                          <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+                        ) : (
+                          <HugeiconsIcon icon={worktree.pinned ? PinIcon : PinOffIcon} size={14} strokeWidth={worktree.pinned ? 3 : 2} />
+                        )}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive disabled:opacity-50"
+                      disabled={isLoadingDetails || isDeleting || worktree.pinned}
+                      onClick={() => setDeleteDialogWorktree(worktree)}
+                      title={worktree.pinned ? tw('delete.unpinFirst') : tw('delete.title')}
                     >
                       <HugeiconsIcon
                         icon={isDeleting ? Loading03Icon : Delete02Icon}
@@ -376,48 +423,53 @@ export default function WorktreesTab() {
                         strokeWidth={2}
                         className={isDeleting ? 'animate-spin' : ''}
                       />
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>{tw('delete.title')}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {tw('delete.description')}{' '}
-                          <span className="font-mono">{worktree.name}</span>.
-                          {deleteLinkedTask && hasLinkedTask && (
-                            <>
-                              {' '}
-                              {tw('delete.linkedTaskWillBeDeleted', { title: worktree.taskTitle })}
-                            </>
-                          )}{' '}
-                          {tw('delete.cannotUndo')}
-                        </AlertDialogDescription>
-                        {hasLinkedTask && (
-                          <label className="flex items-center gap-2 text-sm text-foreground">
-                            <Checkbox
-                              checked={deleteLinkedTask}
-                              onCheckedChange={(checked) => setDeleteLinkedTask(checked === true)}
-                              disabled={isDeleting}
-                            />
-                            {tw('delete.alsoDeleteLinkedTask', { title: worktree.taskTitle })}
-                          </label>
-                        )}
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isDeleting}>{t('buttons.cancel')}</AlertDialogCancel>
-                        <Button
-                          variant="destructive"
-                          onClick={() => handleDelete(worktree, deleteLinkedTask)}
-                          disabled={isDeleting}
-                          className="gap-2"
-                        >
-                          {isDeleting && (
-                            <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+                    </Button>
+                    <AlertDialog
+                      open={deleteDialogWorktree?.path === worktree.path}
+                      onOpenChange={handleDeleteDialogChange}
+                    >
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{tw('delete.title')}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {tw('delete.description')}{' '}
+                            <span className="font-mono">{worktree.name}</span>.
+                            {deleteLinkedTask && hasLinkedTask && (
+                              <>
+                                {' '}
+                                {tw('delete.linkedTaskWillBeDeleted', { title: worktree.taskTitle })}
+                              </>
+                            )}{' '}
+                            {tw('delete.cannotUndo')}
+                          </AlertDialogDescription>
+                          {hasLinkedTask && (
+                            <label className="flex items-center gap-2 text-sm text-foreground">
+                              <Checkbox
+                                checked={deleteLinkedTask}
+                                onCheckedChange={(checked) => setDeleteLinkedTask(checked === true)}
+                                disabled={isDeleting}
+                              />
+                              {tw('delete.alsoDeleteLinkedTask', { title: worktree.taskTitle })}
+                            </label>
                           )}
-                          {isDeleting ? t('status.deleting') : t('buttons.delete')}
-                        </Button>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={isDeleting}>{t('buttons.cancel')}</AlertDialogCancel>
+                          <Button
+                            variant="destructive"
+                            onClick={() => handleDelete(worktree, deleteLinkedTask)}
+                            disabled={isDeleting}
+                            className="gap-2"
+                          >
+                            {isDeleting && (
+                              <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+                            )}
+                            {isDeleting ? t('status.deleting') : t('buttons.delete')}
+                          </Button>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </CardContent>
               </Card>
             )

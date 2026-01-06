@@ -200,3 +200,19 @@ export function useDeleteWorktree() {
     },
   })
 }
+
+export function usePinWorktree() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ taskId, pinned }: { taskId: string; pinned: boolean }) =>
+      fetchJSON<{ id: string; pinned: boolean }>(`${API_BASE}/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ pinned }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['worktrees'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}

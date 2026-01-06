@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { PinIcon } from '@hugeicons/core-free-icons'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,15 +15,28 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useSelection } from './selection-context'
-import { useBulkDeleteTasks } from '@/hooks/use-tasks'
+import { useBulkDeleteTasks, useTasks } from '@/hooks/use-tasks'
 import { cn } from '@/lib/utils'
 
 export function BulkActionsToolbar() {
   const { selectedIds, clearSelection } = useSelection()
   const bulkDelete = useBulkDeleteTasks()
+  const { data: tasks = [] } = useTasks()
   const [deleteLinkedWorktrees, setDeleteLinkedWorktrees] = useState(true)
 
   const count = selectedIds.size
+
+  // Count how many selected tasks are pinned vs unpinned with worktrees
+  const { pinnedCount, unpinnedWithWorktreeCount } = useMemo(() => {
+    const selectedTasks = tasks.filter(t => selectedIds.has(t.id))
+    return {
+      pinnedCount: selectedTasks.filter(t => t.pinned).length,
+      unpinnedWithWorktreeCount: selectedTasks.filter(t => !t.pinned && t.worktreePath).length,
+    }
+  }, [tasks, selectedIds])
+
+  // Only show checkbox if there are unpinned tasks with worktrees
+  const showWorktreeCheckbox = unpinnedWithWorktreeCount > 0
 
   const handleDelete = () => {
     bulkDelete.mutate(
@@ -69,17 +84,25 @@ export function BulkActionsToolbar() {
                 <AlertDialogDescription>
                   This will permanently delete {count} task{count !== 1 ? 's' : ''}. This action cannot be undone.
                 </AlertDialogDescription>
+                {pinnedCount > 0 && (
+                  <p className="flex items-center gap-1.5 text-sm text-primary">
+                    <HugeiconsIcon icon={PinIcon} size={14} strokeWidth={2} />
+                    {pinnedCount} pinned worktree{pinnedCount !== 1 ? 's' : ''} will be preserved
+                  </p>
+                )}
               </AlertDialogHeader>
-              <div className="flex items-center gap-2 py-2">
-                <Checkbox
-                  id="bulk-delete-worktrees"
-                  checked={deleteLinkedWorktrees}
-                  onCheckedChange={(checked) => setDeleteLinkedWorktrees(checked === true)}
-                />
-                <label htmlFor="bulk-delete-worktrees" className="cursor-pointer text-sm">
-                  Also delete linked worktrees
-                </label>
-              </div>
+              {showWorktreeCheckbox && (
+                <div className="flex items-center gap-2 py-2">
+                  <Checkbox
+                    id="bulk-delete-worktrees"
+                    checked={deleteLinkedWorktrees}
+                    onCheckedChange={(checked) => setDeleteLinkedWorktrees(checked === true)}
+                  />
+                  <label htmlFor="bulk-delete-worktrees" className="cursor-pointer text-sm">
+                    Also delete linked worktrees
+                  </label>
+                </div>
+              )}
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction

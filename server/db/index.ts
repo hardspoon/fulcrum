@@ -139,6 +139,9 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
       const hasOpencodeModelColumn = sqlite
         .query("SELECT name FROM pragma_table_info('repositories') WHERE name='opencode_model'")
         .get()
+      const hasPinnedColumn = sqlite
+        .query("SELECT name FROM pragma_table_info('tasks') WHERE name='pinned'")
+        .get()
 
       // Determine which migrations should be marked as applied based on schema state
       const migrationsToMark: Array<{ tag: string; when: number }> = []
@@ -181,6 +184,10 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
         }
         // 0020 adds opencode_model column to repositories and tasks
         else if (entry.tag.startsWith('0020') && hasOpencodeModelColumn) {
+          shouldMark = true
+        }
+        // 0021 adds pinned column to tasks
+        else if (entry.tag.startsWith('0021') && hasPinnedColumn) {
           shouldMark = true
         }
 

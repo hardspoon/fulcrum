@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/resizable'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { useTask, useUpdateTask, useDeleteTask } from '@/hooks/use-tasks'
+import { useTask, useUpdateTask } from '@/hooks/use-tasks'
 import { useRepositories } from '@/hooks/use-repositories'
 import { useTaskViewState } from '@/hooks/use-task-view-state'
 import { useGitSync } from '@/hooks/use-git-sync'
@@ -49,17 +49,7 @@ import {
   More03Icon,
 } from '@hugeicons/core-free-icons'
 import { TaskConfigModal } from '@/components/task-config-modal'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
+import { DeleteTaskDialog } from '@/components/delete-task-dialog'
 import { toast } from 'sonner'
 import {
   DropdownMenu,
@@ -69,7 +59,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Checkbox } from '@/components/ui/checkbox'
 import type { TaskStatus } from '@/types'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 
@@ -112,7 +101,6 @@ function TaskView() {
   const location = useLocation()
   const { data: task, isLoading } = useTask(taskId)
   const updateTask = useUpdateTask()
-  const deleteTask = useDeleteTask()
   const { viewState, setActiveTab, setFilesViewState } = useTaskViewState(taskId)
   const gitSync = useGitSync()
   const gitMerge = useGitMergeToMain()
@@ -148,7 +136,6 @@ function TaskView() {
 
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deleteLinkedWorktree, setDeleteLinkedWorktree] = useState(true)
   const [mobileTab, setMobileTab] = useState<'terminal' | 'details'>('terminal')
   const [terminalKey, setTerminalKey] = useState(0)
   const [pendingRetryTerminalId, setPendingRetryTerminalId] = useState<string | null>(null)
@@ -448,26 +435,6 @@ function TaskView() {
     }
   }
 
-  const handleDelete = () => {
-    if (task) {
-      deleteTask.mutate(
-        { taskId: task.id, deleteLinkedWorktree },
-        {
-          onSuccess: () => {
-            navigate({ to: '/tasks' })
-          },
-        }
-      )
-    }
-  }
-
-  const handleDeleteDialogChange = (open: boolean) => {
-    setDeleteDialogOpen(open)
-    if (!open) {
-      setDeleteLinkedWorktree(false)
-    }
-  }
-
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -564,45 +531,14 @@ function TaskView() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            <AlertDialog open={deleteDialogOpen} onOpenChange={handleDeleteDialogChange}>
-              <AlertDialogTrigger
-                render={
-                  <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" />
-                }
-              >
-                <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Task</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete "{task.title}" and close its terminal.
-                    {deleteLinkedWorktree && task.worktreePath && ' The linked worktree will also be removed.'}
-                    {' '}This action cannot be undone.
-                  </AlertDialogDescription>
-                  {task.worktreePath && (
-                    <label className="flex items-center gap-2 text-sm text-foreground">
-                      <Checkbox
-                        checked={deleteLinkedWorktree}
-                        onCheckedChange={(checked) => setDeleteLinkedWorktree(checked === true)}
-                        disabled={deleteTask.isPending}
-                      />
-                      Also delete linked worktree
-                    </label>
-                  )}
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={deleteTask.isPending}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    variant="destructive"
-                    disabled={deleteTask.isPending}
-                  >
-                    {deleteTask.isPending ? 'Deleting...' : 'Delete'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+            </Button>
           </div>
           {/* Row 2: Settings + retry + repo + git status badge */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -866,45 +802,14 @@ function TaskView() {
           </Button>
         </div>
 
-        <AlertDialog open={deleteDialogOpen} onOpenChange={handleDeleteDialogChange}>
-          <AlertDialogTrigger
-            render={
-              <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" />
-            }
-          >
-            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Task</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete "{task.title}" and close its terminal.
-                {deleteLinkedWorktree && task.worktreePath && ' The linked worktree will also be removed.'}
-                {' '}This action cannot be undone.
-              </AlertDialogDescription>
-              {task.worktreePath && (
-                <label className="flex items-center gap-2 text-sm text-foreground">
-                  <Checkbox
-                    checked={deleteLinkedWorktree}
-                    onCheckedChange={(checked) => setDeleteLinkedWorktree(checked === true)}
-                    disabled={deleteTask.isPending}
-                  />
-                  Also delete linked worktree
-                </label>
-              )}
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleteTask.isPending}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                variant="destructive"
-                disabled={deleteTask.isPending}
-              >
-                {deleteTask.isPending ? 'Deleting...' : 'Delete'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => setDeleteDialogOpen(true)}
+        >
+          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+        </Button>
         </div>
       </div>
 
@@ -1058,6 +963,14 @@ function TaskView() {
         task={task}
         open={configModalOpen}
         onOpenChange={setConfigModalOpen}
+      />
+
+      {/* Delete Task Dialog */}
+      <DeleteTaskDialog
+        task={task}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onDeleted={() => navigate({ to: '/tasks' })}
       />
     </div>
   )

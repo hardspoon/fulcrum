@@ -31,6 +31,7 @@ interface TaskInfo {
   baseBranch: string
   branch: string | null
   prUrl?: string | null
+  pinned?: boolean
 }
 
 interface TerminalGridProps {

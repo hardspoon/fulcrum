@@ -160,6 +160,7 @@ app.get('/', (c) => {
         taskTitle: linkedTask?.title,
         taskStatus: linkedTask?.status,
         repoPath: linkedTask?.repoPath,
+        pinned: linkedTask?.pinned ?? false,
       })
       pathsToProcess.push(fullPath)
     }
@@ -286,6 +287,7 @@ app.get('/json', async (c) => {
       taskTitle: linkedTask?.title,
       taskStatus: linkedTask?.status,
       repoPath: linkedTask?.repoPath,
+      pinned: linkedTask?.pinned ?? false,
       size,
       sizeFormatted: formatBytes(size),
       branch,
@@ -343,6 +345,11 @@ app.delete('/', async (c) => {
       .from(tasks)
       .where(eq(tasks.worktreePath, body.worktreePath))
       .get()
+
+    // Reject deletion if the linked task is pinned
+    if (linkedTask?.pinned) {
+      return c.json({ error: 'Cannot delete a pinned worktree. Unpin it first.' }, 400)
+    }
 
     // Destroy any terminals using this worktree
     destroyTerminalsForWorktree(body.worktreePath)
