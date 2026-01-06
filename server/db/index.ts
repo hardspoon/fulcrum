@@ -115,6 +115,9 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
       const existingHashes = new Set(existingMigrations.map((m) => m.hash))
 
       // Check for various schema landmarks to determine which migrations should be marked
+      const hasSystemPromptAddition = sqlite
+        .query("SELECT name FROM pragma_table_info('tasks') WHERE name='system_prompt_addition'")
+        .get()
       const hasClaudeOptions = sqlite
         .query("SELECT name FROM pragma_table_info('tasks') WHERE name='claude_options'")
         .get()
@@ -161,11 +164,22 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
 
         let shouldMark = false
 
-        // 0013 adds claude_options
-        if (entry.tag < '0013_replace_system_prompt_with_claude_options') {
+        // Handle migrations 0000-0013 based on actual schema state
+        // 0012 adds system_prompt_addition, 0013 removes it and adds claude_options
+        if (entry.tag < '0012_previous_norrin_radd') {
+          // Migrations before 0012 are safe base migrations
           shouldMark = true
-        } else if (entry.tag.startsWith('0013') && hasClaudeOptions) {
-          shouldMark = true
+        } else if (entry.tag.startsWith('0012')) {
+          // 0012 adds system_prompt_addition - mark as applied if:
+          // - Column exists (migration ran), OR
+          // - claude_options exists (we're past 0013), OR
+          // - Neither exists (fresh DB, we'll skip this migration)
+          shouldMark = hasSystemPromptAddition || hasClaudeOptions || (!hasSystemPromptAddition && !hasClaudeOptions)
+        } else if (entry.tag.startsWith('0013')) {
+          // 0013 drops system_prompt_addition and adds claude_options
+          // Mark as applied if claude_options exists OR if neither column exists (fresh DB)
+          // For fresh DBs, we'll manually add claude_options below
+          shouldMark = hasClaudeOptions || (!hasSystemPromptAddition && !hasClaudeOptions)
         }
         // 0014 creates apps/deployments/app_services tables
         else if (entry.tag.startsWith('0014') && hasAppsTable) {
@@ -229,6 +243,14 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
           count: migrationsToMark.length,
           migrations: migrationsToMark.map((m) => m.tag),
         })
+      }
+
+      // For fresh DBs that never had system_prompt_addition, manually add claude_options
+      // since we marked 0013 as applied but the column doesn't exist yet
+      if (!hasSystemPromptAddition && !hasClaudeOptions) {
+        log.db.info('Adding claude_options columns for fresh database')
+        sqlite.exec("ALTER TABLE `repositories` ADD `claude_options` text")
+        sqlite.exec("ALTER TABLE `tasks` ADD `claude_options` text")
       }
     }
   }
