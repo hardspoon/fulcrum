@@ -83,30 +83,6 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
         },
       },
       {
-        id: 'goto-task-terminals',
-        label: t('commandPalette.commands.goToTaskTerminals'),
-        shortcut: 'meta+i',
-        keywords: ['tasks', 'shell', 'console', 'cli'],
-        category: 'navigation',
-        icon: <HugeiconsIcon icon={GridViewIcon} size={16} strokeWidth={2} />,
-        action: () => {
-          navigate({ to: '/terminals', search: { tab: 'all-tasks' } })
-          setOpen(false)
-        },
-      },
-      {
-        id: 'goto-project-terminals',
-        label: t('commandPalette.commands.goToProjectTerminals'),
-        shortcut: 'meta+u',
-        keywords: ['projects', 'shell', 'console', 'cli', 'workspace'],
-        category: 'navigation',
-        icon: <HugeiconsIcon icon={Folder01Icon} size={16} strokeWidth={2} />,
-        action: () => {
-          navigate({ to: '/terminals', search: (prev) => ({ ...prev, tab: 'all-projects' }) })
-          setOpen(false)
-        },
-      },
-      {
         id: 'goto-review',
         label: t('commandPalette.commands.goToReview'),
         shortcut: 'meta+4',
@@ -176,6 +152,30 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
         action: () => {
           setOpen(false)
           onShowShortcuts?.()
+        },
+      },
+      {
+        id: 'goto-task-terminals',
+        label: t('commandPalette.commands.goToTaskTerminals'),
+        shortcut: 'meta+i',
+        keywords: ['tasks', 'shell', 'console', 'cli'],
+        category: 'actions',
+        icon: <HugeiconsIcon icon={GridViewIcon} size={16} strokeWidth={2} />,
+        action: () => {
+          navigate({ to: '/terminals', search: { tab: 'all-tasks' } })
+          setOpen(false)
+        },
+      },
+      {
+        id: 'goto-project-terminals',
+        label: t('commandPalette.commands.goToProjectTerminals'),
+        shortcut: 'meta+u',
+        keywords: ['projects', 'shell', 'console', 'cli', 'workspace'],
+        category: 'actions',
+        icon: <HugeiconsIcon icon={Folder01Icon} size={16} strokeWidth={2} />,
+        action: () => {
+          navigate({ to: '/terminals', search: (prev) => ({ ...prev, tab: 'all-projects' }) })
+          setOpen(false)
         },
       },
     ]
