@@ -15,14 +15,12 @@ import {
   Loading03Icon,
   Alert02Icon,
   VisualStudioCodeIcon,
-  ComputerTerminal01Icon,
   Search01Icon,
   PlayIcon,
   StopIcon,
 } from '@hugeicons/core-free-icons'
 import { useEditorApp, useEditorHost, useEditorSshPort } from '@/hooks/use-config'
 import { toast } from 'sonner'
-import { useOpenInTerminal } from '@/hooks/use-open-in-terminal'
 import { buildEditorUrl, getEditorDisplayName, openExternalUrl } from '@/lib/editor-url'
 import type { ProjectWithDetails } from '@/types'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
@@ -76,12 +74,10 @@ function getStatusText(status: string | undefined, t: (key: string) => string): 
 function ProjectCard({
   project,
   onStartTask,
-  onOpenInTerminal,
   onDeleteClick,
 }: {
   project: ProjectWithDetails
   onStartTask: () => void
-  onOpenInTerminal: () => void
   onDeleteClick: () => void
 }) {
   const { t } = useTranslation('projects')
@@ -182,20 +178,6 @@ function ProjectCard({
             >
               <HugeiconsIcon icon={TaskAdd01Icon} size={14} strokeWidth={2} data-slot="icon" />
               <span className="max-sm:hidden">{t('newTask')}</span>
-            </Button>
-          )}
-
-          {/* Terminal */}
-          {repoPath && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onOpenInTerminal}
-              className="text-muted-foreground hover:text-foreground"
-              title="Open in Terminal"
-            >
-              <HugeiconsIcon icon={ComputerTerminal01Icon} size={14} strokeWidth={2} data-slot="icon" />
-              <span className="max-sm:hidden">{t('terminal')}</span>
             </Button>
           )}
 
@@ -344,7 +326,6 @@ function ProjectsView() {
   const deleteProject = useDeleteProject()
   const [taskModalProject, setTaskModalProject] = useState<ProjectWithDetails | null>(null)
   const [deleteProjectState, setDeleteProjectState] = useState<ProjectWithDetails | null>(null)
-  const { openInTerminal } = useOpenInTerminal()
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredProjects = useMemo(() => {
@@ -429,11 +410,6 @@ function ProjectsView() {
               key={project.id}
               project={project}
               onStartTask={() => setTaskModalProject(project)}
-              onOpenInTerminal={() => {
-                if (project.repository?.path) {
-                  openInTerminal(project.repository.path, project.name)
-                }
-              }}
               onDeleteClick={() => setDeleteProjectState(project)}
             />
           ))}
