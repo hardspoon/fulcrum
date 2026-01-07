@@ -23,6 +23,7 @@ import { GitActionsButtons } from './git-actions-buttons'
 import { TaskActionsDropdown } from './task-actions-dropdown'
 import { GitStatusBadge } from '@/components/viewer/git-status-badge'
 import { useDeleteTask } from '@/hooks/use-tasks'
+import { useProjects } from '@/hooks/use-projects'
 
 interface TaskInfo {
   taskId: string
@@ -58,6 +59,10 @@ export function TaskTerminalHeader({
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState<number>(Infinity)
   const deleteTask = useDeleteTask()
+  const { data: projects = [] } = useProjects()
+
+  // Find the project matching this task's repo path
+  const project = projects.find((p) => p.repository?.path === taskInfo.repoPath)
 
   // Use ResizeObserver to track container width
   useEffect(() => {
@@ -124,7 +129,17 @@ export function TaskTerminalHeader({
           <>
             <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-foreground">
               <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} className="shrink-0" />
-              <span className="truncate">{taskInfo.repoName}</span>
+              {project ? (
+                <Link
+                  to="/projects/$projectId"
+                  params={{ projectId: project.id }}
+                  className="truncate hover:text-primary hover:underline"
+                >
+                  {taskInfo.repoName}
+                </Link>
+              ) : (
+                <span className="truncate">{taskInfo.repoName}</span>
+              )}
             </span>
             {terminalCwd && (
               <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">

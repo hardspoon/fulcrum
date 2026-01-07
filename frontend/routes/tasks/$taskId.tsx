@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { useTask, useUpdateTask } from '@/hooks/use-tasks'
 import { useRepositories } from '@/hooks/use-repositories'
+import { useProjects } from '@/hooks/use-projects'
 import { useTaskViewState } from '@/hooks/use-task-view-state'
 import { useGitSync } from '@/hooks/use-git-sync'
 import { useGitMergeToMain } from '@/hooks/use-git-merge'
@@ -115,9 +116,13 @@ function TaskView() {
   const { data: globalOpencodeModel } = useOpencodeModel()
   const { data: linearTicket } = useLinearTicket(task?.linearTicketId ?? null)
   const { data: repositories = [] } = useRepositories()
+  const { data: projects = [] } = useProjects()
 
   // Find the repository matching this task's repo path
   const repository = repositories.find((r) => r.path === task?.repoPath)
+
+  // Find the project matching this task's repo path
+  const project = projects.find((p) => p.repository?.path === task?.repoPath)
 
   // Resolve OpenCode model: task > repo > global (cascade precedence)
   const resolvedOpencodeModel = task?.opencodeModel ?? repository?.opencodeModel ?? globalOpencodeModel
@@ -560,7 +565,17 @@ function TaskView() {
             </button>
             <span className="flex items-center gap-1">
               <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} />
-              <span>{task.repoName}</span>
+              {project ? (
+                <Link
+                  to="/projects/$projectId"
+                  params={{ projectId: project.id }}
+                  className="hover:text-primary hover:underline"
+                >
+                  {task.repoName}
+                </Link>
+              ) : (
+                <span>{task.repoName}</span>
+              )}
             </span>
             <div className="ml-auto">
               <GitStatusBadge worktreePath={task.worktreePath} />
@@ -595,7 +610,17 @@ function TaskView() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} />
-                <span>{task.repoName}</span>
+                {project ? (
+                  <Link
+                    to="/projects/$projectId"
+                    params={{ projectId: project.id }}
+                    className="hover:text-primary hover:underline"
+                  >
+                    {task.repoName}
+                  </Link>
+                ) : (
+                  <span>{task.repoName}</span>
+                )}
               </span>
               <HugeiconsIcon icon={GitBranchIcon} size={12} strokeWidth={2} />
               <span className="font-mono">{task.branch}</span>
