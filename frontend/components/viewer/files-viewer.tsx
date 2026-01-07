@@ -5,6 +5,7 @@ import {
   useCreateFilesStore,
   useFilesStoreActions,
 } from '@/stores'
+import { useFileTreePolling } from '@/hooks/use-file-tree-polling'
 import { FileTree } from './file-tree'
 import { FileContent } from './file-content'
 
@@ -32,6 +33,7 @@ export { CallbacksContext }
 const FilesViewerInner = observer(function FilesViewerInner() {
   const { onFileChange } = useContext(CallbacksContext)
   const {
+    worktreePath,
     selectedFile,
     expandedDirs,
     fileTree,
@@ -41,7 +43,16 @@ const FilesViewerInner = observer(function FilesViewerInner() {
     loadFile,
     toggleDir,
     collapseAll,
+    updateFileTree,
   } = useFilesStoreActions()
+
+  // Poll for file tree changes (files added/removed externally)
+  useFileTreePolling({
+    worktreePath,
+    currentTree: fileTree,
+    onTreeChanged: updateFileTree,
+    enabled: !isLoadingTree,
+  })
 
   const handleSelectFile = useCallback(
     (path: string) => {

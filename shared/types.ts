@@ -56,6 +56,14 @@ export interface FileContent {
   size: number
   lineCount: number
   truncated: boolean
+  mtime: string
+}
+
+export interface FileStatResponse {
+  path: string
+  mtime: string
+  size: number
+  exists: boolean
 }
 
 export interface Task {

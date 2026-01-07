@@ -71,6 +71,7 @@ export interface UseFilesStoreReturn {
   // Actions
   selectFile: (path: string | null) => void
   loadFile: (path: string) => Promise<void>
+  reloadFile: (path: string) => Promise<void>
   saveFile: (path: string) => Promise<void>
   closeFile: (path: string) => void
   updateContent: (path: string, content: string) => void
@@ -80,6 +81,7 @@ export interface UseFilesStoreReturn {
   isFileMarkdownView: (path: string) => boolean
   isDirExpanded: (path: string) => boolean
   refreshTree: () => Promise<void>
+  updateFileTree: (entries: import('@/types').FileTreeEntry[]) => void
 }
 
 /**
@@ -108,6 +110,7 @@ export function useFilesStoreActions(): UseFilesStoreReturn {
     // Actions
     selectFile: store.selectFile,
     loadFile: store.loadFile,
+    reloadFile: store.reloadFile,
     saveFile: store.saveFile,
     closeFile: store.closeFile,
     updateContent: store.updateContent,
@@ -117,5 +120,6 @@ export function useFilesStoreActions(): UseFilesStoreReturn {
     isFileMarkdownView: store.isFileMarkdownView,
     isDirExpanded: store.isDirExpanded,
     refreshTree: store.loadFileTree,
+    updateFileTree: store.updateFileTree,
   }
 }

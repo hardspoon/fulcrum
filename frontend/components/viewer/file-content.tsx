@@ -4,8 +4,10 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon, TextIcon, SourceCodeIcon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 import { useFilesStoreActions } from '@/stores'
+import { useFileChangePolling } from '@/hooks/use-file-change-polling'
 import { MonacoEditor } from './monaco-editor'
 import { MarkdownRenderer } from './markdown-renderer'
+import { FileChangeDialog } from './file-change-dialog'
 import { CallbacksContext } from './files-viewer'
 
 const AUTO_SAVE_DELAY = 1000 // 1 second debounce
@@ -27,11 +29,51 @@ export const FileContent = observer(function FileContent({ onBack }: FileContent
     isDirty,
     updateContent,
     saveFile,
+    reloadFile,
     closeFile,
     toggleMarkdownView,
   } = useFilesStoreActions()
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Poll for external file changes
+  const { hasExternalChange, isConflict, resetExternalChange } =
+    useFileChangePolling({
+      worktreePath,
+      filePath: selectedFile,
+      currentMtime: currentFile?.mtime ?? null,
+      isDirty,
+      enabled: !!currentFile && !isLoading && currentFile.isEditable,
+    })
+
+  // Handle silent reload when file changed externally and no local edits
+  useEffect(() => {
+    if (hasExternalChange && !isDirty && selectedFile) {
+      reloadFile(selectedFile).then(() => {
+        resetExternalChange()
+      })
+    }
+  }, [hasExternalChange, isDirty, selectedFile, reloadFile, resetExternalChange])
+
+  const handleKeepChanges = useCallback(() => {
+    // User chose to keep their changes - reset the external change flag
+    // The next poll will detect the mtime difference again, but we track
+    // that we've already notified them in the hook
+    resetExternalChange()
+  }, [resetExternalChange])
+
+  const handleReloadFile = useCallback(() => {
+    if (selectedFile) {
+      // Cancel any pending save since we're discarding changes
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+      reloadFile(selectedFile).then(() => {
+        resetExternalChange()
+      })
+    }
+  }, [selectedFile, reloadFile, resetExternalChange])
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -164,76 +206,86 @@ export const FileContent = observer(function FileContent({ onBack }: FileContent
   const showMarkdownPreview = isMarkdownFile && currentFile.isMarkdownView
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background">
-      {/* Toolbar */}
-      <div className="flex shrink-0 items-center gap-3 px-2 py-1.5 bg-card border-b border-border text-xs">
-        <span
-          className="text-muted-foreground truncate flex-1 flex items-center gap-1"
-          title={selectedFile}
-        >
-          {fileName}
-          {!readOnly && isDirty && <span className="text-amber-500">*</span>}
-          {!readOnly && isSaving && (
-            <span className="text-muted-foreground italic">(saving...)</span>
-          )}
-        </span>
+    <>
+      {/* File change conflict dialog */}
+      <FileChangeDialog
+        open={isConflict}
+        fileName={fileName}
+        onKeepChanges={handleKeepChanges}
+        onReload={handleReloadFile}
+      />
 
-        {currentFile.truncated && (
-          <span className="text-destructive">
-            Truncated ({currentFile.lineCount.toLocaleString()} lines)
-          </span>
-        )}
-
-        <span className="text-muted-foreground">
-          {(currentFile.size / 1024).toFixed(1)} KB
-        </span>
-
-        {/* Markdown toggle - only show for .md files */}
-        {isMarkdownFile && (
-          <button
-            onClick={handleToggleMarkdownView}
-            className={cn(
-              'p-1 rounded hover:bg-muted/50 transition-colors',
-              showMarkdownPreview
-                ? 'text-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            title={showMarkdownPreview ? 'Show code' : 'Preview markdown'}
+      <div className="flex flex-col h-full overflow-hidden bg-background">
+        {/* Toolbar */}
+        <div className="flex shrink-0 items-center gap-3 px-2 py-1.5 bg-card border-b border-border text-xs">
+          <span
+            className="text-muted-foreground truncate flex-1 flex items-center gap-1"
+            title={selectedFile}
           >
-            <HugeiconsIcon
-              icon={showMarkdownPreview ? SourceCodeIcon : TextIcon}
-              size={14}
-              strokeWidth={2}
-            />
+            {fileName}
+            {!readOnly && isDirty && <span className="text-amber-500">*</span>}
+            {!readOnly && isSaving && (
+              <span className="text-muted-foreground italic">(saving...)</span>
+            )}
+          </span>
+
+          {currentFile.truncated && (
+            <span className="text-destructive">
+              Truncated ({currentFile.lineCount.toLocaleString()} lines)
+            </span>
+          )}
+
+          <span className="text-muted-foreground">
+            {(currentFile.size / 1024).toFixed(1)} KB
+          </span>
+
+          {/* Markdown toggle - only show for .md files */}
+          {isMarkdownFile && (
+            <button
+              onClick={handleToggleMarkdownView}
+              className={cn(
+                'p-1 rounded hover:bg-muted/50 transition-colors',
+                showMarkdownPreview
+                  ? 'text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              title={showMarkdownPreview ? 'Show code' : 'Preview markdown'}
+            >
+              <HugeiconsIcon
+                icon={showMarkdownPreview ? SourceCodeIcon : TextIcon}
+                size={14}
+                strokeWidth={2}
+              />
+            </button>
+          )}
+
+          <button
+            onClick={handleBack}
+            className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/50"
+            title="Close file"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
           </button>
-        )}
+        </div>
 
-        <button
-          onClick={handleBack}
-          className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/50"
-          title="Close file"
-        >
-          <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
-        </button>
+        {/* Content area */}
+        <div className="flex-1 min-h-0">
+          {showMarkdownPreview ? (
+            <MarkdownRenderer
+              content={currentFile.content}
+              worktreePath={worktreePath || ''}
+              filePath={selectedFile}
+            />
+          ) : (
+            <MonacoEditor
+              filePath={selectedFile}
+              content={currentFile.content}
+              onChange={handleContentChange}
+              readOnly={readOnly || !currentFile.isEditable}
+            />
+          )}
+        </div>
       </div>
-
-      {/* Content area */}
-      <div className="flex-1 min-h-0">
-        {showMarkdownPreview ? (
-          <MarkdownRenderer
-            content={currentFile.content}
-            worktreePath={worktreePath || ''}
-            filePath={selectedFile}
-          />
-        ) : (
-          <MonacoEditor
-            filePath={selectedFile}
-            content={currentFile.content}
-            onChange={handleContentChange}
-            readOnly={readOnly || !currentFile.isEditable}
-          />
-        )}
-      </div>
-    </div>
+    </>
   )
 })

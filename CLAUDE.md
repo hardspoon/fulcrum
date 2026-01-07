@@ -32,6 +32,24 @@ mise run docs:dev     # Start documentation dev server
 
 For type checking, just run `mise run build` - it catches type errors and is faster than running separate typecheck commands.
 
+## Testing
+
+Run tests via mise to get filtered output that shows only failures:
+
+```bash
+mise run test         # Run all tests (quiet mode, errors only)
+mise run test -- -v   # Run all tests with verbose output
+mise run test:watch   # Run tests in watch mode
+```
+
+To run tests for a specific file:
+
+```bash
+bun test server/routes/filesystem.test.ts
+```
+
+**Important**: Always use `mise run test` rather than `bun test` directly, as the mise task filters output to show only relevant information and prevents large test outputs from consuming the context window.
+
 ## CLI
 
 The `vibora` package provides a global CLI:

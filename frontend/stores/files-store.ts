@@ -18,6 +18,7 @@ export const FileModel = types
     lineCount: types.number,
     truncated: types.boolean,
     isMarkdownView: types.optional(types.boolean, false),
+    mtime: types.optional(types.string, ''),
   })
   .views((self) => ({
     get isDirty(): boolean {
@@ -48,6 +49,23 @@ export const FileModel = types
     },
     setMarkdownView(value: boolean) {
       self.isMarkdownView = value
+    },
+    setMtime(mtime: string) {
+      self.mtime = mtime
+    },
+    reloadFromServer(data: {
+      content: string
+      mtime: string
+      size: number
+      lineCount: number
+      truncated: boolean
+    }) {
+      self.content = data.content
+      self.originalContent = data.content
+      self.mtime = data.mtime
+      self.size = data.size
+      self.lineCount = data.lineCount
+      self.truncated = data.truncated
     },
   }))
 
@@ -152,6 +170,10 @@ export const FilesStore = types
       }
     },
 
+    updateFileTree(entries: FileTreeEntry[]) {
+      self.fileTree = entries
+    },
+
     // Internal actions for async flows
     _setLoading(loading: boolean) {
       self.isLoading = loading
@@ -181,6 +203,7 @@ export const FilesStore = types
       size: number
       lineCount: number
       truncated: boolean
+      mtime: string
     }) {
       self.openFiles.set(data.path, {
         path: data.path,
@@ -191,6 +214,7 @@ export const FilesStore = types
         lineCount: data.lineCount,
         truncated: data.truncated,
         isMarkdownView: false,
+        mtime: data.mtime,
       })
     },
     _markFileSaved(path: string) {
@@ -245,10 +269,41 @@ export const FilesStore = types
           size: response.size,
           lineCount: response.lineCount,
           truncated: response.truncated,
+          mtime: response.mtime,
         })
         self.selectedFile = path
       } catch (error) {
         self._setLoadError(error instanceof Error ? error.message : 'Failed to load file')
+      } finally {
+        self._setLoading(false)
+      }
+    }),
+
+    reloadFile: flow(function* (path: string) {
+      if (!self.worktreePath) return
+
+      const file = self.openFiles.get(path)
+      if (!file) return
+
+      self._setLoading(true)
+      self._setLoadError(null)
+
+      try {
+        const params = new URLSearchParams({
+          path,
+          root: self.worktreePath,
+        })
+        const response: FileContent = yield fetchJSON(`${API_BASE}/api/fs/read?${params}`)
+
+        file.reloadFromServer({
+          content: response.content,
+          mtime: response.mtime,
+          size: response.size,
+          lineCount: response.lineCount,
+          truncated: response.truncated,
+        })
+      } catch (error) {
+        self._setLoadError(error instanceof Error ? error.message : 'Failed to reload file')
       } finally {
         self._setLoading(false)
       }

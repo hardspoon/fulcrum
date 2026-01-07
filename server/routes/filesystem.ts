@@ -22,6 +22,14 @@ interface FileReadResponse {
   size: number
   lineCount: number
   truncated: boolean
+  mtime: string
+}
+
+interface FileStatResponse {
+  path: string
+  mtime: string
+  size: number
+  exists: boolean
 }
 
 // Check if a directory is a git repository
@@ -304,6 +312,7 @@ app.get('/read', (c) => {
         size: stat.size,
         lineCount: 0,
         truncated: false,
+        mtime: stat.mtime.toISOString(),
       } satisfies FileReadResponse)
     }
 
@@ -318,6 +327,7 @@ app.get('/read', (c) => {
         size: stat.size,
         lineCount: 0,
         truncated: false,
+        mtime: stat.mtime.toISOString(),
       } satisfies FileReadResponse)
     }
 
@@ -334,9 +344,58 @@ app.get('/read', (c) => {
       size: stat.size,
       lineCount: totalLines,
       truncated,
+      mtime: stat.mtime.toISOString(),
     } satisfies FileReadResponse)
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to read file' }, 500)
+  }
+})
+
+// GET /api/fs/file-stat?path=/path/to/file&root=/worktree/root
+// Returns file modification time without reading content (for change detection polling)
+app.get('/file-stat', (c) => {
+  const filePath = c.req.query('path')
+  const root = c.req.query('root')
+
+  if (!filePath) {
+    return c.json({ error: 'path parameter is required' }, 400)
+  }
+
+  if (!root) {
+    return c.json({ error: 'root parameter is required' }, 400)
+  }
+
+  const resolvedRoot = path.resolve(root)
+  const resolvedPath = path.resolve(resolvedRoot, filePath)
+
+  // Security: validate path is within root
+  if (!isPathWithinRoot(resolvedPath, resolvedRoot)) {
+    return c.json({ error: 'Access denied: path outside root' }, 403)
+  }
+
+  try {
+    if (!fs.existsSync(resolvedPath)) {
+      return c.json({
+        path: filePath,
+        mtime: '',
+        size: 0,
+        exists: false,
+      } satisfies FileStatResponse)
+    }
+
+    const stat = fs.statSync(resolvedPath)
+    if (!stat.isFile()) {
+      return c.json({ error: 'Path is not a file' }, 400)
+    }
+
+    return c.json({
+      path: filePath,
+      mtime: stat.mtime.toISOString(),
+      size: stat.size,
+      exists: true,
+    } satisfies FileStatResponse)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to stat file' }, 500)
   }
 })
 

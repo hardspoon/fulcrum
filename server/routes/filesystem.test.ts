@@ -346,6 +346,21 @@ describe('Filesystem Routes', () => {
       expect(body.mimeType).toBe('application/octet-stream')
       expect(body.content).toBe('')
     })
+
+    test('returns mtime field as ISO string', async () => {
+      writeFileSync(join(tempDir, 'test.txt'), 'content')
+
+      const { get } = createTestApp()
+      const res = await get(`/api/fs/read?path=test.txt&root=${tempDir}`)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.mtime).toBeDefined()
+      expect(typeof body.mtime).toBe('string')
+      // Verify it's a valid ISO date string
+      const date = new Date(body.mtime)
+      expect(date.getTime()).not.toBeNaN()
+    })
   })
 
   describe('GET /api/fs/image', () => {
@@ -389,6 +404,94 @@ describe('Filesystem Routes', () => {
       await res.json() // consume body
 
       expect(res.status).toBe(403)
+    })
+  })
+
+  describe('GET /api/fs/file-stat', () => {
+    test('returns file stats with mtime', async () => {
+      writeFileSync(join(tempDir, 'test.txt'), 'content')
+
+      const { get } = createTestApp()
+      const res = await get(`/api/fs/file-stat?path=test.txt&root=${tempDir}`)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.path).toBe('test.txt')
+      expect(body.exists).toBe(true)
+      expect(body.size).toBeGreaterThan(0)
+      expect(body.mtime).toBeDefined()
+      // Verify mtime is a valid ISO date string
+      const date = new Date(body.mtime)
+      expect(date.getTime()).not.toBeNaN()
+    })
+
+    test('returns exists: false for non-existent file', async () => {
+      const { get } = createTestApp()
+      const res = await get(`/api/fs/file-stat?path=nonexistent.txt&root=${tempDir}`)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.exists).toBe(false)
+      expect(body.mtime).toBe('')
+      expect(body.size).toBe(0)
+    })
+
+    test('returns 400 when path is missing', async () => {
+      const { get } = createTestApp()
+      const res = await get(`/api/fs/file-stat?root=${tempDir}`)
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toContain('path parameter is required')
+    })
+
+    test('returns 400 when root is missing', async () => {
+      const { get } = createTestApp()
+      const res = await get('/api/fs/file-stat?path=test.txt')
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toContain('root parameter is required')
+    })
+
+    test('returns 400 for directory instead of file', async () => {
+      mkdirSync(join(tempDir, 'subdir'))
+
+      const { get } = createTestApp()
+      const res = await get(`/api/fs/file-stat?path=subdir&root=${tempDir}`)
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error).toContain('not a file')
+    })
+
+    test('blocks path traversal attacks', async () => {
+      const { get } = createTestApp()
+      const res = await get(`/api/fs/file-stat?path=../../../etc/passwd&root=${tempDir}`)
+      const body = await res.json()
+
+      expect(res.status).toBe(403)
+      expect(body.error).toContain('Access denied')
+    })
+
+    test('detects mtime changes after file modification', async () => {
+      const filePath = join(tempDir, 'test.txt')
+      writeFileSync(filePath, 'original')
+
+      const { get } = createTestApp()
+      const res1 = await get(`/api/fs/file-stat?path=test.txt&root=${tempDir}`)
+      const body1 = await res1.json()
+      const originalMtime = body1.mtime
+
+      // Wait a bit and modify the file
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      writeFileSync(filePath, 'modified content')
+
+      const res2 = await get(`/api/fs/file-stat?path=test.txt&root=${tempDir}`)
+      const body2 = await res2.json()
+
+      expect(body2.mtime).not.toBe(originalMtime)
+      expect(new Date(body2.mtime).getTime()).toBeGreaterThan(new Date(originalMtime).getTime())
     })
   })
 
