@@ -15,7 +15,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import {
   GridViewIcon,
   CommandLineIcon,
-  Folder01Icon,
+  PackageIcon,
   Settings01Icon,
   PlusSignIcon,
   HelpCircleIcon,
@@ -76,7 +76,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
         shortcut: 'meta+3',
         keywords: ['repos', 'repositories', 'apps', 'deploy', 'docker'],
         category: 'navigation',
-        icon: <HugeiconsIcon icon={Folder01Icon} size={16} strokeWidth={2} />,
+        icon: <HugeiconsIcon icon={PackageIcon} size={16} strokeWidth={2} />,
         action: () => {
           navigate({ to: '/projects' })
           setOpen(false)
@@ -172,7 +172,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
         shortcut: 'meta+i',
         keywords: ['projects', 'shell', 'console', 'cli', 'workspace'],
         category: 'actions',
-        icon: <HugeiconsIcon icon={Folder01Icon} size={16} strokeWidth={2} />,
+        icon: <HugeiconsIcon icon={PackageIcon} size={16} strokeWidth={2} />,
         action: () => {
           navigate({ to: '/terminals', search: (prev) => ({ ...prev, tab: 'all-projects' }) })
           setOpen(false)

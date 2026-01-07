@@ -120,20 +120,21 @@ export function TaskTerminalHeader({
         {/* Project name & CWD - only at widest sizes */}
         {showProjectAndCwd && (
           <>
-            <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-foreground">
-              <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} className="shrink-0" />
-              {project ? (
-                <Link
-                  to="/projects/$projectId"
-                  params={{ projectId: project.id }}
-                  className="truncate hover:text-primary hover:underline"
-                >
-                  {taskInfo.repoName}
-                </Link>
-              ) : (
+            {project ? (
+              <Link
+                to="/projects/$projectId"
+                params={{ projectId: project.id }}
+                className="flex min-w-0 items-center gap-1 text-xs font-medium text-foreground hover:text-primary"
+              >
+                <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} className="shrink-0" />
+                <span className="truncate hover:underline">{taskInfo.repoName}</span>
+              </Link>
+            ) : (
+              <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-foreground">
+                <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} className="shrink-0" />
                 <span className="truncate">{taskInfo.repoName}</span>
-              )}
-            </span>
+              </span>
+            )}
             {terminalCwd && (
               <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
                 <HugeiconsIcon icon={GitBranchIcon} size={12} strokeWidth={2} className="shrink-0" />

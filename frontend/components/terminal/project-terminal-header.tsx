@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Folder01Icon } from '@hugeicons/core-free-icons'
+import { PackageIcon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 
 interface ProjectInfo {
@@ -37,7 +37,7 @@ export function ProjectTerminalHeader({ projectInfo }: ProjectTerminalHeaderProp
           params={{ projectId: projectInfo.projectId }}
           className="flex shrink-0 items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 max-w-[50%]"
         >
-          <HugeiconsIcon icon={Folder01Icon} size={12} strokeWidth={2} className="shrink-0" />
+          <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} className="shrink-0" />
           <span className="truncate">{projectInfo.projectName}</span>
         </Link>
 

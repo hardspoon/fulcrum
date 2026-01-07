@@ -8,7 +8,7 @@ import { TerminalTabBar } from '@/components/terminal/terminal-tab-bar'
 import { TabEditDialog } from '@/components/terminal/tab-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { TaskDaily01Icon, FilterIcon, ComputerTerminal01Icon, Folder01Icon, Loading03Icon } from '@hugeicons/core-free-icons'
+import { TaskDaily01Icon, FilterIcon, ComputerTerminal01Icon, PackageIcon, Loading03Icon } from '@hugeicons/core-free-icons'
 import {
   Select,
   SelectContent,
@@ -747,7 +747,7 @@ const TerminalsView = observer(function TerminalsView() {
               activeTabId === ALL_PROJECTS_TAB_ID ? 'after:opacity-100' : 'after:opacity-0'
             )}
           >
-            <HugeiconsIcon icon={Folder01Icon} size={12} strokeWidth={2} />
+            <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} />
             <span className="max-sm:hidden">{t('projectTerminals')}</span>
           </button>
           {/* Separator between system tabs and regular tabs */}
