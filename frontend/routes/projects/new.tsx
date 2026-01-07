@@ -37,6 +37,8 @@ import {
   Search01Icon,
   Folder01Icon,
   Link01Icon,
+  EyeIcon,
+  ViewOffIcon,
 } from '@hugeicons/core-free-icons'
 import { useDefaultGitReposDir } from '@/hooks/use-config'
 import type { CopierQuestion } from '@/types'
@@ -133,6 +135,7 @@ function NewProjectWizard() {
   const [templateError, setTemplateError] = useState<string | null>(null)
   const [trust, setTrust] = useState(true)
   const [outputBrowserOpen, setOutputBrowserOpen] = useState(false)
+  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set())
 
   // Add tab project name (also used elsewhere)
   const [projectName, setProjectName] = useState('')
@@ -410,6 +413,8 @@ function NewProjectWizard() {
         }
 
         const isMultiline = question.type === 'yaml' || question.type === 'json'
+        const isPassword = question.name.toLowerCase().includes('password')
+        const isPasswordVisible = visiblePasswords.has(question.name)
 
         return (
           <Field key={question.name}>
@@ -420,6 +425,33 @@ function NewProjectWizard() {
                 onChange={(e) => setValue(e.target.value)}
                 rows={4}
               />
+            ) : isPassword ? (
+              <div className="relative">
+                <Input
+                  type={isPasswordVisible ? 'text' : 'password'}
+                  value={String(value ?? '')}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="pr-8"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setVisiblePasswords((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(question.name)) next.delete(question.name)
+                      else next.add(question.name)
+                      return next
+                    })
+                  }}
+                >
+                  <HugeiconsIcon
+                    icon={isPasswordVisible ? ViewOffIcon : EyeIcon}
+                    size={14}
+                    strokeWidth={2}
+                  />
+                </button>
+              </div>
             ) : (
               <Input value={String(value ?? '')} onChange={(e) => setValue(e.target.value)} />
             )}
