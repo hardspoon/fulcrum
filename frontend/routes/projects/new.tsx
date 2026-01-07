@@ -139,6 +139,7 @@ function NewProjectWizard() {
 
   // Add tab project name (also used elsewhere)
   const [projectName, setProjectName] = useState('')
+  const [userEditedProjectName, setUserEditedProjectName] = useState(false)
 
   // Template tab queries
   const { data: templates } = useCopierTemplates()
@@ -172,15 +173,20 @@ function NewProjectWizard() {
     // For local paths, extract the folder name
     const path = newRepoInput.trim()
     if (!path) return ''
-    return path.split('/').pop() || ''
+    // Don't derive name if path ends with / (user still typing)
+    if (path.endsWith('/')) return ''
+    const name = path.split('/').pop() || ''
+    // Filter out invalid project names (special path components)
+    if (['~', '.', '..'].includes(name)) return ''
+    return name
   }, [isUrl, folderName, extractedRepoName, newRepoInput])
 
-  // Auto-populate project name when input changes
+  // Auto-populate project name when input changes (unless user manually edited it)
   useEffect(() => {
-    if (effectiveAddProjectName && !projectName) {
+    if (effectiveAddProjectName && !userEditedProjectName) {
       setProjectName(effectiveAddProjectName)
     }
-  }, [effectiveAddProjectName, projectName])
+  }, [effectiveAddProjectName, userEditedProjectName])
 
   const effectiveTargetDir = targetDir.trim() || defaultGitReposDir || ''
   const effectiveScanDirectory = scanDirectory.trim() || defaultGitReposDir || ''
@@ -865,7 +871,10 @@ function NewProjectWizard() {
                         <Input
                           id="addProjectName"
                           value={projectName}
-                          onChange={(e) => setProjectName(e.target.value)}
+                          onChange={(e) => {
+                            setProjectName(e.target.value)
+                            setUserEditedProjectName(true)
+                          }}
                           placeholder={t('newProject.projectNamePlaceholder')}
                           disabled={isAddPending}
                         />
