@@ -104,6 +104,7 @@ export function useUpdateApp() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['apps'] })
       queryClient.invalidateQueries({ queryKey: ['apps', id] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 }
