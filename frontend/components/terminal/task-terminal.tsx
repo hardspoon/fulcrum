@@ -15,10 +15,12 @@ import { useTheme } from 'next-themes'
 import { lightTheme, darkTheme } from './terminal-theme'
 import { buildAgentCommand, matchesAgentNotFound } from '@/lib/agent-commands'
 import { AGENT_DISPLAY_NAMES, AGENT_INSTALL_COMMANDS, AGENT_DOC_URLS, type AgentType } from '@/types'
+import { useOpencodeDefaultAgent, useOpencodePlanAgent } from '@/hooks/use-config'
 
 interface TaskTerminalProps {
   taskName: string
   cwd: string | null
+  taskId?: string
   className?: string
   agent?: AgentType
   aiMode?: 'default' | 'plan'
@@ -30,7 +32,7 @@ interface TaskTerminalProps {
   autoFocus?: boolean
 }
 
-export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMode, description, startupScript, agentOptions, opencodeModel, serverPort = 7777, autoFocus = false }: TaskTerminalProps) {
+export function TaskTerminal({ taskName, cwd, taskId, className, agent = 'claude', aiMode, description, startupScript, agentOptions, opencodeModel, serverPort = 7777, autoFocus = false }: TaskTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XTerm | null>(null)
   const hasFocusedRef = useRef(false)
@@ -47,6 +49,15 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
   const terminalTheme = isDark ? darkTheme : lightTheme
+
+  // Get global OpenCode agent name settings
+  const { data: opencodeDefaultAgent } = useOpencodeDefaultAgent()
+  const { data: opencodePlanAgent } = useOpencodePlanAgent()
+  // Store in refs for use in callbacks
+  const opencodeDefaultAgentRef = useRef(opencodeDefaultAgent)
+  const opencodePlanAgentRef = useRef(opencodePlanAgent)
+  useEffect(() => { opencodeDefaultAgentRef.current = opencodeDefaultAgent }, [opencodeDefaultAgent])
+  useEffect(() => { opencodePlanAgentRef.current = opencodePlanAgent }, [opencodePlanAgent])
 
   // Reset all terminal tracking refs when cwd changes (navigating to different task)
   // This MUST run before terminal creation logic to ensure refs are clean
@@ -245,6 +256,7 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
         cols,
         rows,
         cwd,
+        taskId,
         // Include startup info - this is stored in the MST store to survive
         // component unmount/remount (fixes race condition with React strict mode)
         startup: {
@@ -392,6 +404,8 @@ export function TaskTerminal({ taskName, cwd, className, agent = 'claude', aiMod
         mode: currentAiMode === 'plan' ? 'plan' : 'default',
         additionalOptions: currentAgentOptions ?? {},
         opencodeModel: currentOpencodeModel,
+        opencodeDefaultAgent: opencodeDefaultAgentRef.current,
+        opencodePlanAgent: opencodePlanAgentRef.current,
       })
 
       // Wait longer for startup script to complete before sending agent command
