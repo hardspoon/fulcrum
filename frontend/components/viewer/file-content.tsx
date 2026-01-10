@@ -1,11 +1,16 @@
 import { useCallback, useRef, useEffect, useContext } from 'react'
 import { observer } from 'mobx-react-lite'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Cancel01Icon, TextIcon, SourceCodeIcon } from '@hugeicons/core-free-icons'
+import {
+  Cancel01Icon,
+  TextIcon,
+  SourceCodeIcon,
+  Search01Icon,
+} from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 import { useFilesStoreActions } from '@/stores'
 import { useFileChangePolling } from '@/hooks/use-file-change-polling'
-import { MonacoEditor } from './monaco-editor'
+import { MonacoEditor, type EditorActions } from './monaco-editor'
 import { MarkdownRenderer } from './markdown-renderer'
 import { FileChangeDialog } from './file-change-dialog'
 import { CallbacksContext } from './files-viewer'
@@ -35,15 +40,18 @@ export const FileContent = observer(function FileContent({ onBack }: FileContent
   } = useFilesStoreActions()
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const editorActionsRef = useRef<EditorActions | null>(null)
 
   // Poll for external file changes
+  // Disable polling while dirty - we don't need to detect external changes while editing
+  // and this prevents detecting our own saves as external changes
   const { hasExternalChange, isConflict, resetExternalChange } =
     useFileChangePolling({
       worktreePath,
       filePath: selectedFile,
       currentMtime: currentFile?.mtime ?? null,
       isDirty,
-      enabled: !!currentFile && !isLoading && currentFile.isEditable,
+      enabled: !!currentFile && !isLoading && currentFile.isEditable && !isDirty,
     })
 
   // Handle silent reload when file changed externally and no local edits
@@ -259,6 +267,17 @@ export const FileContent = observer(function FileContent({ onBack }: FileContent
             </button>
           )}
 
+          {/* Search - only show when not in markdown preview */}
+          {!showMarkdownPreview && (
+            <button
+              onClick={() => editorActionsRef.current?.triggerFind()}
+              className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/50"
+              title="Find (Ctrl+F)"
+            >
+              <HugeiconsIcon icon={Search01Icon} size={14} strokeWidth={2} />
+            </button>
+          )}
+
           <button
             onClick={handleBack}
             className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/50"
@@ -282,6 +301,9 @@ export const FileContent = observer(function FileContent({ onBack }: FileContent
               content={currentFile.content}
               onChange={handleContentChange}
               readOnly={readOnly || !currentFile.isEditable}
+              onEditorReady={(actions) => {
+                editorActionsRef.current = actions
+              }}
             />
           )}
         </div>

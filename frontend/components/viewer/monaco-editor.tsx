@@ -10,11 +10,20 @@ loader.config({
   },
 })
 
+/**
+ * Actions exposed by the Monaco editor for external control
+ */
+export interface EditorActions {
+  triggerFind: () => void
+  triggerFindReplace: () => void
+}
+
 interface MonacoEditorProps {
   filePath: string
   content: string
   onChange: (value: string) => void
   readOnly?: boolean
+  onEditorReady?: (actions: EditorActions) => void
 }
 
 /**
@@ -82,13 +91,27 @@ export function MonacoEditor({
   content,
   onChange,
   readOnly = false,
+  onEditorReady,
 }: MonacoEditorProps) {
   const { resolvedTheme } = useTheme()
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
 
-  const handleMount: OnMount = useCallback((editor) => {
-    editorRef.current = editor
-  }, [])
+  const handleMount: OnMount = useCallback(
+    (editor) => {
+      editorRef.current = editor
+
+      // Expose editor actions to parent component
+      onEditorReady?.({
+        triggerFind: () => {
+          editor.getAction('actions.find')?.run()
+        },
+        triggerFindReplace: () => {
+          editor.getAction('editor.action.startFindReplaceAction')?.run()
+        },
+      })
+    },
+    [onEditorReady]
+  )
 
   const handleChange: OnChange = useCallback(
     (value) => {

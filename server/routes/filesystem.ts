@@ -491,7 +491,14 @@ app.post('/write', async (c) => {
     // Write the content
     fs.writeFileSync(resolvedPath, content, 'utf-8')
 
-    return c.json({ success: true, size: Buffer.byteLength(content, 'utf-8') })
+    // Get the new mtime so client can update its tracking
+    const newStat = fs.statSync(resolvedPath)
+
+    return c.json({
+      success: true,
+      size: Buffer.byteLength(content, 'utf-8'),
+      mtime: newStat.mtime.toISOString(),
+    })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to write file' }, 500)
   }

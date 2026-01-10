@@ -85,6 +85,7 @@ interface FileTreeResponse {
 interface WriteFileResponse {
   success: boolean
   size: number
+  mtime: string
 }
 
 /**
@@ -338,6 +339,10 @@ export const FilesStore = types
 
         if (response.success) {
           self._markFileSaved(path)
+          // Update mtime so polling doesn't detect our own save as external change
+          if (response.mtime) {
+            file.setMtime(response.mtime)
+          }
         }
       } catch (error) {
         self._setSaveError(error instanceof Error ? error.message : 'Failed to save file')
