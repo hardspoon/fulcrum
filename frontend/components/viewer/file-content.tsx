@@ -174,9 +174,23 @@ export const FileContent = observer(function FileContent({ onBack }: FileContent
   // Binary file
   if (currentFile.isBinary) {
     return (
-      <div className="flex h-full flex-col items-center justify-center text-muted-foreground text-sm gap-2">
-        <p>Binary file</p>
-        <p className="text-xs">{(currentFile.size / 1024).toFixed(1)} KB</p>
+      <div className="flex flex-col h-full overflow-hidden bg-background">
+        <div className="flex shrink-0 items-center justify-between px-2 py-1.5 bg-card border-b border-border text-xs">
+          <span className="text-muted-foreground truncate" title={selectedFile}>
+            {selectedFile.split('/').pop() || selectedFile}
+          </span>
+          <button
+            onClick={handleBack}
+            className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/50"
+            title="Close file"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
+          </button>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground text-sm gap-2">
+          <p>Binary file</p>
+          <p className="text-xs">{(currentFile.size / 1024).toFixed(1)} KB</p>
+        </div>
       </div>
     )
   }
