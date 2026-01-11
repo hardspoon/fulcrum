@@ -2,9 +2,10 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
-import { ClipboardAddon } from '@xterm/addon-clipboard'
+
 import '@xterm/xterm/css/xterm.css'
 import { cn } from '@/lib/utils'
+import { registerOsc52Handler } from './osc52-handler'
 import { useTerminalWS } from '@/hooks/use-terminal-ws'
 import { useKeyboardContext } from '@/contexts/keyboard-context'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -38,7 +39,6 @@ export function TaskTerminal({ taskName, cwd, taskId, className, agent = 'claude
   const hasFocusedRef = useRef(false)
   const autoFocusRef = useRef(autoFocus)
   const fitAddonRef = useRef<FitAddon | null>(null)
-  const clipboardAddonRef = useRef<ClipboardAddon | null>(null)
   const createdTerminalRef = useRef(false)
   const attachedRef = useRef(false)
   const [terminalId, setTerminalId] = useState<string | null>(null)
@@ -118,16 +118,15 @@ export function TaskTerminal({ taskName, cwd, taskId, className, agent = 'claude
 
     const fitAddon = new FitAddon()
     const webLinksAddon = new WebLinksAddon()
-    const clipboardAddon = new ClipboardAddon()
 
     term.loadAddon(fitAddon)
     term.loadAddon(webLinksAddon)
-    term.loadAddon(clipboardAddon)
     term.open(containerRef.current)
+
+    const osc52Cleanup = registerOsc52Handler(term)
 
     termRef.current = term
     fitAddonRef.current = fitAddon
-    clipboardAddonRef.current = clipboardAddon
 
     // Mark xterm as opened synchronously - this gates terminal creation
     // We can get cols/rows immediately after open(), no need to wait for rAF
@@ -156,13 +155,12 @@ export function TaskTerminal({ taskName, cwd, taskId, className, agent = 'claude
 
     return () => {
       clearTimeout(refitTimeout)
+      osc52Cleanup()
       if (term.textarea) {
         term.textarea.removeEventListener('focus', handleTerminalFocus)
         term.textarea.removeEventListener('blur', handleTerminalBlur)
       }
       setTerminalFocused(false)
-      clipboardAddonRef.current?.dispose()
-      clipboardAddonRef.current = null
       term.dispose()
       termRef.current = null
       fitAddonRef.current = null

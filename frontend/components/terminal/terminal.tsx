@@ -2,9 +2,10 @@ import { useEffect, useRef, useCallback } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
-import { ClipboardAddon } from '@xterm/addon-clipboard'
+
 import '@xterm/xterm/css/xterm.css'
 import { cn } from '@/lib/utils'
+import { registerOsc52Handler } from './osc52-handler'
 import { useKeyboardContext } from '@/contexts/keyboard-context'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDownDoubleIcon } from '@hugeicons/core-free-icons'
@@ -27,7 +28,6 @@ export function Terminal({ className, onReady, onResize, onContainerReady, termi
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XTerm | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
-  const clipboardAddonRef = useRef<ClipboardAddon | null>(null)
   const onResizeRef = useRef(onResize)
   const onFocusRef = useRef(onFocus)
   const onReadyRef = useRef(onReady)
@@ -76,16 +76,15 @@ export function Terminal({ className, onReady, onResize, onContainerReady, termi
 
     const fitAddon = new FitAddon()
     const webLinksAddon = new WebLinksAddon()
-    const clipboardAddon = new ClipboardAddon()
 
     term.loadAddon(fitAddon)
     term.loadAddon(webLinksAddon)
-    term.loadAddon(clipboardAddon)
     term.open(containerRef.current)
+
+    const osc52Cleanup = registerOsc52Handler(term)
 
     termRef.current = term
     fitAddonRef.current = fitAddon
-    clipboardAddonRef.current = clipboardAddon
 
     // Initial fit after container is sized, with delayed refit to catch layout stabilization
     requestAnimationFrame(() => {
@@ -156,13 +155,12 @@ export function Terminal({ className, onReady, onResize, onContainerReady, termi
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       resizeObserver.disconnect()
       visibilityObserver.disconnect()
+      osc52Cleanup()
       if (term.textarea) {
         term.textarea.removeEventListener('focus', handleTerminalFocus)
         term.textarea.removeEventListener('blur', handleTerminalBlur)
       }
       setTerminalFocused(false)
-      clipboardAddonRef.current?.dispose()
-      clipboardAddonRef.current = null
       term.dispose()
       termRef.current = null
       fitAddonRef.current = null
