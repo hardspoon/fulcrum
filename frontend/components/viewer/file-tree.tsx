@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Folder01Icon,
@@ -157,6 +158,7 @@ export function FileTree({
   onToggleDir,
   onCollapseAll,
 }: FileTreeProps) {
+  const { t } = useTranslation('repositories')
   const [searchQuery, setSearchQuery] = useState('')
 
   const allFiles = useMemo(() => flattenFiles(entries), [entries])
@@ -180,7 +182,7 @@ export function FileTree({
   if (entries.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        No files
+        {t('detailView.fileTree.noFiles')}
       </div>
     )
   }
@@ -189,11 +191,11 @@ export function FileTree({
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between px-2 py-1 border-b border-border bg-card">
-        <span className="text-xs text-muted-foreground">Files</span>
+        <span className="text-xs text-muted-foreground">{t('detailView.fileTree.title')}</span>
         <button
           onClick={onCollapseAll}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/50"
-          title="Collapse all folders"
+          title={t('detailView.fileTree.collapseAll')}
         >
           <HugeiconsIcon icon={MenuCollapseIcon} size={14} strokeWidth={2} />
         </button>
@@ -206,7 +208,7 @@ export function FileTree({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search files..."
+            placeholder={t('detailView.fileTree.searchPlaceholder')}
             className="w-full text-sm bg-muted/50 border border-border rounded px-2 py-1 pr-7 placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {searchQuery && (

@@ -144,6 +144,12 @@
       "terminal": "Terminal",
       "files": "Files"
     },
+    "fileTree": {
+      "title": "Files",
+      "searchPlaceholder": "Search files...",
+      "noFiles": "No files",
+      "collapseAll": "Collapse all folders"
+    },
     "settings": {
       "generalTitle": "General",
       "agentTitle": "Agent Options",

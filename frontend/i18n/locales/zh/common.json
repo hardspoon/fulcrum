@@ -125,7 +125,11 @@
       "unsavedChanges": "未保存的更改",
       "save": "保存",
       "edit": "编辑",
-      "done": "完成"
+      "done": "完成",
+      "preview": "预览",
+      "previewDescription": "预览将要部署的 compose 文件",
+      "generatedTitle": "生成的 Compose 文件预览",
+      "generatedDescription": "显示当前配置将要部署的内容，包括环境变量展开和 Docker Swarm 转换。"
     },
     "logs": {
       "title": "日志",
@@ -189,6 +193,15 @@
       "building": "构建中",
       "failed": "失败",
       "stopped": "已停止"
+    },
+    "monitoring": {
+      "title": "资源使用",
+      "description": "每个服务的实时 CPU 和内存使用情况",
+      "cpu": "CPU",
+      "memory": "内存",
+      "noContainers": "未找到运行中的容器",
+      "dockerUnavailable": "Docker 统计不可用",
+      "serviceTotal": "服务总计"
     }
   }
 }

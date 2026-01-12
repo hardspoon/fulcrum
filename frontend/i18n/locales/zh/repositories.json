@@ -142,6 +142,12 @@
       "terminal": "终端",
       "files": "文件"
     },
+    "fileTree": {
+      "title": "文件",
+      "searchPlaceholder": "搜索文件...",
+      "noFiles": "无文件",
+      "collapseAll": "折叠所有文件夹"
+    },
     "settings": {
       "generalTitle": "常规",
       "agentTitle": "代理选项",

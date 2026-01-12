@@ -24,6 +24,7 @@ import zhWorktrees from './locales/zh/worktrees.json'
 import zhMonitoring from './locales/zh/monitoring.json'
 import zhTerminals from './locales/zh/terminals.json'
 import zhRepositories from './locales/zh/repositories.json'
+import zhProjects from './locales/zh/projects.json'
 
 export const defaultNS = 'common'
 export const supportedLanguages = ['en', 'zh'] as const
@@ -54,7 +55,7 @@ export const resources = {
     terminals: zhTerminals,
     repositories: zhRepositories,
     jobs: enJobs, // TODO: Add Chinese translations
-    projects: enProjects, // TODO: Add Chinese translations
+    projects: zhProjects,
   },
 } as const
 

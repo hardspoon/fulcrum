@@ -24,6 +24,7 @@ import { toast } from 'sonner'
 import { buildEditorUrl, getEditorDisplayName, openExternalUrl } from '@/lib/editor-url'
 import type { ProjectWithDetails } from '@/types'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
+import { CreateProjectModal } from '@/components/projects/create-project-modal'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import {
@@ -321,11 +322,11 @@ function DeleteProjectDialog({
 
 function ProjectsView() {
   const { t } = useTranslation('projects')
-  const navigate = useNavigate()
   const { data: projects, isLoading, error } = useProjects()
   const deleteProject = useDeleteProject()
   const [taskModalProject, setTaskModalProject] = useState<ProjectWithDetails | null>(null)
   const [deleteProjectState, setDeleteProjectState] = useState<ProjectWithDetails | null>(null)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredProjects = useMemo(() => {
@@ -367,7 +368,7 @@ function ProjectsView() {
           />
         </div>
         <div className="hidden sm:block flex-1" />
-        <Button size="sm" onClick={() => navigate({ to: '/projects/new' })}>
+        <Button size="sm" onClick={() => setCreateModalOpen(true)}>
           <HugeiconsIcon icon={PackageAddIcon} size={16} strokeWidth={2} data-slot="icon" />
           <span className="max-sm:hidden">{t('newProjectButton')}</span>
         </Button>
@@ -444,6 +445,11 @@ function ProjectsView() {
         open={deleteProjectState !== null}
         onOpenChange={(open) => !open && setDeleteProjectState(null)}
         onDelete={handleDelete}
+      />
+
+      <CreateProjectModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
       />
     </div>
   )
