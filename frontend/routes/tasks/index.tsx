@@ -68,11 +68,11 @@ function KanbanView() {
           <SelectTrigger size="sm" className="shrink-0 gap-1.5">
             <HugeiconsIcon icon={FilterIcon} size={12} strokeWidth={2} className="text-muted-foreground" />
             <SelectValue>
-              {repoFilter ?? t('allRepos')}
+              {repoFilter ?? t('allProjects')}
             </SelectValue>
           </SelectTrigger>
           <SelectContent className="min-w-[160px]">
-            <SelectItem value="">{t('allRepos')}</SelectItem>
+            <SelectItem value="">{t('allProjects')}</SelectItem>
             {repoNames.map((name) => (
               <SelectItem key={name} value={name}>
                 {name}
