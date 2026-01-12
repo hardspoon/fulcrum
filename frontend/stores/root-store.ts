@@ -556,15 +556,11 @@ export const RootStore = types
             return false // Prevent xterm from processing (would send regular CR)
           }
 
-          // Prevent Escape from triggering browser behaviors (exiting fullscreen, etc.)
-          // when the terminal has focus - the terminal needs to receive ESC for apps like
-          // Claude Code that use it to cancel operations
-          if (event.type === 'keydown' && event.key === 'Escape') {
-            event.preventDefault()
-            // In desktop mode, also stop propagation to native layer
-            if (window.parent !== window) {
-              event.stopPropagation()
-            }
+          // In desktop mode (iframe), stop Escape propagation to prevent native layer handling
+          // Do NOT call preventDefault() - it interferes with xterm.js's key processing
+          // and causes intermittent failures where Escape/Ctrl+C stop working
+          if (event.type === 'keydown' && event.key === 'Escape' && window.parent !== window) {
+            event.stopPropagation()
           }
 
           return true // Allow all other keys to be processed normally
