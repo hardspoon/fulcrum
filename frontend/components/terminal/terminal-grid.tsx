@@ -116,7 +116,15 @@ const TerminalPane = observer(function TerminalPane({ terminal, taskInfo, projec
       )
     }
     if (projectInfo) {
-      return <ProjectTerminalHeader projectInfo={projectInfo} />
+      return (
+        <ProjectTerminalHeader
+          projectInfo={projectInfo}
+          isMaximized={isMaximized}
+          onMaximize={onMaximize}
+          onMinimize={onMinimize}
+          canMaximize={canMaximize}
+        />
+      )
     }
     return (
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-card">
@@ -275,8 +283,8 @@ export function TerminalGrid({
   const renderTerminalPane = (terminal: TerminalInfo) => {
     const taskInfo = terminal.cwd ? taskInfoByCwd?.get(terminal.cwd) : undefined
     const projectInfo = terminal.cwd ? projectInfoByCwd?.get(terminal.cwd) : undefined
-    // Only regular terminals (not task/project terminals) can be maximized when there are multiple terminals
-    const canMaximize = !taskInfo && !projectInfo && terminals.length > 1
+    // Regular and project terminals can be maximized when there are multiple terminals (not task terminals)
+    const canMaximize = !taskInfo && terminals.length > 1
     return (
       <TerminalPane
         terminal={terminal}
