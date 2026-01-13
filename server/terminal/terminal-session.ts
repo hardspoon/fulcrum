@@ -49,6 +49,9 @@ export class TerminalSession {
   private _positionInTab: number
   private _taskId?: string
 
+  // Input queue for data sent before PTY is attached
+  private inputQueue: string[] = []
+
   constructor(options: TerminalSessionOptions) {
     this.id = options.id
     this._name = options.name
@@ -193,6 +196,7 @@ export class TerminalSession {
       })
 
       this.setupPtyHandlers()
+      this.flushInputQueue()
     } catch (err) {
       log.terminal.error('Failed to attach to dtach', { terminalId: this.id, error: String(err) })
       this.status = 'error'
@@ -248,6 +252,19 @@ export class TerminalSession {
     })
   }
 
+  private flushInputQueue(): void {
+    if (this.pty && this.inputQueue.length > 0) {
+      log.terminal.debug('flushing input queue', {
+        terminalId: this.id,
+        itemCount: this.inputQueue.length,
+      })
+      for (const data of this.inputQueue) {
+        this.pty.write(data)
+      }
+      this.inputQueue = []
+    }
+  }
+
   detach(): void {
     // Always save buffer to disk before detaching
     this.buffer.saveToDisk()
@@ -265,6 +282,14 @@ export class TerminalSession {
   write(data: string): void {
     if (this.pty && this.status === 'running') {
       this.pty.write(data)
+    } else if (this.status === 'running') {
+      // PTY not attached yet - queue input for later
+      this.inputQueue.push(data)
+      log.terminal.debug('queued input before attach', {
+        terminalId: this.id,
+        dataLen: data.length,
+        queueSize: this.inputQueue.length,
+      })
     }
   }
 
