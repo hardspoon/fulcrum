@@ -1,6 +1,6 @@
 import type { Plugin } from "@opencode-ai/plugin"
 import { appendFileSync } from "node:fs"
-import { execFile } from "node:child_process"
+import { spawn } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -22,20 +22,72 @@ const log = (msg: string) => {
 }
 
 /**
- * Execute vibora command using execFile with shell option for proper PATH resolution.
- * Using execFile with explicit args array prevents shell injection while shell:true
+ * Execute vibora command using spawn with shell option for proper PATH resolution.
+ * Using spawn with explicit args array prevents shell injection while shell:true
  * ensures PATH is properly resolved (for NVM, fnm, etc. managed node installations).
+ * Includes 10 second timeout protection to prevent hanging.
  */
 async function runViboraCommand(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    execFile(VIBORA_CMD, args, { shell: true }, (error, stdout, stderr) => {
-      if (error) {
-        const execError = error as NodeJS.ErrnoException
-        resolve({ exitCode: execError.code ? 1 : 1, stdout: stdout || '', stderr: stderr || execError.message || '' })
-      } else {
-        resolve({ exitCode: 0, stdout: stdout || '', stderr: stderr || '' })
+    let stdout = ''
+    let stderr = ''
+    let resolved = false
+    let processExited = false
+    let killTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const child = spawn(VIBORA_CMD, args, { shell: true })
+
+    const cleanup = () => {
+      processExited = true
+      if (killTimeoutId) {
+        clearTimeout(killTimeoutId)
+        killTimeoutId = null
+      }
+    }
+
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString()
+    })
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString()
+    })
+
+    child.on('close', (code) => {
+      cleanup()
+      if (!resolved) {
+        resolved = true
+        resolve({ exitCode: code || 0, stdout, stderr })
       }
     })
+
+    child.on('error', (err) => {
+      cleanup()
+      if (!resolved) {
+        resolved = true
+        resolve({ exitCode: 1, stdout, stderr: err.message || '' })
+      }
+    })
+
+    // Add timeout protection to prevent hanging
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        log(`Command timeout: ${VIBORA_CMD} ${args.join(' ')}`)
+        child.kill('SIGTERM')
+        // Schedule SIGKILL if process doesn't exit after SIGTERM
+        killTimeoutId = setTimeout(() => {
+          if (!processExited) {
+            log(`Process didn't exit after SIGTERM, sending SIGKILL`)
+            child.kill('SIGKILL')
+          }
+        }, 2000)
+        resolve({ exitCode: -1, stdout, stderr: `Command timed out after ${VIBORA_COMMAND_TIMEOUT_MS}ms` })
+      }
+    }, VIBORA_COMMAND_TIMEOUT_MS)
+
+    // Clear timeout if command completes
+    child.on('exit', () => clearTimeout(timeoutId))
   })
 }
 
@@ -47,9 +99,12 @@ let lastStatus: "in-progress" | "review" | "" = ""
 
 const VIBORA_CMD = "vibora"
 const IDLE_CONFIRMATION_DELAY_MS = 1500
+const VIBORA_COMMAND_TIMEOUT_MS = 10000
+const STATUS_CHANGE_DEBOUNCE_MS = 500
 
 let deferredContextCheck: Promise<boolean> | null = null
 let isViboraContext: boolean | null = null
+let pendingStatusCommand: Promise<{ exitCode: number; stdout: string; stderr: string }> | null = null
 
 export const ViboraPlugin: Plugin = async ({ $, directory }) => {
   log("Plugin initializing...")
@@ -101,16 +156,28 @@ export const ViboraPlugin: Plugin = async ({ $, directory }) => {
     if (status === lastStatus) return
 
     cancelPendingIdle()
+
+    if (pendingStatusCommand) {
+      log(`Status change already in progress, will retry after ${STATUS_CHANGE_DEBOUNCE_MS}ms`)
+      setTimeout(() => setStatus(status), STATUS_CHANGE_DEBOUNCE_MS)
+      return
+    }
+
     lastStatus = status
+
     ;(async () => {
       try {
         log(`Setting status: ${status}`)
-        const res = await runViboraCommand(['current-task', status, '--path', directory])
+        pendingStatusCommand = runViboraCommand(['current-task', status, '--path', directory])
+        const res = await pendingStatusCommand
+        pendingStatusCommand = null
+
         if (res.exitCode !== 0) {
           log(`Status update failed: exitCode=${res.exitCode}, stderr=${res.stderr}`)
         }
       } catch (e) {
         log(`Status update error: ${e}`)
+        pendingStatusCommand = null
       }
     })()
   }
