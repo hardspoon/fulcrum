@@ -176,7 +176,9 @@
     },
     "workspace": {
       "connectingToTerminal": "正在连接终端服务器...",
-      "initializingTerminal": "正在初始化终端..."
+      "initializingTerminal": "正在初始化终端...",
+      "terminalConnectionFailed": "终端连接失败",
+      "recreateTerminal": "重新创建终端"
     }
   }
 }

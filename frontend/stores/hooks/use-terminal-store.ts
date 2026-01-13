@@ -76,6 +76,7 @@ export interface UseTerminalStoreReturn {
   // Terminal actions
   createTerminal: (options: CreateTerminalOptions) => void
   destroyTerminal: (terminalId: string, options?: DestroyTerminalOptions) => void
+  recreateTerminal: (terminalId: string) => void
   writeToTerminal: (terminalId: string, data: string) => void
   sendInputToTerminal: (terminalId: string, text: string) => void
   resizeTerminal: (terminalId: string, cols: number, rows: number) => void
@@ -180,6 +181,7 @@ export function useTerminalStore(): UseTerminalStoreReturn {
       // Terminal actions (delegated to store)
       createTerminal: store.createTerminal.bind(store),
       destroyTerminal: store.destroyTerminal.bind(store),
+      recreateTerminal: store.recreateTerminal.bind(store),
       writeToTerminal: store.writeToTerminal.bind(store),
       sendInputToTerminal: store.sendInputToTerminal.bind(store),
       resizeTerminal: store.resizeTerminal.bind(store),

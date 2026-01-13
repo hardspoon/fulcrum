@@ -95,6 +95,7 @@ interface UseTerminalWSReturn {
   newTerminalIds: Set<string>
   createTerminal: (options: CreateTerminalOptions) => void
   destroyTerminal: (terminalId: string, options?: DestroyTerminalOptions) => void
+  recreateTerminal: (terminalId: string) => void
   writeToTerminal: (terminalId: string, data: string) => void
   sendInputToTerminal: (terminalId: string, text: string) => void
   resizeTerminal: (terminalId: string, cols: number, rows: number) => void
@@ -174,6 +175,7 @@ export function useTerminalWS(_options: UseTerminalWSOptions = {}): UseTerminalW
     // Actions pass through directly
     createTerminal: store.createTerminal,
     destroyTerminal: store.destroyTerminal,
+    recreateTerminal: store.recreateTerminal,
     writeToTerminal: store.writeToTerminal,
     sendInputToTerminal: store.sendInputToTerminal,
     resizeTerminal: store.resizeTerminal,

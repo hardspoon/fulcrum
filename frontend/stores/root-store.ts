@@ -458,6 +458,26 @@ export const RootStore = types
         self.terminals.remove(terminalId)
       },
 
+      /** Recreate a terminal (destroy stale one, create fresh with same settings) */
+      recreateTerminal(terminalId: string) {
+        const terminal = self.terminals.get(terminalId)
+        if (!terminal) {
+          getWs().log.ws.warn('recreateTerminal: terminal not found', { terminalId })
+          return
+        }
+
+        // Capture settings before destroying
+        const { name, cwd, cols, rows, tabId, positionInTab } = terminal
+
+        getWs().log.ws.info('recreateTerminal', { terminalId, name, cwd })
+
+        // Destroy stale terminal (force: true for protected project terminals)
+        this.destroyTerminal(terminalId, { force: true, reason: 'recreate' })
+
+        // Create fresh terminal with same settings
+        this.createTerminal({ name, cols, rows, cwd, tabId: tabId ?? undefined, positionInTab })
+      },
+
       /** Send input to terminal */
       writeToTerminal(terminalId: string, data: string) {
         getWs().send({

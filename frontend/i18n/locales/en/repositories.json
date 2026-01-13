@@ -178,7 +178,9 @@
     },
     "workspace": {
       "connectingToTerminal": "Connecting to terminal server...",
-      "initializingTerminal": "Initializing terminal..."
+      "initializingTerminal": "Initializing terminal...",
+      "terminalConnectionFailed": "Terminal connection failed",
+      "recreateTerminal": "Recreate Terminal"
     }
   }
 }

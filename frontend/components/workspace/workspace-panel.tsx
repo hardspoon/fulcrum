@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
+import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Loading03Icon } from '@hugeicons/core-free-icons'
 import { FilesViewer } from '@/components/viewer/files-viewer'
@@ -59,11 +60,16 @@ export function WorkspacePanel({
     terminalsLoaded,
     connected,
     createTerminal,
+    recreateTerminal,
     attachXterm,
     resizeTerminal,
     setupImagePaste,
     writeToTerminal,
   } = useTerminalWS()
+
+  // Get the current terminal's status
+  const currentTerminal = terminalId ? terminals.find((t) => t.id === terminalId) : null
+  const terminalStatus = currentTerminal?.status
 
   // Log on mount
   useEffect(() => {
@@ -164,6 +170,17 @@ export function WorkspacePanel({
     }
   }, [terminalId, writeToTerminal])
 
+  // Handle terminal recreation (for stale/dead dtach sockets)
+  const handleRecreate = useCallback(() => {
+    if (terminalId) {
+      // Reset refs so we can re-attach after recreation
+      attachedRef.current = false
+      createdTerminalRef.current = false
+      setTerminalId(null)
+      recreateTerminal(terminalId)
+    }
+  }, [terminalId, recreateTerminal])
+
   // Attach xterm to terminal once we have terminalId and both xterm/container are ready
   useEffect(() => {
     if (!terminalId || !xtermReady || !containerReady) {
@@ -220,6 +237,23 @@ export function WorkspacePanel({
     )
   }
 
+  // Render error overlay with recreate button (for stale dtach sockets)
+  const renderErrorOverlay = () => {
+    if (!terminalId || !terminalStatus || terminalStatus === 'running') return null
+    return (
+      <div className="absolute inset-0 z-10 flex items-center justify-center bg-terminal-background/95">
+        <div className="flex flex-col items-center gap-4">
+          <span className="text-sm text-destructive">
+            {t('detailView.workspace.terminalConnectionFailed')}
+          </span>
+          <Button onClick={handleRecreate} variant="outline">
+            {t('detailView.workspace.recreateTerminal')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (isMobile) {
     return (
       <Tabs
@@ -235,9 +269,10 @@ export function WorkspacePanel({
         </div>
 
         <TabsContent value="terminal" className="flex-1 min-h-0">
-          <div className="h-full flex flex-col">
+          <div className="relative h-full flex flex-col">
             {renderConnectionStatus()}
             {renderTerminalLoadingOverlay()}
+            {renderErrorOverlay()}
             <Terminal
               className="flex-1"
               onReady={handleTerminalReady}
@@ -265,9 +300,10 @@ export function WorkspacePanel({
   return (
     <ResizablePanelGroup direction="horizontal" className="h-full">
       <ResizablePanel defaultSize={50} minSize={30}>
-        <div className="h-full flex flex-col">
+        <div className="relative h-full flex flex-col">
           {renderConnectionStatus()}
           {renderTerminalLoadingOverlay()}
+          {renderErrorOverlay()}
           <Terminal
             className="flex-1"
             onReady={handleTerminalReady}
