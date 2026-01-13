@@ -8,9 +8,11 @@ import type { TerminalInfo } from '../types'
 import { log } from '../lib/logger'
 import { getViboraDir } from '../lib/settings'
 
+import type { TerminalStatus } from '../types'
+
 export interface PTYManagerCallbacks {
   onData: (terminalId: string, data: string) => void
-  onExit: (terminalId: string, exitCode: number) => void
+  onExit: (terminalId: string, exitCode: number, status: TerminalStatus) => void
 }
 
 export class PTYManager {
@@ -64,7 +66,7 @@ export class PTYManager {
           tabId: record.tabId ?? undefined,
           positionInTab: record.positionInTab ?? 0,
           onData: (data) => this.callbacks.onData(record.id, data),
-          onExit: (exitCode) => this.callbacks.onExit(record.id, exitCode),
+          onExit: (exitCode, status) => this.callbacks.onExit(record.id, exitCode, status),
           onShouldDestroy: () => {
             // Use queueMicrotask to avoid destroying while in exit handler
             queueMicrotask(() => destroyTerminalAndBroadcast(record.id))
@@ -137,7 +139,7 @@ export class PTYManager {
       positionInTab: options.positionInTab,
       taskId: options.taskId,
       onData: (data) => this.callbacks.onData(id, data),
-      onExit: (exitCode) => this.callbacks.onExit(id, exitCode),
+      onExit: (exitCode, status) => this.callbacks.onExit(id, exitCode, status),
       onShouldDestroy: () => {
         // Use queueMicrotask to avoid destroying while in exit handler
         queueMicrotask(() => destroyTerminalAndBroadcast(id))

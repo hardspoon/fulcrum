@@ -212,6 +212,7 @@ export interface TerminalExitMessage {
   payload: {
     terminalId: string
     exitCode: number
+    status: TerminalStatus
   }
 }
 

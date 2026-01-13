@@ -222,10 +222,10 @@ async function main() {
         payload: { terminalId, data },
       })
     },
-    onExit: (terminalId, exitCode) => {
+    onExit: (terminalId, exitCode, status) => {
       broadcast({
         type: 'terminal:exit',
-        payload: { terminalId, exitCode },
+        payload: { terminalId, exitCode, status },
       })
     },
   })

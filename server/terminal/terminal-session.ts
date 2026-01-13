@@ -20,7 +20,7 @@ export interface TerminalSessionOptions {
   positionInTab?: number
   taskId?: string
   onData: (data: string) => void
-  onExit: (exitCode: number) => void
+  onExit: (exitCode: number, status: TerminalStatus) => void
   onShouldDestroy?: () => void
 }
 
@@ -37,7 +37,7 @@ export class TerminalSession {
   private pty: IPty | null = null
   private buffer: BufferManager
   private onData: (data: string) => void
-  private onExit: (exitCode: number) => void
+  private onExit: (exitCode: number, status: TerminalStatus) => void
   private onShouldDestroy?: () => void
 
   // Flag to indicate we're intentionally detaching (not exiting)
@@ -136,7 +136,7 @@ export class TerminalSession {
       log.terminal.error('Failed to start dtach session', { terminalId: this.id, error: String(err) })
       this.status = 'error'
       this.updateDb({ status: 'error' })
-      this.onExit(1)
+      this.onExit(1, 'error')
     }
   }
 
@@ -167,7 +167,7 @@ export class TerminalSession {
       this.status = 'exited'
       this.exitCode = 1
       this.updateDb({ status: 'exited', exitCode: 1 })
-      this.onExit(1)
+      this.onExit(1, 'exited')
       return
     }
 
@@ -197,7 +197,7 @@ export class TerminalSession {
       log.terminal.error('Failed to attach to dtach', { terminalId: this.id, error: String(err) })
       this.status = 'error'
       this.updateDb({ status: 'error' })
-      this.onExit(1)
+      this.onExit(1, 'error')
     }
   }
 
@@ -221,17 +221,30 @@ export class TerminalSession {
       }
 
       const dtach = getDtachService()
+      const socketExists = dtach.hasSession(this.id)
 
-      if (!dtach.hasSession(this.id)) {
+      if (!socketExists) {
         // Session actually ended (socket gone)
         this.status = 'exited'
         this.exitCode = exitCode
         this.updateDb({ status: 'exited', exitCode })
-        this.onExit(exitCode)
+        this.onExit(exitCode, 'exited')
         // Trigger destruction so terminal can be recreated
         this.onShouldDestroy?.()
+      } else if (exitCode !== 0) {
+        // Socket file exists but dtach failed to connect (stale socket - "Connection refused")
+        // This happens when the underlying process died but socket file remains
+        log.terminal.warn('dtach attachment failed - stale socket detected', {
+          terminalId: this.id,
+          exitCode,
+        })
+        this.status = 'error'
+        this.exitCode = exitCode
+        this.updateDb({ status: 'error', exitCode })
+        this.onExit(exitCode, 'error')
+        this.onShouldDestroy?.()
       }
-      // Otherwise dtach is still running, we just detached
+      // Otherwise dtach is still running with exit code 0, we just detached normally
     })
   }
 

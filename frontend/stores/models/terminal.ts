@@ -72,9 +72,9 @@ export const TerminalModel = types
       self.attachCleanup = cleanup
     },
 
-    /** Mark as exited with exit code */
-    markExited(exitCode: number) {
-      self.status = 'exited'
+    /** Mark as exited or error with exit code and status */
+    markExited(exitCode: number, status: 'exited' | 'error' = 'exited') {
+      self.status = status
       self.exitCode = exitCode
     },
 

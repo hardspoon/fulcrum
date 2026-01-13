@@ -1057,8 +1057,12 @@ export const RootStore = types
           }
 
           case 'terminal:exit': {
-            const { terminalId, exitCode } = payload as { terminalId: string; exitCode: number }
-            self.terminals.get(terminalId)?.markExited(exitCode)
+            const { terminalId, exitCode, status } = payload as {
+              terminalId: string
+              exitCode: number
+              status: 'exited' | 'error'
+            }
+            self.terminals.get(terminalId)?.markExited(exitCode, status)
             break
           }
 
