@@ -611,6 +611,14 @@ export function updateNotificationSettings(updates: Partial<NotificationSettings
   const changes: Record<string, { from: unknown; to: unknown }> = {}
   if (updates.enabled !== undefined && updates.enabled !== current.enabled) {
     changes.enabled = { from: current.enabled, to: updates.enabled }
+    // Log with stack trace when notifications are being disabled
+    if (updates.enabled === false) {
+      log.settings.warn('Notifications being DISABLED', {
+        from: current.enabled,
+        to: updates.enabled,
+        stack: new Error().stack,
+      })
+    }
   }
   if (updates.toast?.enabled !== undefined && updates.toast.enabled !== current.toast.enabled) {
     changes['toast.enabled'] = { from: current.toast.enabled, to: updates.toast.enabled }
@@ -852,6 +860,9 @@ export function ensureLatestSettings(): void {
     }
   }
 
+  // Capture original notifications.enabled before any changes
+  const originalNotificationsEnabled = (parsed.notifications as Record<string, unknown>)?.enabled
+
   // Run flat→nested migration if needed
   migrateSettings(parsed)
 
@@ -866,6 +877,16 @@ export function ensureLatestSettings(): void {
       merged.notifications as Record<string, unknown>,
       DEFAULT_NOTIFICATION_SETTINGS as unknown as Record<string, unknown>
     )
+  }
+
+  // Log if notifications.enabled changed during normalization
+  const mergedNotificationsEnabled = (merged.notifications as Record<string, unknown>)?.enabled
+  if (originalNotificationsEnabled !== mergedNotificationsEnabled) {
+    log.settings.warn('Notification enabled state changed during settings normalization', {
+      from: originalNotificationsEnabled,
+      to: mergedNotificationsEnabled,
+      reason: originalNotificationsEnabled === undefined ? 'missing key, using default' : 'value changed during merge',
+    })
   }
 
   // Ensure zai section exists with defaults
