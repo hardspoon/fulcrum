@@ -31,6 +31,7 @@ interface BufferFileV3 {
     anyEvent: boolean
     sgr: boolean
   }
+  cursorVisible?: boolean // ESC[?25h/l - DECTCEM cursor visibility
 }
 
 export class BufferManager {
@@ -48,13 +49,18 @@ export class BufferManager {
     sgr: false, // ESC[?1006h/l - SGR extended mouse mode
   }
 
+  // Track cursor visibility state (DECTCEM).
+  // TUIs like Claude Code hide the native cursor and render their own.
+  // When buffer is replayed, we need to restore this state.
+  private cursorVisible = true // ESC[?25h (show) / ESC[?25l (hide)
+
   setTerminalId(id: string): void {
     this.terminalId = id
   }
 
   append(data: string): void {
-    // Track mouse mode changes before storing
-    this.trackMouseModes(data)
+    // Track terminal state changes before storing
+    this.trackTerminalState(data)
 
     // Store raw data without any parsing - preserves escape sequences
     this.chunks.push({ data, timestamp: Date.now() })
@@ -68,11 +74,11 @@ export class BufferManager {
   }
 
   /**
-   * Track mouse mode enable/disable sequences in the output.
+   * Track terminal state sequences (mouse mode, cursor visibility) in the output.
    * This allows us to restore the correct state even if the original
    * sequences were evicted from the buffer.
    */
-  private trackMouseModes(data: string): void {
+  private trackTerminalState(data: string): void {
     const ESC = '\u001b'
     // Check for mouse mode sequences
     if (new RegExp(`${ESC}\\[\\?1000h`).test(data)) this.mouseMode.x10 = true
@@ -83,6 +89,9 @@ export class BufferManager {
     if (new RegExp(`${ESC}\\[\\?1003l`).test(data)) this.mouseMode.anyEvent = false
     if (new RegExp(`${ESC}\\[\\?1006h`).test(data)) this.mouseMode.sgr = true
     if (new RegExp(`${ESC}\\[\\?1006l`).test(data)) this.mouseMode.sgr = false
+    // Check for cursor visibility sequences (DECTCEM)
+    if (new RegExp(`${ESC}\\[\\?25h`).test(data)) this.cursorVisible = true
+    if (new RegExp(`${ESC}\\[\\?25l`).test(data)) this.cursorVisible = false
   }
 
   /**
@@ -130,13 +139,23 @@ export class BufferManager {
     // If a TUI that enabled mouse mode is still running, it will re-enable it when it redraws.
     // If the TUI exited, the shell doesn't need mouse mode and restoring it causes garbage
     // sequences like [<0;47;33m to appear when clicking in the terminal.
-    return this.filterProblematicSequences(raw)
+    let output = this.filterProblematicSequences(raw)
+    // Restore cursor visibility state if cursor was hidden.
+    // TUIs like Claude Code hide the native cursor and render their own.
+    // Unlike mouse mode, cursor visibility is display state that must be preserved,
+    // otherwise xterm.reset() will show the cursor and it will appear incorrectly.
+    if (!this.cursorVisible) {
+      const ESC = '\u001b'
+      output = `${ESC}[?25l` + output
+    }
+    return output
   }
 
   clear(): void {
     this.chunks = []
     this.totalBytes = 0
     this.mouseMode = { x10: false, buttonEvent: false, anyEvent: false, sgr: false }
+    this.cursorVisible = true
   }
 
   getLineCount(): number {
@@ -150,13 +169,14 @@ export class BufferManager {
     if (!this.terminalId) return
     const filePath = path.join(getBuffersDir(), `${this.terminalId}.buf`)
     try {
-      // Get raw content without prepending mouse mode (we save state separately)
+      // Get raw content without prepending state sequences (we save state separately)
       const raw = this.chunks.map((c) => c.data).join('')
       const content = this.filterProblematicSequences(raw)
       const fileData: BufferFileV3 = {
         version: 3,
         content: Buffer.from(content).toString('base64'),
         mouseMode: { ...this.mouseMode },
+        cursorVisible: this.cursorVisible,
       }
       writeFileSync(filePath, JSON.stringify(fileData), 'utf-8')
     } catch (err) {
@@ -176,7 +196,7 @@ export class BufferManager {
         try {
           const parsed = JSON.parse(raw)
           if (parsed.version === 3 && typeof parsed.content === 'string') {
-            // V3 format: base64 encoded with mouse mode state
+            // V3 format: base64 encoded with mouse mode and cursor visibility state
             content = Buffer.from(parsed.content, 'base64').toString()
             if (parsed.mouseMode) {
               this.mouseMode = {
@@ -186,8 +206,10 @@ export class BufferManager {
                 sgr: !!parsed.mouseMode.sgr,
               }
             }
+            // Restore cursor visibility (default to true for backwards compatibility)
+            this.cursorVisible = parsed.cursorVisible !== false
           } else if (parsed.version === 2 && typeof parsed.content === 'string') {
-            // V2 format: base64 encoded (no mouse mode)
+            // V2 format: base64 encoded (no mouse mode or cursor state)
             content = Buffer.from(parsed.content, 'base64').toString()
           } else {
             // Unknown JSON format, treat as legacy
