@@ -2,7 +2,7 @@
   "taskTerminals": "Tasks",
   "projectTerminals": "Projects",
   "newTerminal": "New Terminal",
-  "allRepos": "All Repos",
+  "allProjects": "All Projects",
   "selectProjects": "Select projects",
   "projectsSelected": "{{count}} selected",
   "filterByProject": "Select up to 6 projects",

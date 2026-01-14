@@ -774,11 +774,11 @@ const TerminalsView = observer(function TerminalsView() {
               <SelectTrigger size="sm" className="max-sm:w-auto">
                 <HugeiconsIcon icon={FilterIcon} size={12} strokeWidth={2} className="text-muted-foreground" />
                 <SelectValue>
-                  {repoFilter || t('allRepos')}
+                  {repoFilter || t('allProjects')}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">{t('allRepos')}</SelectItem>
+                <SelectItem value="">{t('allProjects')}</SelectItem>
                 {repoNames.map((name) => (
                   <SelectItem key={name} value={name}>
                     {name}
