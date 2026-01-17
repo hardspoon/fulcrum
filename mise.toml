@@ -283,9 +283,8 @@ run = "bun link"
 description = "Typecheck CLI"
 run = "bunx tsc --noEmit -p cli/tsconfig.json"
 
-[tasks."cli:build"]
-description = "Build CLI package for npm distribution"
-depends = ["build"]
+[tasks."cli:bundle"]
+description = "Bundle CLI package (assumes build already ran)"
 run = """
 set -e
 
@@ -341,8 +340,12 @@ echo "Copying README and LICENSE..." >&2
 cp README.md cli/
 cp LICENSE cli/
 
-echo "CLI package built successfully"
+echo "CLI bundle complete"
 """
+
+[tasks."cli:build"]
+description = "Build CLI package for npm distribution"
+depends = ["build", "cli:bundle"]
 
 [tasks."cli:publish"]
 description = "Publish CLI to npm"
