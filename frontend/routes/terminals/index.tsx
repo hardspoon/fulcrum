@@ -10,13 +10,6 @@ import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { TaskDaily01Icon, FilterIcon, ComputerTerminal01Icon, PackageIcon, Loading03Icon } from '@hugeicons/core-free-icons'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
@@ -74,7 +67,7 @@ const LAST_TAB_STORAGE_KEY = 'vibora:lastTerminalTab'
 
 interface TerminalsSearch {
   tab?: string
-  repo?: string
+  repos?: string // comma-separated repo names for multi-select filter
   projects?: string // comma-separated project IDs for multi-select filter
 }
 
@@ -85,7 +78,7 @@ interface TerminalsSearch {
 const TerminalsView = observer(function TerminalsView() {
   const { t } = useTranslation('terminals')
   const navigate = useNavigate()
-  const { tab: tabFromUrl, repo: repoFilter, projects: projectsFilter } = useSearch({ from: '/terminals/' })
+  const { tab: tabFromUrl, repos: reposFilter, projects: projectsFilter } = useSearch({ from: '/terminals/' })
   const {
     terminals,
     tabs,
@@ -124,23 +117,27 @@ const TerminalsView = observer(function TerminalsView() {
   const setActiveTab = useCallback(
     (tabId: string) => {
       // Preserve filters only for the relevant tab type
-      const repo = tabId === ALL_TASKS_TAB_ID ? repoFilter : undefined
+      const repos = tabId === ALL_TASKS_TAB_ID ? reposFilter : undefined
       const projects = tabId === ALL_PROJECTS_TAB_ID ? projectsFilter : undefined
-      navigate({ to: '/terminals', search: { tab: tabId, repo, projects }, replace: true })
+      navigate({ to: '/terminals', search: { tab: tabId, repos, projects }, replace: true })
     },
-    [navigate, repoFilter, projectsFilter]
+    [navigate, reposFilter, projectsFilter]
   )
 
-  // Navigate to update URL when changing repo filter
-  const setRepoFilter = useCallback(
-    (repo: string | null) => {
+  // Toggle a repo in the multi-select filter
+  const toggleRepoFilter = useCallback(
+    (repoName: string, checked: boolean) => {
+      const currentNames = reposFilter?.split(',').filter(Boolean) ?? []
+      const newNames = checked
+        ? [...currentNames, repoName]
+        : currentNames.filter((name) => name !== repoName)
       navigate({
         to: '/terminals',
-        search: (prev) => ({ ...prev, repo: repo || undefined }),
+        search: (prev) => ({ ...prev, repos: newNames.length > 0 ? newNames.join(',') : undefined }),
         replace: true,
       })
     },
-    [navigate]
+    [navigate, reposFilter]
   )
 
   // Get raw store for MobX reaction (observer() doesn't help with useEffect dependencies)
@@ -291,6 +288,11 @@ const TerminalsView = observer(function TerminalsView() {
     )
     return Array.from(names).sort()
   }, [tasks])
+
+  // Parse selected repo names from URL
+  const selectedRepoNames = useMemo(() => {
+    return reposFilter?.split(',').filter(Boolean) ?? []
+  }, [reposFilter])
 
   // Map project repository path to project ID for linking terminals to projects
   const projectRepoPaths = useMemo(() => {
@@ -445,9 +447,10 @@ const TerminalsView = observer(function TerminalsView() {
       return terminals
         .filter((t) => t.cwd && activeTaskWorktrees.has(t.cwd))
         .filter((t) => {
-          if (!repoFilter) return true
+          // If no filter selected, show all (default behavior)
+          if (selectedRepoNames.length === 0) return true
           const task = tasks.find((task) => task.worktreePath === t.cwd)
-          return task?.repoName === repoFilter
+          return task?.repoName && selectedRepoNames.includes(task.repoName)
         })
         .sort((a, b) => {
           const taskA = tasks.find((t) => t.worktreePath === a.cwd)
@@ -473,7 +476,7 @@ const TerminalsView = observer(function TerminalsView() {
       .filter((t) => t.tabId === activeTabId)
       .sort((a, b) => a.positionInTab - b.positionInTab)
       .map(toTerminalInfo)
-  }, [activeTabId, terminals, activeTaskWorktrees, repoFilter, tasks, projectRepoPaths, selectedProjectIds])
+  }, [activeTabId, terminals, activeTaskWorktrees, selectedRepoNames, tasks, projectRepoPaths, selectedProjectIds])
 
   // Clear loading state when terminal appears (with minimum duration)
   useEffect(() => {
@@ -767,25 +770,52 @@ const TerminalsView = observer(function TerminalsView() {
         <div className="flex shrink-0 items-center gap-3 max-sm:gap-1">
           {/* Repo filter (only when Task Terminals is active and multiple repos exist) */}
           {activeTabId === ALL_TASKS_TAB_ID && repoNames.length > 1 && (
-            <Select
-              value={repoFilter ?? ''}
-              onValueChange={(v) => setRepoFilter(v || null)}
-            >
-              <SelectTrigger size="sm" className="max-sm:w-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="outline" size="sm" className="max-sm:w-auto" />}
+              >
                 <HugeiconsIcon icon={FilterIcon} size={12} strokeWidth={2} className="text-muted-foreground" />
-                <SelectValue>
-                  {repoFilter || t('allProjects')}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">{t('allProjects')}</SelectItem>
-                {repoNames.map((name) => (
-                  <SelectItem key={name} value={name}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <span>
+                  {selectedRepoNames.length === 0
+                    ? t('allProjects')
+                    : t('projectsSelected', { count: selectedRepoNames.length })}
+                </span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-64" align="end">
+                <div className="p-2 space-y-2">
+                  <div className="text-sm font-medium mb-2">{t('filterByRepo')}</div>
+                  {repoNames.map((name) => (
+                    <div key={name} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`repo-filter-${name}`}
+                        checked={selectedRepoNames.includes(name)}
+                        onCheckedChange={(checked) => toggleRepoFilter(name, checked === true)}
+                      />
+                      <Label
+                        htmlFor={`repo-filter-${name}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {name}
+                      </Label>
+                    </div>
+                  ))}
+                  {selectedRepoNames.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-2"
+                      onClick={() => navigate({
+                        to: '/terminals',
+                        search: (prev) => ({ ...prev, repos: undefined }),
+                        replace: true,
+                      })}
+                    >
+                      {t('clearFilter')}
+                    </Button>
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           {/* Project filter (only when Project Terminals is active) */}
           {activeTabId === ALL_PROJECTS_TAB_ID && allProjects.length > 0 && (
@@ -912,7 +942,7 @@ export const Route = createFileRoute('/terminals/')({
   component: TerminalsView,
   validateSearch: (search: Record<string, unknown>): TerminalsSearch => ({
     tab: typeof search.tab === 'string' ? search.tab : undefined,
-    repo: typeof search.repo === 'string' ? search.repo : undefined,
+    repos: typeof search.repos === 'string' ? search.repos : undefined,
     projects: typeof search.projects === 'string' ? search.projects : undefined,
   }),
 })

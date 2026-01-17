@@ -6,6 +6,7 @@
   "selectProjects": "Select projects",
   "projectsSelected": "{{count}} selected",
   "filterByProject": "Select up to 6 projects",
+  "filterByRepo": "Filter by project",
   "clearFilter": "Clear selection",
   "emptyProjects": "Select a project to open its workspace terminal",
   "emptyTasks": "No active tasks",
