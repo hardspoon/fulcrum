@@ -24,6 +24,7 @@ async function runCompose(
     env?: Record<string, string>
     signal?: AbortSignal
     onProcess?: (proc: ChildProcess) => void
+    globalFlags?: string[] // Flags that go before subcommand (e.g., --progress)
   },
   onOutput?: (line: string) => void
 ): Promise<{ stdout: string; stderr: string; exitCode: number; aborted?: boolean }> {
@@ -32,7 +33,8 @@ async function runCompose(
     return { stdout: '', stderr: 'Aborted', exitCode: -1, aborted: true }
   }
 
-  const fullArgs = ['compose', '-p', options.projectName]
+  // Global flags (like --progress) must come before the subcommand
+  const fullArgs = ['compose', ...(options.globalFlags ?? []), '-p', options.projectName]
 
   if (options.composeFile) {
     fullArgs.push('-f', options.composeFile)
@@ -118,12 +120,12 @@ export async function composeBuild(
 
   log.deploy.info('Building compose stack', { project: options.projectName, noCache: options.noCache })
 
-  const args = ['build', '--progress', 'plain']
+  const args = ['build']
   if (options.noCache) {
     args.push('--no-cache')
   }
 
-  const result = await runCompose(args, options, onOutput)
+  const result = await runCompose(args, { ...options, globalFlags: ['--progress', 'plain'] }, onOutput)
 
   if (result.aborted) {
     log.deploy.info('Compose build cancelled', { project: options.projectName })

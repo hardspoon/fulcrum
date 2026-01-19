@@ -227,10 +227,17 @@ export type DeploymentProgressCallback = (progress: DeploymentProgress) => void
 
 /**
  * Get the project name for docker compose (used for container naming)
- * Docker compose project names must be lowercase alphanumeric, hyphens, underscores
+ * Docker compose project names must be lowercase alphanumeric, hyphens, underscores.
+ * However, Docker image tags have stricter rules - they don't allow sequences like "-_"
+ * so we sanitize to use only alphanumeric and hyphens for compatibility.
  */
 export function getProjectName(appId: string, repoName?: string): string {
-  const suffix = appId.slice(0, 8).toLowerCase()
+  // Sanitize suffix: nanoid can produce underscores, which cause invalid image tags when
+  // combined with hyphens (e.g., "name-_suffix-service" is invalid)
+  const suffix = appId
+    .slice(0, 8)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '') // Only alphanumeric for suffix
   if (repoName) {
     // Sanitize repo name for Docker: lowercase, alphanumeric + hyphens only, max 20 chars
     const sanitized = repoName
