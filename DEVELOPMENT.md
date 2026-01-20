@@ -161,6 +161,16 @@ For remote development scenarios (SSH + Tailscale), Fulcrum can be run as a syst
 
 Create a systemd user service file at `~/.config/systemd/user/fulcrum.service`. The service should build the frontend, run migrations, and start the server. See [systemd documentation](https://www.freedesktop.org/software/systemd/man/systemd.service.html) for details.
 
+**Critical setting**: Use `KillMode=process` to preserve terminal sessions across restarts:
+
+```ini
+[Service]
+# Only kill main process - leave dtach terminal sessions alive for persistence
+KillMode=process
+```
+
+Without this, systemd will kill all processes in the service's cgroup on restart, including dtach sessions that should persist.
+
 ```bash
 # After creating the service file
 systemctl --user daemon-reload
