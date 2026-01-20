@@ -34,7 +34,7 @@ Fulcrum supports **Claude Code** and **OpenCode** with per-repository and per-ta
 ## Quick Start
 
 ```bash
-npx fulcrum@latest up
+npx @knowsuchagency/fulcrum@latest up
 ```
 
 That's it! Fulcrum will:
@@ -225,7 +225,7 @@ ssh -fN -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 7777:localhost:777
 
 On the remote server, start Fulcrum:
 ```bash
-npx fulcrum@latest up
+npx @knowsuchagency/fulcrum@latest up
 ```
 
 The desktop app will connect through the tunnel automatically. This approach is:
@@ -241,7 +241,7 @@ For browser-only access, you can use Tailscale or Cloudflare Tunnels to expose y
 
 1. **On the remote server:**
    ```bash
-   npx fulcrum@latest up
+   npx @knowsuchagency/fulcrum@latest up
    ```
 
 2. **Access via browser** — Open the tunnel URL (e.g., `http://your-server.tailnet.ts.net:7777`)
