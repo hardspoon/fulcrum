@@ -354,6 +354,18 @@ dir = "cli"
 usage = 'arg "<otp>" help="npm one-time password for 2FA"'
 run = "npm publish --access public --otp=${usage_otp}"
 
+# Migration task
+[tasks.migrate-from-vibora]
+description = "Migrate data from ~/.vibora to ~/.fulcrum"
+usage = 'flag "-y" "--yes" help="Auto-confirm prompts"'
+run = """
+if [ "$usage_yes" = "true" ]; then
+  bun cli/src/index.ts migrate-from-vibora --yes
+else
+  bun cli/src/index.ts migrate-from-vibora
+fi
+"""
+
 # Production daemon tasks
 [tasks.up]
 description = "Build and start production server as daemon"

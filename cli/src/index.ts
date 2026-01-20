@@ -11,6 +11,7 @@ import { handleAppsCommand } from './commands/apps'
 import { handleFsCommand } from './commands/fs'
 import { handleUpCommand } from './commands/up'
 import { handleDownCommand } from './commands/down'
+import { handleMigrateFromViboraCommand } from './commands/migrate-from-vibora'
 import { handleStatusCommand } from './commands/status'
 import { handleGitCommand } from './commands/git'
 import { handleWorktreesCommand } from './commands/worktrees'
@@ -1699,6 +1700,25 @@ const downCommand = defineCommand({
   },
 })
 
+const migrateFromViboraCommand = defineCommand({
+  meta: {
+    name: 'migrate-from-vibora',
+    description: 'Migrate data from ~/.vibora to ~/.fulcrum',
+  },
+  args: {
+    ...globalArgs,
+    yes: {
+      type: 'boolean' as const,
+      alias: 'y',
+      description: 'Auto-confirm prompts (for CI/automation)',
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleMigrateFromViboraCommand(toFlags(args))
+  },
+})
+
 const statusCommand = defineCommand({
   meta: {
     name: 'status',
@@ -1818,6 +1838,7 @@ const main = defineCommand({
     fs: fsCommand,
     up: upCommand,
     down: downCommand,
+    'migrate-from-vibora': migrateFromViboraCommand,
     status: statusCommand,
     doctor: doctorCommand,
     git: gitCommand,
