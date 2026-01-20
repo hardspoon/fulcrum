@@ -26,6 +26,7 @@
     --accent: #0d5c63;                            /* Stormy Teal */
     --accent-foreground: #faf9f5;                 /* Porcelain */
     --destructive: #dd403a;                       /* Cinnabar */
+    --warning: #e08d3c;                           /* Tiger's Eye - warning/blocking */
     --border: hsl(214.3 31.8% 91.4%);             /* Light border */
     --input: hsl(214.3 31.8% 91.4%);              /* Light input */
     --ring: #2a2a27;                              /* Graphite */
@@ -48,7 +49,8 @@
     --tile: rgba(42, 42, 39, 0.1);                /* Graphite 10% */
 
     /* Status colors */
-    --status-in-progress: #8d909b;                /* Lavender Grey - active */
+    --status-todo: #9ca3af;                       /* Soft gray - not started */
+    --status-in-progress: #6b7280;                /* Gray - active */
     --status-in-review: #e08d3c;                  /* Tiger's Eye - waiting */
     --status-done: #0d5c63;                       /* Stormy Teal - complete */
     --status-canceled: #dd403a;                   /* Cinnabar - stopped */
@@ -75,6 +77,7 @@
     --accent: #0b7a75;                               /* Teal accent for dark mode */
     --accent-foreground: #faf9f5;
     --destructive: #dd403a;
+    --warning: #e08d3c;                              /* Tiger's Eye - warning/blocking */
     --ring: oklch(0.985 0.001 106.423);
 
     /* Chart colors */
@@ -96,6 +99,10 @@
     --sidebar-ring: oklch(0.985 0.001 106.423);
     --terminal-background: #0a0a0a;
     --tile: rgba(250, 249, 245, 0.1);             /* Porcelain 10% */
+
+    /* Status colors - swapped for dark mode */
+    --status-todo: #6b7280;                       /* Gray - not started */
+    --status-in-progress: #9ca3af;                /* Soft gray - active */
 }
 
 @theme inline {
@@ -118,6 +125,7 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-warning: var(--warning);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -134,6 +142,7 @@
     --color-background: var(--background);
     --color-terminal-background: var(--terminal-background);
     --color-tile: var(--tile);
+    --color-status-todo: var(--status-todo);
     --color-status-in-progress: var(--status-in-progress);
     --color-status-in-review: var(--status-in-review);
     --color-status-done: var(--status-done);

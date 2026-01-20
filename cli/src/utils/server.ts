@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -49,14 +49,14 @@ function readSettingsFile(path: string): Settings | null {
 }
 
 /**
- * Discovers the Vibora server URL.
+ * Discovers the Fulcrum server URL.
  * Priority:
  * 1. Explicit URL override (--url flag)
  * 2. Explicit port override (--port flag)
- * 3. VIBORA_URL environment variable
- * 4. VIBORA_DIR settings.json (read port)
- * 5. .vibora/settings.json in CWD (read port)
- * 6. ~/.vibora/settings.json (read port)
+ * 3. FULCRUM_URL environment variable
+ * 4. FULCRUM_DIR settings.json (read port)
+ * 5. .fulcrum/settings.json in CWD (read port)
+ * 6. ~/.fulcrum/settings.json (read port)
  * 7. Default: http://localhost:7777
  */
 export function discoverServerUrl(urlOverride?: string, portOverride?: string): string {
@@ -71,30 +71,30 @@ export function discoverServerUrl(urlOverride?: string, portOverride?: string): 
   }
 
   // 3. Environment variable
-  if (process.env.VIBORA_URL) {
-    return process.env.VIBORA_URL
+  if (process.env.FULCRUM_URL) {
+    return process.env.FULCRUM_URL
   }
 
-  // 4. VIBORA_DIR settings.json
-  if (process.env.VIBORA_DIR) {
-    const viboraDirSettings = join(expandPath(process.env.VIBORA_DIR), 'settings.json')
-    const settings = readSettingsFile(viboraDirSettings)
+  // 4. FULCRUM_DIR settings.json
+  if (process.env.FULCRUM_DIR) {
+    const fulcrumDirSettings = join(expandPath(process.env.FULCRUM_DIR), 'settings.json')
+    const settings = readSettingsFile(fulcrumDirSettings)
     const port = getPortFromSettings(settings)
     if (port) {
       return `http://localhost:${port}`
     }
   }
 
-  // 5. Local .vibora/settings.json
-  const cwdSettings = join(process.cwd(), '.vibora', 'settings.json')
+  // 5. Local .fulcrum/settings.json
+  const cwdSettings = join(process.cwd(), '.fulcrum', 'settings.json')
   const localSettings = readSettingsFile(cwdSettings)
   const localPort = getPortFromSettings(localSettings)
   if (localPort) {
     return `http://localhost:${localPort}`
   }
 
-  // 6. Global ~/.vibora/settings.json
-  const globalSettings = join(homedir(), '.vibora', 'settings.json')
+  // 6. Global ~/.fulcrum/settings.json
+  const globalSettings = join(homedir(), '.fulcrum', 'settings.json')
   const homeSettings = readSettingsFile(globalSettings)
   const homePort = getPortFromSettings(homeSettings)
   if (homePort) {
@@ -107,11 +107,11 @@ export function discoverServerUrl(urlOverride?: string, portOverride?: string): 
 
 /**
  * Updates the port in settings.json.
- * Used when --port is explicitly passed to vibora up.
+ * Used when --port is explicitly passed to fulcrum up.
  */
 export function updateSettingsPort(port: number): void {
-  const viboraDir = getViboraDir()
-  const settingsPath = join(viboraDir, 'settings.json')
+  const fulcrumDir = getFulcrumDir()
+  const settingsPath = join(fulcrumDir, 'settings.json')
 
   let settings: Record<string, unknown> = {}
   try {
@@ -129,27 +129,133 @@ export function updateSettingsPort(port: number): void {
   (settings.server as Record<string, unknown>).port = port
 
   // Ensure directory exists
-  if (!existsSync(viboraDir)) {
-    mkdirSync(viboraDir, { recursive: true })
+  if (!existsSync(fulcrumDir)) {
+    mkdirSync(fulcrumDir, { recursive: true })
   }
 
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
 }
 
 /**
- * Gets the .vibora directory path.
- * Priority: VIBORA_DIR env var → CWD .vibora → ~/.vibora
+ * Gets the .fulcrum directory path.
+ * Priority: FULCRUM_DIR env var → CWD .fulcrum → ~/.fulcrum
  */
-export function getViboraDir(): string {
-  // 1. VIBORA_DIR env var (explicit override)
-  if (process.env.VIBORA_DIR) {
-    return expandPath(process.env.VIBORA_DIR)
+export function getFulcrumDir(): string {
+  // 1. FULCRUM_DIR env var (explicit override)
+  if (process.env.FULCRUM_DIR) {
+    return expandPath(process.env.FULCRUM_DIR)
   }
-  // 2. CWD .vibora (per-worktree isolation)
-  const cwdViboraDir = join(process.cwd(), '.vibora')
-  if (existsSync(cwdViboraDir)) {
-    return cwdViboraDir
+  // 2. CWD .fulcrum (per-worktree isolation)
+  const cwdFulcrumDir = join(process.cwd(), '.fulcrum')
+  if (existsSync(cwdFulcrumDir)) {
+    return cwdFulcrumDir
   }
-  // 3. ~/.vibora (default)
+  // 3. ~/.fulcrum (default)
+  return join(homedir(), '.fulcrum')
+}
+
+/**
+ * Gets the legacy .vibora directory path.
+ */
+export function getLegacyViboraDir(): string {
   return join(homedir(), '.vibora')
+}
+
+/**
+ * Checks if migration from ~/.vibora is needed.
+ * Returns true if:
+ * - ~/.vibora exists and has contents
+ * - ~/.fulcrum either doesn't exist or is empty
+ */
+export function needsViboraMigration(): boolean {
+  const viboraDir = getLegacyViboraDir()
+  const fulcrumDir = join(homedir(), '.fulcrum')
+
+  // Check if ~/.vibora exists and has contents
+  if (!existsSync(viboraDir)) {
+    return false
+  }
+
+  try {
+    const viboraContents = readdirSync(viboraDir)
+    if (viboraContents.length === 0) {
+      return false
+    }
+  } catch {
+    return false
+  }
+
+  // Check if ~/.fulcrum already exists with contents
+  if (existsSync(fulcrumDir)) {
+    try {
+      const fulcrumContents = readdirSync(fulcrumDir)
+      // Only skip if fulcrum has meaningful content (not just empty or minimal)
+      if (fulcrumContents.length > 0) {
+        return false
+      }
+    } catch {
+      // If we can't read it, assume we don't need to migrate
+      return false
+    }
+  }
+
+  return true
+}
+
+/**
+ * Migrates data from ~/.vibora to ~/.fulcrum.
+ * This is non-destructive - it copies data without deleting the original.
+ * Returns true if migration was successful.
+ */
+export function migrateFromVibora(): boolean {
+  const viboraDir = getLegacyViboraDir()
+  const fulcrumDir = join(homedir(), '.fulcrum')
+
+  try {
+    // Ensure ~/.fulcrum exists
+    if (!existsSync(fulcrumDir)) {
+      mkdirSync(fulcrumDir, { recursive: true })
+    }
+
+    // Copy all contents from ~/.vibora to ~/.fulcrum
+    cpSync(viboraDir, fulcrumDir, { recursive: true })
+
+    // Update any remaining vibora references in settings.json
+    const settingsPath = join(fulcrumDir, 'settings.json')
+    if (existsSync(settingsPath)) {
+      try {
+        let content = readFileSync(settingsPath, 'utf-8')
+        // Replace any .vibora paths with .fulcrum
+        content = content.replace(/\.vibora/g, '.fulcrum')
+        content = content.replace(/vibora\.(db|log|pid)/g, 'fulcrum.$1')
+        writeFileSync(settingsPath, content, 'utf-8')
+      } catch {
+        // Settings update is optional, continue anyway
+      }
+    }
+
+    // Rename database file if it exists
+    const oldDbPath = join(fulcrumDir, 'vibora.db')
+    const newDbPath = join(fulcrumDir, 'fulcrum.db')
+    if (existsSync(oldDbPath) && !existsSync(newDbPath)) {
+      cpSync(oldDbPath, newDbPath)
+      // Also copy WAL and SHM files if they exist
+      const walPath = oldDbPath + '-wal'
+      const shmPath = oldDbPath + '-shm'
+      if (existsSync(walPath)) cpSync(walPath, newDbPath + '-wal')
+      if (existsSync(shmPath)) cpSync(shmPath, newDbPath + '-shm')
+    }
+
+    // Rename log file if it exists
+    const oldLogPath = join(fulcrumDir, 'vibora.log')
+    const newLogPath = join(fulcrumDir, 'fulcrum.log')
+    if (existsSync(oldLogPath) && !existsSync(newLogPath)) {
+      cpSync(oldLogPath, newLogPath)
+    }
+
+    return true
+  } catch (err) {
+    console.error('Migration failed:', err instanceof Error ? err.message : String(err))
+    return false
+  }
 }

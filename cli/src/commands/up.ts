@@ -6,7 +6,7 @@ import { output, isJsonOutput } from '../utils/output'
 import { CliError, ExitCodes } from '../utils/errors'
 import { writePid, readPid, removePid, isProcessRunning, getPort } from '../utils/process'
 import { confirm } from '../utils/prompt'
-import { getViboraDir, updateSettingsPort } from '../utils/server'
+import { getFulcrumDir, updateSettingsPort, needsViboraMigration, migrateFromVibora, getLegacyViboraDir } from '../utils/server'
 import {
   isDtachInstalled,
   isBunInstalled,
@@ -26,7 +26,7 @@ import pkg from '../../../package.json'
  *
  * Handles two cases:
  * - Development: file is at cli/src/commands/up.ts (3 levels up to cli/)
- * - Bundled: file is at bin/vibora.js (1 level up to package root)
+ * - Bundled: file is at bin/fulcrum.js (1 level up to package root)
  */
 function getPackageRoot(): string {
   const currentFile = fileURLToPath(import.meta.url)
@@ -47,12 +47,41 @@ function getPackageRoot(): string {
 export async function handleUpCommand(flags: Record<string, string>) {
   const autoYes = flags.yes === 'true' || flags.y === 'true'
 
+  // Check for migration from ~/.vibora (legacy Vibora installation)
+  if (needsViboraMigration()) {
+    const viboraDir = getLegacyViboraDir()
+    console.error(`\nFound existing Vibora data at ${viboraDir}`)
+    console.error('Fulcrum (formerly Vibora) now uses ~/.fulcrum for data storage.')
+    console.error('')
+    console.error('Your existing data can be copied to the new location.')
+    console.error('This is non-destructive - your ~/.vibora directory will be left untouched.')
+    console.error('')
+
+    const shouldMigrate = autoYes || (await confirm('Would you like to copy your data to ~/.fulcrum?'))
+    if (shouldMigrate) {
+      console.error('Copying data from ~/.vibora to ~/.fulcrum...')
+      const success = migrateFromVibora()
+      if (success) {
+        console.error('Migration complete! Your data has been copied to ~/.fulcrum')
+        console.error('Your original ~/.vibora directory has been preserved.')
+        console.error('')
+      } else {
+        console.error('Migration failed. You can manually copy files from ~/.vibora to ~/.fulcrum')
+        console.error('')
+      }
+    } else {
+      console.error('Skipping migration. Fulcrum will start with a fresh data directory.')
+      console.error('You can manually migrate later by copying ~/.vibora to ~/.fulcrum')
+      console.error('')
+    }
+  }
+
   // Check if bun is installed (needed to run the server)
   if (!isBunInstalled()) {
     const bunDep = getDependency('bun')!
     const method = getInstallMethod(bunDep)
-    console.error('Bun is required to run Vibora but is not installed.')
-    console.error('  Bun is the JavaScript runtime that powers Vibora.')
+    console.error('Bun is required to run Fulcrum but is not installed.')
+    console.error('  Bun is the JavaScript runtime that powers Fulcrum.')
 
     const shouldInstall = autoYes || (await confirm(`Would you like to install bun via ${method}?`))
     if (shouldInstall) {
@@ -119,7 +148,7 @@ export async function handleUpCommand(flags: Record<string, string>) {
   // Check if already running
   const existingPid = readPid()
   if (existingPid && isProcessRunning(existingPid)) {
-    console.error(`Vibora server is already running (PID: ${existingPid})`)
+    console.error(`Fulcrum server is already running (PID: ${existingPid})`)
 
     const shouldReplace = autoYes || (await confirm('Would you like to stop it and start a new instance?'))
     if (shouldReplace) {
@@ -174,11 +203,11 @@ export async function handleUpCommand(flags: Record<string, string>) {
   const ptyLibPath = join(packageRoot, 'lib', ptyLibName)
 
   // Start the bundled server
-  // Explicitly set VIBORA_DIR to ensure consistent path resolution
+  // Explicitly set FULCRUM_DIR to ensure consistent path resolution
   // regardless of where the CLI was invoked from
-  const viboraDir = getViboraDir()
+  const fulcrumDir = getFulcrumDir()
   const debug = flags.debug === 'true'
-  console.error(`Starting Vibora server${debug ? ' (debug mode)' : ''}...`)
+  console.error(`Starting Fulcrum server${debug ? ' (debug mode)' : ''}...`)
   const serverProc = spawn('bun', [serverPath], {
     detached: true,
     stdio: 'ignore',
@@ -187,13 +216,13 @@ export async function handleUpCommand(flags: Record<string, string>) {
       NODE_ENV: 'production',
       PORT: port.toString(),
       HOST: host,
-      VIBORA_DIR: viboraDir,
-      VIBORA_PACKAGE_ROOT: packageRoot,
-      VIBORA_VERSION: pkg.version,
+      FULCRUM_DIR: fulcrumDir,
+      FULCRUM_PACKAGE_ROOT: packageRoot,
+      FULCRUM_VERSION: pkg.version,
       BUN_PTY_LIB: ptyLibPath,
       // Pass CLI's alias-aware detection to the server (which can't detect aliases)
-      ...(isClaudeInstalled() && { VIBORA_CLAUDE_INSTALLED: '1' }),
-      ...(isOpencodeInstalled() && { VIBORA_OPENCODE_INSTALLED: '1' }),
+      ...(isClaudeInstalled() && { FULCRUM_CLAUDE_INSTALLED: '1' }),
+      ...(isOpencodeInstalled() && { FULCRUM_OPENCODE_INSTALLED: '1' }),
       ...(debug && { LOG_LEVEL: 'debug', DEBUG: '1' }),
     },
   })
@@ -234,7 +263,7 @@ export async function handleUpCommand(flags: Record<string, string>) {
  */
 function showGettingStartedTips(port: number, hasAgent: boolean): void {
   console.error(`
-Vibora is running at http://localhost:${port}
+Fulcrum is running at http://localhost:${port}
 
 Getting Started:
   1. Open http://localhost:${port} in your browser
@@ -243,9 +272,9 @@ Getting Started:
   4. Run your AI agent in the task terminal
 
 Commands:
-  vibora status    Check server status
-  vibora doctor    Check all dependencies
-  vibora down      Stop the server
+  fulcrum status    Check server status
+  fulcrum doctor    Check all dependencies
+  fulcrum down      Stop the server
 `)
 
   if (!hasAgent) {

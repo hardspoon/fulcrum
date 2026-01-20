@@ -13,13 +13,12 @@ interface ConfigResponse {
 // Config keys using dot-notation for nested settings
 export const CONFIG_KEYS = {
   PORT: 'server.port',
-  WORKTREE_BASE_PATH: 'worktree_base_path', // Read-only, derived from VIBORA_DIR
+  WORKTREE_BASE_PATH: 'worktree_base_path', // Read-only, derived from FULCRUM_DIR
   HOME_DIR: 'home_dir', // Read-only, system home directory
   DEFAULT_GIT_REPOS_DIR: 'paths.defaultGitReposDir',
   EDITOR_APP: 'editor.app',
   EDITOR_HOST: 'editor.host',
   EDITOR_SSH_PORT: 'editor.sshPort',
-  LINEAR_API_KEY: 'integrations.linearApiKey',
   GITHUB_PAT: 'integrations.githubPat',
   DEFAULT_AGENT: 'agent.defaultAgent',
   OPENCODE_MODEL: 'agent.opencodeModel',
@@ -55,7 +54,7 @@ export function usePort() {
   }
 }
 
-// Read-only: derived from VIBORA_DIR on server
+// Read-only: derived from FULCRUM_DIR on server
 export function useWorktreeBasePath() {
   const query = useConfig(CONFIG_KEYS.WORKTREE_BASE_PATH)
 
@@ -112,16 +111,6 @@ export function useEditorSshPort() {
   return {
     ...query,
     data: (query.data?.value as number) ?? 22,
-    isDefault: query.data?.isDefault ?? true,
-  }
-}
-
-export function useLinearApiKey() {
-  const query = useConfig(CONFIG_KEYS.LINEAR_API_KEY)
-
-  return {
-    ...query,
-    data: (query.data?.value as string) ?? '',
     isDefault: query.data?.isDefault ?? true,
   }
 }
@@ -404,7 +393,7 @@ export function useDeveloperMode() {
   })
 }
 
-export function useRestartVibora() {
+export function useRestartFulcrum() {
   return useMutation({
     mutationFn: () =>
       fetchJSON<RestartResponse>(`${API_BASE}/api/config/restart`, {
@@ -419,7 +408,7 @@ interface HealthResponse {
   uptime: number
 }
 
-export function useViboraVersion() {
+export function useFulcrumVersion() {
   const query = useQuery({
     queryKey: ['health'],
     queryFn: () => fetchJSON<HealthResponse>(`${API_BASE}/health`),

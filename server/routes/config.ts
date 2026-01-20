@@ -26,12 +26,11 @@ import { testNotificationChannel, sendNotification, type NotificationPayload } f
 export const CONFIG_KEYS = {
   PORT: 'server.port',
   DEFAULT_GIT_REPOS_DIR: 'paths.defaultGitReposDir',
-  REMOTE_HOST: 'remoteVibora.host',
-  REMOTE_PORT: 'remoteVibora.port',
+  REMOTE_HOST: 'remoteFulcrum.host',
+  REMOTE_PORT: 'remoteFulcrum.port',
   EDITOR_APP: 'editor.app',
   EDITOR_HOST: 'editor.host',
   EDITOR_SSH_PORT: 'editor.sshPort',
-  LINEAR_API_KEY: 'integrations.linearApiKey',
   GITHUB_PAT: 'integrations.githubPat',
   DEFAULT_AGENT: 'agent.defaultAgent',
   OPENCODE_MODEL: 'agent.opencodeModel',
@@ -49,18 +48,16 @@ const LEGACY_KEY_MAP: Record<string, string> = {
   // snake_case legacy keys
   port: 'server.port',
   default_git_repos_dir: 'paths.defaultGitReposDir',
-  remote_host: 'remoteVibora.host',
-  hostname: 'remoteVibora.host', // Extra legacy key
+  remote_host: 'remoteFulcrum.host',
+  hostname: 'remoteFulcrum.host', // Extra legacy key
   ssh_port: 'editor.sshPort',
-  linear_api_key: 'integrations.linearApiKey',
   github_pat: 'integrations.githubPat',
   language: 'appearance.language',
   theme: 'appearance.theme',
   // camelCase legacy keys
   defaultGitReposDir: 'paths.defaultGitReposDir',
-  remoteHost: 'remoteVibora.host',
+  remoteHost: 'remoteFulcrum.host',
   sshPort: 'editor.sshPort',
-  linearApiKey: 'integrations.linearApiKey',
   githubPat: 'integrations.githubPat',
 }
 
@@ -241,7 +238,7 @@ app.get('/developer-mode', (c) => {
   return c.json({ enabled: isDeveloperMode(), startedAt: serverStartTime })
 })
 
-// POST /api/config/restart - Restart Vibora via systemd (developer mode only)
+// POST /api/config/restart - Restart Fulcrum via systemd (developer mode only)
 // The systemd service handles build, migrations, and startup
 app.post('/restart', (c) => {
   if (!isDeveloperMode()) {
@@ -250,7 +247,7 @@ app.post('/restart', (c) => {
 
   // systemctl restart triggers the service which handles build + migrate + start
   setTimeout(() => {
-    spawn('systemctl', ['--user', 'restart', 'vibora'], {
+    spawn('systemctl', ['--user', 'restart', 'fulcrum'], {
       detached: true,
       stdio: 'ignore',
     }).unref()
@@ -381,7 +378,7 @@ app.put('/:key', async (c) => {
       value = value.trim()
     } else if (typeof value === 'string' && value === '') {
       // Convert empty strings to null for nullable fields
-      if (path === CONFIG_KEYS.LINEAR_API_KEY || path === CONFIG_KEYS.GITHUB_PAT ||
+      if (path === CONFIG_KEYS.GITHUB_PAT ||
           path === CONFIG_KEYS.REMOTE_HOST || path === CONFIG_KEYS.EDITOR_HOST) {
         value = null
       }

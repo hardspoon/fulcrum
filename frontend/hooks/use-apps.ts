@@ -69,6 +69,43 @@ export function useCreateApp() {
   })
 }
 
+// Create app for repository (simplified - auto-detects settings)
+export function useCreateAppForRepository() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      repositoryId,
+      name,
+      branch,
+      composeFile,
+      autoDeployEnabled,
+    }: {
+      repositoryId: string
+      name?: string
+      branch?: string
+      composeFile?: string
+      autoDeployEnabled?: boolean
+    }) =>
+      fetchJSON<AppWithServices>(`${API_BASE}/api/apps`, {
+        method: 'POST',
+        body: JSON.stringify({
+          repositoryId,
+          name: name ?? repositoryId, // Use repo ID as default name
+          branch,
+          composeFile,
+          autoDeployEnabled,
+          services: [], // Will be populated by sync-services after creation
+        }),
+      }),
+    onSuccess: (_, { repositoryId }) => {
+      queryClient.invalidateQueries({ queryKey: ['apps'] })
+      queryClient.invalidateQueries({ queryKey: ['apps', 'repository', repositoryId] })
+      queryClient.invalidateQueries({ queryKey: ['repositories'] })
+    },
+  })
+}
+
 // Update app
 export function useUpdateApp() {
   const queryClient = useQueryClient()
@@ -425,7 +462,7 @@ export interface DeploymentPrerequisites {
   }
   traefik: {
     detected: boolean
-    type: 'dokploy' | 'vibora' | 'other' | 'none'
+    type: 'dokploy' | 'fulcrum' | 'other' | 'none'
     containerName: string | null
     configDir: string | null
     network: string | null
@@ -445,7 +482,7 @@ export function useDeploymentPrerequisites() {
   })
 }
 
-// Start Traefik container (only for Vibora's own Traefik, not external)
+// Start Traefik container (only for Fulcrum's own Traefik, not external)
 export function useStartTraefik() {
   const queryClient = useQueryClient()
 
@@ -461,7 +498,7 @@ export function useStartTraefik() {
   })
 }
 
-// Stop Traefik container (only Vibora's own Traefik)
+// Stop Traefik container (only Fulcrum's own Traefik)
 export function useStopTraefik() {
   const queryClient = useQueryClient()
 

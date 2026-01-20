@@ -1,4 +1,4 @@
-import { ViboraClient } from '../client'
+import { FulcrumClient } from '../client'
 import { output, isJsonOutput } from '../utils/output'
 import { CliError, ExitCodes } from '../utils/errors'
 import type { TaskStatus, Task } from '@shared/types'
@@ -17,18 +17,17 @@ function formatTask(task: Task): void {
   console.log(`  Repo:     ${task.repoName}`)
   if (task.branch) console.log(`  Branch:   ${task.branch}`)
   if (task.prUrl) console.log(`  PR:       ${task.prUrl}`)
-  if (task.linearTicketId) console.log(`  Linear:   ${task.linearTicketId}`)
 }
 
 /**
  * Finds the task associated with the current worktree.
  * Matches the current working directory (or --path) against task worktreePaths.
  */
-async function findCurrentTask(client: ViboraClient, pathOverride?: string) {
-  // Check VIBORA_TASK_ID env var first (injected by terminal session)
-  if (process.env.VIBORA_TASK_ID) {
+async function findCurrentTask(client: FulcrumClient, pathOverride?: string) {
+  // Check FULCRUM_TASK_ID env var first (injected by terminal session)
+  if (process.env.FULCRUM_TASK_ID) {
     try {
-      const task = await client.getTask(process.env.VIBORA_TASK_ID)
+      const task = await client.getTask(process.env.FULCRUM_TASK_ID)
       if (task) return task
     } catch {
       // Ignore error if task lookup fails (e.g. deleted task), fall back to path
@@ -50,7 +49,7 @@ async function findCurrentTask(client: ViboraClient, pathOverride?: string) {
   if (!task) {
     throw new CliError(
       'NOT_IN_WORKTREE',
-      `No task found for path: ${currentPath}. Are you inside a Vibora task worktree?`,
+      `No task found for path: ${currentPath}. Are you inside a Fulcrum task worktree?`,
       ExitCodes.NOT_FOUND
     )
   }
@@ -63,7 +62,7 @@ export async function handleCurrentTaskCommand(
   rest: string[],
   flags: Record<string, string>
 ) {
-  const client = new ViboraClient(flags.url, flags.port)
+  const client = new FulcrumClient(flags.url, flags.port)
   const pathOverride = flags.path
 
   // If no action, just return the current task info
@@ -83,7 +82,7 @@ export async function handleCurrentTaskCommand(
     if (!prUrl) {
       throw new CliError(
         'MISSING_PR_URL',
-        'Usage: vibora current-task pr <url>',
+        'Usage: fulcrum current-task pr <url>',
         ExitCodes.INVALID_ARGS
       )
     }
@@ -93,51 +92,6 @@ export async function handleCurrentTaskCommand(
       output(updatedTask)
     } else {
       console.log(`Linked PR: ${prUrl}`)
-    }
-    return
-  }
-
-  // Handle Linear ticket association
-  if (action === 'linear') {
-    const input = rest[0]
-    if (!input) {
-      throw new CliError(
-        'MISSING_LINEAR_INPUT',
-        'Usage: vibora current-task linear <url-or-ticket>',
-        ExitCodes.INVALID_ARGS
-      )
-    }
-
-    let ticketId: string
-    let ticketUrl: string | null = null
-
-    // Check if input is a ticket number (e.g., DAT-547)
-    const ticketMatch = input.match(/^([A-Z]+-\d+)$/i)
-    if (ticketMatch) {
-      ticketId = ticketMatch[1].toUpperCase()
-    } else {
-      // Try to extract from URL
-      const urlMatch = input.match(/\/issue\/([A-Z]+-\d+)/i)
-      if (!urlMatch) {
-        throw new CliError(
-          'INVALID_LINEAR_INPUT',
-          'Invalid input. Expected ticket number (DAT-547) or URL (https://linear.app/team/issue/DAT-547)',
-          ExitCodes.INVALID_ARGS
-        )
-      }
-      ticketId = urlMatch[1].toUpperCase()
-      ticketUrl = input
-    }
-
-    const task = await findCurrentTask(client, pathOverride)
-    const updatedTask = await client.updateTask(task.id, {
-      linearTicketId: ticketId,
-      linearTicketUrl: ticketUrl,
-    })
-    if (isJsonOutput()) {
-      output(updatedTask)
-    } else {
-      console.log(`Linked Linear ticket: ${ticketId}`)
     }
     return
   }
@@ -172,7 +126,7 @@ export async function handleCurrentTaskCommand(
       if (!urlOrId) {
         throw new CliError(
           'MISSING_LINK_ID',
-          'Usage: vibora current-task link --remove <url-or-id>',
+          'Usage: fulcrum current-task link --remove <url-or-id>',
           ExitCodes.INVALID_ARGS
         )
       }
@@ -212,7 +166,7 @@ export async function handleCurrentTaskCommand(
   if (!newStatus) {
     throw new CliError(
       'INVALID_ACTION',
-      `Unknown action: ${action}. Valid actions: in-progress, review, done, cancel, pr, linear, link`,
+      `Unknown action: ${action}. Valid actions: in-progress, review, done, cancel, pr, link`,
       ExitCodes.INVALID_ARGS
     )
   }

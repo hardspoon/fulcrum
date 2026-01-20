@@ -5,7 +5,7 @@
  * Core tools are always loaded; deferred tools are loaded on-demand after search.
  */
 
-export type ToolCategory = 'core' | 'tasks' | 'projects' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec'
+export type ToolCategory = 'core' | 'tasks' | 'projects' | 'repositories' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec'
 
 export interface ToolMetadata {
   name: string
@@ -22,9 +22,9 @@ export const toolRegistry: ToolMetadata[] = [
   // Core tools - always loaded
   {
     name: 'list_tasks',
-    description: 'List all Vibora tasks with optional filtering by status or repository',
+    description: 'List all Fulcrum tasks with flexible filtering (search, labels, statuses, date range, overdue)',
     category: 'tasks',
-    keywords: ['task', 'list', 'kanban', 'worktree', 'status'],
+    keywords: ['task', 'list', 'kanban', 'worktree', 'status', 'search', 'labels', 'due date', 'overdue', 'filter'],
     deferred: false,
   },
   {
@@ -80,7 +80,7 @@ export const toolRegistry: ToolMetadata[] = [
   // Project tools - deferred
   {
     name: 'list_projects',
-    description: 'List all Vibora projects with optional filtering by status',
+    description: 'List all Fulcrum projects with optional filtering by status',
     category: 'projects',
     keywords: ['project', 'list', 'repository', 'repo'],
     deferred: true,
@@ -118,6 +118,48 @@ export const toolRegistry: ToolMetadata[] = [
     description: 'Scan a directory for git repositories',
     category: 'projects',
     keywords: ['project', 'scan', 'find', 'discover', 'repository', 'git'],
+    deferred: true,
+  },
+  {
+    name: 'add_project_tag',
+    description: 'Add a tag to a project',
+    category: 'projects',
+    keywords: ['project', 'tag', 'add', 'label', 'categorize'],
+    deferred: true,
+  },
+  {
+    name: 'remove_project_tag',
+    description: 'Remove a tag from a project',
+    category: 'projects',
+    keywords: ['project', 'tag', 'remove', 'delete', 'label'],
+    deferred: true,
+  },
+  {
+    name: 'list_project_attachments',
+    description: 'List all file attachments for a project',
+    category: 'projects',
+    keywords: ['project', 'attachment', 'file', 'upload', 'document', 'list'],
+    deferred: true,
+  },
+  {
+    name: 'upload_project_attachment',
+    description: 'Upload a file to a project from a local path',
+    category: 'projects',
+    keywords: ['project', 'attachment', 'file', 'upload', 'document', 'add'],
+    deferred: true,
+  },
+  {
+    name: 'delete_project_attachment',
+    description: 'Delete a file attachment from a project',
+    category: 'projects',
+    keywords: ['project', 'attachment', 'file', 'delete', 'remove'],
+    deferred: true,
+  },
+  {
+    name: 'get_project_attachment_path',
+    description: 'Get the local file path for a project attachment',
+    category: 'projects',
+    keywords: ['project', 'attachment', 'file', 'path', 'read'],
     deferred: true,
   },
 
@@ -237,14 +279,58 @@ export const toolRegistry: ToolMetadata[] = [
     deferred: true,
   },
 
-  // Additional core tools
+  // Repository tools
   {
     name: 'list_repositories',
-    description: 'List all configured repositories',
-    category: 'core',
-    keywords: ['repository', 'repo', 'list', 'git'],
+    description: 'List all configured repositories (supports orphans filter)',
+    category: 'repositories',
+    keywords: ['repository', 'repo', 'list', 'git', 'orphan', 'unlinked'],
     deferred: false,
   },
+  {
+    name: 'get_repository',
+    description: 'Get details of a specific repository by ID',
+    category: 'repositories',
+    keywords: ['repository', 'repo', 'get', 'details'],
+    deferred: true,
+  },
+  {
+    name: 'add_repository',
+    description: 'Add a repository from a local path',
+    category: 'repositories',
+    keywords: ['repository', 'repo', 'add', 'create', 'register'],
+    deferred: true,
+  },
+  {
+    name: 'update_repository',
+    description: 'Update repository metadata',
+    category: 'repositories',
+    keywords: ['repository', 'repo', 'update', 'edit', 'modify', 'agent'],
+    deferred: true,
+  },
+  {
+    name: 'delete_repository',
+    description: 'Delete an orphaned repository',
+    category: 'repositories',
+    keywords: ['repository', 'repo', 'delete', 'remove', 'orphan'],
+    deferred: true,
+  },
+  {
+    name: 'link_repository_to_project',
+    description: 'Link a repository to a project',
+    category: 'repositories',
+    keywords: ['repository', 'repo', 'link', 'project', 'associate', 'connect'],
+    deferred: true,
+  },
+  {
+    name: 'unlink_repository_from_project',
+    description: 'Unlink a repository from a project',
+    category: 'repositories',
+    keywords: ['repository', 'repo', 'unlink', 'project', 'disconnect', 'detach'],
+    deferred: true,
+  },
+
+  // Additional core tools
   {
     name: 'list_exec_sessions',
     description: 'List active command execution sessions',
@@ -270,7 +356,7 @@ export const toolRegistry: ToolMetadata[] = [
     name: 'add_task_link',
     description: 'Add a URL link to a task',
     category: 'tasks',
-    keywords: ['task', 'link', 'url', 'pr', 'linear'],
+    keywords: ['task', 'link', 'url', 'pr'],
     deferred: false,
   },
   {
@@ -285,6 +371,104 @@ export const toolRegistry: ToolMetadata[] = [
     description: 'List all URL links attached to a task',
     category: 'tasks',
     keywords: ['task', 'link', 'list', 'url'],
+    deferred: false,
+  },
+  {
+    name: 'add_task_label',
+    description: 'Add a label to a task',
+    category: 'tasks',
+    keywords: ['task', 'label', 'add', 'tag', 'categorize'],
+    deferred: false,
+  },
+  {
+    name: 'remove_task_label',
+    description: 'Remove a label from a task',
+    category: 'tasks',
+    keywords: ['task', 'label', 'remove', 'delete', 'tag'],
+    deferred: false,
+  },
+  {
+    name: 'set_task_due_date',
+    description: 'Set or clear the due date for a task',
+    category: 'tasks',
+    keywords: ['task', 'due', 'date', 'deadline', 'schedule'],
+    deferred: false,
+  },
+  {
+    name: 'get_task_dependencies',
+    description: 'Get dependencies and dependents for a task',
+    category: 'tasks',
+    keywords: ['task', 'dependency', 'depends', 'blocked', 'blocking'],
+    deferred: false,
+  },
+  {
+    name: 'add_task_dependency',
+    description: 'Add a dependency between tasks',
+    category: 'tasks',
+    keywords: ['task', 'dependency', 'add', 'depends', 'block'],
+    deferred: false,
+  },
+  {
+    name: 'remove_task_dependency',
+    description: 'Remove a dependency between tasks',
+    category: 'tasks',
+    keywords: ['task', 'dependency', 'remove', 'delete', 'unblock'],
+    deferred: false,
+  },
+  {
+    name: 'get_task_dependency_graph',
+    description: 'Get the full task dependency graph for visualization',
+    category: 'tasks',
+    keywords: ['task', 'dependency', 'graph', 'visualization', 'dag'],
+    deferred: false,
+  },
+  {
+    name: 'list_tasks_by_label',
+    description: 'List tasks filtered by a specific label',
+    category: 'tasks',
+    keywords: ['task', 'label', 'filter', 'search', 'tag'],
+    deferred: false,
+  },
+  {
+    name: 'list_tasks_by_due_date',
+    description: 'List tasks filtered by due date range',
+    category: 'tasks',
+    keywords: ['task', 'due', 'date', 'filter', 'deadline', 'overdue'],
+    deferred: false,
+  },
+  {
+    name: 'list_labels',
+    description: 'List all unique labels in use across tasks with optional search',
+    category: 'tasks',
+    keywords: ['labels', 'tags', 'categories', 'filter', 'search', 'discover'],
+    deferred: false,
+  },
+  {
+    name: 'list_task_attachments',
+    description: 'List all file attachments for a task',
+    category: 'tasks',
+    keywords: ['task', 'attachment', 'file', 'upload', 'document', 'list'],
+    deferred: false,
+  },
+  {
+    name: 'upload_task_attachment',
+    description: 'Upload a file to a task from a local path',
+    category: 'tasks',
+    keywords: ['task', 'attachment', 'file', 'upload', 'document', 'add'],
+    deferred: false,
+  },
+  {
+    name: 'delete_task_attachment',
+    description: 'Delete a file attachment from a task',
+    category: 'tasks',
+    keywords: ['task', 'attachment', 'file', 'delete', 'remove'],
+    deferred: false,
+  },
+  {
+    name: 'get_task_attachment_path',
+    description: 'Get the local file path for a task attachment',
+    category: 'tasks',
+    keywords: ['task', 'attachment', 'file', 'path', 'read'],
     deferred: false,
   },
 ]

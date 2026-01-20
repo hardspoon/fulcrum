@@ -20,7 +20,6 @@ import { useGitSyncParent } from '@/hooks/use-git-sync-parent'
 import { useGitCreatePR } from '@/hooks/use-git-create-pr'
 import { useKillClaudeInTask } from '@/hooks/use-kill-claude'
 import { useEditorApp, useEditorHost, useEditorSshPort, usePort, useOpencodeModel } from '@/hooks/use-config'
-import { useLinearTicket } from '@/hooks/use-linear'
 import { useTerminalWS } from '@/hooks/use-terminal-ws'
 import { useStore } from '@/stores'
 import { buildEditorUrl, openExternalUrl } from '@/lib/editor-url'
@@ -29,6 +28,9 @@ import { DiffViewer } from '@/components/viewer/diff-viewer'
 import { BrowserPreview } from '@/components/viewer/browser-preview'
 import { FilesViewer } from '@/components/viewer/files-viewer'
 import { GitStatusBadge } from '@/components/viewer/git-status-badge'
+import { NonCodeTaskView } from '@/components/task/non-code-task-view'
+import { InitializeCodeTaskModal } from '@/components/task/initialize-code-task-modal'
+import { TaskDetailsPanel } from '@/components/task/task-details-panel'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   CodeIcon,
@@ -43,8 +45,6 @@ import {
   ArrowUp03Icon,
   Orbit01Icon,
   VisualStudioCodeIcon,
-  Task01Icon,
-  Settings05Icon,
   ReloadIcon,
   GitCommitIcon,
   More03Icon,
@@ -54,7 +54,6 @@ import {
   SourceCodeCircleIcon,
 } from '@hugeicons/core-free-icons'
 import type { TaskLinkType } from '@/types'
-import { TaskConfigModal } from '@/components/task-config-modal'
 import { DeleteTaskDialog } from '@/components/delete-task-dialog'
 import { toast } from 'sonner'
 import {
@@ -68,7 +67,7 @@ import {
 import type { TaskStatus } from '@/types'
 import { useIsMobile } from '@/hooks/use-is-mobile'
 
-type TabType = 'diff' | 'browser' | 'files'
+type TabType = 'diff' | 'browser' | 'files' | 'details'
 
 interface TaskViewSearch {
   tab?: TabType
@@ -78,7 +77,7 @@ interface TaskViewSearch {
 export const Route = createFileRoute('/tasks/$taskId')({
   component: TaskView,
   validateSearch: (search: Record<string, unknown>): TaskViewSearch => ({
-    tab: ['diff', 'browser', 'files'].includes(search.tab as string)
+    tab: ['diff', 'browser', 'files', 'details'].includes(search.tab as string)
       ? (search.tab as TabType)
       : undefined,
     file: typeof search.file === 'string' ? search.file : undefined,
@@ -86,6 +85,7 @@ export const Route = createFileRoute('/tasks/$taskId')({
 })
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
+  TO_DO: 'To Do',
   IN_PROGRESS: 'In Progress',
   IN_REVIEW: 'In Review',
   DONE: 'Done',
@@ -93,6 +93,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 }
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
+  TO_DO: 'bg-status-todo/20 text-status-todo',
   IN_PROGRESS: 'bg-status-in-progress/20 text-status-in-progress',
   IN_REVIEW: 'bg-status-in-review/20 text-status-in-review',
   DONE: 'bg-status-done/20 text-status-done',
@@ -105,8 +106,6 @@ function getLinkIcon(type: TaskLinkType | null) {
       return GitPullRequestIcon
     case 'issue':
       return SourceCodeCircleIcon
-    case 'linear':
-      return Task01Icon
     case 'docs':
       return File01Icon
     case 'design':
@@ -136,7 +135,6 @@ function TaskView() {
   const { data: editorSshPort } = useEditorSshPort()
   const { data: serverPort } = usePort()
   const { data: globalOpencodeModel } = useOpencodeModel()
-  const { data: linearTicket } = useLinearTicket(task?.linearTicketId ?? null)
   const { data: repositories = [] } = useRepositories()
   const { data: projects = [] } = useProjects()
 
@@ -161,12 +159,15 @@ function TaskView() {
   }
   const shouldAutoFocus = initialFocusTerminalRef.current ?? false
 
-  const [configModalOpen, setConfigModalOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [initCodeModalOpen, setInitCodeModalOpen] = useState(false)
   const [mobileTab, setMobileTab] = useState<'terminal' | 'details'>('terminal')
   const [terminalKey, setTerminalKey] = useState(0)
   const [pendingRetryTerminalId, setPendingRetryTerminalId] = useState<string | null>(null)
   const isMobile = useIsMobile()
+
+  // Determine if this is a code task (has worktree path)
+  const isCodeTask = !!task?.worktreePath
 
   // Determine the active tab - URL takes precedence, then database state
   const activeTab = searchParams.tab ?? viewState.activeTab
@@ -295,7 +296,7 @@ function TaskView() {
       await gitSync.mutateAsync({
         repoPath: task.repoPath,
         worktreePath: task.worktreePath,
-        baseBranch: task.baseBranch,
+        baseBranch: task.baseBranch ?? undefined,
       })
       toast.success(t('git.syncedFromMain'))
     } catch (err) {
@@ -319,7 +320,7 @@ function TaskView() {
       await gitMerge.mutateAsync({
         repoPath: task.repoPath,
         worktreePath: task.worktreePath,
-        baseBranch: task.baseBranch,
+        baseBranch: task.baseBranch ?? undefined,
       })
       toast.success(t('git.mergedToMain'))
       // Kill Claude if running in the task's terminals
@@ -370,7 +371,7 @@ function TaskView() {
     try {
       await gitSyncParent.mutateAsync({
         repoPath: task.repoPath,
-        baseBranch: task.baseBranch,
+        baseBranch: task.baseBranch ?? undefined,
       })
       toast.success(t('git.parentSynced'))
     } catch (err) {
@@ -401,7 +402,7 @@ function TaskView() {
       const result = await gitCreatePR.mutateAsync({
         worktreePath: task.worktreePath,
         title: task.title,
-        baseBranch: task.baseBranch,
+        baseBranch: task.baseBranch ?? undefined,
       })
       // Auto-link PR to task
       updateTask.mutate({
@@ -440,7 +441,7 @@ function TaskView() {
         action: {
           label: 'Resolve with Claude',
           onClick: () => resolveWithClaude(
-            `Create a PR for this task. Error: "${errorMessage}". After creating, link it using: vibora current-task pr <url>. Worktree: ${task.worktreePath}.`
+            `Create a PR for this task. Error: "${errorMessage}". After creating, link it using: fulcrum current-task pr <url>. Worktree: ${task.worktreePath}.`
           ),
         },
       })
@@ -478,6 +479,23 @@ function TaskView() {
           <Button variant="outline">Back to Tasks</Button>
         </Link>
       </div>
+    )
+  }
+
+  // Non-code task view
+  if (!isCodeTask) {
+    return (
+      <>
+        <NonCodeTaskView
+          task={task}
+          onInitializeAsCodeTask={() => setInitCodeModalOpen(true)}
+        />
+        <InitializeCodeTaskModal
+          task={task}
+          open={initCodeModalOpen}
+          onOpenChange={setInitCodeModalOpen}
+        />
+      </>
     )
   }
 
@@ -567,16 +585,8 @@ function TaskView() {
               <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
             </Button>
           </div>
-          {/* Row 2: Settings + retry + repo + git status badge */}
+          {/* Row 2: retry + repo + git status badge */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <button
-              type="button"
-              className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              onClick={() => setConfigModalOpen(true)}
-              title="Task settings"
-            >
-              <HugeiconsIcon icon={Settings05Icon} size={14} strokeWidth={2} />
-            </button>
             <button
               type="button"
               className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
@@ -613,14 +623,6 @@ function TaskView() {
               <h1 className="text-sm font-medium">
                 {task.title}
               </h1>
-              <button
-                type="button"
-                className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                onClick={() => setConfigModalOpen(true)}
-                title="Task settings"
-              >
-                <HugeiconsIcon icon={Settings05Icon} size={14} strokeWidth={2} />
-              </button>
               <button
                 type="button"
                 className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
@@ -686,25 +688,6 @@ function TaskView() {
                   >
                     <HugeiconsIcon icon={GitPullRequestIcon} size={14} strokeWidth={2} />
                     <span>#{task.prUrl.match(/\/pull\/(\d+)/)?.[1] ?? 'PR'}</span>
-                  </a>
-                </>
-              )}
-              {task.linearTicketUrl && (
-                <>
-                  <span className="text-muted-foreground/50">•</span>
-                  <a
-                    href={linearTicket?.url ?? task.linearTicketUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-foreground hover:text-primary font-medium"
-                    onClick={(e) => e.stopPropagation()}
-                    title={linearTicket?.title}
-                  >
-                    <HugeiconsIcon icon={Task01Icon} size={14} strokeWidth={2} />
-                    <span>{task.linearTicketId}</span>
-                    {linearTicket?.status && (
-                      <span className="text-muted-foreground text-xs">({linearTicket.status})</span>
-                    )}
                   </a>
                 </>
               )}
@@ -913,12 +896,16 @@ function TaskView() {
                     <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={2} data-slot="icon" />
                     Files
                   </TabsTrigger>
+                  <TabsTrigger value="details">
+                    <HugeiconsIcon icon={More03Icon} size={14} strokeWidth={2} data-slot="icon" />
+                    Details
+                  </TabsTrigger>
                 </TabsList>
                 <GitStatusBadge worktreePath={task.worktreePath} />
               </div>
 
               <TabsContent value="diff" className="flex-1 overflow-hidden">
-                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch} />
+                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch ?? undefined} />
               </TabsContent>
 
               <TabsContent value="browser" className="flex-1 overflow-hidden">
@@ -931,6 +918,10 @@ function TaskView() {
                   initialSelectedFile={activeFile}
                   onFileChange={handleFileChange}
                 />
+              </TabsContent>
+
+              <TabsContent value="details" className="flex-1 overflow-hidden">
+                <TaskDetailsPanel task={task} />
               </TabsContent>
             </Tabs>
           </TabsContent>
@@ -989,12 +980,21 @@ function TaskView() {
                     />
                     Files
                   </TabsTrigger>
+                  <TabsTrigger value="details">
+                    <HugeiconsIcon
+                      icon={More03Icon}
+                      size={14}
+                      strokeWidth={2}
+                      data-slot="icon"
+                    />
+                    Details
+                  </TabsTrigger>
                 </TabsList>
                 <GitStatusBadge worktreePath={task.worktreePath} />
               </div>
 
               <TabsContent value="diff" className="flex-1 overflow-hidden">
-                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch} />
+                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch ?? undefined} />
               </TabsContent>
 
               <TabsContent value="browser" className="flex-1 overflow-hidden">
@@ -1008,17 +1008,14 @@ function TaskView() {
                   onFileChange={handleFileChange}
                 />
               </TabsContent>
+
+              <TabsContent value="details" className="flex-1 overflow-hidden">
+                <TaskDetailsPanel task={task} />
+              </TabsContent>
             </Tabs>
           </ResizablePanel>
         </ResizablePanelGroup>
       )}
-
-      {/* Task Config Modal */}
-      <TaskConfigModal
-        task={task}
-        open={configModalOpen}
-        onOpenChange={setConfigModalOpen}
-      />
 
       {/* Delete Task Dialog */}
       <DeleteTaskDialog

@@ -26,7 +26,6 @@ import {
   useEditorApp,
   useEditorHost,
   useEditorSshPort,
-  useLinearApiKey,
   useGitHubPat,
   useDefaultAgent,
   useOpencodeModel,
@@ -40,10 +39,10 @@ import {
   useZAiSettings,
   useUpdateZAiSettings,
   useDeveloperMode,
-  useRestartVibora,
+  useRestartFulcrum,
   useClaudeCodeLightTheme,
   useClaudeCodeDarkTheme,
-  useViboraVersion,
+  useFulcrumVersion,
   NotificationSettingsConflictError,
   CONFIG_KEYS,
   CLAUDE_CODE_THEMES,
@@ -84,7 +83,6 @@ function SettingsPage() {
   const { data: editorApp, isLoading: editorAppLoading } = useEditorApp()
   const { data: editorHost, isLoading: editorHostLoading } = useEditorHost()
   const { data: editorSshPort, isLoading: editorSshPortLoading } = useEditorSshPort()
-  const { data: linearApiKey, isLoading: linearApiKeyLoading } = useLinearApiKey()
   const { data: githubPat, isLoading: githubPatLoading } = useGitHubPat()
   const { data: defaultAgent, isLoading: defaultAgentLoading } = useDefaultAgent()
   const { data: globalOpencodeModel, isLoading: opcodeModelLoading } = useOpencodeModel()
@@ -95,12 +93,12 @@ function SettingsPage() {
   const { data: deploymentSettings, isLoading: deploymentLoading } = useDeploymentSettings()
   const updateDeploymentSettings = useUpdateDeploymentSettings()
   const { data: developerMode } = useDeveloperMode()
-  const restartVibora = useRestartVibora()
+  const restartFulcrum = useRestartFulcrum()
   const { savedLanguage, changeLanguage } = useLanguageSync()
   const { theme, syncClaudeCode, changeTheme } = useThemeSync()
   const { data: claudeCodeLightTheme } = useClaudeCodeLightTheme()
   const { data: claudeCodeDarkTheme } = useClaudeCodeDarkTheme()
-  const { version } = useViboraVersion()
+  const { version } = useFulcrumVersion()
   const updateConfig = useUpdateConfig()
   const resetConfig = useResetConfig()
   const updateNotifications = useUpdateNotificationSettings()
@@ -113,7 +111,6 @@ function SettingsPage() {
   const [localEditorApp, setLocalEditorApp] = useState<EditorApp>('vscode')
   const [localEditorHost, setLocalEditorHost] = useState('')
   const [localEditorSshPort, setLocalEditorSshPort] = useState('')
-  const [localLinearApiKey, setLocalLinearApiKey] = useState('')
   const [localGitHubPat, setLocalGitHubPat] = useState('')
   const [localDefaultAgent, setLocalDefaultAgent] = useState<AgentType>('claude')
   const [localOpencodeModel, setLocalOpencodeModel] = useState<string | null>(null)
@@ -166,13 +163,12 @@ function SettingsPage() {
     if (editorApp !== undefined) setLocalEditorApp(editorApp)
     if (editorHost !== undefined) setLocalEditorHost(editorHost)
     if (editorSshPort !== undefined) setLocalEditorSshPort(String(editorSshPort))
-    if (linearApiKey !== undefined) setLocalLinearApiKey(linearApiKey)
     if (githubPat !== undefined) setLocalGitHubPat(githubPat)
     if (defaultAgent !== undefined) setLocalDefaultAgent(defaultAgent)
     if (globalOpencodeModel !== undefined) setLocalOpencodeModel(globalOpencodeModel)
     if (globalOpencodeDefaultAgent !== undefined) setLocalOpencodeDefaultAgent(globalOpencodeDefaultAgent)
     if (globalOpencodePlanAgent !== undefined) setLocalOpencodePlanAgent(globalOpencodePlanAgent)
-  }, [port, defaultGitReposDir, editorApp, editorHost, editorSshPort, linearApiKey, githubPat, defaultAgent, globalOpencodeModel, globalOpencodeDefaultAgent, globalOpencodePlanAgent])
+  }, [port, defaultGitReposDir, editorApp, editorHost, editorSshPort, githubPat, defaultAgent, globalOpencodeModel, globalOpencodeDefaultAgent, globalOpencodePlanAgent])
 
   // Sync notification settings
   useEffect(() => {
@@ -204,7 +200,7 @@ function SettingsPage() {
   }, [zAiSettings])
 
   // Sync deployment settings
-  // We sync masked values for display (just like Linear/GitHub fields)
+  // We sync masked values for display (just like GitHub fields)
   // The save logic filters out masked values to prevent overwriting real values
   useEffect(() => {
     if (deploymentSettings?.cloudflareApiToken !== undefined) {
@@ -223,7 +219,7 @@ function SettingsPage() {
   }, [syncClaudeCode, claudeCodeLightTheme, claudeCodeDarkTheme])
 
   const isLoading =
-    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || linearApiKeyLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || notificationsLoading || zAiLoading || deploymentLoading
+    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || notificationsLoading || zAiLoading || deploymentLoading
 
   const hasZAiChanges = zAiSettings && (
     zAiEnabled !== zAiSettings.enabled ||
@@ -278,7 +274,6 @@ function SettingsPage() {
   const hasChanges =
     localPort !== String(port) ||
     localReposDir !== defaultGitReposDir ||
-    localLinearApiKey !== linearApiKey ||
     localGitHubPat !== githubPat ||
     hasAgentChanges ||
     hasEditorChanges ||
@@ -347,17 +342,6 @@ function SettingsPage() {
           })
         )
       }
-    }
-
-    if (localLinearApiKey !== linearApiKey) {
-      promises.push(
-        new Promise((resolve) => {
-          updateConfig.mutate(
-            { key: CONFIG_KEYS.LINEAR_API_KEY, value: localLinearApiKey },
-            { onSettled: resolve }
-          )
-        })
-      )
     }
 
     if (localGitHubPat !== githubPat) {
@@ -567,14 +551,6 @@ function SettingsPage() {
       onSuccess: (data) => {
         if (data.value !== null && data.value !== undefined)
           setLocalEditorSshPort(String(data.value))
-      },
-    })
-  }
-
-  const handleResetLinearApiKey = () => {
-    resetConfig.mutate(CONFIG_KEYS.LINEAR_API_KEY, {
-      onSuccess: (data) => {
-        setLocalLinearApiKey(data.value !== null && data.value !== undefined ? String(data.value) : '')
       },
     })
   }
@@ -877,45 +853,6 @@ function SettingsPage() {
                 {/* Integrations */}
                 <SettingsSection title={t('sections.integrations')}>
                   <div className="space-y-4">
-                    {/* Linear API Key */}
-                    <div className="space-y-1">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
-                          {t('fields.linear.label')}
-                        </label>
-                        <div className="flex flex-1 items-center gap-2">
-                          <div className="relative flex-1">
-                            <Input
-                              type="password"
-                              value={localLinearApiKey}
-                              onChange={(e) => setLocalLinearApiKey(e.target.value)}
-                              placeholder="lin_api_..."
-                              disabled={isLoading}
-                              className="flex-1 pr-8 font-mono text-sm"
-                            />
-                            {!!linearApiKey && (
-                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
-                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
-                              </div>
-                            )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            onClick={handleResetLinearApiKey}
-                            disabled={isLoading || resetConfig.isPending}
-                            title={tc('buttons.reset')}
-                          >
-                            <HugeiconsIcon icon={RotateLeft01Icon} size={14} strokeWidth={2} />
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground sm:ml-20 sm:pl-2">
-                        {t('fields.linear.description')}
-                      </p>
-                    </div>
-
                     {/* GitHub PAT */}
                     <div className="space-y-1">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1676,7 +1613,7 @@ function SettingsPage() {
                           // Save current server start time to detect actual restart
                           const originalStartTime = developerMode?.startedAt
                           setIsRestarting(true)
-                          restartVibora.mutate(undefined, {
+                          restartFulcrum.mutate(undefined, {
                             onSuccess: () => {
                               // Poll until server restarts (new startedAt) or timeout
                               const pollForServer = async () => {
@@ -1714,10 +1651,10 @@ function SettingsPage() {
                             },
                           })
                         }}
-                        disabled={restartVibora.isPending || isRestarting}
+                        disabled={restartFulcrum.isPending || isRestarting}
                         className="shrink-0 gap-2"
                       >
-                        {(restartVibora.isPending || isRestarting) && (
+                        {(restartFulcrum.isPending || isRestarting) && (
                           <HugeiconsIcon
                             icon={Loading03Icon}
                             size={14}

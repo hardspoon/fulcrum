@@ -1,55 +1,24 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { createFileRoute, Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { observer } from 'mobx-react-lite'
-import { reaction } from 'mobx'
-import { useProject, useDeleteProject, useAccessProject, useUpdateProject, useCreateAppForProject } from '@/hooks/use-projects'
-import { useUpdateRepository } from '@/hooks/use-repositories'
-import {
-  useStopApp,
-  useCancelDeployment,
-  useAppLogs,
-  useDeployments,
-  useAppStatus,
-  useUpdateApp,
-  useComposeFile,
-  useWriteComposeFile,
-  useSyncServices,
-  useDeploymentPrerequisites,
-  useDeploymentSettings,
-  useFindCompose,
-  useSwarmComposeFile,
-} from '@/hooks/use-apps'
-import { useDeploymentStore, DeploymentStoreProvider, type DeploymentStage } from '@/stores'
+import { useProject, useDeleteProject, useAccessProject, useUpdateProject } from '@/hooks/use-projects'
+import { useTasks } from '@/hooks/use-tasks'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,162 +29,634 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Loading03Icon,
   Alert02Icon,
-  PlayIcon,
-  StopIcon,
-  RefreshIcon,
-  CheckmarkCircle02Icon,
   Delete02Icon,
-  Copy01Icon,
-  PencilEdit02Icon,
-  ArrowLeft01Icon,
   Cancel01Icon,
-  Menu01Icon,
-  ViewOffIcon,
-  EyeIcon,
-  Rocket01Icon,
-  TextIcon,
-  Chart02Icon,
-  WindowsOldIcon,
-  Folder01Icon,
-  TaskAdd01Icon,
-  VisualStudioCodeIcon,
+  FolderAddIcon,
   Tick02Icon,
-  Link01Icon,
-  GithubIcon,
   Settings05Icon,
-  PackageAddIcon,
+  WindowsOldIcon,
+  Rocket01Icon,
+  ArrowRight01Icon,
+  ArrowDown01Icon,
+  Edit02Icon,
+  CopyLinkIcon,
+  TaskAdd01Icon,
+  Add01Icon,
+  Link01Icon,
+  File02Icon,
+  Image02Icon,
+  Pdf01Icon,
+  Upload02Icon,
 } from '@hugeicons/core-free-icons'
-import { MonacoEditor } from '@/components/viewer/monaco-editor'
-import type { Deployment, ExposureMethod, ProjectWithDetails } from '@/types'
-import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
-import { parseLogs } from '@/lib/log-utils'
-import { LogLine } from '@/components/ui/log-line'
+import type { ProjectRepositoryDetails, Task, TaskStatus, Tag, ProjectLink } from '@/types'
 import { toast } from 'sonner'
-import { useDockerStats, type ContainerStats } from '@/hooks/use-monitoring'
-import { Card } from '@/components/ui/card'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
-import { WorkspacePanel } from '@/components/workspace/workspace-panel'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
-import { useEditorApp, useEditorHost, useEditorSshPort } from '@/hooks/use-config'
-import { buildEditorUrl, openExternalUrl } from '@/lib/editor-url'
-import { AgentOptionsEditor } from '@/components/repositories/agent-options-editor'
-import { GitStatusBadge } from '@/components/viewer/git-status-badge'
-import { ModelPicker } from '@/components/opencode/model-picker'
-import { useQuery } from '@tanstack/react-query'
+import { cn } from '@/lib/utils'
+import { LinkRepositoriesModal } from '@/components/projects/link-repositories-modal'
+import { AddRepositoryModal } from '@/components/projects/add-repository-modal'
+import { RemoveRepositoryDialog } from '@/components/projects/remove-repository-dialog'
+import { useSearchTags, useAddProjectTag, useRemoveProjectTag } from '@/hooks/use-tags'
+import { useAddProjectLink, useRemoveProjectLink } from '@/hooks/use-projects'
+import {
+  useProjectAttachments,
+  useUploadProjectAttachment,
+  useDeleteProjectAttachment,
+  getProjectAttachmentDownloadUrl,
+} from '@/hooks/use-project-attachments'
+import { openExternalUrl } from '@/lib/editor-url'
 
-type ProjectTab = 'settings' | 'workspace' | 'deploy'
-type DeploySubTab = 'general' | 'deployments' | 'logs' | 'monitoring'
+export const Route = createFileRoute('/projects/$projectId')({
+  component: ProjectDetailView,
+})
 
-interface ProjectDetailSearch {
-  tab?: ProjectTab
-  subtab?: DeploySubTab
-  action?: 'deploy'
-  file?: string
+// Status colors for sparkline dots
+const SPARKLINE_COLORS: Record<TaskStatus, string> = {
+  TO_DO: 'bg-muted-foreground/40',
+  IN_PROGRESS: 'bg-blue-500',
+  IN_REVIEW: 'bg-amber-500',
+  DONE: 'bg-green-500/40',
+  CANCELED: 'bg-muted-foreground/20',
 }
 
-// Wrap with DeploymentStoreProvider for app deployment state
-function ProjectDetailViewWithProvider() {
+// Task sparkline component - shows 8 dots representing recent task status distribution
+function TaskSparkline({ tasks }: { tasks: Task[] }) {
+  // Get up to 8 most recent active tasks for the sparkline
+  const activeTasks = tasks
+    .filter((t) => t.status !== 'DONE' && t.status !== 'CANCELED')
+    .slice(0, 8)
+
+  const activeCount = tasks.filter((t) => t.status !== 'DONE' && t.status !== 'CANCELED').length
+  const doneCount = tasks.filter((t) => t.status === 'DONE' || t.status === 'CANCELED').length
+
   return (
-    <DeploymentStoreProvider>
-      <ProjectDetailView />
-    </DeploymentStoreProvider>
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-0.5">
+        {activeTasks.length > 0 ? (
+          activeTasks.map((task) => (
+            <div
+              key={task.id}
+              className={cn('w-1.5 h-1.5 rounded-full', SPARKLINE_COLORS[task.status])}
+              title={`${task.title} (${task.status})`}
+            />
+          ))
+        ) : (
+          // Show empty placeholder dots when no active tasks
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="w-1.5 h-1.5 rounded-full bg-muted" />
+          ))
+        )}
+      </div>
+      <span>
+        {activeCount} active{doneCount > 0 && ` · ${doneCount} done`}
+      </span>
+    </div>
   )
 }
 
-export const Route = createFileRoute('/projects/$projectId')({
-  component: ProjectDetailViewWithProvider,
-  validateSearch: (search: Record<string, unknown>): ProjectDetailSearch => ({
-    tab: ['settings', 'workspace', 'deploy'].includes(search.tab as string)
-      ? (search.tab as ProjectTab)
-      : undefined,
-    subtab: ['general', 'deployments', 'logs', 'monitoring'].includes(search.subtab as string)
-      ? (search.subtab as DeploySubTab)
-      : undefined,
-    action: search.action === 'deploy' ? 'deploy' : undefined,
-    file: typeof search.file === 'string' ? search.file : undefined,
-  }),
-})
-
-// Helper functions
-function formatDuration(startedAt: string, completedAt?: string | null): string {
-  const start = new Date(startedAt).getTime()
-  const end = completedAt ? new Date(completedAt).getTime() : Date.now()
-  const seconds = Math.floor((end - start) / 1000)
-  if (seconds < 60) return `${seconds}s`
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  if (remainingSeconds === 0) return `${minutes}m`
-  return `${minutes}m ${remainingSeconds}s`
-}
-
-function formatRelativeTime(date: string): string {
-  const now = Date.now()
-  const then = new Date(date).getTime()
-  const diff = now - then
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `about ${minutes} min ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `about ${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `about ${days}d ago`
-}
-
-function gitUrlToHttps(url: string): string {
-  const sshMatch = url.match(/^git@([^:]+):(.+?)(\.git)?$/)
-  if (sshMatch) {
-    return `https://${sshMatch[1]}/${sshMatch[2]}`
-  }
-  return url.replace(/\.git$/, '')
-}
-
-function useGitRemoteUrl(repoPath: string | undefined) {
-  return useQuery({
-    queryKey: ['git-remote', repoPath],
-    queryFn: async () => {
-      if (!repoPath) return null
-      const res = await fetch(`/api/git/remote?path=${encodeURIComponent(repoPath)}`)
-      if (!res.ok) return null
-      const data = await res.json()
-      return data.remoteUrl as string | null
-    },
-    enabled: !!repoPath,
-    staleTime: 60 * 1000,
-  })
-}
-
-const ProjectDetailView = observer(function ProjectDetailView() {
-  const { t } = useTranslation('projects')
-  const tCommon = useTranslation('common').t
-  const { projectId } = Route.useParams()
-  const { tab, subtab, action, file } = Route.useSearch()
+function RepositoryCard({
+  repository,
+  tasks,
+  onRemove,
+  onNewTask,
+}: {
+  repository: ProjectRepositoryDetails
+  tasks: Task[]
+  onRemove: () => void
+  onNewTask: () => void
+}) {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
+
+  const handleCardClick = () => {
+    navigate({
+      to: '/repositories/$repoId',
+      params: { repoId: repository.id },
+      search: { tab: 'settings' },
+    })
+  }
+
+  return (
+    <Card
+      className="group transition-colors hover:border-foreground/20 cursor-pointer"
+      onClick={handleCardClick}
+    >
+      <CardContent className="py-3 px-4">
+        {/* Header row: name and remove button */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-medium truncate group-hover:text-primary transition-colors">
+              {repository.displayName}
+            </h3>
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+              <span className="truncate font-mono">{repository.path}</span>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove()
+            }}
+            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
+          </Button>
+        </div>
+
+        {/* Task sparkline */}
+        <div className="mt-2">
+          <TaskSparkline tasks={tasks} />
+        </div>
+
+        {/* Compact action buttons */}
+        <div className="mt-3 flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger
+              onClick={(e) => {
+                e.stopPropagation()
+                onNewTask()
+              }}
+              className="inline-flex items-center justify-center gap-1 whitespace-nowrap text-sm font-medium h-7 px-2 rounded-md border bg-background hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+            >
+              <HugeiconsIcon icon={TaskAdd01Icon} size={14} strokeWidth={2} />
+              <span>Task</span>
+            </TooltipTrigger>
+            <TooltipContent>New Task</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate({
+                  to: '/repositories/$repoId',
+                  params: { repoId: repository.id },
+                  search: { tab: 'workspace' },
+                })
+              }}
+              className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium h-7 px-2 rounded-md border bg-background hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+            >
+              <HugeiconsIcon icon={WindowsOldIcon} size={14} strokeWidth={2} />
+            </TooltipTrigger>
+            <TooltipContent>Open Workspace</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate({
+                  to: '/repositories/$repoId',
+                  params: { repoId: repository.id },
+                  search: { tab: 'deploy', action: 'deploy' },
+                })
+              }}
+              className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium h-7 px-2 rounded-md border bg-background hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+            >
+              <HugeiconsIcon icon={Rocket01Icon} size={14} strokeWidth={2} />
+            </TooltipTrigger>
+            <TooltipContent>Deploy</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate({
+                  to: '/repositories/$repoId',
+                  params: { repoId: repository.id },
+                  search: { tab: 'settings' },
+                })
+              }}
+              className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium h-7 px-2 rounded-md border bg-background hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+            >
+              <HugeiconsIcon icon={Settings05Icon} size={14} strokeWidth={2} />
+            </TooltipTrigger>
+            <TooltipContent>Settings</TooltipContent>
+          </Tooltip>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Inline tags component for compact header
+function InlineTags({
+  projectId,
+  tags,
+}: {
+  projectId: string
+  tags: Tag[]
+}) {
+  const [isAdding, setIsAdding] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const { data: searchResults = [] } = useSearchTags(searchQuery)
+  const addTagMutation = useAddProjectTag()
+  const removeTagMutation = useRemoveProjectTag()
+
+  const availableTags = searchResults.filter(
+    (result) => !tags.some((t) => t.id === result.id)
+  )
+  const exactMatch = searchResults.find(
+    (t) => t.name.toLowerCase() === searchQuery.toLowerCase()
+  )
+  const showCreateOption = searchQuery.trim() && !exactMatch
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+        setIsAdding(false)
+        setSearchQuery('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleAddTag = async (tagOrName: { id: string; name: string } | string) => {
+    try {
+      if (typeof tagOrName === 'string') {
+        await addTagMutation.mutateAsync({ projectId, name: tagOrName })
+      } else {
+        await addTagMutation.mutateAsync({ projectId, tagId: tagOrName.id })
+      }
+      setSearchQuery('')
+      setShowDropdown(false)
+      setIsAdding(false)
+    } catch {
+      // Error handled by mutation
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      e.preventDefault()
+      if (exactMatch && !tags.some((t) => t.id === exactMatch.id)) {
+        handleAddTag(exactMatch)
+      } else if (showCreateOption) {
+        handleAddTag(searchQuery.trim())
+      }
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false)
+      setIsAdding(false)
+      setSearchQuery('')
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap" ref={containerRef}>
+      {tags.map((tag) => (
+        <Badge key={tag.id} variant="default" className="text-xs group/tag">
+          {tag.name}
+          <button
+            onClick={() => removeTagMutation.mutate({ projectId, tagId: tag.id })}
+            className="ml-1 opacity-0 group-hover/tag:opacity-100 hover:text-destructive transition-opacity"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={10} />
+          </button>
+        </Badge>
+      ))}
+      {isAdding ? (
+        <div className="relative">
+          <Input
+            ref={inputRef}
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              setShowDropdown(true)
+            }}
+            onFocus={() => setShowDropdown(true)}
+            onKeyDown={handleKeyDown}
+            placeholder="Add tag..."
+            className="h-6 w-24 text-xs"
+            autoFocus
+          />
+          {showDropdown && (searchQuery || availableTags.length > 0) && (
+            <div className="absolute top-full left-0 mt-1 w-48 bg-popover border rounded-md shadow-lg z-50 max-h-32 overflow-y-auto">
+              {availableTags.slice(0, 5).map((tag) => (
+                <button
+                  key={tag.id}
+                  className="w-full px-2 py-1.5 text-left text-xs hover:bg-accent"
+                  onClick={() => handleAddTag(tag)}
+                >
+                  {tag.name}
+                </button>
+              ))}
+              {showCreateOption && (
+                <button
+                  className="w-full px-2 py-1.5 text-left text-xs hover:bg-accent flex items-center gap-1 border-t"
+                  onClick={() => handleAddTag(searchQuery.trim())}
+                >
+                  <HugeiconsIcon icon={Add01Icon} size={12} />
+                  Create "{searchQuery.trim()}"
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <button
+          onClick={() => {
+            setIsAdding(true)
+            setTimeout(() => inputRef.current?.focus(), 0)
+          }}
+          className="h-5 w-5 rounded border border-dashed border-muted-foreground/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+        >
+          <HugeiconsIcon icon={Add01Icon} size={12} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Inline links component
+function InlineLinks({
+  projectId,
+  links,
+}: {
+  projectId: string
+  links: ProjectLink[]
+}) {
+  const [isAdding, setIsAdding] = useState(false)
+  const [newUrl, setNewUrl] = useState('')
+  const [newLabel, setNewLabel] = useState('')
+  const addLink = useAddProjectLink()
+  const removeLink = useRemoveProjectLink()
+
+  const handleAddLink = () => {
+    const trimmedUrl = newUrl.trim()
+    if (!trimmedUrl) return
+
+    try {
+      new URL(trimmedUrl)
+    } catch {
+      toast.error('Invalid URL', {
+        description: 'Please enter a valid URL including the scheme (e.g., https://)',
+      })
+      return
+    }
+
+    addLink.mutate(
+      { projectId, url: trimmedUrl, label: newLabel.trim() || undefined },
+      {
+        onSuccess: () => {
+          setNewUrl('')
+          setNewLabel('')
+          setIsAdding(false)
+        },
+      }
+    )
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddLink()
+    } else if (e.key === 'Escape') {
+      setIsAdding(false)
+      setNewUrl('')
+      setNewLabel('')
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Links</h3>
+      <div className="flex items-center gap-2 flex-wrap">
+        {links.map((link) => (
+          <div key={link.id} className="group/link flex items-center">
+            <button
+              onClick={() => openExternalUrl(link.url)}
+              className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+            >
+              <HugeiconsIcon icon={Link01Icon} size={12} />
+              <span className="max-w-32 truncate">{link.label || link.url}</span>
+            </button>
+            <button
+              onClick={() => removeLink.mutate({ projectId, linkId: link.id })}
+              className="ml-1 opacity-0 group-hover/link:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={10} />
+            </button>
+          </div>
+        ))}
+        {isAdding ? (
+          <div className="flex items-center gap-1">
+            <Input
+              type="url"
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="https://..."
+              className="h-6 w-32 text-xs"
+              autoFocus
+            />
+            <Input
+              type="text"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Label"
+              className="h-6 w-20 text-xs"
+            />
+            <Button size="sm" className="h-6 px-2 text-xs" onClick={handleAddLink}>
+              Add
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1"
+              onClick={() => {
+                setIsAdding(false)
+                setNewUrl('')
+                setNewLabel('')
+              }}
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={12} />
+            </Button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsAdding(true)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <HugeiconsIcon icon={Add01Icon} size={12} />
+            <span>Add</span>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Inline attachments component
+function InlineAttachments({ projectId }: { projectId: string }) {
+  const { data: attachments = [], isLoading } = useProjectAttachments(projectId)
+  const uploadMutation = useUploadProjectAttachment()
+  const deleteMutation = useDeleteProjectAttachment()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleFileSelect = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return
+      for (const file of Array.from(files)) {
+        try {
+          await uploadMutation.mutateAsync({ projectId, file })
+        } catch {
+          // Error handled by mutation
+        }
+      }
+    },
+    [projectId, uploadMutation]
+  )
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragging(false)
+      handleFileSelect(e.dataTransfer.files)
+    },
+    [handleFileSelect]
+  )
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType === 'application/pdf') return Pdf01Icon
+    if (mimeType.startsWith('image/')) return Image02Icon
+    return File02Icon
+  }
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes}B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
+    return `${(bytes / 1024 / 1024).toFixed(1)}MB`
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Attachments</h3>
+        <span className="text-xs text-muted-foreground">Loading...</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Attachments</h3>
+      <div className="flex items-center gap-2 flex-wrap">
+        {attachments.map((attachment) => {
+          const FileIcon = getFileIcon(attachment.mimeType)
+          return (
+            <div key={attachment.id} className="group/file flex items-center gap-1 text-xs">
+              <button
+                onClick={() => window.open(getProjectAttachmentDownloadUrl(projectId, attachment.id), '_blank')}
+                className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+              >
+                <HugeiconsIcon icon={FileIcon} size={12} />
+                <span className="max-w-24 truncate">{attachment.filename}</span>
+                <span className="text-muted-foreground/70">({formatFileSize(attachment.size)})</span>
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate({ projectId, attachmentId: attachment.id })}
+                className="opacity-0 group-hover/file:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+              >
+                <HugeiconsIcon icon={Cancel01Icon} size={10} />
+              </button>
+            </div>
+          )
+        })}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFileSelect(e.target.files)}
+          accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,.txt,.md,.doc,.docx,.xls,.xlsx,.json,.zip,.gz,.tar"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={cn(
+            'flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 border border-dashed rounded',
+            isDragging && 'border-primary bg-primary/5',
+            uploadMutation.isPending && 'opacity-50'
+          )}
+        >
+          <HugeiconsIcon icon={uploadMutation.isPending ? Loading03Icon : Upload02Icon} size={12} className={uploadMutation.isPending ? 'animate-spin' : ''} />
+          <span>{uploadMutation.isPending ? 'Uploading...' : 'Drop or click'}</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ProjectDetailView() {
+  const { t } = useTranslation('projects')
+  const { projectId } = Route.useParams()
+  const location = useRouterState({ select: (s) => s.location })
+  const navigate = useNavigate()
   const { data: project, isLoading, error } = useProject(projectId)
-  const { data: prereqs } = useDeploymentPrerequisites()
+  const { data: allTasks = [] } = useTasks()
   const deleteProject = useDeleteProject()
   const accessProject = useAccessProject()
-  const stopApp = useStopApp()
-  const cancelDeployment = useCancelDeployment()
-  const activeTab = tab || 'settings'
-  const activeSubtab: DeploySubTab | null = activeTab === 'deploy' ? (subtab || 'general') : null
+  const updateProject = useUpdateProject()
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteDirectory, setDeleteDirectory] = useState(false)
-  const [deleteApp, setDeleteApp] = useState(false)
-  const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [taskModalRepo, setTaskModalRepo] = useState<ProjectRepositoryDetails | null>(null)
   const [isEditingName, setIsEditingName] = useState(false)
   const [editedName, setEditedName] = useState('')
-  const updateProject = useUpdateProject()
   const nameInputRef = useRef<HTMLInputElement>(null)
 
-  const deployStore = useDeploymentStore()
-  const [showStreamingLogs, setShowStreamingLogs] = useState(false)
-  const isBuilding = deployStore.isDeploying || project?.app?.status === 'building'
+  // Description editing state
+  const [isEditingDescription, setIsEditingDescription] = useState(false)
+  const [editedDescription, setEditedDescription] = useState('')
+
+  // Notes section collapsed state
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [isEditingNotes, setIsEditingNotes] = useState(false)
+  const [editedNotes, setEditedNotes] = useState('')
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Repository modal states
+  const [linkRepoModalOpen, setBulkAddModalOpen] = useState(false)
+  const [addRepoModalOpen, setAddRepoModalOpen] = useState(false)
+  const [removeRepoDialog, setRemoveRepoDialog] = useState<{
+    open: boolean
+    repository: ProjectRepositoryDetails | null
+  }>({ open: false, repository: null })
+
+  // Handle ?addRepo=true search param (navigate to bulk add)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const addRepo = params.get('addRepo')
+    if (addRepo === 'true' && !linkRepoModalOpen) {
+      setBulkAddModalOpen(true)
+      navigate({ to: '/projects/$projectId', params: { projectId }, replace: true })
+    }
+  }, [location.search, linkRepoModalOpen, navigate, projectId])
 
   // Update last accessed when viewing project
   useEffect(() => {
@@ -225,29 +666,17 @@ const ProjectDetailView = observer(function ProjectDetailView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
-  const { data: editorApp } = useEditorApp()
-  const { data: editorHost } = useEditorHost()
-  const { data: editorSshPort } = useEditorSshPort()
-
-  const handleOpenEditor = () => {
-    if (!project?.repository?.path) return
-    const url = buildEditorUrl(project.repository.path, editorApp, editorHost, editorSshPort)
-    openExternalUrl(url)
-  }
-
-  const handleDeploy = useCallback(() => {
-    if (project?.app) {
-      deployStore.deploy(project.app.id)
-      setShowStreamingLogs(true)
+  // Compute tasks for each repository
+  const tasksByRepo = useMemo(() => {
+    const map = new Map<string, Task[]>()
+    for (const repo of project?.repositories ?? []) {
+      const repoTasks = allTasks.filter(
+        (task) => task.repoPath === repo.path || (task.projectId === projectId && !task.repoPath)
+      )
+      map.set(repo.id, repoTasks)
     }
-  }, [project?.app, deployStore])
-
-  const handleStreamingLogsClose = useCallback((open: boolean) => {
-    setShowStreamingLogs(open)
-    if (!open && !deployStore.isDeploying && deployStore.logs.length === 0 && !deployStore.error) {
-      setTimeout(() => deployStore.reset(), 300)
-    }
-  }, [deployStore])
+    return map
+  }, [allTasks, project?.repositories, projectId])
 
   const handleStartEditName = useCallback(() => {
     if (project) {
@@ -279,109 +708,66 @@ const ProjectDetailView = observer(function ProjectDetailView() {
     }
   }, [handleSaveName, handleCancelEditName])
 
-  const actionConsumedRef = useRef(false)
-
-  useEffect(() => {
-    if (action === 'deploy' && project?.app && !actionConsumedRef.current && !deployStore.isDeploying) {
-      actionConsumedRef.current = true
-      const search: ProjectDetailSearch = {}
-      if (tab) search.tab = tab
-      if (subtab) search.subtab = subtab
-      navigate({
-        to: '/projects/$projectId',
-        params: { projectId },
-        search,
-        replace: true,
-      })
-      deployStore.deploy(project.app.id)
-      setShowStreamingLogs(true)
+  const handleStartEditDescription = useCallback(() => {
+    if (project) {
+      setEditedDescription(project.description || '')
+      setIsEditingDescription(true)
     }
-  }, [action, project?.app, projectId, deployStore, navigate, tab, subtab])
+  }, [project])
 
-  useEffect(() => {
-    actionConsumedRef.current = false
-  }, [projectId])
+  const handleSaveDescription = useCallback(() => {
+    const newDesc = editedDescription.trim() || null
+    if (newDesc !== (project?.description || null)) {
+      updateProject.mutate({ id: projectId, updates: { description: newDesc } })
+    }
+    setIsEditingDescription(false)
+  }, [editedDescription, project?.description, projectId, updateProject])
 
-  const showDnsWarning = prereqs && !prereqs.settings.cloudflareConfigured
+  const handleStartEditNotes = useCallback(() => {
+    if (project) {
+      setEditedNotes(project.notes || '')
+      setIsEditingNotes(true)
+      setNotesOpen(true)
+      setTimeout(() => notesTextareaRef.current?.focus(), 0)
+    }
+  }, [project])
 
-  const setActiveTab = useCallback(
-    (newTab: ProjectTab, newSubtab?: DeploySubTab) => {
-      const search: ProjectDetailSearch = {}
-      if (newTab !== 'settings') {
-        search.tab = newTab
-      }
-      if (newTab === 'workspace' && file) {
-        search.file = file
-      }
-      if (newTab === 'deploy' && newSubtab && newSubtab !== 'general') {
-        search.subtab = newSubtab
-      }
-      navigate({
-        to: '/projects/$projectId',
-        params: { projectId },
-        search,
-        replace: true,
-      })
-    },
-    [navigate, projectId, file]
-  )
+  const handleSaveNotes = useCallback(() => {
+    const newNotes = editedNotes.trim() || null
+    if (newNotes !== (project?.notes || null)) {
+      updateProject.mutate({ id: projectId, updates: { notes: newNotes } })
+    }
+    setIsEditingNotes(false)
+  }, [editedNotes, project?.notes, projectId, updateProject])
 
-  const setActiveSubtab = useCallback(
-    (newSubtab: DeploySubTab) => {
-      setActiveTab('deploy', newSubtab)
-    },
-    [setActiveTab]
-  )
-
-  const handleFileChange = useCallback(
-    (newFile: string | null) => {
-      navigate({
-        to: '/projects/$projectId',
-        params: { projectId },
-        search: { tab: 'workspace', file: newFile ?? undefined },
-        replace: true,
-      })
-    },
-    [navigate, projectId]
-  )
-
-  const handleFileSaved = useCallback(
-    (savedFile: string) => {
-      if (project?.repository?.path && project?.app?.composeFile) {
-        const composeFileName = project.app.composeFile
-        if (savedFile === composeFileName || savedFile.endsWith(`/${composeFileName}`)) {
-          queryClient.invalidateQueries({
-            queryKey: ['compose', 'file', project.repository.path, project.app.composeFile],
-          })
-        }
-      }
-    },
-    [project?.repository?.path, project?.app?.composeFile, queryClient]
-  )
+  const handleCancelEditNotes = useCallback(() => {
+    setIsEditingNotes(false)
+    setEditedNotes('')
+  }, [])
 
   const handleDelete = async () => {
-    await deleteProject.mutateAsync({
-      id: projectId,
-      deleteDirectory,
-      deleteApp,
-    })
-    navigate({ to: '/projects' })
-  }
-
-  const handleStop = async () => {
-    if (!project?.app) return
-    await stopApp.mutateAsync(project.app.id)
-  }
-
-  const handleCancelDeploy = async () => {
-    if (!project?.app) return
-    await cancelDeployment.mutateAsync(project.app.id)
+    setIsDeleting(true)
+    try {
+      await deleteProject.mutateAsync({
+        id: projectId,
+        deleteDirectory: false,
+        deleteApp: false,
+      })
+      toast.success(t('delete.success'))
+      setShowDeleteConfirm(false)
+      navigate({ to: '/projects' })
+    } catch (err) {
+      toast.error(t('delete.error'), {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
+      setIsDeleting(false)
+    }
   }
 
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <HugeiconsIcon icon={Loading03Icon} size={24} strokeWidth={2} className="animate-spin text-muted-foreground" />
+        <HugeiconsIcon icon={Loading03Icon} size={24} className="animate-spin text-muted-foreground" />
       </div>
     )
   }
@@ -389,155 +775,81 @@ const ProjectDetailView = observer(function ProjectDetailView() {
   if (error || !project) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
-        <HugeiconsIcon icon={Alert02Icon} size={48} strokeWidth={1.5} className="text-destructive" />
-        <p className="text-muted-foreground">{error?.message ?? t('detailView.notFound')}</p>
+        <HugeiconsIcon icon={Alert02Icon} size={24} className="text-destructive" />
+        <p className="text-sm text-muted-foreground">{t('notFound')}</p>
         <Link to="/projects">
-          <Button variant="outline">
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
-            {t('detailView.breadcrumb')}
+          <Button variant="outline" size="sm">
+            {t('backToProjects')}
           </Button>
         </Link>
       </div>
     )
   }
 
-  const hasApp = !!project.app
-  const appStatus = project.app?.status
-  const isRunning = appStatus === 'running'
-
   return (
-    <div className="flex h-full flex-col">
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ProjectTab)} className="flex h-full flex-col">
-        {/* Header bar - tabs on left, project info + actions on right */}
+    <>
+      <div className="flex h-full flex-col">
+        {/* Header bar - matches repo detail view pattern */}
         <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-4 py-2">
-          {/* Mobile: hamburger menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-2 sm:hidden">
-              <HugeiconsIcon icon={Menu01Icon} size={18} strokeWidth={2} />
-              <span className="text-sm font-medium">
-                {activeTab === 'deploy' && activeSubtab
-                  ? `${t('detailView.tabs.deploy')} > ${t(`detailView.tabs.${activeSubtab === 'general' ? 'deployGeneral' : activeSubtab}`)}`
-                  : t(`detailView.tabs.${activeTab}`)}
-              </span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setActiveTab('settings')} className="gap-2">
-                <HugeiconsIcon icon={Settings05Icon} size={14} strokeWidth={2} />
-                {t('detailView.tabs.settings')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('workspace')} className="gap-2">
-                <HugeiconsIcon icon={WindowsOldIcon} size={14} strokeWidth={2} />
-                {t('detailView.tabs.workspace')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('deploy', 'general')} className="gap-2">
-                <HugeiconsIcon icon={Rocket01Icon} size={14} strokeWidth={2} />
-                {t('detailView.tabs.deploy')} &gt; {t('detailView.tabs.deployGeneral')}
-              </DropdownMenuItem>
-              {hasApp && (
-                <>
-                  <DropdownMenuItem onClick={() => setActiveTab('deploy', 'deployments')} className="gap-2">
-                    <HugeiconsIcon icon={Rocket01Icon} size={14} strokeWidth={2} />
-                    {t('detailView.tabs.deploy')} &gt; {t('detailView.tabs.deployments')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab('deploy', 'logs')} className="gap-2">
-                    <HugeiconsIcon icon={TextIcon} size={14} strokeWidth={2} />
-                    {t('detailView.tabs.deploy')} &gt; {t('detailView.tabs.logs')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab('deploy', 'monitoring')} className="gap-2">
-                    <HugeiconsIcon icon={Chart02Icon} size={14} strokeWidth={2} />
-                    {t('detailView.tabs.deploy')} &gt; {t('detailView.tabs.monitoring')}
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Left: Project name */}
+          {isEditingName ? (
+            <Input
+              ref={nameInputRef}
+              type="text"
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              onBlur={handleSaveName}
+              onKeyDown={handleNameKeyDown}
+              className="font-medium text-sm bg-transparent border-b border-primary outline-none px-0.5 w-auto max-w-[200px] h-auto py-0"
+              autoFocus
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={handleStartEditName}
+              className="font-medium text-sm hover:text-primary transition-colors cursor-pointer"
+              title="Click to edit"
+            >
+              {project.name}
+            </button>
+          )}
 
-          {/* Desktop: top-level tabs */}
-          <TabsList variant="line" className="hidden sm:inline-flex">
-            <TabsTrigger value="settings" className="gap-1.5 px-3 py-1.5">
-              <HugeiconsIcon icon={Settings05Icon} size={14} strokeWidth={2} />
-              {t('detailView.tabs.settings')}
-            </TabsTrigger>
-            <TabsTrigger value="workspace" className="gap-1.5 px-3 py-1.5">
-              <HugeiconsIcon icon={WindowsOldIcon} size={14} strokeWidth={2} />
-              {t('detailView.tabs.workspace')}
-            </TabsTrigger>
-            <TabsTrigger value="deploy" className="gap-1.5 px-3 py-1.5">
-              <HugeiconsIcon icon={Rocket01Icon} size={14} strokeWidth={2} />
-              {t('detailView.tabs.deploy')}
-            </TabsTrigger>
-          </TabsList>
+          {/* Middle: Actions */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => project.repositories.length > 0 && setTaskModalRepo(project.repositories[0])}
+              disabled={project.repositories.length === 0}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <HugeiconsIcon icon={TaskAdd01Icon} size={14} strokeWidth={2} data-slot="icon" />
+              <span className="hidden sm:inline">Task</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAddRepoModalOpen(true)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <HugeiconsIcon icon={FolderAddIcon} size={14} strokeWidth={2} data-slot="icon" />
+              <span className="hidden sm:inline">Repo</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setBulkAddModalOpen(true)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <HugeiconsIcon icon={CopyLinkIcon} size={14} strokeWidth={2} data-slot="icon" />
+              <span className="hidden sm:inline">Link</span>
+            </Button>
+          </div>
 
-          {/* Right side: actions + project info */}
+          {/* Right: Tags, Delete */}
           <div className="flex items-center gap-2">
-            {/* Quick actions */}
-            {project.repository && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setTaskModalOpen(true)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <HugeiconsIcon icon={TaskAdd01Icon} size={14} strokeWidth={2} data-slot="icon" />
-                  <span className="hidden sm:inline">{t('newTask', { ns: 'projects' })}</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleOpenEditor}
-                  className="text-muted-foreground hover:text-foreground hidden sm:flex"
-                >
-                  <HugeiconsIcon icon={VisualStudioCodeIcon} size={14} strokeWidth={2} data-slot="icon" />
-                </Button>
-                <div className="h-4 w-px bg-border mx-1" />
-              </>
-            )}
-
-            {/* Project info */}
-            {project.repository && <GitStatusBadge worktreePath={project.repository.path} />}
-            {isEditingName ? (
-              <input
-                ref={nameInputRef}
-                type="text"
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                onBlur={handleSaveName}
-                onKeyDown={handleNameKeyDown}
-                className="font-medium text-sm bg-transparent border-b border-primary outline-none px-0.5 min-w-[100px]"
-                autoFocus
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={handleStartEditName}
-                className="font-medium text-sm hover:text-primary transition-colors cursor-pointer"
-                title="Click to edit"
-              >
-                {project.name}
-              </button>
-            )}
-            {hasApp && (
-              <div
-                className={`h-2 w-2 rounded-full ${
-                  appStatus === 'running' ? 'bg-green-500' :
-                  appStatus === 'building' ? 'bg-yellow-500' :
-                  appStatus === 'failed' ? 'bg-red-500' : 'bg-gray-400'
-                }`}
-                title={appStatus}
-              />
-            )}
-            {showDnsWarning && hasApp && (
-              <Tooltip>
-                <TooltipTrigger className="p-1 text-amber-500 hover:text-amber-400 transition-colors">
-                  <HugeiconsIcon icon={Alert02Icon} size={14} strokeWidth={2} />
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-xs">
-                  <p className="font-medium">{tCommon('apps.manualDnsRequired')}</p>
-                  <p className="text-muted-foreground mt-1">{tCommon('apps.manualDnsRequiredDesc')}</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
+            <InlineTags projectId={projectId} tags={project.tags || []} />
+            <div className="h-4 w-px bg-border mx-1" />
             <Button
               variant="ghost"
               size="icon"
@@ -549,1834 +861,247 @@ const ProjectDetailView = observer(function ProjectDetailView() {
           </div>
         </div>
 
-        {/* Deploy sub-tabs (shown when Deploy is active) */}
-        {activeTab === 'deploy' && (
-          <div className="shrink-0 border-b border-border bg-muted/30 px-4 hidden sm:flex items-center">
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={() => setActiveSubtab('general')}
-                className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                  activeSubtab === 'general'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
+        {/* Scrollable content */}
+        <ScrollArea className="flex-1">
+          <div className="max-w-5xl mx-auto px-6 py-6 space-y-6 pb-12">
+            {/* Description (below header) */}
+            {isEditingDescription ? (
+              <div className="flex items-start gap-2">
+                <Textarea
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  placeholder="Add a description..."
+                  className="min-h-[60px] text-sm flex-1"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.metaKey) {
+                      handleSaveDescription()
+                    } else if (e.key === 'Escape') {
+                      setIsEditingDescription(false)
+                    }
+                  }}
+                />
+                <div className="flex flex-col gap-1">
+                  <Button size="sm" className="h-7" onClick={handleSaveDescription}>
+                    Save
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7" onClick={() => setIsEditingDescription(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : project.description ? (
+              <p
+                className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                onClick={handleStartEditDescription}
+                title="Click to edit"
               >
-                {t('detailView.tabs.deployGeneral')}
-              </button>
-              {hasApp && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSubtab('deployments')}
-                    className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                      activeSubtab === 'deployments'
-                        ? 'border-primary text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {t('detailView.tabs.deployments')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSubtab('logs')}
-                    className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                      activeSubtab === 'logs'
-                        ? 'border-primary text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {t('detailView.tabs.logs')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSubtab('monitoring')}
-                    className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                      activeSubtab === 'monitoring'
-                        ? 'border-primary text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {t('detailView.tabs.monitoring')}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+                {project.description}
+              </p>
+            ) : null}
 
-        {/* Content */}
-        <div className={`flex-1 overflow-auto ${activeTab === 'workspace' ? '' : 'p-4'}`}>
-          <TabsContent value="settings" className="mt-0 h-full">
-            <GeneralTab project={project} />
-          </TabsContent>
+            {/* Repositories Section */}
+            <section className="space-y-3">
+              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Repositories
+              </h2>
 
-          <TabsContent value="deploy" className="mt-0 h-full">
-            {activeSubtab === 'general' && (
-              <AppTab
-                project={project}
-                onDeploy={handleDeploy}
-                onStop={handleStop}
-                onCancelDeploy={handleCancelDeploy}
-                isBuilding={isBuilding}
-                isRunning={isRunning}
-                isStopPending={stopApp.isPending}
-                isCancelPending={cancelDeployment.isPending}
-                deployStore={deployStore}
-              />
-            )}
-            {hasApp && activeSubtab === 'deployments' && (
-              <DeploymentsTab
-                appId={project.app!.id}
-                deployStore={deployStore}
-                onViewStreamingLogs={() => setShowStreamingLogs(true)}
-              />
-            )}
-            {hasApp && activeSubtab === 'logs' && (
-              <LogsTab appId={project.app!.id} services={project.app!.services} />
-            )}
-            {hasApp && activeSubtab === 'monitoring' && (
-              <MonitoringTab appId={project.app!.id} repoDisplayName={project.repository?.displayName} />
-            )}
-          </TabsContent>
-
-          <TabsContent value="workspace" className="mt-0 h-full">
-            {project.repository?.path ? (
-              <WorkspacePanel
-                repoPath={project.repository.path}
-                repoDisplayName={project.repository.displayName}
-                activeTab={activeTab}
-                file={file}
-                onFileChange={handleFileChange}
-                onFileSaved={handleFileSaved}
-              />
+            {project.repositories.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="py-6 text-center text-muted-foreground">
+                  <p className="text-sm">No repositories linked to this project.</p>
+                  <div className="mt-3 flex justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setAddRepoModalOpen(true)}
+                    >
+                      <HugeiconsIcon icon={FolderAddIcon} size={14} data-slot="icon" />
+                      Add Repo
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setBulkAddModalOpen(true)}
+                    >
+                      <HugeiconsIcon icon={CopyLinkIcon} size={14} data-slot="icon" />
+                      Link Existing
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             ) : (
-              <div className="flex h-full items-center justify-center p-4">
-                <p className="text-muted-foreground">{t('detailView.general.noRepository')}</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {project.repositories.map((repo) => (
+                  <RepositoryCard
+                    key={repo.id}
+                    repository={repo}
+                    tasks={tasksByRepo.get(repo.id) || []}
+                    onRemove={() => setRemoveRepoDialog({ open: true, repository: repo })}
+                    onNewTask={() => setTaskModalRepo(repo)}
+                  />
+                ))}
+                {/* Add repository placeholder card */}
+                <Card className="border-dashed">
+                  <CardContent className="py-6 flex items-center justify-center gap-3 text-muted-foreground">
+                    <button
+                      onClick={() => setAddRepoModalOpen(true)}
+                      className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors"
+                    >
+                      <HugeiconsIcon icon={FolderAddIcon} size={14} />
+                      <span>Add</span>
+                    </button>
+                    <span className="text-muted-foreground/50">or</span>
+                    <button
+                      onClick={() => setBulkAddModalOpen(true)}
+                      className="flex items-center gap-1.5 text-sm hover:text-foreground transition-colors"
+                    >
+                      <HugeiconsIcon icon={CopyLinkIcon} size={14} />
+                      <span>Link existing</span>
+                    </button>
+                  </CardContent>
+                </Card>
               </div>
             )}
-          </TabsContent>
-        </div>
-      </Tabs>
+          </section>
 
-      {/* Streaming deployment logs modal */}
-      {project.app && (
-        <StreamingDeploymentModal
-          appId={project.app.id}
-          open={showStreamingLogs}
-          onOpenChange={handleStreamingLogsClose}
-        />
-      )}
+          {/* Links and Attachments - Two column grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InlineLinks projectId={projectId} links={project.links || []} />
+            <InlineAttachments projectId={projectId} />
+          </div>
 
-      {/* Task modal */}
-      {project.repository && (
+          {/* Notes - Collapsible */}
+          <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
+              <HugeiconsIcon
+                icon={notesOpen ? ArrowDown01Icon : ArrowRight01Icon}
+                size={14}
+                className="text-muted-foreground"
+              />
+              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider group-hover:text-foreground transition-colors">
+                Notes
+              </h2>
+              {!notesOpen && project.notes && (
+                <span className="text-xs text-muted-foreground truncate max-w-xs">
+                  — {project.notes.split('\n')[0]}
+                </span>
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              {isEditingNotes ? (
+                <div className="space-y-2">
+                  <Textarea
+                    ref={notesTextareaRef}
+                    value={editedNotes}
+                    onChange={(e) => setEditedNotes(e.target.value)}
+                    placeholder="Add notes about this project..."
+                    className="min-h-[100px] text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.metaKey) {
+                        handleSaveNotes()
+                      } else if (e.key === 'Escape') {
+                        handleCancelEditNotes()
+                      }
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleSaveNotes}>
+                      <HugeiconsIcon icon={Tick02Icon} size={12} data-slot="icon" />
+                      Save
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={handleCancelEditNotes}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-4">
+                  {project.notes ? (
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap flex-1">
+                      {project.notes}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No notes</p>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 h-7 text-xs"
+                    onClick={handleStartEditNotes}
+                  >
+                    <HugeiconsIcon icon={Edit02Icon} size={12} data-slot="icon" />
+                    Edit
+                  </Button>
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Task creation modal */}
+      {taskModalRepo && (
         <CreateTaskModal
-          open={taskModalOpen}
-          onOpenChange={setTaskModalOpen}
-          defaultRepository={{
-            id: project.repository.id,
-            path: project.repository.path,
-            displayName: project.repository.displayName,
-            startupScript: project.repository.startupScript,
-            copyFiles: project.repository.copyFiles,
-            claudeOptions: project.repository.claudeOptions,
-            opencodeOptions: project.repository.opencodeOptions,
-            opencodeModel: project.repository.opencodeModel,
-            defaultAgent: project.repository.defaultAgent,
-            remoteUrl: project.repository.remoteUrl,
-            isCopierTemplate: project.repository.isCopierTemplate,
-            createdAt: '',
-            updatedAt: '',
-          }}
+          open={taskModalRepo !== null}
+          onOpenChange={(open) => !open && setTaskModalRepo(null)}
+          defaultRepository={taskModalRepo}
           showTrigger={false}
         />
       )}
 
       {/* Delete confirmation dialog */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <AlertDialog open={showDeleteConfirm} onOpenChange={(open) => !isDeleting && setShowDeleteConfirm(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('delete.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('delete.description', { name: project.name })}
+              {t('delete.confirmText', { name: project.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
-
-          <div className="space-y-3 py-2">
-            {project.repository && (
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="deleteDirectory"
-                  checked={deleteDirectory}
-                  onCheckedChange={(checked) => setDeleteDirectory(checked === true)}
-                />
-                <label htmlFor="deleteDirectory" className="text-sm">
-                  {t('delete.alsoDeleteDirectory')}
-                </label>
-              </div>
-            )}
-            {project.app && (
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="deleteApp"
-                  checked={deleteApp}
-                  onCheckedChange={(checked) => setDeleteApp(checked === true)}
-                />
-                <label htmlFor="deleteApp" className="text-sm">
-                  {t('delete.alsoDeleteApp')}
-                </label>
-              </div>
-            )}
-          </div>
-
           <AlertDialogFooter>
-            <AlertDialogCancel>{tCommon('apps.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('delete.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90"
             >
-              {deleteProject.isPending ? t('delete.deleting') : t('delete.button')}
+              {isDeleting ? (
+                <>
+                  <HugeiconsIcon icon={Loading03Icon} size={14} className="animate-spin" data-slot="icon" />
+                  {t('delete.deleting')}
+                </>
+              ) : (
+                t('delete.confirm')
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  )
-})
 
-// General tab - Repository settings + Agent config
-function GeneralTab({ project }: { project: ProjectWithDetails }) {
-  const { t } = useTranslation('projects')
-  const tRepo = useTranslation('repositories').t
-  const updateRepository = useUpdateRepository()
-  const { data: remoteUrl } = useGitRemoteUrl(project.repository?.path)
-
-  // Form state
-  const [displayName, setDisplayName] = useState('')
-  const [startupScript, setStartupScript] = useState('')
-  const [copyFiles, setCopyFiles] = useState('')
-  const [claudeOptions, setClaudeOptions] = useState<Record<string, string>>({})
-  const [opencodeOptions, setOpencodeOptions] = useState<Record<string, string>>({})
-  const [opencodeModel, setOpencodeModel] = useState<string | null>(null)
-  const [defaultAgent, setDefaultAgent] = useState<AgentType | null>(null)
-  const [isCopierTemplate, setIsCopierTemplate] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
-
-  const repository = project.repository
-
-  // Initialize form state
-  useEffect(() => {
-    if (repository) {
-      setDisplayName(repository.displayName)
-      setStartupScript(repository.startupScript || '')
-      setCopyFiles(repository.copyFiles || '')
-      setClaudeOptions(repository.claudeOptions || {})
-      setOpencodeOptions(repository.opencodeOptions || {})
-      setOpencodeModel(repository.opencodeModel ?? null)
-      setDefaultAgent(repository.defaultAgent ?? null)
-      setIsCopierTemplate(repository.isCopierTemplate ?? false)
-      setHasChanges(false)
-    }
-  }, [repository])
-
-  // Track changes
-  useEffect(() => {
-    if (repository) {
-      const changed =
-        displayName !== repository.displayName ||
-        startupScript !== (repository.startupScript || '') ||
-        copyFiles !== (repository.copyFiles || '') ||
-        JSON.stringify(claudeOptions) !== JSON.stringify(repository.claudeOptions || {}) ||
-        JSON.stringify(opencodeOptions) !== JSON.stringify(repository.opencodeOptions || {}) ||
-        opencodeModel !== (repository.opencodeModel ?? null) ||
-        defaultAgent !== (repository.defaultAgent ?? null) ||
-        isCopierTemplate !== (repository.isCopierTemplate ?? false)
-      setHasChanges(changed)
-    }
-  }, [displayName, startupScript, copyFiles, claudeOptions, opencodeOptions, opencodeModel, defaultAgent, isCopierTemplate, repository])
-
-  const handleSave = () => {
-    if (!repository) return
-
-    updateRepository.mutate(
-      {
-        id: repository.id,
-        updates: {
-          displayName: displayName.trim() || repository.path.split('/').pop() || 'repo',
-          startupScript: startupScript.trim() || null,
-          copyFiles: copyFiles.trim() || null,
-          claudeOptions: Object.keys(claudeOptions).length > 0 ? claudeOptions : null,
-          opencodeOptions: Object.keys(opencodeOptions).length > 0 ? opencodeOptions : null,
-          opencodeModel,
-          defaultAgent,
-          isCopierTemplate,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success(t('detailView.save'))
-          setHasChanges(false)
-        },
-        onError: (error) => {
-          toast.error('Failed to save', {
-            description: error instanceof Error ? error.message : 'Unknown error',
-          })
-        },
-      }
-    )
-  }
-
-  if (!repository) {
-    return (
-      <div className="flex items-center justify-center py-12 text-muted-foreground">
-        <p>{t('detailView.general.noRepository')}</p>
-      </div>
-    )
-  }
-
-  return (
-    <ScrollArea className="h-full">
-      <div className="max-w-4xl mx-auto">
-        {/* Repository path header */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-          <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={2} />
-          <span className="font-mono break-all">{repository.path}</span>
-          {remoteUrl && (
-            <a
-              href={gitUrlToHttps(remoteUrl)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              title={remoteUrl}
-            >
-              <HugeiconsIcon
-                icon={remoteUrl.includes('github.com') ? GithubIcon : Link01Icon}
-                size={14}
-                strokeWidth={2}
-              />
-            </a>
-          )}
-        </div>
-
-        {/* Two-column layout */}
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Left column: General settings */}
-          <div className="flex-1 bg-card rounded-lg p-6 border border-border">
-            <h3 className="text-sm font-medium mb-4">{t('detailView.general.repositoryTitle')}</h3>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="displayName">{t('detailView.general.displayName')}</FieldLabel>
-                <Input
-                  id="displayName"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder={repository.path.split('/').pop() || 'My Project'}
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="startupScript">{t('detailView.general.startupScript')}</FieldLabel>
-                <Textarea
-                  id="startupScript"
-                  value={startupScript}
-                  onChange={(e) => setStartupScript(e.target.value)}
-                  placeholder={tRepo('detailView.settings.startupScriptPlaceholder')}
-                  rows={3}
-                />
-                <FieldDescription>
-                  {tRepo('detailView.settings.startupScriptDescription')}
-                </FieldDescription>
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="copyFiles">{t('detailView.general.copyFiles')}</FieldLabel>
-                <Input
-                  id="copyFiles"
-                  value={copyFiles}
-                  onChange={(e) => setCopyFiles(e.target.value)}
-                  placeholder={tRepo('detailView.settings.copyFilesPlaceholder')}
-                />
-                <FieldDescription>
-                  {tRepo('detailView.settings.copyFilesDescription')}
-                </FieldDescription>
-              </Field>
-
-              <Field>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={isCopierTemplate}
-                    onCheckedChange={(checked) => setIsCopierTemplate(checked === true)}
-                  />
-                  <FieldLabel className="cursor-pointer">{tRepo('detailView.settings.isCopierTemplate')}</FieldLabel>
-                </div>
-                <FieldDescription>
-                  {tRepo('detailView.settings.isCopierTemplateDescription')}
-                </FieldDescription>
-              </Field>
-            </FieldGroup>
-          </div>
-
-          {/* Right column: Agent settings */}
-          <div className="flex-1 bg-card rounded-lg p-6 border border-border">
-            <h3 className="text-sm font-medium mb-4">{t('detailView.general.agentTitle')}</h3>
-            <FieldGroup>
-              <Field>
-                <FieldLabel>{t('detailView.general.defaultAgent')}</FieldLabel>
-                <Select
-                  value={defaultAgent ?? 'inherit'}
-                  onValueChange={(value) => setDefaultAgent(value === 'inherit' ? null : value as AgentType)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectItem value="inherit">
-                      {tRepo('detailView.settings.defaultAgentInherit')}
-                    </SelectItem>
-                    {(Object.keys(AGENT_DISPLAY_NAMES) as AgentType[]).map((agentType) => (
-                      <SelectItem key={agentType} value={agentType}>
-                        {AGENT_DISPLAY_NAMES[agentType]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  {tRepo('detailView.settings.defaultAgentDescription')}
-                </FieldDescription>
-              </Field>
-
-              <Field>
-                <FieldLabel>{t('detailView.general.claudeOptions')}</FieldLabel>
-                <FieldDescription className="mb-2">
-                  {tRepo('detailView.settings.claudeOptionsDescription')}
-                </FieldDescription>
-                <AgentOptionsEditor
-                  value={claudeOptions}
-                  onChange={setClaudeOptions}
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel>{t('detailView.general.opencodeOptions')}</FieldLabel>
-                <FieldDescription className="mb-2">
-                  {tRepo('detailView.settings.opencodeOptionsDescription')}
-                </FieldDescription>
-                <AgentOptionsEditor
-                  value={opencodeOptions}
-                  onChange={setOpencodeOptions}
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel>{t('detailView.general.opencodeModel')}</FieldLabel>
-                <ModelPicker
-                  value={opencodeModel}
-                  onChange={setOpencodeModel}
-                  placeholder={tRepo('detailView.settings.opencodeModelPlaceholder')}
-                />
-                <FieldDescription>
-                  {tRepo('detailView.settings.opencodeModelDescription')}
-                </FieldDescription>
-              </Field>
-            </FieldGroup>
-          </div>
-        </div>
-
-        {/* Save button */}
-        <div className="flex items-center justify-end mt-4">
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={!hasChanges || updateRepository.isPending}
-          >
-            <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} data-slot="icon" />
-            {updateRepository.isPending ? t('detailView.saving') : t('detailView.save')}
-          </Button>
-        </div>
-      </div>
-    </ScrollArea>
-  )
-}
-
-// App tab - App configuration or "Add app" prompt
-function AppTab({
-  project,
-  onDeploy,
-  onStop,
-  onCancelDeploy,
-  isBuilding,
-  isRunning,
-  isStopPending,
-  isCancelPending,
-  deployStore,
-}: {
-  project: ProjectWithDetails
-  onDeploy: () => void
-  onStop: () => void
-  onCancelDeploy: () => void
-  isBuilding: boolean
-  isRunning: boolean
-  isStopPending: boolean
-  isCancelPending: boolean
-  deployStore: ReturnType<typeof useDeploymentStore>
-}) {
-  const { t } = useTranslation('projects')
-  const tRepo = useTranslation('repositories').t
-  const { data: composeInfo, isLoading: composeLoading } = useFindCompose(project.repository?.id ?? null)
-  const createAppForProject = useCreateAppForProject()
-  const [composeWarningOpen, setComposeWarningOpen] = useState(false)
-
-  const handleCreateApp = () => {
-    if (composeLoading || createAppForProject.isPending) return
-    if (!composeInfo?.found) {
-      setComposeWarningOpen(true)
-    } else {
-      // Create app with detected compose file
-      createAppForProject.mutate({
-        projectId: project.id,
-        composeFile: composeInfo.file ?? undefined,
-      })
-    }
-  }
-
-  if (!project.app) {
-    return (
-      <div className="max-w-2xl">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold">{t('detailView.app.title')}</h3>
-          <p className="text-sm text-muted-foreground">{t('detailView.app.noApp')}</p>
-        </div>
-
-        {project.repository && (
-          <div className="border rounded-lg p-6 text-center">
-            <HugeiconsIcon icon={Rocket01Icon} size={32} strokeWidth={1.5} className="mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">{t('detailView.app.configureDeploymentDescription')}</p>
-            <Button onClick={handleCreateApp} disabled={composeLoading || createAppForProject.isPending}>
-              <HugeiconsIcon icon={PackageAddIcon} size={16} strokeWidth={2} data-slot="icon" />
-              {createAppForProject.isPending ? t('detailView.app.configuring') : t('detailView.app.configureDeployment')}
-            </Button>
-          </div>
-        )}
-
-        <Dialog open={composeWarningOpen} onOpenChange={setComposeWarningOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{tRepo('createAppDialog.title')}</DialogTitle>
-              <DialogDescription>
-                {tRepo('createAppDialog.description')}
-              </DialogDescription>
-            </DialogHeader>
-            <p className="text-sm">
-              {tRepo('createAppDialog.instructions')}
-            </p>
-            <div className="flex justify-end">
-              <Button onClick={() => setComposeWarningOpen(false)}>
-                {tRepo('createAppDialog.close')}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    )
-  }
-
-  // Has app - show app config
-  return (
-    <div className="space-y-4 max-w-4xl">
-      {/* Top row: Deploy + Services side by side */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <DeploySection
-          app={project.app}
-          onDeploy={onDeploy}
-          onStop={onStop}
-          onCancelDeploy={onCancelDeploy}
-          isBuilding={isBuilding}
-          isRunning={isRunning}
-          isStopPending={isStopPending}
-          isCancelPending={isCancelPending}
-          deployStore={deployStore}
-        />
-        <ServicesSection app={project.app} onDeploy={onDeploy} />
-      </div>
-
-      {/* Environment section - full width */}
-      <EnvironmentSection app={project.app} />
-
-      {/* Compose file editor */}
-      {project.repository?.path && (
-        <ComposeFileEditor app={project.app} repoPath={project.repository.path} />
-      )}
-    </div>
-  )
-}
-
-// Deploy section with buttons and options
-function DeploySection({
-  app,
-  onDeploy,
-  onStop,
-  onCancelDeploy,
-  isBuilding,
-  isRunning,
-  isStopPending,
-  isCancelPending,
-  deployStore,
-}: {
-  app: NonNullable<ProjectWithDetails['app']>
-  onDeploy: () => void
-  onStop: () => void
-  onCancelDeploy: () => void
-  isBuilding: boolean
-  isRunning: boolean
-  isStopPending: boolean
-  isCancelPending: boolean
-  deployStore: ReturnType<typeof useDeploymentStore>
-}) {
-  const { t } = useTranslation('projects')
-  const tCommon = useTranslation('common').t
-  const updateApp = useUpdateApp()
-
-  const handleAutoDeployToggle = async (enabled: boolean) => {
-    await updateApp.mutateAsync({
-      id: app.id,
-      updates: { autoDeployEnabled: enabled },
-    })
-  }
-
-  const handleAutoPortAllocationToggle = async (enabled: boolean) => {
-    await updateApp.mutateAsync({
-      id: app.id,
-      updates: { autoPortAllocation: enabled },
-    })
-  }
-
-  const handleNoCacheToggle = async (enabled: boolean) => {
-    await updateApp.mutateAsync({
-      id: app.id,
-      updates: { noCacheBuild: enabled },
-    })
-  }
-
-  const handleNotificationsToggle = async (enabled: boolean) => {
-    await updateApp.mutateAsync({
-      id: app.id,
-      updates: { notificationsEnabled: enabled },
-    })
-  }
-
-  return (
-    <div className="rounded-lg border p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('detailView.tabs.deploy')}</h4>
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={onDeploy} disabled={isBuilding}>
-            {isBuilding ? (
-              <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-            ) : (
-              <HugeiconsIcon icon={PlayIcon} size={14} strokeWidth={2} />
-            )}
-            {deployStore.isDeploying ? tCommon('apps.deploying') : app.status === 'building' ? tCommon('apps.building') : t('deploy')}
-          </Button>
-          {isBuilding ? (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={onCancelDeploy}
-              disabled={isCancelPending}
-            >
-              {isCancelPending ? (
-                <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-              ) : (
-                <HugeiconsIcon icon={StopIcon} size={14} strokeWidth={2} />
-              )}
-              {isCancelPending ? tCommon('apps.cancelling') : tCommon('apps.cancelDeploy')}
-            </Button>
-          ) : (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={onStop}
-              disabled={isStopPending || !isRunning}
-            >
-              {isStopPending ? (
-                <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-              ) : (
-                <HugeiconsIcon icon={StopIcon} size={14} strokeWidth={2} />
-              )}
-              {t('stop')}
-            </Button>
-          )}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <Checkbox
-            checked={app.autoDeployEnabled ?? false}
-            onCheckedChange={(checked) => handleAutoDeployToggle(checked === true)}
-          />
-          <span>{t('detailView.app.autoDeployEnabled')}</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <Checkbox
-            checked={app.autoPortAllocation ?? true}
-            onCheckedChange={(checked) => handleAutoPortAllocationToggle(checked === true)}
-          />
-          <span>{t('detailView.app.autoPortAllocation')}</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <Checkbox
-            checked={app.noCacheBuild ?? false}
-            onCheckedChange={(checked) => handleNoCacheToggle(checked === true)}
-          />
-          <span>{t('detailView.app.noCacheBuild')}</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <Checkbox
-            checked={app.notificationsEnabled ?? true}
-            onCheckedChange={(checked) => handleNotificationsToggle(checked === true)}
-          />
-          <span>{t('detailView.app.notificationsEnabled')}</span>
-        </label>
-      </div>
-    </div>
-  )
-}
-
-// Services section
-function ServicesSection({
-  app,
-  onDeploy,
-}: {
-  app: NonNullable<ProjectWithDetails['app']>
-  onDeploy: () => void
-}) {
-  const { t } = useTranslation('projects')
-  const tCommon = useTranslation('common').t
-  const { data: status } = useAppStatus(app.id)
-  const { data: deploymentSettings } = useDeploymentSettings()
-  const updateApp = useUpdateApp()
-  const tunnelsAvailable = deploymentSettings?.tunnelsAvailable ?? false
-
-  const [services, setServices] = useState(
-    app.services?.map((s) => ({
-      serviceName: s.serviceName,
-      containerPort: s.containerPort,
-      domain: s.domain ?? '',
-      exposureMethod: (s.exposureMethod ?? 'dns') as ExposureMethod,
-    })) ?? []
-  )
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-
-  useEffect(() => {
-    if (editingIndex === null) {
-      setServices(
-        app.services?.map((s) => ({
-          serviceName: s.serviceName,
-          containerPort: s.containerPort,
-          domain: s.domain ?? '',
-          exposureMethod: (s.exposureMethod ?? 'dns') as ExposureMethod,
-        })) ?? []
-      )
-    }
-  }, [app.services, editingIndex])
-
-  const getServiceStatus = (serviceName: string): string => {
-    if (status?.containers) {
-      const container = status.containers.find((c) => c.service === serviceName)
-      if (container) return container.status
-    }
-    return 'stopped'
-  }
-
-  const handleSave = async () => {
-    await updateApp.mutateAsync({
-      id: app.id,
-      updates: {
-        services: services.map((s) => ({
-          serviceName: s.serviceName,
-          containerPort: s.containerPort ?? undefined,
-          exposed: !!s.domain,
-          domain: s.domain || undefined,
-          exposureMethod: s.exposureMethod,
-        })),
-      },
-    })
-    setEditingIndex(null)
-    toast.warning(tCommon('apps.deployToApply'), {
-      description: tCommon('apps.deployToApplyDesc'),
-      action: {
-        label: tCommon('apps.deploy'),
-        onClick: onDeploy,
-      },
-    })
-  }
-
-  const updateService = (index: number, updates: Partial<(typeof services)[0]>) => {
-    setServices((prev) => prev.map((s, i) => (i === index ? { ...s, ...updates } : s)))
-  }
-
-  const toggleEdit = (index: number) => {
-    if (editingIndex === index) {
-      handleSave()
-    } else {
-      setEditingIndex(index)
-    }
-  }
-
-  const cancelEdit = () => {
-    setServices(
-      app.services?.map((s) => ({
-        serviceName: s.serviceName,
-        containerPort: s.containerPort,
-        domain: s.domain ?? '',
-        exposureMethod: (s.exposureMethod ?? 'dns') as ExposureMethod,
-      })) ?? []
-    )
-    setEditingIndex(null)
-  }
-
-  return (
-    <div className="rounded-lg border p-4 space-y-3">
-      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('detailView.app.services')}</h4>
-
-      {services.length > 0 ? (
-        <div className="space-y-2">
-          {services.map((service, index) => {
-            const runtimeStatus = getServiceStatus(service.serviceName)
-            const isRunning = runtimeStatus === 'running'
-            const isEditing = editingIndex === index
-            const hasPort = !!service.containerPort
-            const hasDomain = !!service.domain
-
-            return (
-              <div key={service.serviceName} className="flex items-center gap-3 text-sm">
-                <div
-                  className={`h-2 w-2 shrink-0 rounded-full ${isRunning ? 'bg-green-500' : 'bg-gray-400'}`}
-                  title={runtimeStatus}
-                />
-                <div className="flex items-center gap-1.5 min-w-0 shrink-0">
-                  <span className="font-medium">{service.serviceName}</span>
-                  {service.containerPort && (
-                    <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                      :{service.containerPort}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  {isEditing ? (
-                    <>
-                      <Input
-                        value={service.domain}
-                        onChange={(e) => updateService(index, { domain: e.target.value })}
-                        placeholder="app.example.com"
-                        className="h-7 text-xs flex-1 min-w-0"
-                        autoFocus
-                        disabled={!hasPort}
-                      />
-                      <select
-                        value={service.exposureMethod}
-                        onChange={(e) => updateService(index, { exposureMethod: e.target.value as ExposureMethod })}
-                        className="h-7 w-20 rounded-md border bg-background px-2 text-xs shrink-0"
-                        disabled={!hasPort}
-                      >
-                        <option value="dns">DNS</option>
-                        <option value="tunnel" disabled={!tunnelsAvailable}>Tunnel</option>
-                      </select>
-                    </>
-                  ) : hasDomain ? (
-                    <>
-                      <a
-                        href={`https://${service.domain}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline truncate"
-                      >
-                        {service.domain}
-                      </a>
-                      <Badge
-                        variant={service.exposureMethod === 'tunnel' ? 'default' : 'outline'}
-                        className="text-xs px-1.5 py-0 shrink-0"
-                      >
-                        {service.exposureMethod === 'tunnel' ? 'Tunnel' : 'DNS'}
-                      </Badge>
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground/50 text-xs">
-                      {hasPort ? tCommon('apps.domains.noDomain') : tCommon('apps.domains.portRequired')}
-                    </span>
-                  )}
-                </div>
-                {isEditing ? (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => toggleEdit(index)}
-                      disabled={updateApp.isPending}
-                    >
-                      {updateApp.isPending ? (
-                        <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-                      ) : (
-                        <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} strokeWidth={2} className="text-green-500" />
-                      )}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={cancelEdit}>
-                      <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} className="text-muted-foreground" />
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0"
-                    onClick={() => toggleEdit(index)}
-                    disabled={!hasPort}
-                  >
-                    <HugeiconsIcon
-                      icon={PencilEdit02Icon}
-                      size={14}
-                      strokeWidth={2}
-                      className={hasPort ? 'text-muted-foreground' : 'text-muted-foreground/30'}
-                    />
-                  </Button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">{tCommon('apps.general.noServicesConfigured')}</p>
-      )}
-    </div>
-  )
-}
-
-// Environment section
-function EnvironmentSection({ app }: { app: NonNullable<ProjectWithDetails['app']> }) {
-  const { t } = useTranslation('common')
-  const updateApp = useUpdateApp()
-
-  const envVarsToText = (envVars: Record<string, string> | null | undefined) => {
-    return Object.entries(envVars ?? {})
-      .map(([k, v]) => `${k}=${v}`)
-      .join('\n')
-  }
-
-  const [envText, setEnvText] = useState(() => envVarsToText(app.environmentVariables))
-  const [savedEnvText, setSavedEnvText] = useState(() => envVarsToText(app.environmentVariables))
-  const [envSaved, setEnvSaved] = useState(false)
-  const [masked, setMasked] = useState(true)
-
-  const hasUnsavedChanges = envText !== savedEnvText
-
-  const maskedLines = useMemo(() => {
-    return envText.split('\n').map((line, i) => {
-      const trimmed = line.trim()
-      if (!trimmed) return { type: 'empty' as const, id: i }
-      if (trimmed.startsWith('#')) return { type: 'comment' as const, text: line, id: i }
-      const eqIndex = trimmed.indexOf('=')
-      if (eqIndex > 0) {
-        const keyLen = trimmed.slice(0, eqIndex).length
-        const valueLen = trimmed.slice(eqIndex + 1).length
-        return { type: 'env' as const, keyLen, valueLen, id: i }
-      }
-      return { type: 'other' as const, text: line, id: i }
-    })
-  }, [envText])
-
-  const handleSaveEnv = async () => {
-    const env: Record<string, string> = {}
-    envText.split('\n').forEach((line) => {
-      const trimmed = line.trim()
-      if (!trimmed || trimmed.startsWith('#')) return
-      const eqIndex = trimmed.indexOf('=')
-      if (eqIndex > 0) {
-        const key = trimmed.slice(0, eqIndex).trim()
-        const value = trimmed.slice(eqIndex + 1).trim()
-        if (key) {
-          env[key] = value
-        }
-      }
-    })
-
-    await updateApp.mutateAsync({
-      id: app.id,
-      updates: { environmentVariables: env },
-    })
-    setSavedEnvText(envText)
-    setEnvSaved(true)
-    setTimeout(() => setEnvSaved(false), 2000)
-  }
-
-  return (
-    <div className="rounded-lg border p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('apps.environment.title')}</h4>
-          {hasUnsavedChanges && (
-            <span className="text-xs text-amber-500">({t('apps.environment.unsavedChanges')})</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              onClick={() => setMasked(!masked)}
-            >
-              <HugeiconsIcon icon={masked ? ViewOffIcon : EyeIcon} size={14} strokeWidth={2} />
-            </TooltipTrigger>
-            <TooltipContent>{masked ? t('apps.environment.showValues') : t('apps.environment.hideValues')}</TooltipContent>
-          </Tooltip>
-          {hasUnsavedChanges && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEnvText(savedEnvText)
-                setEnvSaved(false)
-              }}
-            >
-              {t('apps.cancel')}
-            </Button>
-          )}
-          <Button size="sm" onClick={handleSaveEnv} disabled={updateApp.isPending || !hasUnsavedChanges}>
-            {updateApp.isPending ? (
-              <>
-                <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-                {t('status.saving')}
-              </>
-            ) : envSaved ? (
-              <>
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} strokeWidth={2} className="text-green-500" />
-                {t('status.saved')}
-              </>
-            ) : (
-              t('apps.environment.save')
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {masked ? (
-        <div
-          className="font-mono text-sm min-h-[120px] rounded-md border bg-background px-3 py-2 cursor-pointer"
-          onClick={() => setMasked(false)}
-        >
-          {maskedLines.length === 0 || (maskedLines.length === 1 && maskedLines[0].type === 'empty') ? (
-            <span className="text-muted-foreground">{t('apps.environment.placeholder')}</span>
-          ) : (
-            maskedLines.map((line) => (
-              <div key={line.id} className="leading-6">
-                {line.type === 'empty' ? (
-                  <span>&nbsp;</span>
-                ) : line.type === 'comment' || line.type === 'other' ? (
-                  <span className="text-muted-foreground">{line.text}</span>
-                ) : (
-                  <>
-                    <span style={{ color: 'var(--chart-1)' }}>{'•'.repeat(line.keyLen)}</span>
-                    <span style={{ color: 'var(--chart-3)' }}>•</span>
-                    <span style={{ color: 'var(--chart-2)' }}>{'•'.repeat(line.valueLen)}</span>
-                  </>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      ) : (
-        <Textarea
-          value={envText}
-          onChange={(e) => setEnvText(e.target.value)}
-          placeholder={t('apps.environment.placeholder')}
-          className="font-mono text-sm min-h-[120px]"
-        />
-      )}
-    </div>
-  )
-}
-
-// Compose file editor
-function ComposeFileEditor({ app, repoPath }: { app: NonNullable<ProjectWithDetails['app']>; repoPath: string }) {
-  const { t } = useTranslation('common')
-  const { data, isLoading, error } = useComposeFile(repoPath, app.composeFile)
-  const writeCompose = useWriteComposeFile()
-  const syncServices = useSyncServices()
-  const swarmCompose = useSwarmComposeFile(app.id)
-
-  const [content, setContent] = useState<string>('')
-  const [savedContent, setSavedContent] = useState<string>('')
-  const [saved, setSaved] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
-
-  useEffect(() => {
-    if (data?.content !== undefined) {
-      setContent(data.content)
-      setSavedContent(data.content)
-    }
-  }, [data?.content])
-
-  const hasUnsavedChanges = content !== savedContent
-
-  const handleChange = useCallback((newContent: string) => {
-    setContent(newContent)
-    setSaved(false)
-  }, [])
-
-  const handleSave = useCallback(() => {
-    if (!repoPath || !app.composeFile) return
-
-    writeCompose.mutate(
-      { repoPath, composeFile: app.composeFile, content },
-      {
-        onSuccess: () => {
-          setSavedContent(content)
-          setSaved(true)
-          setTimeout(() => setSaved(false), 2000)
-          syncServices.mutate(app.id)
-        },
-      }
-    )
-  }, [repoPath, app.composeFile, app.id, content, writeCompose, syncServices])
-
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border p-4">
-        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">{t('apps.compose.title')}</h4>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <HugeiconsIcon icon={Loading03Icon} size={16} strokeWidth={2} className="animate-spin" />
-          <span className="text-sm">{t('status.loading')}</span>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-lg border p-4">
-        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">{t('apps.compose.title')}</h4>
-        <div className="flex items-center gap-2 text-destructive">
-          <HugeiconsIcon icon={Alert02Icon} size={16} strokeWidth={2} />
-          <span className="text-sm">{error.message}</span>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-lg border p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('apps.compose.title')}</h4>
-          {hasUnsavedChanges && (
-            <span className="text-xs text-amber-500">({t('apps.compose.unsavedChanges')})</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{app.composeFile}</span>
-          {hasUnsavedChanges && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setContent(savedContent)
-                setSaved(false)
-              }}
-            >
-              {t('apps.cancel')}
-            </Button>
-          )}
-          <Button size="sm" onClick={handleSave} disabled={writeCompose.isPending || !hasUnsavedChanges}>
-            {writeCompose.isPending ? (
-              <>
-                <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-                {t('status.saving')}
-              </>
-            ) : saved ? (
-              <>
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} strokeWidth={2} className="text-green-500" />
-                {t('status.saved')}
-              </>
-            ) : (
-              t('apps.compose.save')
-            )}
-          </Button>
-        </div>
-      </div>
-
-      <div className="h-[400px] rounded-md border overflow-hidden">
-        <MonacoEditor
-          filePath={app.composeFile}
-          content={content}
-          onChange={handleChange}
-        />
-      </div>
-
-      {/* Preview Generated Compose File */}
-      <div className="flex items-center justify-between pt-2 border-t">
-        <span className="text-xs text-muted-foreground">
-          {t('apps.compose.previewDescription')}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            swarmCompose.refetch()
-            setShowPreview(true)
-          }}
-        >
-          <HugeiconsIcon icon={EyeIcon} size={14} strokeWidth={2} />
-          {t('apps.compose.preview')}
-        </Button>
-      </div>
-
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>{t('apps.compose.generatedTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('apps.compose.generatedDescription')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="h-[500px] rounded-md border overflow-hidden">
-            {swarmCompose.error ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <div className="text-center space-y-2">
-                  <HugeiconsIcon icon={Alert02Icon} size={24} strokeWidth={2} className="mx-auto text-destructive" />
-                  <p className="text-sm">{swarmCompose.error.message}</p>
-                </div>
-              </div>
-            ) : swarmCompose.data?.content ? (
-              <MonacoEditor
-                filePath="swarm-compose.yml"
-                content={swarmCompose.data.content}
-                onChange={() => {}}
-                readOnly
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <HugeiconsIcon icon={Loading03Icon} size={24} strokeWidth={2} className="animate-spin" />
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
-}
-
-// Streaming deployment modal
-function StreamingDeploymentModal({
-  appId,
-  open,
-  onOpenChange,
-}: {
-  appId: string
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const { t } = useTranslation('common')
-  const [copied, setCopied] = useState(false)
-  const logsContainerRef = useRef<HTMLDivElement>(null)
-  const cancelDeployment = useCancelDeployment()
-  const deployStore = useDeploymentStore()
-
-  const [logs, setLogs] = useState<string[]>(() => deployStore.logsSnapshot)
-  const [stage, setStage] = useState(deployStore.typedStage)
-  const [error, setError] = useState(deployStore.error)
-  const [isDeploying, setIsDeploying] = useState(deployStore.isDeploying)
-
-  useEffect(() => {
-    setLogs(deployStore.logsSnapshot)
-    setStage(deployStore.typedStage)
-    setError(deployStore.error)
-    setIsDeploying(deployStore.isDeploying)
-
-    const disposeLogsReaction = reaction(
-      () => deployStore.logCount,
-      () => setLogs(deployStore.logsSnapshot)
-    )
-
-    const disposeStateReaction = reaction(
-      () => ({
-        stage: deployStore.typedStage,
-        error: deployStore.error,
-        isDeploying: deployStore.isDeploying,
-      }),
-      (state) => {
-        setStage(state.stage)
-        setError(state.error)
-        setIsDeploying(state.isDeploying)
-      }
-    )
-
-    return () => {
-      disposeLogsReaction()
-      disposeStateReaction()
-    }
-  }, [deployStore])
-
-  const parsedLogs = parseLogs(logs.join('\n'))
-
-  useEffect(() => {
-    if (logsContainerRef.current) {
-      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
-    }
-  }, [logs.length])
-
-  const copyLogs = async () => {
-    await navigator.clipboard.writeText(logs.join('\n'))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  const handleCancel = async () => {
-    await cancelDeployment.mutateAsync(appId)
-  }
-
-  const getStageLabel = (stage: DeploymentStage | null): string => {
-    switch (stage) {
-      case 'pulling': return t('apps.streaming.pulling')
-      case 'building': return t('apps.streaming.building')
-      case 'starting': return t('apps.streaming.starting')
-      case 'configuring': return t('apps.streaming.configuring')
-      case 'done': return t('apps.streaming.done')
-      case 'failed': return t('apps.streaming.failed')
-      case 'cancelled': return t('apps.streaming.cancelled')
-      default: return t('apps.streaming.preparing')
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[90vw] w-[90vw] h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {t('apps.deployments.deployment')}
-            {isDeploying && <HugeiconsIcon icon={Loading03Icon} size={16} strokeWidth={2} className="animate-spin" />}
-            {!isDeploying && !error && stage === 'done' && <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} strokeWidth={2} className="text-green-500" />}
-            {error && <HugeiconsIcon icon={Alert02Icon} size={16} strokeWidth={2} className="text-destructive" />}
-          </DialogTitle>
-          <DialogDescription className="flex items-center gap-2">
-            {getStageLabel(stage)}
-            {isDeploying && (
-              <>
-                <span className="text-muted-foreground">|</span>
-                <Button variant="destructive" size="sm" onClick={handleCancel} disabled={cancelDeployment.isPending}>
-                  {cancelDeployment.isPending ? (
-                    <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-                  ) : (
-                    <HugeiconsIcon icon={StopIcon} size={14} strokeWidth={2} />
-                  )}
-                  {cancelDeployment.isPending ? t('apps.cancelling') : t('apps.cancelDeploy')}
-                </Button>
-              </>
-            )}
-            <span className="text-muted-foreground">|</span>
-            <span>{parsedLogs.length} {t('apps.logs.lines')}</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={copyLogs} disabled={logs.length === 0}>
-              <HugeiconsIcon
-                icon={copied ? CheckmarkCircle02Icon : Copy01Icon}
-                size={14}
-                strokeWidth={2}
-                className={copied ? 'text-green-500' : ''}
-              />
-            </Button>
-          </DialogDescription>
-        </DialogHeader>
-        <div ref={logsContainerRef} className="flex-1 overflow-auto rounded-lg border bg-muted/30 p-2 custom-logs-scrollbar">
-          {parsedLogs.length > 0 ? (
-            parsedLogs.map((log, i) => <LogLine key={i} message={log.message} type={log.type} />)
-          ) : isDeploying ? (
-            <span className="text-muted-foreground p-2">{t('apps.streaming.waitingForLogs')}</span>
-          ) : (
-            <span className="text-muted-foreground p-2">{t('apps.deployments.noBuildLogs')}</span>
-          )}
-          {error && (
-            <div className="mt-2 p-2 rounded bg-destructive/10 text-destructive text-sm">
-              {t('status.error')}: {error}
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// Deployments tab
-function DeploymentsTab({
-  appId,
-  deployStore,
-  onViewStreamingLogs,
-}: {
-  appId: string
-  deployStore: ReturnType<typeof useDeploymentStore>
-  onViewStreamingLogs: () => void
-}) {
-  const { t } = useTranslation('common')
-  const { data: deployments, isLoading } = useDeployments(appId)
-  const [selectedDeployment, setSelectedDeployment] = useState<Deployment | null>(null)
-
-  const handleViewLogs = (deployment: Deployment) => {
-    if (deployment.status === 'building' || deployment.status === 'pending') {
-      if (!deployStore.isDeploying || deployStore.appId !== appId) {
-        deployStore.watchDeployment(appId)
-      }
-      onViewStreamingLogs()
-    } else {
-      setSelectedDeployment(deployment)
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <HugeiconsIcon icon={Loading03Icon} size={24} strokeWidth={2} className="animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="max-w-3xl">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold">{t('apps.deployments.title')}</h3>
-        <p className="text-sm text-muted-foreground">{t('apps.deployments.description')}</p>
-      </div>
-
-      {!deployments?.length ? (
-        <div className="py-8 text-center text-muted-foreground border rounded-lg">
-          <p>{t('apps.deployments.noDeployments')}</p>
-        </div>
-      ) : (
-        <div className="border rounded-lg divide-y">
-          {deployments.map((deployment, index) => (
-            <DeploymentRow
-              key={deployment.id}
-              deployment={deployment}
-              number={index + 1}
-              onViewLogs={() => handleViewLogs(deployment)}
-            />
-          ))}
-        </div>
-      )}
-
-      <DeploymentLogsModal
-        deployment={selectedDeployment}
-        open={!!selectedDeployment}
-        onOpenChange={(open) => !open && setSelectedDeployment(null)}
+      {/* Add Repository Modal (with project pre-selected) */}
+      <AddRepositoryModal
+        open={addRepoModalOpen}
+        onOpenChange={setAddRepoModalOpen}
+        projectId={projectId}
       />
-    </div>
-  )
-}
 
-function DeploymentRow({
-  deployment,
-  number,
-  onViewLogs,
-}: {
-  deployment: Deployment
-  number: number
-  onViewLogs: () => void
-}) {
-  const { t } = useTranslation('common')
-  const isInProgress = deployment.status === 'building' || deployment.status === 'pending'
+      {/* Bulk Add Repositories Modal */}
+      <LinkRepositoriesModal
+        open={linkRepoModalOpen}
+        onOpenChange={setBulkAddModalOpen}
+        projectId={projectId}
+        projectName={project.name}
+      />
 
-  const [, setTick] = useState(0)
-  useEffect(() => {
-    if (!isInProgress) return
-    const interval = setInterval(() => setTick((t) => t + 1), 1000)
-    return () => clearInterval(interval)
-  }, [isInProgress])
-
-  const getStatusInfo = () => {
-    switch (deployment.status) {
-      case 'running': return { text: t('apps.deployments.statusDone'), color: 'bg-green-500' }
-      case 'failed': return { text: t('apps.deployments.statusError'), color: 'bg-red-500' }
-      case 'building':
-      case 'pending': return { text: t('apps.deployments.statusBuilding'), color: 'bg-yellow-500' }
-      default: return { text: deployment.status, color: 'bg-gray-400' }
-    }
-  }
-
-  const { text: statusText, color: statusColor } = getStatusInfo()
-
-  return (
-    <div className="flex items-center justify-between px-4 py-3">
-      <div className="flex items-center gap-3">
-        <span className="text-muted-foreground w-6">{number}.</span>
-        <span className="font-medium">{statusText}</span>
-        <div className={`h-2 w-2 rounded-full ${statusColor}`} />
-      </div>
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-muted-foreground">{formatRelativeTime(deployment.startedAt)}</span>
-        <span className="text-sm text-muted-foreground tabular-nums">
-          {formatDuration(deployment.startedAt, deployment.completedAt)}
-        </span>
-        <Button size="sm" onClick={onViewLogs}>{t('apps.deployments.view')}</Button>
-      </div>
-    </div>
-  )
-}
-
-function DeploymentLogsModal({
-  deployment,
-  open,
-  onOpenChange,
-}: {
-  deployment: Deployment | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const { t } = useTranslation('common')
-  const [copied, setCopied] = useState(false)
-  const logs = useMemo(() => parseLogs(deployment?.buildLogs ?? ''), [deployment?.buildLogs])
-
-  const copyLogs = async () => {
-    if (deployment?.buildLogs) {
-      await navigator.clipboard.writeText(deployment.buildLogs)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[90vw] w-[90vw] h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{t('apps.deployments.deployment')}</DialogTitle>
-          <DialogDescription className="flex items-center gap-2">
-            {t('apps.deployments.seeDetails')}
-            <span className="text-muted-foreground">|</span>
-            <span>{logs.length} {t('apps.logs.lines')}</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={copyLogs}>
-              <HugeiconsIcon
-                icon={copied ? CheckmarkCircle02Icon : Copy01Icon}
-                size={14}
-                strokeWidth={2}
-                className={copied ? 'text-green-500' : ''}
-              />
-            </Button>
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 overflow-auto rounded-lg border bg-muted/30 p-2 custom-logs-scrollbar">
-          {logs.length > 0 ? (
-            logs.map((log, i) => <LogLine key={i} message={log.message} type={log.type} />)
-          ) : (
-            <span className="text-muted-foreground p-2">{t('apps.deployments.noBuildLogs')}</span>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// Logs tab
-function LogsTab({
-  appId,
-  services,
-}: {
-  appId: string
-  services?: NonNullable<ProjectWithDetails['app']>['services']
-}) {
-  const { t } = useTranslation('common')
-  const { data: status } = useAppStatus(appId)
-  const [selectedService, setSelectedService] = useState<string | undefined>()
-  const [tail, setTail] = useState(100)
-  const { data, isLoading, refetch } = useAppLogs(appId, selectedService, tail)
-  const [copied, setCopied] = useState(false)
-  const logs = useMemo(() => parseLogs(data?.logs ?? ''), [data?.logs])
-
-  const copyLogs = async () => {
-    if (data?.logs) {
-      await navigator.clipboard.writeText(data.logs)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  const downloadLogs = () => {
-    if (data?.logs) {
-      const blob = new Blob([data.logs], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${appId}-${selectedService ?? 'all'}-logs.txt`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    }
-  }
-
-  const containers = status?.containers ?? []
-
-  return (
-    <div className="space-y-4 max-w-4xl">
-      <div>
-        <h3 className="text-lg font-semibold">{t('apps.logs.title')}</h3>
-        <p className="text-sm text-muted-foreground">{t('apps.logs.description')}</p>
-      </div>
-
-      <div className="flex items-center gap-4 flex-wrap">
-        <select
-          value={selectedService ?? ''}
-          onChange={(e) => setSelectedService(e.target.value || undefined)}
-          className="rounded-md border bg-background px-3 py-2 text-sm min-w-[240px]"
-        >
-          <option value="">{t('apps.logs.allContainers')}</option>
-          {containers.length > 0
-            ? containers.map((c) => (
-                <option key={c.name} value={c.service}>
-                  {c.service} ({c.name.slice(-12)}) [{c.status}]
-                </option>
-              ))
-            : services?.map((s) => (
-                <option key={s.id} value={s.serviceName}>
-                  {s.serviceName}
-                </option>
-              ))}
-        </select>
-
-        <select
-          value={tail}
-          onChange={(e) => setTail(parseInt(e.target.value, 10))}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
-        >
-          <option value={50}>50 {t('apps.logs.lines')}</option>
-          <option value={100}>100 {t('apps.logs.lines')}</option>
-          <option value={500}>500 {t('apps.logs.lines')}</option>
-          <option value={1000}>1000 {t('apps.logs.lines')}</option>
-        </select>
-
-        <div className="flex items-center gap-1 ml-auto">
-          <Button variant="outline" size="sm" onClick={copyLogs} disabled={!data?.logs}>
-            <HugeiconsIcon
-              icon={copied ? CheckmarkCircle02Icon : Copy01Icon}
-              size={14}
-              strokeWidth={2}
-              className={copied ? 'text-green-500' : ''}
-            />
-            {copied ? t('apps.logs.copied') : t('apps.logs.copy')}
-          </Button>
-          <Button variant="outline" size="sm" onClick={downloadLogs} disabled={!data?.logs}>
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} className="rotate-[-90deg]" />
-            {t('apps.logs.download')}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <HugeiconsIcon icon={RefreshIcon} size={14} strokeWidth={2} />
-            {t('apps.logs.refresh')}
-          </Button>
-        </div>
-      </div>
-
-      <div className="rounded-lg border bg-muted/30 p-2 overflow-auto max-h-[600px] min-h-[300px] custom-logs-scrollbar">
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground p-2">
-            <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
-            {t('status.loading')}
-          </div>
-        ) : logs.length > 0 ? (
-          logs.map((log, i) => <LogLine key={i} message={log.message} type={log.type} />)
-        ) : (
-          <span className="text-muted-foreground p-2">{t('apps.logs.noLogs')}</span>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// Monitoring tab
-const DISTRIBUTION_COLORS = [
-  'var(--chart-1)',
-  'var(--chart-2)',
-  'var(--chart-3)',
-  'var(--chart-4)',
-  'var(--chart-5)',
-]
-
-function extractServiceName(containerName: string): string {
-  const underscoreParts = containerName.split('_')
-  if (underscoreParts.length >= 2) {
-    const servicePart = underscoreParts[1]
-    const dotParts = servicePart.split('.')
-    return dotParts[0]
-  }
-  const parts = containerName.split(/[-_.]/)
-  for (const part of parts.slice(1)) {
-    if (part && !part.match(/^\d+$/) && part.length > 2) {
-      return part
-    }
-  }
-  return containerName
-}
-
-function getProjectName(appId: string, repoName?: string): string {
-  const suffix = appId.slice(0, 8).toLowerCase()
-  if (repoName) {
-    const sanitized = repoName
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 20)
-      .replace(/-$/, '')
-    return `vibora-${sanitized}-${suffix}`
-  }
-  return `vibora-${suffix}`
-}
-
-function DistributionRing({
-  data,
-  label,
-  totalValue,
-  unit,
-}: {
-  data: Array<{ name: string; value: number; color: string }>
-  label: string
-  totalValue: string
-  unit: string
-}) {
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative size-28">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius={32}
-              outerRadius={48}
-              paddingAngle={2}
-              dataKey="value"
-              stroke="none"
-            >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <RechartsTooltip
-              content={({ active, payload }) => {
-                if (active && payload && payload.length) {
-                  const item = payload[0].payload
-                  return (
-                    <div className="bg-popover border rounded-md px-2 py-1 text-xs shadow-md">
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-muted-foreground">
-                        {item.value.toFixed(1)} {unit}
-                      </p>
-                    </div>
-                  )
-                }
-                return null
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-sm font-semibold tabular-nums">{totalValue}</span>
-          <span className="text-[10px] text-muted-foreground">{unit}</span>
-        </div>
-      </div>
-      <span className="text-xs text-muted-foreground mt-1">{label}</span>
-    </div>
-  )
-}
-
-function ServiceSummaryCard({ containers }: { containers: ContainerStats[] }) {
-  const { t } = useTranslation('common')
-
-  const totalCpu = containers.reduce((sum, c) => sum + c.cpuPercent, 0)
-  const totalMemory = containers.reduce((sum, c) => sum + c.memoryMB, 0)
-
-  const containerData = containers.map((c, i) => ({
-    name: extractServiceName(c.name),
-    cpu: c.cpuPercent,
-    memory: c.memoryMB,
-    color: DISTRIBUTION_COLORS[i % DISTRIBUTION_COLORS.length],
-  }))
-
-  const cpuData = containerData.map((c) => ({ name: c.name, value: c.cpu, color: c.color }))
-  const memoryData = containerData.map((c) => ({ name: c.name, value: c.memory, color: c.color }))
-
-  return (
-    <Card className="p-4 mb-6">
-      <h4 className="text-sm font-medium mb-4">{t('apps.monitoring.serviceTotal')}</h4>
-
-      <div className="flex items-center justify-center gap-8">
-        <DistributionRing data={cpuData} label={t('apps.monitoring.cpu')} totalValue={totalCpu.toFixed(1)} unit="%" />
-        <DistributionRing data={memoryData} label={t('apps.monitoring.memory')} totalValue={totalMemory.toFixed(0)} unit="MB" />
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-4">
-        {containerData.map((c) => (
-          <div key={c.name} className="flex items-center gap-1.5">
-            <div className="size-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-            <span className="text-xs text-muted-foreground">{c.name}</span>
-          </div>
-        ))}
-      </div>
-    </Card>
-  )
-}
-
-function MonitoringTab({ appId, repoDisplayName }: { appId: string; repoDisplayName?: string }) {
-  const { t } = useTranslation('common')
-  const { data: dockerStats, isLoading } = useDockerStats()
-
-  const appContainers = useMemo(() => {
-    if (!dockerStats?.containers) return []
-    const stackPrefix = `${getProjectName(appId, repoDisplayName)}_`
-    return dockerStats.containers.filter((container) => {
-      return container.name.toLowerCase().startsWith(stackPrefix)
-    })
-  }, [dockerStats, appId, repoDisplayName])
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <HugeiconsIcon icon={Loading03Icon} size={24} strokeWidth={2} className="animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  if (!dockerStats?.available) {
-    return (
-      <div className="max-w-2xl">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold">{t('apps.monitoring.title')}</h3>
-          <p className="text-sm text-muted-foreground">{t('apps.monitoring.description')}</p>
-        </div>
-        <div className="py-8 text-center text-muted-foreground border rounded-lg">
-          <p>{t('apps.monitoring.dockerUnavailable')}</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (appContainers.length === 0) {
-    return (
-      <div className="max-w-2xl">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold">{t('apps.monitoring.title')}</h3>
-          <p className="text-sm text-muted-foreground">{t('apps.monitoring.description')}</p>
-        </div>
-        <div className="py-8 text-center text-muted-foreground border rounded-lg">
-          <p>{t('apps.monitoring.noContainers')}</p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="max-w-4xl">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold">{t('apps.monitoring.title')}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t('apps.monitoring.description')}
-          {dockerStats.runtime && <span className="ml-1 text-xs">({dockerStats.runtime})</span>}
-        </p>
-      </div>
-      <ServiceSummaryCard containers={appContainers} />
-    </div>
+      {/* Remove Repository Dialog */}
+      <RemoveRepositoryDialog
+        open={removeRepoDialog.open}
+        onOpenChange={(open) => setRemoveRepoDialog({ open, repository: open ? removeRepoDialog.repository : null })}
+        projectId={projectId}
+        repository={removeRepoDialog.repository}
+      />
+    </>
   )
 }

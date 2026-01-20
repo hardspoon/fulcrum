@@ -8,12 +8,14 @@ import { DragProvider, useDrag } from './drag-context'
 import { SelectionProvider, useSelection } from './selection-context'
 import { BulkActionsToolbar } from './bulk-actions-toolbar'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useTasks, useUpdateTaskStatus } from '@/hooks/use-tasks'
+import { useTasks, useUpdateTaskStatus, useTaskDependencyGraph } from '@/hooks/use-tasks'
+import { useProjects } from '@/hooks/use-projects'
 import { cn } from '@/lib/utils'
 import { fuzzyScore } from '@/lib/fuzzy-search'
 import type { TaskStatus } from '@/types'
 
 const COLUMNS: TaskStatus[] = [
+  'TO_DO',
   'IN_PROGRESS',
   'IN_REVIEW',
   'DONE',
@@ -56,17 +58,40 @@ function MobileDropZone({ status }: { status: TaskStatus }) {
 }
 
 interface KanbanBoardProps {
-  repoFilter?: string | null
+  projectFilter?: string | null // 'inbox' for tasks without project, or project ID
   searchQuery?: string
 }
 
-function KanbanBoardInner({ repoFilter, searchQuery }: KanbanBoardProps) {
+function KanbanBoardInner({ projectFilter, searchQuery }: KanbanBoardProps) {
   const { t } = useTranslation('common')
   const { data: allTasks = [], isLoading } = useTasks()
+  const { data: projects = [] } = useProjects()
+  const { data: dependencyGraph } = useTaskDependencyGraph()
   const updateStatus = useUpdateTaskStatus()
   const { activeTask } = useDrag()
   const { clearSelection, selectedIds } = useSelection()
   const [activeTab, setActiveTab] = useState<TaskStatus>('IN_PROGRESS')
+
+  // Compute which tasks are blocked (have incomplete dependencies) and blocking (blocking other tasks)
+  const { blockedTaskIds, blockingTaskIds } = useMemo(() => {
+    if (!dependencyGraph) return { blockedTaskIds: new Set<string>(), blockingTaskIds: new Set<string>() }
+
+    const blocked = new Set<string>()
+    const blocking = new Set<string>()
+    const nodeStatusMap = new Map(dependencyGraph.nodes.map(n => [n.id, n.status]))
+
+    // For each edge, check if the source (dependency) is incomplete
+    for (const edge of dependencyGraph.edges) {
+      const dependencyStatus = nodeStatusMap.get(edge.source)
+      // A task is blocked if any of its dependencies are not DONE or CANCELED
+      if (dependencyStatus && dependencyStatus !== 'DONE' && dependencyStatus !== 'CANCELED') {
+        blocked.add(edge.target)
+        blocking.add(edge.source)
+      }
+    }
+
+    return { blockedTaskIds: blocked, blockingTaskIds: blocking }
+  }, [dependencyGraph])
 
   // Escape key clears selection
   useEffect(() => {
@@ -79,12 +104,57 @@ function KanbanBoardInner({ repoFilter, searchQuery }: KanbanBoardProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [clearSelection, selectedIds.size])
 
-  // Filter tasks by repo and search query, sort by latest first
+  // Build sets of all repository IDs and paths that belong to projects (for inbox filtering)
+  const { projectRepoIds, projectRepoPaths } = useMemo(() => {
+    const ids = new Set<string>()
+    const paths = new Set<string>()
+    for (const project of projects) {
+      for (const repo of project.repositories) {
+        ids.add(repo.id)
+        paths.add(repo.path)
+      }
+    }
+    return { projectRepoIds: ids, projectRepoPaths: paths }
+  }, [projects])
+
+  // Get repository IDs and paths for the selected project filter
+  const { selectedProjectRepoIds, selectedProjectRepoPaths } = useMemo(() => {
+    if (!projectFilter || projectFilter === 'inbox') {
+      return { selectedProjectRepoIds: new Set<string>(), selectedProjectRepoPaths: new Set<string>() }
+    }
+    const project = projects.find((p) => p.id === projectFilter)
+    if (!project) {
+      return { selectedProjectRepoIds: new Set<string>(), selectedProjectRepoPaths: new Set<string>() }
+    }
+    return {
+      selectedProjectRepoIds: new Set(project.repositories.map((r) => r.id)),
+      selectedProjectRepoPaths: new Set(project.repositories.map((r) => r.path)),
+    }
+  }, [projectFilter, projects])
+
+  // Filter tasks by project and search query, sort by latest first
   const tasks = useMemo(() => {
     let filtered = allTasks
-    if (repoFilter) {
-      filtered = filtered.filter((t) => t.repoName === repoFilter)
+
+    // Filter by project
+    if (projectFilter === 'inbox') {
+      // Show only tasks without a project (neither directly via projectId nor via repository ID/path)
+      filtered = filtered.filter(
+        (t) =>
+          !t.projectId &&
+          (!t.repositoryId || !projectRepoIds.has(t.repositoryId)) &&
+          (!t.repoPath || !projectRepoPaths.has(t.repoPath))
+      )
+    } else if (projectFilter) {
+      // Show tasks for a specific project (either directly via projectId or via repository ID/path)
+      filtered = filtered.filter(
+        (t) =>
+          t.projectId === projectFilter ||
+          (t.repositoryId && selectedProjectRepoIds.has(t.repositoryId)) ||
+          (t.repoPath && selectedProjectRepoPaths.has(t.repoPath))
+      )
     }
+
     if (searchQuery?.trim()) {
       // When searching, sort by fuzzy score
       filtered = filtered
@@ -94,8 +164,8 @@ function KanbanBoardInner({ repoFilter, searchQuery }: KanbanBoardProps) {
             fuzzyScore(t.title, searchQuery),
             fuzzyScore(t.description || '', searchQuery),
             fuzzyScore(t.branch || '', searchQuery),
-            fuzzyScore(t.linearTicketId || '', searchQuery),
-            fuzzyScore(t.prUrl || '', searchQuery)
+            fuzzyScore(t.prUrl || '', searchQuery),
+            fuzzyScore(t.labels.join(' '), searchQuery)
           ),
         }))
         .filter(({ score }) => score > 0)
@@ -109,11 +179,12 @@ function KanbanBoardInner({ repoFilter, searchQuery }: KanbanBoardProps) {
       )
     }
     return filtered
-  }, [allTasks, repoFilter, searchQuery])
+  }, [allTasks, projectFilter, searchQuery, projectRepoIds, projectRepoPaths, selectedProjectRepoIds, selectedProjectRepoPaths])
 
   // Task counts for tabs
   const taskCounts = useMemo(() => {
     const counts: Record<TaskStatus, number> = {
+      TO_DO: 0,
       IN_PROGRESS: 0,
       IN_REVIEW: 0,
       DONE: 0,
@@ -223,6 +294,8 @@ function KanbanBoardInner({ repoFilter, searchQuery }: KanbanBoardProps) {
             key={status}
             status={status}
             tasks={tasks.filter((t) => t.status === status)}
+            blockedTaskIds={blockedTaskIds}
+            blockingTaskIds={blockingTaskIds}
           />
         ))}
       </div>
@@ -233,6 +306,8 @@ function KanbanBoardInner({ repoFilter, searchQuery }: KanbanBoardProps) {
           status={activeTab}
           tasks={tasks.filter((t) => t.status === activeTab)}
           isMobile
+          blockedTaskIds={blockedTaskIds}
+          blockingTaskIds={blockingTaskIds}
         />
       </div>
 

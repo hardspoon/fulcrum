@@ -18,22 +18,20 @@ describe('Settings', () => {
   let originalEnv: Record<string, string | undefined>
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), 'vibora-settings-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), 'fulcrum-settings-test-'))
 
     // Save original env values
     originalEnv = {
-      VIBORA_DIR: process.env.VIBORA_DIR,
+      FULCRUM_DIR: process.env.FULCRUM_DIR,
       PORT: process.env.PORT,
-      VIBORA_GIT_REPOS_DIR: process.env.VIBORA_GIT_REPOS_DIR,
-      LINEAR_API_KEY: process.env.LINEAR_API_KEY,
+      FULCRUM_GIT_REPOS_DIR: process.env.FULCRUM_GIT_REPOS_DIR,
       GITHUB_PAT: process.env.GITHUB_PAT,
     }
 
     // Set test environment
-    process.env.VIBORA_DIR = tempDir
+    process.env.FULCRUM_DIR = tempDir
     delete process.env.PORT
-    delete process.env.VIBORA_GIT_REPOS_DIR
-    delete process.env.LINEAR_API_KEY
+    delete process.env.FULCRUM_GIT_REPOS_DIR
     delete process.env.GITHUB_PAT
   })
 
@@ -55,22 +53,22 @@ describe('Settings', () => {
     }
   })
 
-  describe('getViboraDir', () => {
-    test('uses VIBORA_DIR env var when set', async () => {
+  describe('getFulcrumDir', () => {
+    test('uses FULCRUM_DIR env var when set', async () => {
       // Dynamic import to pick up new env var
-      const { getViboraDir } = await import('./settings')
-      expect(getViboraDir()).toBe(tempDir)
+      const { getFulcrumDir } = await import('./settings')
+      expect(getFulcrumDir()).toBe(tempDir)
     })
 
-    test('expands tilde in VIBORA_DIR', async () => {
+    test('expands tilde in FULCRUM_DIR', async () => {
       const home = process.env.HOME || ''
-      process.env.VIBORA_DIR = '~/test-vibora'
+      process.env.FULCRUM_DIR = '~/test-fulcrum'
 
       // Re-import to get fresh module
       const settingsModule = await import('./settings')
-      const result = settingsModule.getViboraDir()
+      const result = settingsModule.getFulcrumDir()
 
-      expect(result).toBe(join(home, 'test-vibora'))
+      expect(result).toBe(join(home, 'test-fulcrum'))
     })
   })
 
@@ -81,7 +79,6 @@ describe('Settings', () => {
 
       expect(settings.server.port).toBe(7777)
       expect(settings.paths.defaultGitReposDir).toBe(process.env.HOME)
-      expect(settings.integrations.linearApiKey).toBeNull()
       expect(settings.integrations.githubPat).toBeNull()
     })
 
@@ -93,7 +90,7 @@ describe('Settings', () => {
           _schemaVersion: 2,
           server: { port: 8888 },
           paths: { defaultGitReposDir: '/custom/path' },
-          integrations: { linearApiKey: 'test-linear-key' },
+          integrations: { githubPat: 'test-github-pat' },
         })
       )
 
@@ -102,7 +99,7 @@ describe('Settings', () => {
 
       expect(settings.server.port).toBe(8888)
       expect(settings.paths.defaultGitReposDir).toBe('/custom/path')
-      expect(settings.integrations.linearApiKey).toBe('test-linear-key')
+      expect(settings.integrations.githubPat).toBe('test-github-pat')
     })
 
     test('environment variables override file settings', async () => {
@@ -112,18 +109,18 @@ describe('Settings', () => {
         JSON.stringify({
           _schemaVersion: 2,
           server: { port: 8888 },
-          integrations: { linearApiKey: 'file-key' },
+          integrations: { githubPat: 'file-key' },
         })
       )
 
       process.env.PORT = '9999'
-      process.env.LINEAR_API_KEY = 'env-key'
+      process.env.GITHUB_PAT = 'env-key'
 
       const { getSettings } = await import('./settings')
       const settings = getSettings()
 
       expect(settings.server.port).toBe(9999)
-      expect(settings.integrations.linearApiKey).toBe('env-key')
+      expect(settings.integrations.githubPat).toBe('env-key')
     })
 
     test('ignores invalid PORT env var', async () => {
@@ -144,7 +141,7 @@ describe('Settings', () => {
         JSON.stringify({
           port: 8888,
           defaultGitReposDir: '/migrated/path',
-          linearApiKey: 'migrated-key',
+          githubPat: 'migrated-key',
         })
       )
 
@@ -154,19 +151,19 @@ describe('Settings', () => {
       // Settings should be migrated
       expect(settings.server.port).toBe(8888)
       expect(settings.paths.defaultGitReposDir).toBe('/migrated/path')
-      expect(settings.integrations.linearApiKey).toBe('migrated-key')
+      expect(settings.integrations.githubPat).toBe('migrated-key')
 
       // File should be updated with nested structure
       const migrated = JSON.parse(readFileSync(settingsPath, 'utf-8'))
-      expect(migrated._schemaVersion).toBe(9) // Current schema version
+      expect(migrated._schemaVersion).toBe(1) // Current schema version
       expect(migrated.server?.port).toBe(8888)
       expect(migrated.paths?.defaultGitReposDir).toBe('/migrated/path')
-      expect(migrated.integrations?.linearApiKey).toBe('migrated-key')
+      expect(migrated.integrations?.githubPat).toBe('migrated-key')
 
       // Old flat keys should be removed
       expect(migrated.port).toBeUndefined()
       expect(migrated.defaultGitReposDir).toBeUndefined()
-      expect(migrated.linearApiKey).toBeUndefined()
+      expect(migrated.githubPat).toBeUndefined()
     })
 
     test('does not migrate old default port (3333)', async () => {
@@ -188,7 +185,7 @@ describe('Settings', () => {
     test('skips migration if already at current schema version', async () => {
       const settingsPath = join(tempDir, 'settings.json')
       const originalContent = {
-        _schemaVersion: 9, // Current schema version
+        _schemaVersion: 1, // Current schema version
         server: { port: 8888 },
       }
       writeFileSync(settingsPath, JSON.stringify(originalContent))
@@ -207,8 +204,8 @@ describe('Settings', () => {
       const settingsPath = join(tempDir, 'settings.json')
       expect(existsSync(settingsPath)).toBe(false)
 
-      const { updateSettingByPath, getSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { updateSettingByPath, getSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       updateSettingByPath('server.port', 9000)
 
       expect(existsSync(settingsPath)).toBe(true)
@@ -242,10 +239,10 @@ describe('Settings', () => {
       writeFileSync(settingsPath, JSON.stringify({}))
 
       const { updateSettingByPath } = await import('./settings')
-      updateSettingByPath('integrations.linearApiKey', 'new-key')
+      updateSettingByPath('integrations.githubPat', 'new-key')
 
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
-      expect(file.integrations.linearApiKey).toBe('new-key')
+      expect(file.integrations.githubPat).toBe('new-key')
     })
   })
 
@@ -257,24 +254,24 @@ describe('Settings', () => {
         JSON.stringify({
           _schemaVersion: 2,
           server: { port: 9999 },
-          integrations: { linearApiKey: 'custom-key' },
+          integrations: { githubPat: 'custom-key' },
         })
       )
 
-      const { resetSettings, getSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { resetSettings, getSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       resetSettings()
 
       const settings = getSettings()
       expect(settings.server.port).toBe(7777)
-      expect(settings.integrations.linearApiKey).toBeNull()
+      expect(settings.integrations.githubPat).toBeNull()
     })
   })
 
   describe('notification settings', () => {
     test('returns defaults when not configured', async () => {
-      const { getNotificationSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { getNotificationSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       const settings = getNotificationSettings()
 
       // New defaults: notifications and sound enabled by default
@@ -309,9 +306,9 @@ describe('Settings', () => {
     })
 
     test('updates notification settings', async () => {
-      const { updateNotificationSettings, getNotificationSettings, ensureViboraDir } =
+      const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
         await import('./settings')
-      ensureViboraDir()
+      ensureFulcrumDir()
 
       const result = updateNotificationSettings({
         enabled: false,
@@ -326,8 +323,8 @@ describe('Settings', () => {
     })
 
     test('includes _updatedAt timestamp in notification settings', async () => {
-      const { getNotificationSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { getNotificationSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
 
       const settings = getNotificationSettings()
       expect(settings._updatedAt).toBeDefined()
@@ -335,9 +332,9 @@ describe('Settings', () => {
     })
 
     test('updates _updatedAt timestamp on each update', async () => {
-      const { updateNotificationSettings, getNotificationSettings, ensureViboraDir } =
+      const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
         await import('./settings')
-      ensureViboraDir()
+      ensureFulcrumDir()
 
       const before = getNotificationSettings()
       const originalTimestamp = before._updatedAt
@@ -353,9 +350,9 @@ describe('Settings', () => {
     })
 
     test('rejects stale update when client timestamp does not match', async () => {
-      const { updateNotificationSettings, getNotificationSettings, ensureViboraDir } =
+      const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
         await import('./settings')
-      ensureViboraDir()
+      ensureFulcrumDir()
 
       // Get current settings and timestamp
       const current = getNotificationSettings()
@@ -386,9 +383,9 @@ describe('Settings', () => {
     })
 
     test('accepts update when client timestamp matches', async () => {
-      const { updateNotificationSettings, getNotificationSettings, ensureViboraDir } =
+      const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
         await import('./settings')
-      ensureViboraDir()
+      ensureFulcrumDir()
 
       // Get current timestamp
       const current = getNotificationSettings()
@@ -405,9 +402,9 @@ describe('Settings', () => {
     })
 
     test('allows update without client timestamp (backward compatibility)', async () => {
-      const { updateNotificationSettings, getNotificationSettings, ensureViboraDir } =
+      const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
         await import('./settings')
-      ensureViboraDir()
+      ensureFulcrumDir()
 
       // Update without passing a timestamp
       const result = updateNotificationSettings({ enabled: false })
@@ -422,8 +419,8 @@ describe('Settings', () => {
 
   describe('z.ai settings', () => {
     test('returns defaults when not configured', async () => {
-      const { getZAiSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { getZAiSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       const settings = getZAiSettings()
 
       expect(settings.enabled).toBe(false)
@@ -456,8 +453,8 @@ describe('Settings', () => {
     })
 
     test('updates z.ai settings', async () => {
-      const { updateZAiSettings, getZAiSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { updateZAiSettings, getZAiSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
 
       updateZAiSettings({
         enabled: true,
@@ -482,8 +479,8 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       ensureLatestSettings()
 
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
@@ -515,8 +512,8 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       ensureLatestSettings()
 
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
@@ -543,8 +540,8 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       ensureLatestSettings()
 
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
@@ -564,29 +561,29 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       ensureLatestSettings()
 
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
 
       // Schema version should be set to current
-      expect(file._schemaVersion).toBe(9)
+      expect(file._schemaVersion).toBe(1)
     })
 
     test('creates settings file with all defaults if none exists', async () => {
       const settingsPath = join(tempDir, 'settings.json')
       expect(existsSync(settingsPath)).toBe(false)
 
-      const { ensureLatestSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       ensureLatestSettings()
 
       expect(existsSync(settingsPath)).toBe(true)
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
 
       // All default sections should exist
-      expect(file._schemaVersion).toBe(9)
+      expect(file._schemaVersion).toBe(1)
       expect(file.server.port).toBe(7777)
       expect(file.editor.app).toBe('vscode')
       expect(file.notifications.enabled).toBe(true)
@@ -604,8 +601,8 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       ensureLatestSettings()
 
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
@@ -628,8 +625,8 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       ensureLatestSettings()
 
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
@@ -644,8 +641,8 @@ describe('Settings', () => {
 
   describe('agent settings', () => {
     test('returns default agent as claude when not configured', async () => {
-      const { getSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { getSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       const settings = getSettings()
 
       expect(settings.agent.defaultAgent).toBe('claude')
@@ -698,8 +695,8 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureViboraDir } = await import('./settings')
-      ensureViboraDir()
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      ensureFulcrumDir()
       ensureLatestSettings()
 
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))

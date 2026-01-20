@@ -7,6 +7,7 @@ import type { Task, TaskStatus } from '@/types'
 import { cn } from '@/lib/utils'
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
+  TO_DO: 'border-t-status-todo',
   IN_PROGRESS: 'border-t-status-in-progress',
   IN_REVIEW: 'border-t-status-in-review',
   DONE: 'border-t-status-done',
@@ -17,9 +18,11 @@ interface KanbanColumnProps {
   status: TaskStatus
   tasks: Task[]
   isMobile?: boolean
+  blockedTaskIds?: Set<string>
+  blockingTaskIds?: Set<string>
 }
 
-export function KanbanColumn({ status, tasks, isMobile }: KanbanColumnProps) {
+export function KanbanColumn({ status, tasks, isMobile, blockedTaskIds, blockingTaskIds }: KanbanColumnProps) {
   const { t } = useTranslation('common')
   const ref = useRef<HTMLDivElement>(null)
   const [isOver, setIsOver] = useState(false)
@@ -64,7 +67,12 @@ export function KanbanColumn({ status, tasks, isMobile }: KanbanColumnProps) {
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-2 p-2">
           {sortedTasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              isBlocked={blockedTaskIds?.has(task.id)}
+              isBlocking={blockingTaskIds?.has(task.id)}
+            />
           ))}
         </div>
       </ScrollArea>

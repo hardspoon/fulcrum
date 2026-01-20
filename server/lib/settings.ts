@@ -7,7 +7,7 @@ import type { AgentType } from '@shared/types'
 // Schema version for settings migration
 // IMPORTANT: This must match the major version in package.json
 // When bumping schema version, also bump major version with: mise run bump major
-export const CURRENT_SCHEMA_VERSION = 9
+export const CURRENT_SCHEMA_VERSION = 1
 
 // Editor app types
 export type EditorApp = 'vscode' | 'cursor' | 'windsurf' | 'zed' | 'antigravity'
@@ -31,7 +31,6 @@ export interface Settings {
     sshPort: number
   }
   integrations: {
-    linearApiKey: string | null
     githubPat: string | null
     cloudflareApiToken: string | null
     cloudflareAccountId: string | null
@@ -66,7 +65,6 @@ const DEFAULT_SETTINGS: Settings = {
     sshPort: 22,
   },
   integrations: {
-    linearApiKey: null,
     githubPat: null,
     cloudflareApiToken: null,
     cloudflareAccountId: null,
@@ -95,7 +93,6 @@ const MIGRATION_MAP: Record<string, string> = {
   defaultGitReposDir: 'paths.defaultGitReposDir',
   // remoteHost and hostname are handled specially in migrateSettings (need URL construction)
   sshPort: 'editor.sshPort',
-  linearApiKey: 'integrations.linearApiKey',
   githubPat: 'integrations.githubPat',
   language: 'appearance.language',
   theme: 'appearance.theme',
@@ -141,13 +138,14 @@ function migrateSettings(parsed: Record<string, unknown>): MigrationResult {
   const result: MigrationResult = { migrated: false, migratedKeys: [], warnings: [] }
 
   // Check schema version - skip if already migrated
-  const version = (parsed._schemaVersion as number) ?? 1
+  // If no _schemaVersion exists, it's a legacy file that needs migration (use 0)
+  const version = (parsed._schemaVersion as number) ?? 0
   if (version >= CURRENT_SCHEMA_VERSION) {
     return result
   }
 
-  // Schema 1 → 2: Migrate flat keys to nested structure
-  if (version < 2) {
+  // Migrate legacy flat keys to nested structure (for files without schema version)
+  if (version < CURRENT_SCHEMA_VERSION) {
     for (const [oldKey, newPath] of Object.entries(MIGRATION_MAP)) {
       // Check if old flat key exists
       if (oldKey in parsed && parsed[oldKey] !== undefined) {
@@ -181,7 +179,7 @@ function migrateSettings(parsed: Record<string, unknown>): MigrationResult {
     // Clean up old remote settings if present (no longer used)
     delete parsed.remoteHost
     delete parsed.hostname
-    delete parsed.remoteVibora
+    delete parsed.remoteFulcrum
   }
 
   // Set schema version
@@ -212,42 +210,42 @@ function expandPath(p: string): string {
 // Export expandPath for use in other modules (e.g., repositories route)
 export { expandPath }
 
-// Get the vibora directory path
-// Priority: VIBORA_DIR env var → CWD .vibora → ~/.vibora
-export function getViboraDir(): string {
-  // 1. VIBORA_DIR env var (explicit override)
-  if (process.env.VIBORA_DIR) {
-    return expandPath(process.env.VIBORA_DIR)
+// Get the fulcrum directory path
+// Priority: FULCRUM_DIR env var → CWD .fulcrum → ~/.fulcrum
+export function getFulcrumDir(): string {
+  // 1. FULCRUM_DIR env var (explicit override)
+  if (process.env.FULCRUM_DIR) {
+    return expandPath(process.env.FULCRUM_DIR)
   }
-  // 2. CWD .vibora (per-worktree isolation)
-  const cwdVibora = path.join(process.cwd(), '.vibora')
-  if (fs.existsSync(cwdVibora)) {
-    return cwdVibora
+  // 2. CWD .fulcrum (per-worktree isolation)
+  const cwdFulcrum = path.join(process.cwd(), '.fulcrum')
+  if (fs.existsSync(cwdFulcrum)) {
+    return cwdFulcrum
   }
-  // 3. ~/.vibora (default)
-  return path.join(os.homedir(), '.vibora')
+  // 3. ~/.fulcrum (default)
+  return path.join(os.homedir(), '.fulcrum')
 }
 
-// Get database path (always derived from viboraDir)
+// Get database path (always derived from fulcrumDir)
 export function getDatabasePath(): string {
-  return path.join(getViboraDir(), 'vibora.db')
+  return path.join(getFulcrumDir(), 'fulcrum.db')
 }
 
-// Get worktree base path (always derived from viboraDir)
+// Get worktree base path (always derived from fulcrumDir)
 export function getWorktreeBasePath(): string {
-  return path.join(getViboraDir(), 'worktrees')
+  return path.join(getFulcrumDir(), 'worktrees')
 }
 
 // Get the settings file path
 function getSettingsPath(): string {
-  return path.join(getViboraDir(), 'settings.json')
+  return path.join(getFulcrumDir(), 'settings.json')
 }
 
-// Ensure the vibora directory exists
-export function ensureViboraDir(): void {
-  const viboraDir = getViboraDir()
-  if (!fs.existsSync(viboraDir)) {
-    fs.mkdirSync(viboraDir, { recursive: true })
+// Ensure the fulcrum directory exists
+export function ensureFulcrumDir(): void {
+  const fulcrumDir = getFulcrumDir()
+  if (!fs.existsSync(fulcrumDir)) {
+    fs.mkdirSync(fulcrumDir, { recursive: true })
   }
 }
 
@@ -268,8 +266,8 @@ function ensureSettingsFile(): void {
 }
 
 // Initialize all required directories and files
-export function initializeViboraDirectories(): void {
-  ensureViboraDir()
+export function initializeFulcrumDirectories(): void {
+  ensureFulcrumDir()
   ensureSettingsFile()
   ensureWorktreesDir()
 }
@@ -277,7 +275,7 @@ export function initializeViboraDirectories(): void {
 // Get settings (with defaults, running migration if needed)
 // Precedence: env var → settings.json → default
 export function getSettings(): Settings {
-  ensureViboraDir()
+  ensureFulcrumDir()
   const settingsPath = getSettingsPath()
 
   let parsed: Record<string, unknown> = {}
@@ -325,7 +323,6 @@ export function getSettings(): Settings {
       sshPort: ((parsed.editor as Record<string, unknown>)?.sshPort as number) ?? DEFAULT_SETTINGS.editor.sshPort,
     },
     integrations: {
-      linearApiKey: ((parsed.integrations as Record<string, unknown>)?.linearApiKey as string | null) ?? null,
       githubPat: ((parsed.integrations as Record<string, unknown>)?.githubPat as string | null) ?? null,
       cloudflareApiToken: ((parsed.integrations as Record<string, unknown>)?.cloudflareApiToken as string | null) ?? null,
       cloudflareAccountId: ((parsed.integrations as Record<string, unknown>)?.cloudflareAccountId as string | null) ?? null,
@@ -347,7 +344,7 @@ export function getSettings(): Settings {
 
   // Apply environment variable overrides
   const portEnv = parseInt(process.env.PORT || '', 10)
-  const editorSshPortEnv = parseInt(process.env.VIBORA_SSH_PORT || '', 10)
+  const editorSshPortEnv = parseInt(process.env.FULCRUM_SSH_PORT || '', 10)
 
   return {
     ...fileSettings,
@@ -355,17 +352,16 @@ export function getSettings(): Settings {
       port: !isNaN(portEnv) && portEnv > 0 ? portEnv : fileSettings.server.port,
     },
     paths: {
-      defaultGitReposDir: process.env.VIBORA_GIT_REPOS_DIR
-        ? expandPath(process.env.VIBORA_GIT_REPOS_DIR)
+      defaultGitReposDir: process.env.FULCRUM_GIT_REPOS_DIR
+        ? expandPath(process.env.FULCRUM_GIT_REPOS_DIR)
         : fileSettings.paths.defaultGitReposDir,
     },
     editor: {
       app: fileSettings.editor.app,
-      host: process.env.VIBORA_EDITOR_HOST ?? fileSettings.editor.host,
+      host: process.env.FULCRUM_EDITOR_HOST ?? fileSettings.editor.host,
       sshPort: !isNaN(editorSshPortEnv) && editorSshPortEnv > 0 ? editorSshPortEnv : fileSettings.editor.sshPort,
     },
     integrations: {
-      linearApiKey: process.env.LINEAR_API_KEY ?? fileSettings.integrations.linearApiKey,
       githubPat: process.env.GITHUB_PAT ?? fileSettings.integrations.githubPat,
       cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN ?? fileSettings.integrations.cloudflareApiToken,
       cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? fileSettings.integrations.cloudflareAccountId,
@@ -393,7 +389,6 @@ export interface LegacySettings {
   port: number
   defaultGitReposDir: string
   sshPort: number
-  linearApiKey: string | null
   githubPat: string | null
   language: 'en' | 'zh' | null
   theme: 'system' | 'light' | 'dark' | null
@@ -408,7 +403,6 @@ export function toLegacySettings(settings: Settings): LegacySettings {
     port: settings.server.port,
     defaultGitReposDir: settings.paths.defaultGitReposDir,
     sshPort: settings.editor.sshPort,
-    linearApiKey: settings.integrations.linearApiKey,
     githubPat: settings.integrations.githubPat,
     language: settings.appearance.language,
     theme: settings.appearance.theme,
@@ -418,14 +412,14 @@ export function toLegacySettings(settings: Settings): LegacySettings {
   }
 }
 
-// Check if developer mode is enabled (VIBORA_DEVELOPER env var)
+// Check if developer mode is enabled (FULCRUM_DEVELOPER env var)
 export function isDeveloperMode(): boolean {
-  return process.env.VIBORA_DEVELOPER === '1' || process.env.VIBORA_DEVELOPER === 'true'
+  return process.env.FULCRUM_DEVELOPER === '1' || process.env.FULCRUM_DEVELOPER === 'true'
 }
 
 // Update a setting by dot-notation path
 export function updateSettingByPath(settingPath: string, value: unknown): Settings {
-  ensureViboraDir()
+  ensureFulcrumDir()
   const settingsPath = getSettingsPath()
 
   let parsed: Record<string, unknown> = {}
@@ -444,7 +438,7 @@ export function updateSettingByPath(settingPath: string, value: unknown): Settin
   fs.writeFileSync(settingsPath, JSON.stringify(parsed, null, 2), 'utf-8')
 
   // Log setting change (mask sensitive values)
-  const sensitiveKeys = ['linearApiKey', 'githubPat', 'cloudflareApiToken', 'apiKey']
+  const sensitiveKeys = ['githubPat', 'cloudflareApiToken', 'apiKey']
   const isSensitive = sensitiveKeys.some(key => settingPath.includes(key))
   const logValue = isSensitive ? '***' : value
   const logOldValue = isSensitive ? '***' : oldValue
@@ -457,7 +451,7 @@ export function updateSettingByPath(settingPath: string, value: unknown): Settin
 
 // Update settings (partial update using legacy keys for backward compatibility)
 export function updateSettings(updates: Partial<LegacySettings>): Settings {
-  ensureViboraDir()
+  ensureFulcrumDir()
   const settingsPath = getSettingsPath()
 
   let parsed: Record<string, unknown> = {}
@@ -487,7 +481,7 @@ export function updateSettings(updates: Partial<LegacySettings>): Settings {
 
 // Reset settings to defaults
 export function resetSettings(): Settings {
-  ensureViboraDir()
+  ensureFulcrumDir()
   fs.writeFileSync(getSettingsPath(), JSON.stringify(DEFAULT_SETTINGS, null, 2), 'utf-8')
   return { ...DEFAULT_SETTINGS }
 }
@@ -555,7 +549,7 @@ const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
 
 // Get notification settings from settings.json
 export function getNotificationSettings(): NotificationSettings {
-  ensureViboraDir()
+  ensureFulcrumDir()
   const settingsPath = getSettingsPath()
 
   if (!fs.existsSync(settingsPath)) {
@@ -592,7 +586,7 @@ export function updateNotificationSettings(
   updates: Partial<NotificationSettings>,
   clientTimestamp?: number
 ): NotificationSettingsUpdateResult {
-  ensureViboraDir()
+  ensureFulcrumDir()
   const settingsPath = getSettingsPath()
 
   let parsed: Record<string, unknown> = {}
@@ -770,7 +764,7 @@ const DEFAULT_ZAI_SETTINGS: ZAiSettings = {
 
 // Get z.ai settings from settings.json
 export function getZAiSettings(): ZAiSettings {
-  ensureViboraDir()
+  ensureFulcrumDir()
   const settingsPath = getSettingsPath()
 
   if (!fs.existsSync(settingsPath)) {
@@ -800,7 +794,7 @@ export function getZAiSettings(): ZAiSettings {
 
 // Update z.ai settings
 export function updateZAiSettings(updates: Partial<ZAiSettings>): ZAiSettings {
-  ensureViboraDir()
+  ensureFulcrumDir()
   const settingsPath = getSettingsPath()
 
   let parsed: Record<string, unknown> = {}
@@ -873,7 +867,7 @@ function deepMergeWithDefaults(
 // 3. Set schema version to current
 // 4. Write back to file
 export function ensureLatestSettings(): void {
-  ensureViboraDir()
+  ensureFulcrumDir()
   const settingsPath = getSettingsPath()
 
   let parsed: Record<string, unknown> = {}

@@ -1,9 +1,15 @@
 import { discoverServerUrl } from './utils/server'
 import { ApiError } from './utils/errors'
+import { readFileSync } from 'node:fs'
+import { basename } from 'node:path'
 import type {
   Task,
   TaskStatus,
   TaskLink,
+  TaskAttachment,
+  ProjectAttachment,
+  ProjectLink,
+  Tag,
   Repository,
   ProjectWithDetails,
   App,
@@ -27,11 +33,42 @@ export interface CreateTaskInput {
   title: string
   description?: string
   status?: TaskStatus
-  repoPath: string
-  repoName: string
-  baseBranch: string
+  repoPath?: string | null
+  repoName?: string | null
+  baseBranch?: string | null
   branch?: string | null
   worktreePath?: string | null
+  projectId?: string | null
+  repositoryId?: string | null
+  labels?: string[]
+  dueDate?: string | null
+}
+
+export interface TaskTagsResponse {
+  tags: string[]
+}
+
+export interface TaskDueDateResponse {
+  dueDate: string | null
+}
+
+export interface TaskDependencyInfo {
+  id: string
+  task: { id: string; title: string; status: TaskStatus } | null
+  createdAt: string
+}
+
+export interface TaskDependenciesResponse {
+  dependsOn: (TaskDependencyInfo & { dependsOnTaskId: string })[]
+  dependents: (TaskDependencyInfo & { taskId: string })[]
+  isBlocked: boolean
+}
+
+export interface TaskDependency {
+  id: string
+  taskId: string
+  dependsOnTaskId: string
+  createdAt: string
 }
 
 export interface DiffQueryOptions {
@@ -57,6 +94,7 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string
   description?: string | null
+  notes?: string | null
   status?: 'active' | 'archived'
 }
 
@@ -155,7 +193,7 @@ export interface PathStatResponse {
   isFile: boolean
 }
 
-export class ViboraClient {
+export class FulcrumClient {
   private baseUrl: string
 
   constructor(urlOverride?: string, portOverride?: string) {
@@ -251,8 +289,69 @@ export class ViboraClient {
   }
 
   // Repositories
-  async listRepositories(): Promise<Repository[]> {
-    return this.fetch('/api/repositories')
+  async listRepositories(options?: { orphans?: boolean; projectId?: string }): Promise<Repository[]> {
+    const params = new URLSearchParams()
+    if (options?.orphans) params.set('orphans', 'true')
+    if (options?.projectId) params.set('projectId', options.projectId)
+    const query = params.toString() ? `?${params.toString()}` : ''
+    return this.fetch(`/api/repositories${query}`)
+  }
+
+  async getRepository(id: string): Promise<Repository> {
+    return this.fetch(`/api/repositories/${id}`)
+  }
+
+  async addRepository(path: string, displayName?: string): Promise<Repository> {
+    return this.fetch('/api/repositories', {
+      method: 'POST',
+      body: JSON.stringify({ path, displayName }),
+    })
+  }
+
+  async updateRepository(
+    id: string,
+    updates: {
+      displayName?: string
+      startupScript?: string | null
+      copyFiles?: string | null
+      defaultAgent?: 'claude' | 'opencode' | null
+      claudeOptions?: Record<string, string> | null
+      opencodeOptions?: Record<string, string> | null
+      opencodeModel?: string | null
+    }
+  ): Promise<Repository> {
+    return this.fetch(`/api/repositories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async deleteRepository(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/repositories/${id}`, { method: 'DELETE' })
+  }
+
+  async linkRepositoryToProject(
+    repositoryId: string,
+    projectId: string,
+    options?: { isPrimary?: boolean; force?: boolean }
+  ): Promise<{ id: string; projectId: string; repositoryId: string; isPrimary: boolean }> {
+    return this.fetch(`/api/projects/${projectId}/repositories`, {
+      method: 'POST',
+      body: JSON.stringify({
+        repositoryId,
+        isPrimary: options?.isPrimary,
+        moveFromProject: options?.force,
+      }),
+    })
+  }
+
+  async unlinkRepositoryFromProject(
+    repositoryId: string,
+    projectId: string
+  ): Promise<{ success: boolean }> {
+    return this.fetch(`/api/projects/${projectId}/repositories/${repositoryId}`, {
+      method: 'DELETE',
+    })
   }
 
   // Git
@@ -343,7 +442,7 @@ export class ViboraClient {
     return this.fetch('/api/config/developer-mode')
   }
 
-  async restartVibora(): Promise<{ success?: boolean; message?: string; error?: string }> {
+  async restartFulcrum(): Promise<{ success?: boolean; message?: string; error?: string }> {
     return this.fetch('/api/config/restart', {
       method: 'POST',
     })
@@ -397,6 +496,100 @@ export class ViboraClient {
 
   async listTaskLinks(taskId: string): Promise<TaskLink[]> {
     return this.fetch(`/api/tasks/${taskId}/links`)
+  }
+
+  // Task tags
+  async addTaskTag(taskId: string, tag: string): Promise<TaskTagsResponse> {
+    return this.fetch(`/api/tasks/${taskId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify({ tag }),
+    })
+  }
+
+  async removeTaskTag(taskId: string, tag: string): Promise<TaskTagsResponse> {
+    return this.fetch(`/api/tasks/${taskId}/tags/${encodeURIComponent(tag)}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Task due date
+  async setTaskDueDate(taskId: string, dueDate: string | null): Promise<TaskDueDateResponse> {
+    return this.fetch(`/api/tasks/${taskId}/due-date`, {
+      method: 'PATCH',
+      body: JSON.stringify({ dueDate }),
+    })
+  }
+
+  // Task dependencies
+  async getTaskDependencies(taskId: string): Promise<TaskDependenciesResponse> {
+    return this.fetch(`/api/tasks/${taskId}/dependencies`)
+  }
+
+  async addTaskDependency(taskId: string, dependsOnTaskId: string): Promise<TaskDependency> {
+    return this.fetch(`/api/tasks/${taskId}/dependencies`, {
+      method: 'POST',
+      body: JSON.stringify({ dependsOnTaskId }),
+    })
+  }
+
+  async removeTaskDependency(taskId: string, depId: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/tasks/${taskId}/dependencies/${depId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Task attachments
+  async listTaskAttachments(taskId: string): Promise<TaskAttachment[]> {
+    return this.fetch(`/api/tasks/${taskId}/attachments`)
+  }
+
+  async uploadTaskAttachment(taskId: string, filePath: string): Promise<TaskAttachment> {
+    // Read file from local filesystem
+    const fileContent = readFileSync(filePath)
+    const filename = basename(filePath)
+
+    // Create form data with blob
+    const formData = new FormData()
+    const blob = new Blob([fileContent])
+    formData.append('file', blob, filename)
+
+    // Make request without Content-Type header (let browser set it with boundary)
+    const url = `${this.baseUrl}/api/tasks/${taskId}/attachments`
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new ApiError(res.status, body.error || body.message || `Request failed: ${res.status}`)
+    }
+
+    return res.json()
+  }
+
+  async deleteTaskAttachment(taskId: string, attachmentId: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/tasks/${taskId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async getTaskAttachmentPath(taskId: string, attachmentId: string): Promise<{ path: string; filename: string; mimeType: string }> {
+    // Get all attachments and find the one we need
+    const attachments = await this.listTaskAttachments(taskId)
+    const attachment = attachments.find((a) => a.id === attachmentId)
+    if (!attachment) {
+      throw new ApiError(404, `Attachment not found: ${attachmentId}`)
+    }
+    return { path: attachment.storedPath, filename: attachment.filename, mimeType: attachment.mimeType }
+  }
+
+  // Task dependency graph
+  async getTaskDependencyGraph(): Promise<{
+    nodes: Array<{ id: string; title: string; status: TaskStatus; projectId: string | null; labels: string[]; dueDate: string | null }>
+    edges: Array<{ id: string; source: string; target: string }>
+  }> {
+    return this.fetch('/api/task-dependencies/graph')
   }
 
   // Projects
@@ -456,6 +649,82 @@ export class ViboraClient {
     return this.fetch('/api/projects/bulk', {
       method: 'POST',
       body: JSON.stringify({ repositories }),
+    })
+  }
+
+  // Project tags
+  async addProjectTag(projectId: string, tagIdOrName: string): Promise<Tag> {
+    // Check if it looks like an ID (nanoid format) or a name
+    const isId = tagIdOrName.length === 21 && /^[a-zA-Z0-9_-]+$/.test(tagIdOrName)
+    return this.fetch(`/api/projects/${projectId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify(isId ? { tagId: tagIdOrName } : { name: tagIdOrName }),
+    })
+  }
+
+  async removeProjectTag(projectId: string, tagId: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/projects/${projectId}/tags/${tagId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Project attachments
+  async listProjectAttachments(projectId: string): Promise<ProjectAttachment[]> {
+    return this.fetch(`/api/projects/${projectId}/attachments`)
+  }
+
+  async uploadProjectAttachment(projectId: string, filePath: string): Promise<ProjectAttachment> {
+    const fileContent = readFileSync(filePath)
+    const filename = basename(filePath)
+
+    const formData = new FormData()
+    const blob = new Blob([fileContent])
+    formData.append('file', blob, filename)
+
+    const url = `${this.baseUrl}/api/projects/${projectId}/attachments`
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new ApiError(res.status, body.error || body.message || `Request failed: ${res.status}`)
+    }
+
+    return res.json()
+  }
+
+  async deleteProjectAttachment(projectId: string, attachmentId: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/projects/${projectId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async getProjectAttachmentPath(projectId: string, attachmentId: string): Promise<{ path: string; filename: string; mimeType: string }> {
+    const attachments = await this.listProjectAttachments(projectId)
+    const attachment = attachments.find((a) => a.id === attachmentId)
+    if (!attachment) {
+      throw new ApiError(404, `Attachment not found: ${attachmentId}`)
+    }
+    return { path: attachment.storedPath, filename: attachment.filename, mimeType: attachment.mimeType }
+  }
+
+  // Project links
+  async listProjectLinks(projectId: string): Promise<ProjectLink[]> {
+    return this.fetch(`/api/projects/${projectId}/links`)
+  }
+
+  async addProjectLink(projectId: string, url: string, label?: string): Promise<ProjectLink> {
+    return this.fetch(`/api/projects/${projectId}/links`, {
+      method: 'POST',
+      body: JSON.stringify({ url, label }),
+    })
+  }
+
+  async removeProjectLink(projectId: string, linkId: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/projects/${projectId}/links/${linkId}`, {
+      method: 'DELETE',
     })
   }
 

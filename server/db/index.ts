@@ -4,7 +4,7 @@ import { Database } from 'bun:sqlite'
 import { join, dirname } from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
 import * as schema from './schema'
-import { initializeViboraDirectories, getDatabasePath } from '../lib/settings'
+import { initializeFulcrumDirectories, getDatabasePath } from '../lib/settings'
 import { log } from '../lib/logger'
 
 // Lazy-initialized database instance
@@ -15,8 +15,8 @@ let _sqlite: Database | null = null
 function initializeDatabase(): BunSQLiteDatabase<typeof schema> {
   if (_db) return _db
 
-  // Initialize all vibora directories (data dir, worktrees, etc.)
-  initializeViboraDirectories()
+  // Initialize all fulcrum directories (data dir, worktrees, etc.)
+  initializeFulcrumDirectories()
 
   const dbPath = getDatabasePath()
 
@@ -34,7 +34,7 @@ function initializeDatabase(): BunSQLiteDatabase<typeof schema> {
 }
 
 // Export a proxy that lazily initializes the database on first access
-// This allows tests to set VIBORA_DIR before the database is initialized
+// This allows tests to set FULCRUM_DIR before the database is initialized
 export const db = new Proxy({} as BunSQLiteDatabase<typeof schema>, {
   get(_, prop) {
     const instance = initializeDatabase()
@@ -65,9 +65,9 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
   // Determine migrations path based on mode
   let migrationsPath: string
 
-  if (process.env.VIBORA_PACKAGE_ROOT) {
+  if (process.env.FULCRUM_PACKAGE_ROOT) {
     // Bundled mode (CLI/desktop)
-    migrationsPath = join(process.env.VIBORA_PACKAGE_ROOT, 'drizzle')
+    migrationsPath = join(process.env.FULCRUM_PACKAGE_ROOT, 'drizzle')
   } else {
     // Source mode (development)
     const serverDir = dirname(import.meta.dir)
@@ -157,6 +157,9 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
       const hasTaskLinksTable = sqlite
         .query("SELECT name FROM sqlite_master WHERE type='table' AND name='task_links'")
         .get()
+      const hasTaskAttachmentsTable = sqlite
+        .query("SELECT name FROM sqlite_master WHERE type='table' AND name='task_attachments'")
+        .get()
 
       // Determine which migrations should be marked as applied based on schema state
       const migrationsToMark: Array<{ tag: string; when: number }> = []
@@ -232,6 +235,101 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
         else if (entry.tag.startsWith('0025') && hasTaskLinksTable) {
           shouldMark = true
         }
+        // 0026 creates project_repositories and task_dependencies tables
+        else if (entry.tag.startsWith('0026')) {
+          const hasProjectRepositoriesTable = sqlite
+            .query("SELECT name FROM sqlite_master WHERE type='table' AND name='project_repositories'")
+            .get()
+          if (hasProjectRepositoriesTable) {
+            shouldMark = true
+          }
+        }
+        // 0027 fixes task nullable fields (no-op if already correct from 0026)
+        else if (entry.tag.startsWith('0027')) {
+          // This migration recreates tasks table, mark as applied if tasks table has the expected structure
+          const hasTasksTable = sqlite
+            .query("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'")
+            .get()
+          if (hasTasksTable) {
+            shouldMark = true
+          }
+        }
+        // 0028 is a no-op (Linear columns removed in 0027)
+        else if (entry.tag.startsWith('0028')) {
+          shouldMark = true
+        }
+        // 0029 creates task_attachments table
+        else if (entry.tag.startsWith('0029') && hasTaskAttachmentsTable) {
+          shouldMark = true
+        }
+        // 0030 creates labels, task_labels, project_labels tables (later renamed to tags, task_tags, project_tags)
+        else if (entry.tag.startsWith('0030')) {
+          const hasLabelsTable = sqlite
+            .query("SELECT name FROM sqlite_master WHERE type='table' AND name='labels'")
+            .get()
+          const hasTagsTable = sqlite
+            .query("SELECT name FROM sqlite_master WHERE type='table' AND name='tags'")
+            .get()
+          if (hasLabelsTable || hasTagsTable) {
+            shouldMark = true
+          }
+        }
+        // 0031 renames labels to tags tables - mark as applied if tags already exist (fresh DB has tags directly)
+        else if (entry.tag.startsWith('0031')) {
+          const hasLabelsTable = sqlite
+            .query("SELECT name FROM sqlite_master WHERE type='table' AND name='labels'")
+            .get()
+          const hasTagsTable = sqlite
+            .query("SELECT name FROM sqlite_master WHERE type='table' AND name='tags'")
+            .get()
+          // Mark as applied if tags table exists and labels table doesn't (fresh DB or already migrated)
+          if (hasTagsTable && !hasLabelsTable) {
+            shouldMark = true
+          }
+        }
+        // 0032 adds notes column to tasks
+        else if (entry.tag.startsWith('0032')) {
+          const hasNotesColumn = sqlite
+            .query("SELECT name FROM pragma_table_info('tasks') WHERE name='notes'")
+            .get()
+          if (hasNotesColumn) {
+            shouldMark = true
+          }
+        }
+        // 0033 adds notes column to projects and creates project_attachments table
+        else if (entry.tag.startsWith('0033')) {
+          const hasProjectNotesColumn = sqlite
+            .query("SELECT name FROM pragma_table_info('projects') WHERE name='notes'")
+            .get()
+          const hasProjectAttachmentsTable = sqlite
+            .query("SELECT name FROM sqlite_master WHERE type='table' AND name='project_attachments'")
+            .get()
+          if (hasProjectNotesColumn || hasProjectAttachmentsTable) {
+            shouldMark = true
+          }
+        }
+        // 0034 creates project_links table
+        else if (entry.tag.startsWith('0034')) {
+          const hasProjectLinksTable = sqlite
+            .query("SELECT name FROM sqlite_master WHERE type='table' AND name='project_links'")
+            .get()
+          if (hasProjectLinksTable) {
+            shouldMark = true
+          }
+        }
+        // 0035 renames selected_project_ids to selected_repository_ids
+        else if (entry.tag.startsWith('0035')) {
+          const hasSelectedRepositoryIdsColumn = sqlite
+            .query("SELECT name FROM pragma_table_info('terminal_view_state') WHERE name='selected_repository_ids'")
+            .get()
+          const hasSelectedProjectIdsColumn = sqlite
+            .query("SELECT name FROM pragma_table_info('terminal_view_state') WHERE name='selected_project_ids'")
+            .get()
+          // Mark as applied if new column exists and old column doesn't (fresh DB or already migrated)
+          if (hasSelectedRepositoryIdsColumn && !hasSelectedProjectIdsColumn) {
+            shouldMark = true
+          }
+        }
 
         if (shouldMark) {
           migrationsToMark.push(entry)
@@ -279,6 +377,8 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
 
   // Run data migrations after schema migrations
   migrateRepositoriesToProjects(sqlite)
+  migrateProjectRepositoriesToJoinTable(sqlite)
+  migrateTaskTagsToJoinTable(sqlite)
 }
 
 // Data migration: Create projects for existing repositories
@@ -325,6 +425,140 @@ function migrateRepositoriesToProjects(sqlite: Database): void {
   }
 
   log.db.info('Migrated repositories to projects successfully', { count: orphanedRepos.length })
+}
+
+// Data migration: Migrate projects with repositoryId to project_repositories join table
+function migrateProjectRepositoriesToJoinTable(sqlite: Database): void {
+  // Check if project_repositories table exists
+  const hasJoinTable = sqlite
+    .query("SELECT name FROM sqlite_master WHERE type='table' AND name='project_repositories'")
+    .get()
+
+  if (!hasJoinTable) return
+
+  // Find projects with repositoryId that don't have entries in the join table
+  const projectsToMigrate = sqlite
+    .query(`
+      SELECT p.id, p.repository_id
+      FROM projects p
+      WHERE p.repository_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM project_repositories pr
+          WHERE pr.project_id = p.id AND pr.repository_id = p.repository_id
+        )
+    `)
+    .all() as Array<{ id: string; repository_id: string }>
+
+  if (projectsToMigrate.length === 0) return
+
+  log.db.info('Migrating project repositories to join table', { count: projectsToMigrate.length })
+
+  const now = new Date().toISOString()
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { nanoid } = require('nanoid')
+
+  for (const project of projectsToMigrate) {
+    const linkId = nanoid()
+    sqlite.exec(`
+      INSERT INTO project_repositories (id, project_id, repository_id, is_primary, created_at)
+      VALUES ('${linkId}', '${project.id}', '${project.repository_id}', 1, '${now}')
+    `)
+  }
+
+  log.db.info('Migrated project repositories to join table successfully', { count: projectsToMigrate.length })
+}
+
+// Data migration: Migrate task tags from JSON column to tags + task_tags tables
+function migrateTaskTagsToJoinTable(sqlite: Database): void {
+  // Check if tags table exists (or old labels table for backwards compatibility)
+  const hasTagsTable = sqlite
+    .query("SELECT name FROM sqlite_master WHERE type='table' AND name='tags'")
+    .get()
+
+  if (!hasTagsTable) return
+
+  // Check if any tasks have labels in the JSON column that haven't been migrated
+  const tasksWithTags = sqlite
+    .query(`
+      SELECT t.id, t.labels
+      FROM tasks t
+      WHERE t.labels IS NOT NULL
+        AND t.labels != '[]'
+        AND t.labels != ''
+        AND NOT EXISTS (
+          SELECT 1 FROM task_tags tt WHERE tt.task_id = t.id
+        )
+    `)
+    .all() as Array<{ id: string; labels: string }>
+
+  if (tasksWithTags.length === 0) return
+
+  log.db.info('Migrating task tags to join table', { count: tasksWithTags.length })
+
+  const now = new Date().toISOString()
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { nanoid } = require('nanoid')
+
+  // Collect all unique tags from tasks
+  const allTagNames = new Set<string>()
+  for (const task of tasksWithTags) {
+    try {
+      const tags = JSON.parse(task.labels) as string[]
+      for (const tag of tags) {
+        if (tag && typeof tag === 'string') {
+          allTagNames.add(tag)
+        }
+      }
+    } catch {
+      // Skip invalid JSON
+    }
+  }
+
+  // Create tags and build a map of name -> id
+  const tagNameToId = new Map<string, string>()
+
+  for (const name of allTagNames) {
+    // Check if tag already exists
+    const existing = sqlite
+      .query('SELECT id FROM tags WHERE name = ?')
+      .get(name) as { id: string } | null
+
+    if (existing) {
+      tagNameToId.set(name, existing.id)
+    } else {
+      // Create new tag
+      const tagId = nanoid()
+      sqlite.exec(`
+        INSERT INTO tags (id, name, created_at)
+        VALUES ('${tagId}', '${name.replace(/'/g, "''")}', '${now}')
+      `)
+      tagNameToId.set(name, tagId)
+    }
+  }
+
+  // Create task_tags entries
+  for (const task of tasksWithTags) {
+    try {
+      const tags = JSON.parse(task.labels) as string[]
+      for (const tag of tags) {
+        const tagId = tagNameToId.get(tag)
+        if (tagId) {
+          const linkId = nanoid()
+          sqlite.exec(`
+            INSERT INTO task_tags (id, task_id, tag_id, created_at)
+            VALUES ('${linkId}', '${task.id}', '${tagId}', '${now}')
+          `)
+        }
+      }
+    } catch {
+      // Skip invalid JSON
+    }
+  }
+
+  log.db.info('Migrated task tags to join table successfully', {
+    tasks: tasksWithTags.length,
+    tags: allTagNames.size,
+  })
 }
 
 // Re-export schema for convenience

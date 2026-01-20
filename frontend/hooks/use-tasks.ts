@@ -26,25 +26,32 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: (data: {
       title: string
-      description: string
+      description?: string
       agent?: string
       aiMode?: 'default' | 'plan'
-      repoPath: string
-      repoName: string
-      baseBranch: string
-      branch: string
-      worktreePath: string
+      status?: TaskStatus
+      // Git-related fields - optional for non-code tasks
+      repoPath?: string | null
+      repoName?: string | null
+      baseBranch?: string | null
+      branch?: string | null
+      worktreePath?: string | null
       prUrl?: string | null
       copyFiles?: string
       startupScript?: string
       agentOptions?: Record<string, string> | null
       opencodeModel?: string | null
+      // New generalized task fields
+      labels?: string[]
+      dueDate?: string | null
+      notes?: string | null
+      projectId?: string | null
     }) =>
       fetchJSON<Task>(`${API_BASE}/api/tasks`, {
         method: 'POST',
         body: JSON.stringify({
           ...data,
-          status: 'IN_PROGRESS',
+          status: data.status ?? 'IN_PROGRESS',
         }),
       }),
     onSuccess: () => {
@@ -85,7 +92,7 @@ export function useUpdateTask() {
       updates,
     }: {
       taskId: string
-      updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'viewState' | 'prUrl' | 'linearTicketId' | 'linearTicketUrl'>>
+      updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'viewState' | 'prUrl' | 'labels' | 'dueDate'>>
     }) =>
       fetchJSON<Task>(`${API_BASE}/api/tasks/${taskId}`, {
         method: 'PATCH',
@@ -194,6 +201,85 @@ export function useRemoveTaskLink() {
       }),
     onSuccess: (_, { taskId }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
+    },
+  })
+}
+
+export interface TaskGraphNode {
+  id: string
+  title: string
+  status: TaskStatus
+  projectId: string | null
+  labels: string[]
+  dueDate: string | null
+}
+
+export interface TaskGraphEdge {
+  id: string
+  source: string
+  target: string
+}
+
+export interface TaskDependencyGraph {
+  nodes: TaskGraphNode[]
+  edges: TaskGraphEdge[]
+}
+
+export function useTaskDependencyGraph() {
+  return useQuery({
+    queryKey: ['task-dependencies', 'graph'],
+    queryFn: () => fetchJSON<TaskDependencyGraph>(`${API_BASE}/api/task-dependencies/graph`),
+  })
+}
+
+// Task dependency types for individual task view
+export interface TaskDependencyInfo {
+  id: string
+  title: string
+  status: TaskStatus
+  dependencyId: string
+}
+
+export interface TaskDependencies {
+  blockedBy: TaskDependencyInfo[]
+  blocking: TaskDependencyInfo[]
+}
+
+export function useTaskDependencies(taskId: string) {
+  return useQuery({
+    queryKey: ['task-dependencies', taskId],
+    queryFn: () => fetchJSON<TaskDependencies>(`${API_BASE}/api/task-dependencies/${taskId}`),
+    enabled: !!taskId,
+  })
+}
+
+export function useAddTaskDependency() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ taskId, dependsOnTaskId }: { taskId: string; dependsOnTaskId: string }) =>
+      fetchJSON<{ id: string }>(`${API_BASE}/api/task-dependencies/${taskId}`, {
+        method: 'POST',
+        body: JSON.stringify({ dependsOnTaskId }),
+      }),
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['task-dependencies'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
+    },
+  })
+}
+
+export function useRemoveTaskDependency() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ taskId, dependencyId }: { taskId: string; dependencyId: string }) =>
+      fetchJSON<{ success: boolean }>(`${API_BASE}/api/task-dependencies/${taskId}/${dependencyId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['task-dependencies'] })
       queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
     },
   })

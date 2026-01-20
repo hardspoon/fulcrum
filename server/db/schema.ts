@@ -6,23 +6,36 @@ export const tasks = sqliteTable('tasks', {
   description: text('description'),
   status: text('status').notNull().default('IN_PROGRESS'),
   position: integer('position').notNull(),
-  repoPath: text('repo_path').notNull(),
-  repoName: text('repo_name').notNull(),
-  baseBranch: text('base_branch').notNull(),
+  repoPath: text('repo_path'), // Now nullable for non-code tasks
+  repoName: text('repo_name'), // Now nullable for non-code tasks
+  baseBranch: text('base_branch'), // Now nullable for non-code tasks
   branch: text('branch'),
   worktreePath: text('worktree_path'),
   viewState: text('view_state'), // JSON: { activeTab, browserUrl, diffOptions }
   prUrl: text('pr_url'), // GitHub PR URL for auto-completion tracking
-  linearTicketId: text('linear_ticket_id'), // e.g., "TEAM-123"
-  linearTicketUrl: text('linear_ticket_url'), // Full URL for linking
   startupScript: text('startup_script'), // Command to run after worktree creation
   agent: text('agent').notNull().default('claude'), // AI agent: 'claude' | 'opencode'
   aiMode: text('ai_mode'), // 'default' | 'plan' | null - AI mode for agent startup
   agentOptions: text('agent_options'), // JSON: { [flag]: value } - CLI options for agent
   opencodeModel: text('opencode_model'), // OpenCode model in format 'provider/model' - null means use default
   pinned: integer('pinned', { mode: 'boolean' }).default(false), // Prevent cleanup from deleting this task's worktree
+  // Generalized task management fields
+  projectId: text('project_id'), // FK to projects (nullable - null = orphan/inbox)
+  repositoryId: text('repository_id'), // FK to repositories for code tasks
+  labels: text('labels'), // JSON array: ["bug", "urgent"]
+  startedAt: text('started_at'), // Timestamp when moved out of TO_DO
+  dueDate: text('due_date'), // YYYY-MM-DD format
+  notes: text('notes'), // Free-form notes/comments
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
+})
+
+// Task dependencies - tracks which tasks depend on other tasks
+export const taskDependencies = sqliteTable('task_dependencies', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id').notNull(),
+  dependsOnTaskId: text('depends_on_task_id').notNull(),
+  createdAt: text('created_at').notNull(),
 })
 
 // Task links - arbitrary URL links associated with tasks
@@ -31,7 +44,39 @@ export const taskLinks = sqliteTable('task_links', {
   taskId: text('task_id').notNull(),
   url: text('url').notNull(),
   label: text('label'), // User-provided or auto-detected label
-  type: text('type'), // 'pr' | 'issue' | 'linear' | 'docs' | 'design' | 'other'
+  type: text('type'), // 'pr' | 'issue' | 'docs' | 'design' | 'other'
+  createdAt: text('created_at').notNull(),
+})
+
+// Task attachments - file uploads associated with tasks
+export const taskAttachments = sqliteTable('task_attachments', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id').notNull(),
+  filename: text('filename').notNull(), // Original filename
+  storedPath: text('stored_path').notNull(), // Full filesystem path
+  mimeType: text('mime_type').notNull(),
+  size: integer('size').notNull(), // Bytes
+  createdAt: text('created_at').notNull(),
+})
+
+// Project links - arbitrary URL links associated with projects
+export const projectLinks = sqliteTable('project_links', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  url: text('url').notNull(),
+  label: text('label'), // User-provided or auto-detected label
+  type: text('type'), // 'pr' | 'issue' | 'docs' | 'design' | 'other'
+  createdAt: text('created_at').notNull(),
+})
+
+// Project attachments - file uploads associated with projects
+export const projectAttachments = sqliteTable('project_attachments', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  filename: text('filename').notNull(), // Original filename
+  storedPath: text('stored_path').notNull(), // Full filesystem path
+  mimeType: text('mime_type').notNull(),
+  size: integer('size').notNull(), // Bytes
   createdAt: text('created_at').notNull(),
 })
 
@@ -66,7 +111,7 @@ export const terminalViewState = sqliteTable('terminal_view_state', {
   id: text('id').primaryKey().default('singleton'),
   activeTabId: text('active_tab_id'),
   focusedTerminals: text('focused_terminals'), // JSON: { [tabId]: terminalId }
-  selectedProjectIds: text('selected_project_ids'), // JSON array of project IDs for "All Projects" tab
+  selectedRepositoryIds: text('selected_repository_ids'), // JSON array of repository IDs for "Repos" tab
   // View tracking for notification suppression
   currentView: text('current_view'), // 'task-detail' | 'terminals' | 'other'
   currentTaskId: text('current_task_id'), // Task ID if on task detail view
@@ -147,7 +192,7 @@ export const tunnels = sqliteTable('tunnels', {
   id: text('id').primaryKey(),
   appId: text('app_id').notNull().unique(), // FK to apps - one tunnel per app
   tunnelId: text('tunnel_id').notNull(), // Cloudflare tunnel UUID
-  tunnelName: text('tunnel_name').notNull(), // e.g., "vibora-app-abc123"
+  tunnelName: text('tunnel_name').notNull(), // e.g., "fulcrum-app-abc123"
   tunnelToken: text('tunnel_token').notNull(), // Token for cloudflared daemon
   status: text('status').notNull().default('inactive'), // inactive|active|failed
   createdAt: text('created_at').notNull(),
@@ -159,13 +204,47 @@ export const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   description: text('description'),
-  repositoryId: text('repository_id'), // FK to repositories (nullable)
+  notes: text('notes'), // Free-form notes/comments
+  repositoryId: text('repository_id'), // DEPRECATED: use projectRepositories join table
   appId: text('app_id').unique(), // FK to apps (nullable, 1:1)
   terminalTabId: text('terminal_tab_id').unique(), // FK to terminalTabs (dedicated)
   status: text('status').notNull().default('active'), // 'active' | 'archived'
   lastAccessedAt: text('last_accessed_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
+})
+
+// Project Repositories - M:N join table for projects and repositories
+export const projectRepositories = sqliteTable('project_repositories', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  repositoryId: text('repository_id').notNull(),
+  isPrimary: integer('is_primary', { mode: 'boolean' }).default(false),
+  createdAt: text('created_at').notNull(),
+})
+
+// Tags - reusable tags shared between tasks and projects
+export const tags = sqliteTable('tags', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  color: text('color'), // Optional color for visual distinction (e.g., "blue", "#3b82f6")
+  createdAt: text('created_at').notNull(),
+})
+
+// Task Tags - M:N join table for tasks and tags
+export const taskTags = sqliteTable('task_tags', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id').notNull(),
+  tagId: text('tag_id').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+
+// Project Tags - M:N join table for projects and tags
+export const projectTags = sqliteTable('project_tags', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  tagId: text('tag_id').notNull(),
+  createdAt: text('created_at').notNull(),
 })
 
 // System metrics for monitoring - stores historical CPU, memory, disk usage
@@ -205,3 +284,19 @@ export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
 export type TaskLink = typeof taskLinks.$inferSelect
 export type NewTaskLink = typeof taskLinks.$inferInsert
+export type TaskDependency = typeof taskDependencies.$inferSelect
+export type NewTaskDependency = typeof taskDependencies.$inferInsert
+export type ProjectRepository = typeof projectRepositories.$inferSelect
+export type NewProjectRepository = typeof projectRepositories.$inferInsert
+export type TaskAttachment = typeof taskAttachments.$inferSelect
+export type NewTaskAttachment = typeof taskAttachments.$inferInsert
+export type ProjectAttachment = typeof projectAttachments.$inferSelect
+export type NewProjectAttachment = typeof projectAttachments.$inferInsert
+export type Tag = typeof tags.$inferSelect
+export type NewTag = typeof tags.$inferInsert
+export type TaskTag = typeof taskTags.$inferSelect
+export type NewTaskTag = typeof taskTags.$inferInsert
+export type ProjectTag = typeof projectTags.$inferSelect
+export type NewProjectTag = typeof projectTags.$inferInsert
+export type ProjectLink = typeof projectLinks.$inferSelect
+export type NewProjectLink = typeof projectLinks.$inferInsert

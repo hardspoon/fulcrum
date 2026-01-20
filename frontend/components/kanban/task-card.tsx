@@ -13,15 +13,17 @@ import { useSelection } from './selection-context'
 import type { Task } from '@/types'
 import { cn } from '@/lib/utils'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { PackageIcon, GitPullRequestIcon, Task01Icon, Settings05Icon } from '@hugeicons/core-free-icons'
-import { TaskConfigModal } from '@/components/task-config-modal'
+import { PackageIcon, GitPullRequestIcon, Calendar03Icon, AlertDiamondIcon, Alert02Icon } from '@hugeicons/core-free-icons'
+import { NonCodeTaskModal } from '@/components/task/non-code-task-modal'
 
 interface TaskCardProps {
   task: Task
   isDragPreview?: boolean
+  isBlocked?: boolean
+  isBlocking?: boolean
 }
 
-export function TaskCard({ task, isDragPreview }: TaskCardProps) {
+export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCardProps) {
   const { setActiveTask } = useDrag()
   const { isSelected, toggleSelection } = useSelection()
   const navigate = useNavigate()
@@ -31,7 +33,10 @@ export function TaskCard({ task, isDragPreview }: TaskCardProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null)
   const [previewContainer, setPreviewContainer] = useState<HTMLElement | null>(null)
-  const [configModalOpen, setConfigModalOpen] = useState(false)
+  const [taskModalOpen, setTaskModalOpen] = useState(false)
+
+  // Determine if this is a code task (has worktree) or non-code task
+  const isCodeTask = !!task.worktreePath
 
   // Track if drag occurred to distinguish from click
   const hasDragged = useRef(false)
@@ -115,8 +120,13 @@ export function TaskCard({ task, isDragPreview }: TaskCardProps) {
       return
     }
 
-    // Normal click: navigate
-    navigate({ to: '/tasks/$taskId', params: { taskId: task.id } })
+    // For code tasks, navigate to detail page
+    // For non-code tasks, open the modal
+    if (isCodeTask) {
+      navigate({ to: '/tasks/$taskId', params: { taskId: task.id } })
+    } else {
+      setTaskModalOpen(true)
+    }
     hasDragged.current = false
   }
 
@@ -167,40 +177,85 @@ export function TaskCard({ task, isDragPreview }: TaskCardProps) {
         <CardTitle className="text-sm font-medium leading-tight flex-1">
           {task.title}
         </CardTitle>
-        {!isDragPreview && (
-          <button
-            type="button"
-            className="shrink-0 p-0.5 -m-0.5 rounded hover:bg-muted transition-colors cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation()
-              setConfigModalOpen(true)
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <HugeiconsIcon icon={Settings05Icon} size={14} strokeWidth={2} className="text-muted-foreground" />
-          </button>
-        )}
       </CardHeader>
-      <CardContent className="p-3 pt-1">
+      <CardContent className={cn('p-3 pt-1', !isDragPreview && 'pl-8')}>
         {task.description && (
           <p className="line-clamp-2 text-xs text-muted-foreground">
             {task.description}
           </p>
         )}
-        <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground/70">
-          <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} />
-          <span>{task.repoName}</span>
-          {task.prUrl && (
+        {/* Labels row */}
+        {task.labels.length > 0 && (
+          <div className="mt-2 flex items-center gap-1 flex-wrap">
+            {task.labels.slice(0, 3).map((label) => (
+              <span
+                key={label}
+                className="rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] font-medium"
+              >
+                {label}
+              </span>
+            ))}
+            {task.labels.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">+{task.labels.length - 3}</span>
+            )}
+          </div>
+        )}
+        {/* Metadata row */}
+        <div className={cn(
+          'flex items-center gap-1 text-xs text-muted-foreground/70 flex-wrap',
+          task.labels.length > 0 ? 'mt-1.5' : 'mt-2'
+        )}>
+          {/* Blocked indicator (red) */}
+          {isBlocked && (
             <>
+              <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-destructive font-medium">
+                <HugeiconsIcon icon={AlertDiamondIcon} size={12} strokeWidth={2} />
+                <span>Blocked</span>
+              </span>
               <span className="text-muted-foreground/30">•</span>
-              <HugeiconsIcon icon={GitPullRequestIcon} size={12} strokeWidth={2} className="text-foreground" />
             </>
           )}
-          {task.linearTicketId && (
+          {/* Blocking indicator (warning/amber) */}
+          {isBlocking && (
             <>
+              <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-warning font-medium">
+                <HugeiconsIcon icon={Alert02Icon} size={12} strokeWidth={2} />
+                <span>Blocking</span>
+              </span>
               <span className="text-muted-foreground/30">•</span>
-              <HugeiconsIcon icon={Task01Icon} size={12} strokeWidth={2} className="text-foreground" />
             </>
+          )}
+          {/* Code task metadata */}
+          {isCodeTask && (
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <HugeiconsIcon icon={PackageIcon} size={12} strokeWidth={2} />
+              <span className="truncate max-w-24">{task.repoName}</span>
+              {task.prUrl && (
+                <>
+                  <span className="text-muted-foreground/30">•</span>
+                  <HugeiconsIcon icon={GitPullRequestIcon} size={12} strokeWidth={2} className="text-foreground" />
+                </>
+              )}
+            </span>
+          )}
+          {/* Due date - shown for all tasks */}
+          {task.dueDate && (
+            <>
+              {isCodeTask && <span className="text-muted-foreground/30">•</span>}
+              <span className={cn(
+                'inline-flex items-center gap-1 whitespace-nowrap',
+                new Date(task.dueDate) < new Date() && task.status !== 'DONE' && task.status !== 'CANCELED'
+                  ? 'text-destructive'
+                  : ''
+              )}>
+                <HugeiconsIcon icon={Calendar03Icon} size={12} strokeWidth={2} />
+                <span>{new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              </span>
+            </>
+          )}
+          {/* Fallback for non-code tasks with no metadata */}
+          {!isCodeTask && !isBlocked && !isBlocking && task.labels.length === 0 && !task.dueDate && (
+            <span className="italic">Quick task</span>
           )}
         </div>
       </CardContent>
@@ -217,11 +272,13 @@ export function TaskCard({ task, isDragPreview }: TaskCardProps) {
         </div>,
         previewContainer
       )}
-      <TaskConfigModal
-        task={task}
-        open={configModalOpen}
-        onOpenChange={setConfigModalOpen}
-      />
+      {!isCodeTask && (
+        <NonCodeTaskModal
+          task={task}
+          open={taskModalOpen}
+          onOpenChange={setTaskModalOpen}
+        />
+      )}
     </>
   )
 }

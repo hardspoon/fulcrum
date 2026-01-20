@@ -84,13 +84,17 @@ export function TaskActionsDropdown({
     branch: null,
     viewState: null,
     prUrl: prUrl ?? null,
-    linearTicketId: null,
-    linearTicketUrl: null,
     startupScript: null,
     agent: 'claude',
     aiMode: null,
     agentOptions: null,
     opencodeModel: null,
+    projectId: null,
+    repositoryId: null,
+    labels: [],
+    startedAt: null,
+    dueDate: null,
+    notes: null,
     createdAt: '',
     updatedAt: '',
   }
@@ -247,7 +251,7 @@ export function TaskActionsDropdown({
         action: {
           label: 'Resolve with Claude',
           onClick: () => resolveWithClaude(
-            `Create a PR for this task. Error: "${errorMessage}". After creating, link it using: vibora current-task pr <url>. Worktree: ${worktreePath}.`
+            `Create a PR for this task. Error: "${errorMessage}". After creating, link it using: fulcrum current-task pr <url>. Worktree: ${worktreePath}.`
           ),
         },
       })

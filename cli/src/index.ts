@@ -6,6 +6,7 @@ import { handleCurrentTaskCommand } from './commands/current-task'
 import { handleMcpCommand } from './commands/mcp'
 import { handleTasksCommand } from './commands/tasks'
 import { handleProjectsCommand } from './commands/projects'
+import { handleRepositoriesCommand } from './commands/repositories'
 import { handleAppsCommand } from './commands/apps'
 import { handleFsCommand } from './commands/fs'
 import { handleUpCommand } from './commands/up'
@@ -86,12 +87,12 @@ const currentTaskCommand = defineCommand({
     ...globalArgs,
     action: {
       type: 'positional' as const,
-      description: 'Action: pr, linear, link, in-progress, review, done, cancel',
+      description: 'Action: pr, link, in-progress, review, done, cancel',
       required: false,
     },
     value: {
       type: 'positional' as const,
-      description: 'Value for the action (URL for pr/linear/link)',
+      description: 'Value for the action (URL for pr/link)',
       required: false,
     },
     label: {
@@ -121,11 +122,23 @@ const tasksListCommand = defineCommand({
     ...globalArgs,
     status: {
       type: 'string' as const,
-      description: 'Filter by status (IN_PROGRESS, IN_REVIEW, CANCELED)',
+      description: 'Filter by status (TO_DO, IN_PROGRESS, IN_REVIEW, DONE, CANCELED)',
     },
     repo: {
       type: 'string' as const,
       description: 'Filter by repository name or path',
+    },
+    'project-id': {
+      type: 'string' as const,
+      description: 'Filter by project ID',
+    },
+    orphans: {
+      type: 'boolean' as const,
+      description: 'Show only orphan tasks (no project)',
+    },
+    label: {
+      type: 'string' as const,
+      description: 'Filter by label',
     },
   },
   async run({ args }) {
@@ -167,8 +180,7 @@ const tasksCreateCommand = defineCommand({
     },
     repo: {
       type: 'string' as const,
-      description: 'Repository path',
-      required: true,
+      description: 'Repository path (optional for non-code tasks)',
     },
     'base-branch': {
       type: 'string' as const,
@@ -189,6 +201,26 @@ const tasksCreateCommand = defineCommand({
     'worktree-path': {
       type: 'string' as const,
       description: 'Worktree path',
+    },
+    'project-id': {
+      type: 'string' as const,
+      description: 'Project ID to associate task with',
+    },
+    'repository-id': {
+      type: 'string' as const,
+      description: 'Repository ID for code tasks',
+    },
+    labels: {
+      type: 'string' as const,
+      description: 'Comma-separated labels (e.g., "bug,urgent")',
+    },
+    'due-date': {
+      type: 'string' as const,
+      description: 'Due date (YYYY-MM-DD format)',
+    },
+    status: {
+      type: 'string' as const,
+      description: 'Initial status (TO_DO, IN_PROGRESS). Default: IN_PROGRESS',
     },
   },
   async run({ args }) {
@@ -238,7 +270,7 @@ const tasksMoveCommand = defineCommand({
     },
     status: {
       type: 'string' as const,
-      description: 'New status (IN_PROGRESS, IN_REVIEW, CANCELED)',
+      description: 'New status (TO_DO, IN_PROGRESS, IN_REVIEW, CANCELED)',
       required: true,
     },
     position: {
@@ -275,6 +307,145 @@ const tasksDeleteCommand = defineCommand({
   },
 })
 
+const tasksAddLabelCommand = defineCommand({
+  meta: {
+    name: 'add-label',
+    description: 'Add a label to a task',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID',
+      required: true,
+    },
+    label: {
+      type: 'positional' as const,
+      description: 'Label to add',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('add-label', [args.id as string, args.label as string], toFlags(args))
+  },
+})
+
+const tasksRemoveLabelCommand = defineCommand({
+  meta: {
+    name: 'remove-label',
+    description: 'Remove a label from a task',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID',
+      required: true,
+    },
+    label: {
+      type: 'positional' as const,
+      description: 'Label to remove',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('remove-label', [args.id as string, args.label as string], toFlags(args))
+  },
+})
+
+const tasksSetDueDateCommand = defineCommand({
+  meta: {
+    name: 'set-due-date',
+    description: 'Set or clear the due date for a task',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID',
+      required: true,
+    },
+    date: {
+      type: 'positional' as const,
+      description: 'Due date (YYYY-MM-DD) or "none" to clear',
+      required: false,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('set-due-date', [args.id as string, (args.date as string) || ''], toFlags(args))
+  },
+})
+
+const tasksAddDependencyCommand = defineCommand({
+  meta: {
+    name: 'add-dependency',
+    description: 'Add a dependency (task depends on another task)',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID that will have the dependency',
+      required: true,
+    },
+    'depends-on': {
+      type: 'positional' as const,
+      description: 'Task ID that must be completed first',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('add-dependency', [args.id as string, args['depends-on'] as string], toFlags(args))
+  },
+})
+
+const tasksRemoveDependencyCommand = defineCommand({
+  meta: {
+    name: 'remove-dependency',
+    description: 'Remove a dependency',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID',
+      required: true,
+    },
+    'dependency-id': {
+      type: 'positional' as const,
+      description: 'Dependency ID to remove',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('remove-dependency', [args.id as string, args['dependency-id'] as string], toFlags(args))
+  },
+})
+
+const tasksListDependenciesCommand = defineCommand({
+  meta: {
+    name: 'list-dependencies',
+    description: 'List dependencies for a task',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('list-dependencies', [args.id as string], toFlags(args))
+  },
+})
+
 const tasksCommand = defineCommand({
   meta: {
     name: 'tasks',
@@ -287,6 +458,12 @@ const tasksCommand = defineCommand({
     update: tasksUpdateCommand,
     move: tasksMoveCommand,
     delete: tasksDeleteCommand,
+    'add-label': tasksAddLabelCommand,
+    'remove-label': tasksRemoveLabelCommand,
+    'set-due-date': tasksSetDueDateCommand,
+    'add-dependency': tasksAddDependencyCommand,
+    'remove-dependency': tasksRemoveDependencyCommand,
+    'list-dependencies': tasksListDependenciesCommand,
   },
 })
 
@@ -462,6 +639,208 @@ const projectsCommand = defineCommand({
     update: projectsUpdateCommand,
     delete: projectsDeleteCommand,
     scan: projectsScanCommand,
+  },
+})
+
+// ============================================================================
+// Repositories Commands
+// ============================================================================
+
+const repositoriesListCommand = defineCommand({
+  meta: {
+    name: 'list',
+    description: 'List all repositories',
+  },
+  args: {
+    ...globalArgs,
+    orphans: {
+      type: 'boolean' as const,
+      description: 'Show only orphan repositories (not linked to any project)',
+    },
+    'project-id': {
+      type: 'string' as const,
+      description: 'Filter by project ID',
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleRepositoriesCommand('list', [], toFlags(args))
+  },
+})
+
+const repositoriesGetCommand = defineCommand({
+  meta: {
+    name: 'get',
+    description: 'Get a repository by ID',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Repository ID',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleRepositoriesCommand('get', [args.id as string], toFlags(args))
+  },
+})
+
+const repositoriesAddCommand = defineCommand({
+  meta: {
+    name: 'add',
+    description: 'Add a new repository from a local path',
+  },
+  args: {
+    ...globalArgs,
+    path: {
+      type: 'string' as const,
+      description: 'Path to the git repository',
+      required: true,
+    },
+    'display-name': {
+      type: 'string' as const,
+      description: 'Display name for the repository',
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleRepositoriesCommand('add', [], toFlags(args))
+  },
+})
+
+const repositoriesUpdateCommand = defineCommand({
+  meta: {
+    name: 'update',
+    description: 'Update a repository',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Repository ID',
+      required: true,
+    },
+    'display-name': {
+      type: 'string' as const,
+      description: 'New display name',
+    },
+    'startup-script': {
+      type: 'string' as const,
+      description: 'Startup script to run when starting a task',
+    },
+    'copy-files': {
+      type: 'string' as const,
+      description: 'Files/patterns to copy to new worktrees',
+    },
+    'default-agent': {
+      type: 'string' as const,
+      description: 'Default agent (claude, opencode)',
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleRepositoriesCommand('update', [args.id as string], toFlags(args))
+  },
+})
+
+const repositoriesDeleteCommand = defineCommand({
+  meta: {
+    name: 'delete',
+    description: 'Delete an orphaned repository',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Repository ID',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleRepositoriesCommand('delete', [args.id as string], toFlags(args))
+  },
+})
+
+const repositoriesLinkCommand = defineCommand({
+  meta: {
+    name: 'link',
+    description: 'Link a repository to a project',
+  },
+  args: {
+    ...globalArgs,
+    'repo-id': {
+      type: 'positional' as const,
+      description: 'Repository ID',
+      required: true,
+    },
+    'project-id': {
+      type: 'positional' as const,
+      description: 'Project ID',
+      required: true,
+    },
+    'as-primary': {
+      type: 'boolean' as const,
+      description: 'Set as primary repository for the project',
+    },
+    force: {
+      type: 'boolean' as const,
+      description: 'Move repository from existing project if already linked',
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleRepositoriesCommand(
+      'link',
+      [args['repo-id'] as string, args['project-id'] as string],
+      toFlags(args)
+    )
+  },
+})
+
+const repositoriesUnlinkCommand = defineCommand({
+  meta: {
+    name: 'unlink',
+    description: 'Unlink a repository from a project',
+  },
+  args: {
+    ...globalArgs,
+    'repo-id': {
+      type: 'positional' as const,
+      description: 'Repository ID',
+      required: true,
+    },
+    'project-id': {
+      type: 'positional' as const,
+      description: 'Project ID',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleRepositoriesCommand(
+      'unlink',
+      [args['repo-id'] as string, args['project-id'] as string],
+      toFlags(args)
+    )
+  },
+})
+
+const repositoriesCommand = defineCommand({
+  meta: {
+    name: 'repositories',
+    description: 'Manage repositories',
+  },
+  subCommands: {
+    list: repositoriesListCommand,
+    get: repositoriesGetCommand,
+    add: repositoriesAddCommand,
+    update: repositoriesUpdateCommand,
+    delete: repositoriesDeleteCommand,
+    link: repositoriesLinkCommand,
+    unlink: repositoriesUnlinkCommand,
   },
 })
 
@@ -884,7 +1263,7 @@ const fsEditCommand = defineCommand({
 const fsCommand = defineCommand({
   meta: {
     name: 'fs',
-    description: 'Remote filesystem operations (read/write/edit files on the Vibora server)',
+    description: 'Remote filesystem operations (read/write/edit files on the Fulcrum server)',
   },
   subCommands: {
     list: fsListCommand,
@@ -1284,7 +1663,7 @@ const notificationsCommand = defineCommand({
 const upCommand = defineCommand({
   meta: {
     name: 'up',
-    description: 'Start Vibora server (daemon)',
+    description: 'Start Fulcrum server (daemon)',
   },
   args: {
     ...globalArgs,
@@ -1311,7 +1690,7 @@ const upCommand = defineCommand({
 const downCommand = defineCommand({
   meta: {
     name: 'down',
-    description: 'Stop Vibora server',
+    description: 'Stop Fulcrum server',
   },
   args: globalArgs,
   async run({ args }) {
@@ -1375,7 +1754,7 @@ const notifyCommand = defineCommand({
 const devRestartCommand = defineCommand({
   meta: {
     name: 'restart',
-    description: 'Build and restart Vibora (developer mode)',
+    description: 'Build and restart Fulcrum (developer mode)',
   },
   args: globalArgs,
   async run({ args }) {
@@ -1425,15 +1804,16 @@ const mcpCommand = defineCommand({
 
 const main = defineCommand({
   meta: {
-    name: 'vibora',
+    name: 'fulcrum',
     version: VERSION,
-    description: 'vibora CLI - Terminal-first AI agent orchestration',
+    description: 'fulcrum CLI - Terminal-first AI agent orchestration',
   },
   args: globalArgs,
   subCommands: {
     'current-task': currentTaskCommand,
     tasks: tasksCommand,
     projects: projectsCommand,
+    repositories: repositoriesCommand,
     apps: appsCommand,
     fs: fsCommand,
     up: upCommand,

@@ -19,6 +19,7 @@ export const AGENT_DOC_URLS: Record<AgentType, string> = {
 }
 
 export type TaskStatus =
+  | 'TO_DO'
   | 'IN_PROGRESS'
   | 'IN_REVIEW'
   | 'DONE'
@@ -37,7 +38,7 @@ export interface FilesViewState {
 }
 
 export interface ViewState {
-  activeTab: 'diff' | 'browser' | 'files'
+  activeTab: 'diff' | 'browser' | 'files' | 'details'
   browserUrl: string
   diffOptions: DiffOptions
   filesViewState: FilesViewState
@@ -72,35 +73,105 @@ export interface Task {
   description: string | null
   status: TaskStatus
   position: number
-  repoPath: string
-  repoName: string
-  baseBranch: string
+  repoPath: string | null // Nullable for non-code tasks
+  repoName: string | null // Nullable for non-code tasks
+  baseBranch: string | null // Nullable for non-code tasks
   branch: string | null
   worktreePath: string | null
   viewState: ViewState | null
   prUrl: string | null
-  linearTicketId: string | null
-  linearTicketUrl: string | null
   startupScript: string | null
   agent: AgentType
   aiMode: 'default' | 'plan' | null
   agentOptions: Record<string, string> | null
   opencodeModel: string | null
   pinned: boolean
+  // Generalized task management fields
+  projectId: string | null // FK to project (null = orphan/inbox)
+  repositoryId: string | null // FK to repository for code tasks
+  labels: string[] // Array of label strings
+  startedAt: string | null // Timestamp when moved out of TO_DO
+  dueDate: string | null // YYYY-MM-DD format
+  notes: string | null // Free-form notes/comments
   createdAt: string
   updatedAt: string
   links?: TaskLink[]
 }
 
-// Task link types for arbitrary URL associations
-export type TaskLinkType = 'pr' | 'issue' | 'linear' | 'docs' | 'design' | 'other'
+// Tag - reusable tags shared between tasks and projects
+export interface Tag {
+  id: string
+  name: string
+  color: string | null
+  createdAt: string
+}
+
+// Tag with usage count for search/suggestions
+export interface TagWithUsage extends Tag {
+  taskCount: number
+  projectCount: number
+}
+
+// Link types for arbitrary URL associations (shared by tasks and projects)
+export type LinkType = 'pr' | 'issue' | 'docs' | 'design' | 'other'
+
+// Alias for backwards compatibility
+export type TaskLinkType = LinkType
 
 export interface TaskLink {
   id: string
   taskId: string
   url: string
   label: string | null
-  type: TaskLinkType | null
+  type: LinkType | null
+  createdAt: string
+}
+
+export interface ProjectLink {
+  id: string
+  projectId: string
+  url: string
+  label: string | null
+  type: LinkType | null
+  createdAt: string
+}
+
+// Task dependency for tracking blocked tasks
+export interface TaskDependency {
+  id: string
+  taskId: string
+  dependsOnTaskId: string
+  createdAt: string
+}
+
+// Task attachment for file uploads
+export interface TaskAttachment {
+  id: string
+  taskId: string
+  filename: string
+  storedPath: string
+  mimeType: string
+  size: number
+  createdAt: string
+}
+
+// Project attachment for file uploads
+export interface ProjectAttachment {
+  id: string
+  projectId: string
+  filename: string
+  storedPath: string
+  mimeType: string
+  size: number
+  createdAt: string
+}
+
+// Project-Repository M:N relationship
+export interface ProjectRepository {
+  id: string
+  projectId: string
+  repositoryId: string
+  isPrimary: boolean
   createdAt: string
 }
 
@@ -215,6 +286,7 @@ export interface CreateProjectRequest {
   answers: Record<string, unknown>
   projectName: string
   trust?: boolean // Trust template for unsafe features (tasks, migrations)
+  existingProjectId?: string // If provided, link repo to this project instead of creating a new one
 }
 
 export interface CreateProjectResponse {
@@ -505,6 +577,7 @@ export interface Project {
   id: string
   name: string
   description: string | null
+  notes: string | null
   repositoryId: string | null
   appId: string | null
   terminalTabId: string | null
@@ -514,8 +587,25 @@ export interface Project {
   updatedAt: string
 }
 
+// Repository details for ProjectWithDetails
+export interface ProjectRepositoryDetails {
+  id: string
+  path: string
+  displayName: string
+  startupScript: string | null
+  copyFiles: string | null
+  defaultAgent: AgentType | null
+  claudeOptions: Record<string, string> | null
+  opencodeOptions: Record<string, string> | null
+  opencodeModel: string | null
+  remoteUrl: string | null
+  isCopierTemplate: boolean
+  isPrimary: boolean // From project_repositories join
+}
+
 // Project with nested entities for API responses
 export interface ProjectWithDetails extends Project {
+  // DEPRECATED: Use repositories array instead
   repository: {
     id: string
     path: string
@@ -529,6 +619,8 @@ export interface ProjectWithDetails extends Project {
     remoteUrl: string | null
     isCopierTemplate: boolean
   } | null
+  // New: Multiple repositories per project
+  repositories: ProjectRepositoryDetails[]
   app: {
     id: string
     name: string
@@ -549,4 +641,8 @@ export interface ProjectWithDetails extends Project {
     name: string
     directory: string | null
   } | null
+  tags: Tag[] // Project tags
+  attachments: ProjectAttachment[] // Project attachments
+  links: ProjectLink[] // Project links
+  taskCount: number // Number of tasks in this project
 }
