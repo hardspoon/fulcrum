@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -164,42 +164,23 @@ export function getLegacyViboraDir(): string {
 /**
  * Checks if migration from ~/.vibora is needed.
  * Returns true if:
- * - ~/.vibora exists and has contents
- * - ~/.fulcrum either doesn't exist or is empty
+ * - ~/.vibora/vibora.db exists
+ * - ~/.fulcrum/fulcrum.db doesn't exist
  */
 export function needsViboraMigration(): boolean {
   const viboraDir = getLegacyViboraDir()
   const fulcrumDir = join(homedir(), '.fulcrum')
 
-  // Check if ~/.vibora exists and has contents
-  if (!existsSync(viboraDir)) {
+  const viboraDbPath = join(viboraDir, 'vibora.db')
+  const fulcrumDbPath = join(fulcrumDir, 'fulcrum.db')
+
+  // Check if ~/.vibora/vibora.db exists
+  if (!existsSync(viboraDbPath)) {
     return false
   }
 
-  try {
-    const viboraContents = readdirSync(viboraDir)
-    if (viboraContents.length === 0) {
-      return false
-    }
-  } catch {
-    return false
-  }
-
-  // Check if ~/.fulcrum already exists with contents
-  if (existsSync(fulcrumDir)) {
-    try {
-      const fulcrumContents = readdirSync(fulcrumDir)
-      // Only skip if fulcrum has meaningful content (not just empty or minimal)
-      if (fulcrumContents.length > 0) {
-        return false
-      }
-    } catch {
-      // If we can't read it, assume we don't need to migrate
-      return false
-    }
-  }
-
-  return true
+  // Migration needed if fulcrum.db doesn't exist yet
+  return !existsSync(fulcrumDbPath)
 }
 
 /**
