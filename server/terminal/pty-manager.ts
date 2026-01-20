@@ -38,10 +38,20 @@ export class PTYManager {
       .where(ne(terminals.status, 'exited'))
       .all()
 
+    log.pty.info('Restoring terminals from database', {
+      count: storedTerminals.length,
+      ids: storedTerminals.map((t) => t.id),
+      cwds: storedTerminals.map((t) => t.cwd),
+    })
+
     const MAX_RETRIES = 3
     const RETRY_DELAY_MS = 100
+    let restoredCount = 0
+    let skippedCount = 0
 
     for (const record of storedTerminals) {
+      const socketPath = dtach.getSocketPath(record.id)
+
       // Retry socket check a few times with small delays to handle timing issues
       let socketFound = false
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -55,7 +65,24 @@ export class PTYManager {
       }
 
       if (socketFound) {
-        // Session exists - create TerminalSession object (but don't attach yet)
+        // Validate the socket is actually functional
+        const socketValid = dtach.validateSocket(record.id)
+        if (!socketValid) {
+          log.pty.warn('Socket exists but validation failed (stale)', {
+            terminalId: record.id,
+            name: record.name,
+            socketPath,
+          })
+          // Mark as exited since socket is stale
+          db.update(terminals)
+            .set({ status: 'exited', updatedAt: new Date().toISOString() })
+            .where(eq(terminals.id, record.id))
+            .run()
+          skippedCount++
+          continue
+        }
+
+        // Session exists and is valid - create TerminalSession object (but don't attach yet)
         const session = new TerminalSession({
           id: record.id,
           name: record.name,
@@ -73,23 +100,36 @@ export class PTYManager {
           },
         })
         this.sessions.set(record.id, session)
-        log.pty.info('Restored terminal', { terminalId: record.id, name: record.name })
+        log.pty.info('Socket found and valid for terminal', {
+          terminalId: record.id,
+          name: record.name,
+          cwd: record.cwd,
+          socketPath,
+        })
+        restoredCount++
       } else {
         // Session is gone after retries - mark as exited
         db.update(terminals)
           .set({ status: 'exited', updatedAt: new Date().toISOString() })
           .where(eq(terminals.id, record.id))
           .run()
-        log.pty.warn('Terminal dtach socket not found after retries, marked as exited', {
+        log.pty.warn('Socket NOT found for terminal', {
           terminalId: record.id,
           name: record.name,
-          socketPath: dtach.getSocketPath(record.id),
+          cwd: record.cwd,
+          expectedPath: socketPath,
           fulcrumDir: getFulcrumDir(),
         })
+        skippedCount++
       }
     }
 
-    log.pty.info('Restored terminals', { count: this.sessions.size })
+    log.pty.info('Terminal restore complete', {
+      restored: restoredCount,
+      skipped: skippedCount,
+      total: storedTerminals.length,
+      restoredIds: Array.from(this.sessions.keys()),
+    })
   }
 
   create(options: {

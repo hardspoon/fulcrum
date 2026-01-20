@@ -236,17 +236,48 @@ export function TaskTerminal({ taskName, cwd, taskId, className, agent = 'claude
   // Wait for terminalsLoaded to ensure we have accurate knowledge of existing terminals
   // Use xtermOpened (not xtermReady) to avoid WebKit rAF timing issues during navigation
   useEffect(() => {
-    if (!connected || !cwd || !xtermOpened || !terminalsLoaded) return
+    if (!connected || !cwd || !xtermOpened || !terminalsLoaded) {
+      log.taskTerminal.debug('Terminal effect: waiting for conditions', {
+        connected,
+        cwd,
+        xtermOpened,
+        terminalsLoaded,
+      })
+      return
+    }
+
+    log.taskTerminal.info('Looking for terminal', {
+      cwd,
+      terminalCount: terminals.length,
+      availableTerminals: terminals.map((t) => ({
+        id: t.id,
+        name: t.name,
+        cwd: t.cwd,
+        tabId: t.tabId,
+      })),
+    })
 
     // Look for an existing terminal with matching cwd
     const existingTerminal = terminals.find((t) => t.cwd === cwd)
     if (existingTerminal) {
+      log.taskTerminal.info('Found existing terminal', {
+        terminalId: existingTerminal.id,
+        name: existingTerminal.name,
+        cwd,
+      })
       setTerminalId(existingTerminal.id)
       return
     }
 
     // Create terminal only once
     if (!createdTerminalRef.current && termRef.current) {
+      log.taskTerminal.info('Creating new terminal', {
+        reason: 'no_existing_terminal_for_cwd',
+        cwd,
+        taskName,
+        taskId,
+        agent,
+      })
       createdTerminalRef.current = true
       setIsCreating(true)
       const { cols, rows } = termRef.current
@@ -268,6 +299,11 @@ export function TaskTerminal({ taskName, cwd, taskId, className, agent = 'claude
           taskName,
           serverPort,
         },
+      })
+    } else if (createdTerminalRef.current) {
+      log.taskTerminal.debug('Terminal creation already in progress', {
+        cwd,
+        createdTerminalRef: createdTerminalRef.current,
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startup props are captured once at creation time

@@ -126,35 +126,69 @@ export const terminalWebSocketHandlers: WSEvents = {
             }
           }
 
-          log.ws.debug('terminal:create request', { name, cwd: effectiveCwd, tabId, clientId: clientData.id, requestId, tempId })
+          // Get all existing terminals for comprehensive logging
+          const existingTerminals = ptyManager.listTerminals()
+
+          log.ws.info('terminal:create request received', {
+            name,
+            cwd: effectiveCwd,
+            tabId,
+            taskId,
+            clientId: clientData.id,
+            requestId,
+            tempId,
+            existingTerminalCount: existingTerminals.length,
+            existingTerminals: existingTerminals.map((t) => ({
+              id: t.id,
+              name: t.name,
+              cwd: t.cwd,
+              tabId: t.tabId,
+            })),
+          })
 
           // Prevent duplicate terminals for same cwd - but only for task terminals (no tabId)
           // Regular tabs can have multiple terminals in the same directory
           if (effectiveCwd && !tabId) {
-            const existing = ptyManager.listTerminals().find((t) => t.cwd === effectiveCwd && !t.tabId)
+            const existing = existingTerminals.find((t) => t.cwd === effectiveCwd && !t.tabId)
             if (existing) {
               // Return existing terminal instead of creating duplicate
-              log.ws.debug('terminal:create returning existing', { terminalId: existing.id, isNew: false, requestId, tempId })
+              log.ws.info('terminal:create DUPLICATE FOUND, returning existing', {
+                existingTerminalId: existing.id,
+                existingName: existing.name,
+                cwd: effectiveCwd,
+                requestId,
+                tempId,
+                clientId: clientData.id,
+              })
               clientData.attachedTerminals.add(existing.id)
               sendTo(ws, {
                 type: 'terminal:created',
                 payload: { terminal: existing, isNew: false, requestId, tempId },
               })
               break
+            } else {
+              // Log why no duplicate was found
+              const taskTerminals = existingTerminals.filter((t) => !t.tabId)
+              log.ws.debug('terminal:create no duplicate found', {
+                cwd: effectiveCwd,
+                taskTerminalCount: taskTerminals.length,
+                taskTerminalCwds: taskTerminals.map((t) => t.cwd),
+              })
             }
           }
 
           const terminal = ptyManager.create({ name, cols, rows, cwd: effectiveCwd, tabId, positionInTab, taskId })
-          log.ws.info('terminal:create created new', {
+          log.ws.info('terminal:create CREATED NEW', {
             terminalId: terminal.id,
             name,
-            cwd,
+            cwd: effectiveCwd,
+            taskId,
             clientId: clientData.id,
             requestId,
             tempId,
           })
           clientData.attachedTerminals.add(terminal.id)
-          log.ws.info('terminal:create added to attachedTerminals', {
+          log.ws.debug('terminal:create added to attachedTerminals', {
             terminalId: terminal.id,
             clientId: clientData.id,
             totalAttached: clientData.attachedTerminals.size,

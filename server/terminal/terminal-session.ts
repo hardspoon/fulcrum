@@ -145,9 +145,20 @@ export class TerminalSession {
 
   // Attach to an existing dtach session (used after server restart)
   async attach(): Promise<void> {
-    if (this.pty) return // Already attached
+    if (this.pty) {
+      log.terminal.debug('Attach called but already attached', { terminalId: this.id })
+      return // Already attached
+    }
 
     const dtach = getDtachService()
+    const socketPath = dtach.getSocketPath(this.id)
+
+    log.terminal.info('Attach starting', {
+      terminalId: this.id,
+      name: this._name,
+      cwd: this.cwd,
+      socketPath,
+    })
 
     // Wait for socket to appear (handles race condition on first dtach use)
     // dtach -n spawns and exits, but socket creation may take a few ms
@@ -158,6 +169,7 @@ export class TerminalSession {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       if (dtach.hasSession(this.id)) {
         socketFound = true
+        log.terminal.debug('Socket found', { terminalId: this.id, attempt })
         break
       }
       if (attempt < MAX_ATTEMPTS - 1) {
@@ -166,7 +178,11 @@ export class TerminalSession {
     }
 
     if (!socketFound) {
-      log.terminal.error('dtach socket not found after polling', { terminalId: this.id })
+      log.terminal.error('Attach failed: dtach socket not found after polling', {
+        terminalId: this.id,
+        socketPath,
+        maxAttempts: MAX_ATTEMPTS,
+      })
       this.status = 'exited'
       this.exitCode = 1
       this.updateDb({ status: 'exited', exitCode: 1 })
@@ -197,8 +213,16 @@ export class TerminalSession {
 
       this.setupPtyHandlers()
       this.flushInputQueue()
+      log.terminal.info('Attach succeeded', {
+        terminalId: this.id,
+        name: this._name,
+        cwd: this.cwd,
+      })
     } catch (err) {
-      log.terminal.error('Failed to attach to dtach', { terminalId: this.id, error: String(err) })
+      log.terminal.error('Attach failed: exception during spawn', {
+        terminalId: this.id,
+        error: String(err),
+      })
       this.status = 'error'
       this.updateDb({ status: 'error' })
       this.onExit(1, 'error')
@@ -219,16 +243,34 @@ export class TerminalSession {
     this.pty.onExit(({ exitCode }: { exitCode: number }) => {
       this.pty = null
 
+      log.terminal.info('PTY onExit fired', {
+        terminalId: this.id,
+        exitCode,
+        isDetaching: this.isDetaching,
+      })
+
       // If we're intentionally detaching, don't mark as exited
       if (this.isDetaching) {
+        log.terminal.debug('Ignoring onExit because isDetaching=true', { terminalId: this.id })
         return
       }
 
       const dtach = getDtachService()
       const socketExists = dtach.hasSession(this.id)
 
+      log.terminal.debug('PTY onExit socket check', {
+        terminalId: this.id,
+        socketExists,
+        exitCode,
+      })
+
       if (!socketExists) {
         // Session actually ended (socket gone)
+        log.terminal.info('onShouldDestroy triggered: socket gone', {
+          terminalId: this.id,
+          exitCode,
+          reason: 'socket_not_found',
+        })
         this.status = 'exited'
         this.exitCode = exitCode
         this.updateDb({ status: 'exited', exitCode })
@@ -238,17 +280,23 @@ export class TerminalSession {
       } else if (exitCode !== 0) {
         // Socket file exists but dtach failed to connect (stale socket - "Connection refused")
         // This happens when the underlying process died but socket file remains
-        log.terminal.warn('dtach attachment failed - stale socket detected', {
+        log.terminal.warn('onShouldDestroy triggered: stale socket', {
           terminalId: this.id,
           exitCode,
+          reason: 'stale_socket',
         })
         this.status = 'error'
         this.exitCode = exitCode
         this.updateDb({ status: 'error', exitCode })
         this.onExit(exitCode, 'error')
         this.onShouldDestroy?.()
+      } else {
+        // dtach is still running with exit code 0, we just detached normally
+        log.terminal.debug('PTY exited normally (detached), no destroy triggered', {
+          terminalId: this.id,
+          exitCode,
+        })
       }
-      // Otherwise dtach is still running with exit code 0, we just detached normally
     })
   }
 
@@ -266,6 +314,12 @@ export class TerminalSession {
   }
 
   detach(): void {
+    log.terminal.info('Detaching terminal', {
+      terminalId: this.id,
+      name: this._name,
+      hasPty: !!this.pty,
+    })
+
     // Always save buffer to disk before detaching
     this.buffer.saveToDisk()
 
@@ -329,6 +383,13 @@ export class TerminalSession {
   }
 
   kill(): void {
+    log.terminal.info('Killing terminal', {
+      terminalId: this.id,
+      name: this._name,
+      cwd: this.cwd,
+      hasPty: !!this.pty,
+    })
+
     // Kill the PTY connection (our attachment to dtach)
     if (this.pty) {
       this.pty.kill()
@@ -343,14 +404,17 @@ export class TerminalSession {
     const socketPath = dtach.getSocketPath(this.id)
     try {
       unlinkSync(socketPath)
+      log.terminal.debug('Socket file removed', { terminalId: this.id, socketPath })
     } catch {
       // Socket might already be gone
+      log.terminal.debug('Socket file already gone', { terminalId: this.id, socketPath })
     }
 
     // Delete saved buffer file
     this.buffer.deleteFromDisk()
 
     this.status = 'exited'
+    log.terminal.info('Terminal killed', { terminalId: this.id })
   }
 
   isRunning(): boolean {

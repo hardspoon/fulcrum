@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'fs'
 import * as path from 'path'
 import { execSync } from 'child_process'
 import { getFulcrumDir } from '../lib/settings'
+import { log } from '../lib/logger'
 
 // Find process IDs by matching command line arguments
 function findProcessesByArg(searchArg: string): number[] {
@@ -112,6 +113,66 @@ export class DtachService {
 
   hasSession(terminalId: string): boolean {
     return existsSync(this.getSocketPath(terminalId))
+  }
+
+  // Validate that a socket is actually functional (not stale)
+  // This tries to connect to the socket briefly to check if dtach is listening
+  validateSocket(terminalId: string): boolean {
+    const socketPath = this.getSocketPath(terminalId)
+
+    // First check if the socket file exists
+    if (!existsSync(socketPath)) {
+      log.pty.debug('validateSocket: socket file does not exist', { terminalId, socketPath })
+      return false
+    }
+
+    // Check if it's actually a socket file
+    try {
+      const stats = statSync(socketPath)
+      if (!stats.isSocket()) {
+        log.pty.warn('validateSocket: path exists but is not a socket', {
+          terminalId,
+          socketPath,
+          mode: stats.mode,
+        })
+        return false
+      }
+    } catch (err) {
+      log.pty.warn('validateSocket: failed to stat socket', {
+        terminalId,
+        socketPath,
+        error: String(err),
+      })
+      return false
+    }
+
+    // Try to connect to the socket using socat or nc with a short timeout
+    // dtach -a would work but spawns a shell - instead we just probe the socket
+    try {
+      // Use a simple test: check if there's a dtach process using this socket
+      const dtachPids = findProcessesByArg(socketPath)
+      if (dtachPids.length === 0) {
+        log.pty.warn('validateSocket: no dtach process found for socket', {
+          terminalId,
+          socketPath,
+        })
+        return false
+      }
+
+      log.pty.debug('validateSocket: dtach process found', {
+        terminalId,
+        socketPath,
+        pids: dtachPids,
+      })
+      return true
+    } catch (err) {
+      log.pty.warn('validateSocket: failed to find dtach process', {
+        terminalId,
+        socketPath,
+        error: String(err),
+      })
+      return false
+    }
   }
 
   // Get command to create a new detached session
