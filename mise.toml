@@ -160,22 +160,56 @@ run = """
 set -e
 set -o pipefail
 
-# Run linter first
+# Run linter first (doesn't need isolation)
 echo "Running linter..." >&2
 bunx eslint . || exit 1
 
-# Run tests
+# Create isolated test directories BEFORE bun starts.
+# This is critical because Bun caches os.homedir() at process startup,
+# before any JavaScript runs (including preload scripts).
+# Setting HOME here ensures the cached value is the temp directory.
+export HOME=$(mktemp -d -t fulcrum-test-home-XXXXXX)
+export FULCRUM_DIR=$(mktemp -d -t fulcrum-test-dir-XXXXXX)
+echo "[test] Isolated environment: HOME=$HOME FULCRUM_DIR=$FULCRUM_DIR" >&2
+
+# Run tests serially to avoid env var conflicts between test files
 echo "Running tests..." >&2
 if [ "$usage_verbose" = "true" ]; then
-  bun test
+  bun test --max-concurrency=1
 else
-  bun test 2>&1 | grep -E '(^bun test|FAIL|Error|error:|✗|passed|failed|^[0-9]+ tests)' || [ ${PIPESTATUS[0]} -eq 0 ]
+  # Filter to show only failures and summary (exclude diff lines starting with +/-)
+  bun test --max-concurrency=1 2>&1 | grep -v '^[+-]' | grep -E '(^bun test|[(]fail[)]|✗|expect[(]received[)]|^ *[0-9]+ (pass|fail|skip)|^Ran [0-9]+ tests)' || [ ${PIPESTATUS[0]} -eq 0 ]
 fi
 """
 
+[tasks."test:file"]
+description = "Run specific test file(s) with isolation"
+usage = 'arg "<files>..." help="Test file paths"'
+run = """
+#!/usr/bin/env bash
+set -e
+
+# Create isolated test directories before bun starts
+export HOME=$(mktemp -d -t fulcrum-test-home-XXXXXX)
+export FULCRUM_DIR=$(mktemp -d -t fulcrum-test-dir-XXXXXX)
+echo "[test:file] Isolated environment: HOME=$HOME FULCRUM_DIR=$FULCRUM_DIR" >&2
+
+bun test ${usage_files}
+"""
+
 [tasks."test:watch"]
-description = "Run tests in watch mode"
-run = "bun test --watch"
+description = "Run tests in watch mode (with isolation)"
+run = """
+#!/usr/bin/env bash
+set -e
+
+# Create isolated test directories before bun starts
+export HOME=$(mktemp -d -t fulcrum-test-home-XXXXXX)
+export FULCRUM_DIR=$(mktemp -d -t fulcrum-test-dir-XXXXXX)
+echo "[test:watch] Isolated environment: HOME=$HOME FULCRUM_DIR=$FULCRUM_DIR" >&2
+
+bun test --watch
+"""
 
 [tasks.lint]
 description = "Run ESLint"

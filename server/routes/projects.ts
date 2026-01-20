@@ -541,10 +541,28 @@ app.post('/', async (c) => {
         return c.json({ error: 'Failed to create or find repository' }, 500)
       }
 
-      // Check if project already exists for this repository (legacy check)
-      const existingProject = db.select().from(projects).where(eq(projects.repositoryId, repo.id)).get()
-      if (existingProject) {
-        return c.json({ error: 'Project already exists for this repository' }, 400)
+      // Check if repository already belongs to a project (via join table)
+      const existingJoinLink = db
+        .select()
+        .from(projectRepositories)
+        .where(eq(projectRepositories.repositoryId, repo.id))
+        .get()
+
+      if (existingJoinLink) {
+        const existingProject = db.select().from(projects).where(eq(projects.id, existingJoinLink.projectId)).get()
+        return c.json({
+          error: 'Repository already belongs to a project',
+          conflictProject: existingProject ? { id: existingProject.id, name: existingProject.name } : null
+        }, 409)
+      }
+
+      // Also check legacy repositoryId field
+      const legacyProject = db.select().from(projects).where(eq(projects.repositoryId, repo.id)).get()
+      if (legacyProject) {
+        return c.json({
+          error: 'Repository already belongs to a project',
+          conflictProject: { id: legacyProject.id, name: legacyProject.name }
+        }, 409)
       }
     }
 

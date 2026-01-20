@@ -553,16 +553,31 @@ export function getNotificationSettings(): NotificationSettings {
   const settingsPath = getSettingsPath()
 
   if (!fs.existsSync(settingsPath)) {
-    return { ...DEFAULT_NOTIFICATION_SETTINGS, _updatedAt: Date.now() }
+    // Initialize settings file with defaults including timestamp
+    const defaultSettings = { ...DEFAULT_NOTIFICATION_SETTINGS, _updatedAt: Date.now() }
+    fs.writeFileSync(settingsPath, JSON.stringify({ notifications: defaultSettings }, null, 2), 'utf-8')
+    return defaultSettings
   }
 
   try {
     const content = fs.readFileSync(settingsPath, 'utf-8')
-    const parsed = JSON.parse(content)
+    const parsed = JSON.parse(content) as Record<string, unknown>
     const notifications = parsed.notifications as Partial<NotificationSettings> | undefined
 
     if (!notifications) {
-      return { ...DEFAULT_NOTIFICATION_SETTINGS, _updatedAt: Date.now() }
+      // Initialize notifications with defaults including timestamp
+      const defaultSettings = { ...DEFAULT_NOTIFICATION_SETTINGS, _updatedAt: Date.now() }
+      parsed.notifications = defaultSettings
+      fs.writeFileSync(settingsPath, JSON.stringify(parsed, null, 2), 'utf-8')
+      return defaultSettings
+    }
+
+    // If _updatedAt is missing, add it and save to ensure consistency
+    if (notifications._updatedAt === undefined) {
+      const timestamp = Date.now()
+      notifications._updatedAt = timestamp
+      parsed.notifications = notifications
+      fs.writeFileSync(settingsPath, JSON.stringify(parsed, null, 2), 'utf-8')
     }
 
     return {
@@ -573,10 +588,13 @@ export function getNotificationSettings(): NotificationSettings {
       slack: { enabled: false, ...notifications.slack },
       discord: { enabled: false, ...notifications.discord },
       pushover: { enabled: false, ...notifications.pushover },
-      _updatedAt: notifications._updatedAt ?? Date.now(),
+      _updatedAt: notifications._updatedAt!,
     }
   } catch {
-    return { ...DEFAULT_NOTIFICATION_SETTINGS, _updatedAt: Date.now() }
+    // File is corrupt, reinitialize with defaults
+    const defaultSettings = { ...DEFAULT_NOTIFICATION_SETTINGS, _updatedAt: Date.now() }
+    fs.writeFileSync(settingsPath, JSON.stringify({ notifications: defaultSettings }, null, 2), 'utf-8')
+    return defaultSettings
   }
 }
 

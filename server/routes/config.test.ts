@@ -1,90 +1,5 @@
-// IMPORTANT: Mock MUST be called BEFORE any imports that use the settings module
-// This prevents tests from modifying real user files (~/.fulcrum/settings.json, ~/.claude/settings.json)
-import { mock } from 'bun:test'
-
-// In-memory settings store for tests (isolated from production)
-let mockNotificationSettings = {
-  enabled: true,
-  toast: { enabled: true },
-  desktop: { enabled: true },
-  sound: { enabled: true, customSoundFile: null },
-  slack: { enabled: false, webhookUrl: '' },
-  discord: { enabled: false, webhookUrl: '' },
-  pushover: { enabled: false, appToken: '', userKey: '' },
-  _updatedAt: Date.now(),
-}
-
-let mockZAiSettings = {
-  enabled: false,
-  apiKey: null,
-  haikuModel: 'glm-4.5-air',
-  sonnetModel: 'glm-4.7',
-  opusModel: 'glm-4.7',
-}
-
-mock.module('../lib/settings', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const actual = require('../lib/settings')
-  return {
-    ...actual,
-    // Mock notification settings to use in-memory store (not production files)
-    getNotificationSettings: () => ({ ...mockNotificationSettings }),
-    updateNotificationSettings: (updates: Partial<typeof mockNotificationSettings>, clientTimestamp?: number) => {
-      // Check for conflicts if client timestamp provided
-      if (clientTimestamp !== undefined && clientTimestamp !== mockNotificationSettings._updatedAt) {
-        return { conflict: true, current: { ...mockNotificationSettings } }
-      }
-      mockNotificationSettings = {
-        ...mockNotificationSettings,
-        ...updates,
-        toast: { ...mockNotificationSettings.toast, ...updates.toast },
-        desktop: { ...mockNotificationSettings.desktop, ...updates.desktop },
-        sound: { ...mockNotificationSettings.sound, ...updates.sound },
-        slack: { ...mockNotificationSettings.slack, ...updates.slack },
-        discord: { ...mockNotificationSettings.discord, ...updates.discord },
-        pushover: { ...mockNotificationSettings.pushover, ...updates.pushover },
-        _updatedAt: Date.now(),
-      }
-      return { ...mockNotificationSettings }
-    },
-    // Mock z.ai settings to use in-memory store
-    getZAiSettings: () => ({ ...mockZAiSettings }),
-    updateZAiSettings: (updates: Partial<typeof mockZAiSettings>) => {
-      mockZAiSettings = { ...mockZAiSettings, ...updates }
-      return { ...mockZAiSettings }
-    },
-    // Mock functions that write to ~/.claude/* files (outside FULCRUM_DIR)
-    // These must NEVER modify real user files during tests
-    getClaudeSettings: () => ({}),
-    updateClaudeSettings: mock(() => {}),
-    getClaudeConfig: () => ({}),
-    updateClaudeConfig: mock(() => {}),
-    syncClaudeCodeTheme: mock(() => {}),
-  }
-})
-
-// Reset mock settings to defaults (call in beforeEach for test isolation)
-function resetMockSettings() {
-  mockNotificationSettings = {
-    enabled: true,
-    toast: { enabled: true },
-    desktop: { enabled: true },
-    sound: { enabled: true, customSoundFile: null },
-    slack: { enabled: false, webhookUrl: '' },
-    discord: { enabled: false, webhookUrl: '' },
-    pushover: { enabled: false, appToken: '', userKey: '' },
-    _updatedAt: Date.now(),
-  }
-  mockZAiSettings = {
-    enabled: false,
-    apiKey: null,
-    haikuModel: 'glm-4.5-air',
-    sonnetModel: 'glm-4.7',
-    opusModel: 'glm-4.7',
-  }
-}
-
-// Now import test utilities and test framework
+// Config route tests using standard test environment
+// No mock.module() - uses setupTestEnv() for isolation like all other tests
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { createTestApp } from '../__tests__/fixtures/app'
 import { setupTestEnv, type TestEnv } from '../__tests__/utils/env'
@@ -93,7 +8,6 @@ describe('Config Routes', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
-    resetMockSettings() // Reset to defaults before each test
     testEnv = setupTestEnv()
   })
 

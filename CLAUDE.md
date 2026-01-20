@@ -37,15 +37,12 @@ Run tests via mise to get filtered output that shows only failures:
 mise run test         # Run all tests (quiet mode, errors only)
 mise run test -- -v   # Run all tests with verbose output
 mise run test:watch   # Run tests in watch mode
+mise run test:file server/routes/config.test.ts  # Run specific test file
 ```
 
-To run tests for a specific file:
+**Critical**: Never run `bun test` directly. Always use mise tasks for test isolation.
 
-```bash
-bun test server/routes/filesystem.test.ts
-```
-
-**Important**: Always use `mise run test` rather than `bun test` directly, as the mise task filters output to show only relevant information and prevents large test outputs from consuming the context window.
+The mise test tasks set `HOME` and `FULCRUM_DIR` to temp directories **before** Bun starts. This is necessary because Bun caches `os.homedir()` at process startup, before any JavaScript runs. Without this isolation, tests that write to settings files would corrupt production `~/.fulcrum/settings.json` and `~/.claude/settings.json`.
 
 ## CLI
 

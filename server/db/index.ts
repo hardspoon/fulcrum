@@ -437,6 +437,7 @@ function migrateProjectRepositoriesToJoinTable(sqlite: Database): void {
   if (!hasJoinTable) return
 
   // Find projects with repositoryId that don't have entries in the join table
+  // AND where the repository isn't already linked to another project (1:N constraint)
   const projectsToMigrate = sqlite
     .query(`
       SELECT p.id, p.repository_id
@@ -445,6 +446,10 @@ function migrateProjectRepositoriesToJoinTable(sqlite: Database): void {
         AND NOT EXISTS (
           SELECT 1 FROM project_repositories pr
           WHERE pr.project_id = p.id AND pr.repository_id = p.repository_id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM project_repositories pr2
+          WHERE pr2.repository_id = p.repository_id
         )
     `)
     .all() as Array<{ id: string; repository_id: string }>

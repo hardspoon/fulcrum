@@ -214,11 +214,11 @@ export const projects = sqliteTable('projects', {
   updatedAt: text('updated_at').notNull(),
 })
 
-// Project Repositories - M:N join table for projects and repositories
+// Project Repositories - 1:N join table (each repository belongs to one project)
 export const projectRepositories = sqliteTable('project_repositories', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),
-  repositoryId: text('repository_id').notNull(),
+  repositoryId: text('repository_id').notNull().unique(), // Enforce 1:N - each repo belongs to one project
   isPrimary: integer('is_primary', { mode: 'boolean' }).default(false),
   createdAt: text('created_at').notNull(),
 })
