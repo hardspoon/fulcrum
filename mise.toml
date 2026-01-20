@@ -286,7 +286,8 @@ description = "Typecheck CLI"
 run = "bunx tsc --noEmit -p cli/tsconfig.json"
 
 [tasks."cli:bundle"]
-description = "Bundle CLI package (assumes build already ran)"
+description = "Bundle CLI package for npm distribution"
+depends = ["build"]
 run = """
 set -e
 
@@ -347,7 +348,7 @@ echo "CLI bundle complete"
 
 [tasks."cli:build"]
 description = "Build CLI package for npm distribution"
-depends = ["build", "cli:bundle"]
+depends = ["cli:bundle"]
 
 [tasks."cli:publish"]
 description = "Publish CLI to npm"
