@@ -127,5 +127,49 @@
     "noApp": "Without App",
     "running": "Running",
     "archived": "Archived"
+  },
+  "detail": {
+    "clickToEdit": "Click to edit",
+    "actions": {
+      "task": "Task",
+      "repo": "Repo",
+      "link": "Link"
+    },
+    "sections": {
+      "repositories": "Repositories",
+      "links": "Links",
+      "attachments": "Attachments",
+      "tags": "Tags",
+      "notes": "Notes",
+      "activeTasks": "Active Tasks"
+    },
+    "addDescription": "Add a description...",
+    "save": "Save",
+    "edit": "Edit",
+    "done": "Done",
+    "add": "Add",
+    "cancel": "Cancel",
+    "noRepositories": "No repositories linked to this project.",
+    "linkExisting": "Link Existing",
+    "urlPlaceholder": "https://...",
+    "linkLabelPlaceholder": "Label (optional)",
+    "labelPlaceholder": "Label",
+    "removeLink": "Remove link",
+    "addLink": "Add link",
+    "addTag": "Add tag...",
+    "loadingAttachments": "Loading attachments...",
+    "uploading": "Uploading...",
+    "dropOrClick": "Drop files here or click to upload",
+    "dropOrClickShort": "Drop or click",
+    "attachmentTypes": "PDF, images, documents, archives (max 10MB)",
+    "noAttachments": "No attachments",
+    "noTags": "No tags",
+    "searchOrCreateTag": "Search or create tag...",
+    "createTag": "Create \"{{tag}}\"",
+    "noMatchingTags": "No matching tags",
+    "addNotes": "Add notes about this project...",
+    "noNotes": "No notes",
+    "noActiveTasks": "No active tasks",
+    "loading": "Loading..."
   }
 }

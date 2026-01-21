@@ -425,8 +425,8 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
     try {
       new URL(trimmedUrl)
     } catch {
-      toast.error('Invalid URL', {
-        description: 'Please enter a valid URL including the scheme (e.g., https://)',
+      toast.error(t('createModal.errors.invalidUrl'), {
+        description: t('createModal.errors.invalidUrlDescription'),
       })
       return
     }
@@ -484,15 +484,15 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="code">Code Task</SelectItem>
-                    <SelectItem value="non-code">Non-Code Task</SelectItem>
+                    <SelectItem value="code">{t('createModal.taskTypes.code')}</SelectItem>
+                    <SelectItem value="non-code">{t('createModal.taskTypes.nonCode')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <DialogDescription>
                 {taskType === 'code'
-                  ? 'Creates a git worktree and opens an AI coding agent.'
-                  : 'A general task without a git worktree or AI agent.'}
+                  ? t('createModal.taskDescriptions.code')
+                  : t('createModal.taskDescriptions.nonCode')}
               </DialogDescription>
             </DialogHeader>
 
@@ -551,7 +551,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
               {/* Project selector for non-code tasks */}
               {taskType === 'non-code' && (
                 <Field>
-                  <FieldLabel>Project (optional)</FieldLabel>
+                  <FieldLabel>{t('createModal.fields.project')}</FieldLabel>
                   <Select
                     value={selectedProjectId || '_none'}
                     onValueChange={(value) => setSelectedProjectId(value === '_none' ? null : value)}
@@ -560,11 +560,11 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                       <SelectValue>
                         {selectedProjectId
                           ? projects?.find((p) => p.id === selectedProjectId)?.name || 'Select project'
-                          : 'No project (Inbox)'}
+                          : t('createModal.noProject')}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="_none">No project (Inbox)</SelectItem>
+                      <SelectItem value="_none">{t('createModal.noProject')}</SelectItem>
                       {projects?.map((project) => (
                         <SelectItem key={project.id} value={project.id}>
                           {project.name}
@@ -573,7 +573,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                     </SelectContent>
                   </Select>
                   <FieldDescription>
-                    Tasks without a project appear in the Inbox.
+                    {t('createModal.projectHint')}
                   </FieldDescription>
                 </Field>
               )}
@@ -762,7 +762,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
               {/* Labels and Due Date row - always at bottom */}
               <div className="flex gap-3">
                 <Field className="flex-1">
-                  <FieldLabel htmlFor="labels">Labels</FieldLabel>
+                  <FieldLabel htmlFor="labels">{t('createModal.fields.labels')}</FieldLabel>
                   <div className="flex flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 min-h-[36px]">
                     {labels.map((label) => (
                       <span
@@ -786,18 +786,18 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                       onChange={(e) => setLabelInput(e.target.value)}
                       onKeyDown={handleLabelKeyDown}
                       onBlur={handleAddLabel}
-                      placeholder={labels.length === 0 ? 'Add labels...' : ''}
+                      placeholder={labels.length === 0 ? t('createModal.fields.labelsPlaceholder') : ''}
                       className="flex-1 min-w-[60px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                     />
                   </div>
                 </Field>
 
                 <Field className="w-40">
-                  <FieldLabel>Due Date</FieldLabel>
+                  <FieldLabel>{t('createModal.fields.dueDate')}</FieldLabel>
                   <DatePickerPopover
                     value={dueDate || null}
                     onChange={(date) => setDueDate(date || '')}
-                    placeholder="Set date"
+                    placeholder={t('createModal.fields.dueDatePlaceholder')}
                     showClear
                     className="border border-input rounded-md px-3 py-2 w-full justify-start"
                   />
@@ -806,12 +806,12 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
 
               {/* Notes */}
               <Field>
-                <FieldLabel htmlFor="notes">Notes</FieldLabel>
+                <FieldLabel htmlFor="notes">{t('createModal.fields.notes')}</FieldLabel>
                 <textarea
                   id="notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Add notes..."
+                  placeholder={t('createModal.fields.notesPlaceholder')}
                   rows={2}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
                 />
@@ -819,7 +819,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
 
               {/* Links */}
               <Field>
-                <FieldLabel>Links</FieldLabel>
+                <FieldLabel>{t('createModal.fields.links')}</FieldLabel>
                 <div className="space-y-2">
                   {pendingLinks.length > 0 && (
                     <div className="flex flex-wrap gap-1">
@@ -847,7 +847,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                       value={linkUrlInput}
                       onChange={(e) => setLinkUrlInput(e.target.value)}
                       onKeyDown={handleLinkKeyDown}
-                      placeholder="https://..."
+                      placeholder={t('createModal.fields.urlPlaceholder')}
                       className="flex-1 h-8 text-sm"
                     />
                     <Input
@@ -855,7 +855,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                       value={linkLabelInput}
                       onChange={(e) => setLinkLabelInput(e.target.value)}
                       onKeyDown={handleLinkKeyDown}
-                      placeholder="Label (optional)"
+                      placeholder={t('createModal.fields.linkLabelPlaceholder')}
                       className="w-28 h-8 text-sm"
                     />
                     <Button
@@ -874,7 +874,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
 
               {/* Attachments */}
               <Field>
-                <FieldLabel>Attachments</FieldLabel>
+                <FieldLabel>{t('createModal.fields.attachments')}</FieldLabel>
                 <div className="space-y-2">
                   <input
                     ref={attachmentInputRef}
@@ -892,7 +892,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                     onClick={() => attachmentInputRef.current?.click()}
                   >
                     <HugeiconsIcon icon={Attachment01Icon} size={14} className="mr-2" />
-                    {pendingFiles.length === 0 ? 'Add attachments...' : 'Add more files...'}
+                    {pendingFiles.length === 0 ? t('createModal.fields.addAttachments') : t('createModal.fields.addMoreFiles')}
                   </Button>
                   {pendingFiles.length > 0 && (
                     <div className="flex flex-wrap gap-1">
@@ -925,7 +925,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                     onCheckedChange={setStartImmediately}
                     size="sm"
                   />
-                  <span className="text-sm text-muted-foreground">Start work immediately</span>
+                  <span className="text-sm text-muted-foreground">{t('createModal.startImmediately')}</span>
                 </label>
               )}
               <DialogClose render={<Button variant="outline" type="button" className="border-destructive text-destructive hover:bg-destructive hover:text-white" />}>
