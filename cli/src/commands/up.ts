@@ -18,6 +18,7 @@ import {
   installUv,
 } from '../utils/install'
 import { getDependency, getInstallMethod, getInstallCommand } from '../utils/dependencies'
+import { installClaudePlugin, needsPluginUpdate } from './claude'
 import pkg from '../../../package.json'
 
 /**
@@ -122,6 +123,13 @@ export async function handleUpCommand(flags: Record<string, string>) {
         ExitCodes.ERROR
       )
     }
+  }
+
+  // Auto-install/update Claude Code plugin if Claude is installed
+  if (isClaudeInstalled() && needsPluginUpdate()) {
+    console.error('Updating Fulcrum plugin for Claude Code...')
+    await installClaudePlugin({ silent: true })
+    console.error('✓ Fulcrum plugin updated')
   }
 
   // Check if already running
