@@ -323,7 +323,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
         tags: tags.length > 0 ? tags : undefined,
         dueDate: dueDate || null,
         notes: notes.trim() || null,
-        projectId: !isCodeTask ? selectedProjectId : undefined,
+        projectId: isCodeTask ? selectedRepoProject?.id : selectedProjectId,
       },
       {
         onSuccess: async (task) => {

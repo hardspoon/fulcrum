@@ -8,11 +8,12 @@ import { TerminalTabBar } from '@/components/terminal/terminal-tab-bar'
 import { TabEditDialog } from '@/components/terminal/tab-edit-dialog'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { TaskDaily01Icon, FilterIcon, ComputerTerminal01Icon, FolderLibraryIcon, Loading03Icon } from '@hugeicons/core-free-icons'
+import { TaskDaily01Icon, FilterIcon, ComputerTerminal01Icon, FolderLibraryIcon, Loading03Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -20,6 +21,7 @@ import { useTerminalStore, useStore } from '@/stores'
 import type { ITerminal, ITab } from '@/stores'
 import { useTasks } from '@/hooks/use-tasks'
 import { useRepositories } from '@/hooks/use-repositories'
+import { useProjects } from '@/hooks/use-projects'
 import { useTerminalViewState } from '@/hooks/use-terminal-view-state'
 import { useHotkeys } from '@/hooks/use-hotkeys'
 import { cn } from '@/lib/utils'
@@ -66,7 +68,7 @@ const LAST_TAB_STORAGE_KEY = 'fulcrum:lastTerminalTab'
 
 interface TerminalsSearch {
   tab?: string
-  repos?: string // comma-separated repo names for multi-select filter (for Tasks tab)
+  project?: string // single project ID filter (for Tasks tab)
   repoIds?: string // comma-separated repository IDs for multi-select filter (for Repos tab)
 }
 
@@ -77,7 +79,7 @@ interface TerminalsSearch {
 const TerminalsView = observer(function TerminalsView() {
   const { t } = useTranslation('terminals')
   const navigate = useNavigate()
-  const { tab: tabFromUrl, repos: reposFilter, repoIds: repoIdsFilter } = useSearch({ from: '/terminals/' })
+  const { tab: tabFromUrl, project: projectFilter, repoIds: repoIdsFilter } = useSearch({ from: '/terminals/' })
   const {
     terminals,
     tabs,
@@ -116,27 +118,23 @@ const TerminalsView = observer(function TerminalsView() {
   const setActiveTab = useCallback(
     (tabId: string) => {
       // Preserve filters only for the relevant tab type
-      const repos = tabId === ALL_TASKS_TAB_ID ? reposFilter : undefined
+      const project = tabId === ALL_TASKS_TAB_ID ? projectFilter : undefined
       const repoIds = tabId === ALL_REPOS_TAB_ID ? repoIdsFilter : undefined
-      navigate({ to: '/terminals', search: { tab: tabId, repos, repoIds }, replace: true })
+      navigate({ to: '/terminals', search: { tab: tabId, project, repoIds }, replace: true })
     },
-    [navigate, reposFilter, repoIdsFilter]
+    [navigate, projectFilter, repoIdsFilter]
   )
 
-  // Toggle a project in the task filter multi-select
-  const toggleTaskProjectFilter = useCallback(
-    (projectId: string, checked: boolean) => {
-      const currentIds = reposFilter?.split(',').filter(Boolean) ?? []
-      const newIds = checked
-        ? [...currentIds, projectId]
-        : currentIds.filter((id) => id !== projectId)
+  // Set project filter (single-select)
+  const setTaskProjectFilter = useCallback(
+    (projectId: string | undefined) => {
       navigate({
         to: '/terminals',
-        search: (prev) => ({ ...prev, repos: newIds.length > 0 ? newIds.join(',') : undefined }),
+        search: (prev) => ({ ...prev, project: projectId }),
         replace: true,
       })
     },
-    [navigate, reposFilter]
+    [navigate]
   )
 
   // Get raw store for MobX reaction (observer() doesn't help with useEffect dependencies)
@@ -216,6 +214,7 @@ const TerminalsView = observer(function TerminalsView() {
 
   const { data: tasks = [], status: tasksStatus } = useTasks()
   const { data: repositories = [] } = useRepositories()
+  const { data: projects = [] } = useProjects()
 
   // Map repository path to repository id for linking
   const repoIdByPath = useMemo(() => {
@@ -278,42 +277,73 @@ const TerminalsView = observer(function TerminalsView() {
     return map
   }, [tasks, repoIdByPath])
 
-  // Unique project IDs from active tasks for filtering (including 'inbox' for tasks without project)
-  const taskProjectOptions = useMemo(() => {
-    const projectIds = new Set<string>()
-    let hasInboxTasks = false
-    for (const task of tasks) {
-      if (ACTIVE_STATUSES.includes(task.status)) {
-        if (task.projectId) {
-          projectIds.add(task.projectId)
-        } else {
-          hasInboxTasks = true
+  // Create project ID to name mapping
+  const projectNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const project of projects) {
+      map.set(project.id, project.name)
+    }
+    return map
+  }, [projects])
+
+  // Map repository ID to project ID (for tasks that don't have projectId set directly)
+  const projectIdByRepoId = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const project of projects) {
+      if (project.repositories) {
+        for (const repo of project.repositories) {
+          map.set(repo.id, project.id)
         }
       }
     }
-    // Map project IDs to names for display (lookup from tasks)
-    const options: { id: string; name: string }[] = []
-    const seenIds = new Set<string>()
-    for (const task of tasks) {
-      if (task.projectId && projectIds.has(task.projectId) && !seenIds.has(task.projectId)) {
-        seenIds.add(task.projectId)
-        // Use project name from task if available, fallback to ID
-        options.push({ id: task.projectId, name: task.projectId })
+    return map
+  }, [projects])
+
+  // Map repository path to project ID (for legacy tasks that only have repoPath)
+  const projectIdByRepoPath = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const project of projects) {
+      if (project.repositories) {
+        for (const repo of project.repositories) {
+          map.set(repo.path, project.id)
+        }
       }
+    }
+    return map
+  }, [projects])
+
+  // Get effective project ID for a task (direct projectId or derived from repository)
+  const getTaskProjectId = useCallback((task: { projectId: string | null; repositoryId: string | null; repoPath: string | null }) => {
+    if (task.projectId) return task.projectId
+    if (task.repositoryId) return projectIdByRepoId.get(task.repositoryId) ?? null
+    if (task.repoPath) return projectIdByRepoPath.get(task.repoPath) ?? null
+    return null
+  }, [projectIdByRepoId, projectIdByRepoPath])
+
+  // Unique project IDs from active tasks for filtering
+  const taskProjectOptions = useMemo(() => {
+    const projectIds = new Set<string>()
+    for (const task of tasks) {
+      if (ACTIVE_STATUSES.includes(task.status)) {
+        const projectId = getTaskProjectId(task)
+        if (projectId) {
+          projectIds.add(projectId)
+        }
+      }
+    }
+    const options: { id: string; name: string }[] = []
+    for (const projectId of projectIds) {
+      // Look up project name, fallback to ID if not found
+      const name = projectNameById.get(projectId) ?? projectId
+      options.push({ id: projectId, name })
     }
     // Sort by name
     options.sort((a, b) => a.name.localeCompare(b.name))
-    // Add inbox option if there are tasks without project
-    if (hasInboxTasks) {
-      options.push({ id: 'inbox', name: 'Inbox (No Project)' })
-    }
     return options
-  }, [tasks])
+  }, [tasks, projectNameById, getTaskProjectId])
 
-  // Parse selected task project IDs from URL (reuse repos param for backwards compat)
-  const selectedTaskProjectIds = useMemo(() => {
-    return reposFilter?.split(',').filter(Boolean) ?? []
-  }, [reposFilter])
+  // Selected project ID from URL (single project filter)
+  const selectedTaskProjectId = projectFilter
 
   // Map repository path to repository ID for linking terminals to repositories
   const repoPathToId = useMemo(() => {
@@ -474,12 +504,11 @@ const TerminalsView = observer(function TerminalsView() {
         .filter((t) => t.cwd && activeTaskWorktrees.has(t.cwd))
         .filter((t) => {
           // If no filter selected, show all (default behavior)
-          if (selectedTaskProjectIds.length === 0) return true
+          if (!selectedTaskProjectId) return true
           const task = tasks.find((task) => task.worktreePath === t.cwd)
           if (!task) return false
-          // Handle 'inbox' filter for tasks without project
-          if (selectedTaskProjectIds.includes('inbox') && !task.projectId) return true
-          return task.projectId && selectedTaskProjectIds.includes(task.projectId)
+          const taskProjectId = getTaskProjectId(task)
+          return taskProjectId === selectedTaskProjectId
         })
         .sort((a, b) => {
           const taskA = tasks.find((t) => t.worktreePath === a.cwd)
@@ -505,7 +534,7 @@ const TerminalsView = observer(function TerminalsView() {
       .filter((t) => t.tabId === activeTabId)
       .sort((a, b) => a.positionInTab - b.positionInTab)
       .map(toTerminalInfo)
-  }, [activeTabId, terminals, activeTaskWorktrees, selectedTaskProjectIds, tasks, repoPathToId, selectedRepoIds])
+  }, [activeTabId, terminals, activeTaskWorktrees, selectedTaskProjectId, tasks, repoPathToId, selectedRepoIds, getTaskProjectId])
 
   // Clear loading state when terminal appears (with minimum duration)
   useEffect(() => {
@@ -805,44 +834,33 @@ const TerminalsView = observer(function TerminalsView() {
               >
                 <HugeiconsIcon icon={FilterIcon} size={12} strokeWidth={2} className="text-muted-foreground" />
                 <span>
-                  {selectedTaskProjectIds.length === 0
-                    ? t('allProjects')
-                    : t('projectsSelected', { count: selectedTaskProjectIds.length })}
+                  {selectedTaskProjectId
+                    ? taskProjectOptions.find(o => o.id === selectedTaskProjectId)?.name ?? selectedTaskProjectId
+                    : t('allProjects')}
                 </span>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-64" align="end">
-                <div className="p-2 space-y-2">
-                  <div className="text-sm font-medium mb-2">{t('filterByRepo')}</div>
-                  {taskProjectOptions.map((option) => (
-                    <div key={option.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`project-filter-${option.id}`}
-                        checked={selectedTaskProjectIds.includes(option.id)}
-                        onCheckedChange={(checked) => toggleTaskProjectFilter(option.id, checked === true)}
-                      />
-                      <Label
-                        htmlFor={`project-filter-${option.id}`}
-                        className="text-sm cursor-pointer"
-                      >
-                        {option.name}
-                      </Label>
-                    </div>
-                  ))}
-                  {selectedTaskProjectIds.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-2"
-                      onClick={() => navigate({
-                        to: '/terminals',
-                        search: (prev) => ({ ...prev, repos: undefined }),
-                        replace: true,
-                      })}
-                    >
-                      {t('clearFilter')}
-                    </Button>
+                <DropdownMenuItem
+                  onClick={() => setTaskProjectFilter(undefined)}
+                  className="flex items-center justify-between"
+                >
+                  <span>{t('allProjects')}</span>
+                  {!selectedTaskProjectId && (
+                    <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} className="text-primary" />
                   )}
-                </div>
+                </DropdownMenuItem>
+                {taskProjectOptions.map((option) => (
+                  <DropdownMenuItem
+                    key={option.id}
+                    onClick={() => setTaskProjectFilter(option.id)}
+                    className="flex items-center justify-between"
+                  >
+                    <span>{option.name}</span>
+                    {selectedTaskProjectId === option.id && (
+                      <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} className="text-primary" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -971,7 +989,7 @@ export const Route = createFileRoute('/terminals/')({
   component: TerminalsView,
   validateSearch: (search: Record<string, unknown>): TerminalsSearch => ({
     tab: typeof search.tab === 'string' ? search.tab : undefined,
-    repos: typeof search.repos === 'string' ? search.repos : undefined,
+    project: typeof search.project === 'string' ? search.project : undefined,
     repoIds: typeof search.repoIds === 'string' ? search.repoIds : undefined,
   }),
 })
