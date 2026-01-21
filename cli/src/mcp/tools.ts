@@ -168,14 +168,19 @@ export function registerTools(server: McpServer, client: FulcrumClient) {
   // get_task
   server.tool(
     'get_task',
-    'Get details of a specific task by ID',
+    'Get details of a specific task by ID, including dependencies and attachments',
     {
       id: z.string().describe('Task ID (UUID)'),
     },
     async ({ id }) => {
       try {
-        const task = await client.getTask(id)
-        return formatSuccess(task)
+        // Fetch task with dependencies and attachments for comprehensive output
+        const [task, dependencies, attachments] = await Promise.all([
+          client.getTask(id),
+          client.getTaskDependencies(id),
+          client.listTaskAttachments(id),
+        ])
+        return formatSuccess({ ...task, dependencies, attachments })
       } catch (err) {
         return handleToolError(err)
       }

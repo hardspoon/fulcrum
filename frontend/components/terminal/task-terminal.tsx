@@ -424,6 +424,7 @@ export function TaskTerminal({ taskName, cwd, taskId, className, agent = 'claude
       const effectivePort = currentServerPort ?? 7777
       const portFlag = effectivePort !== 7777 ? ` --port=${effectivePort}` : ''
       const systemPrompt = 'You are working in a Fulcrum task worktree. ' +
+        'Reference the fulcrum skill for complete CLI documentation (attachments, dependencies, notifications, etc.). ' +
         'Commit after completing each logical unit of work (feature, fix, refactor) to preserve progress. ' +
         `When you finish working and need user input, run: fulcrum current-task review${portFlag}. ` +
         `When linking a PR: fulcrum current-task pr <url>${portFlag}. ` +

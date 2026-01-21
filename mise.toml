@@ -49,6 +49,13 @@ if [ -f "$plugin" ]; then
   echo "Updated $plugin"
 fi
 
+# Update plugin marketplace.json (installed plugin)
+plugin_marketplace="plugins/fulcrum/.claude-plugin/marketplace.json"
+if [ -f "$plugin_marketplace" ]; then
+  jq --arg v "$new_version" '.plugins[0].version = $v' "$plugin_marketplace" > "${plugin_marketplace}.tmp" && mv "${plugin_marketplace}.tmp" "$plugin_marketplace"
+  echo "Updated $plugin_marketplace"
+fi
+
 # Update neutralino.config.json
 neutralino_config="desktop/neutralino.config.json"
 if [ -f "$neutralino_config" ]; then
@@ -253,6 +260,16 @@ if [ -f "$PLUGIN" ]; then
   PLUGIN_VERSION=$(jq -r '.version' "$PLUGIN")
   if [ "$PLUGIN_VERSION" != "$VERSION" ]; then
     echo "ERROR: $PLUGIN version ($PLUGIN_VERSION) != package.json ($VERSION)" >&2
+    errors=$((errors + 1))
+  fi
+fi
+
+# Check plugin marketplace.json
+PLUGIN_MARKETPLACE="plugins/fulcrum/.claude-plugin/marketplace.json"
+if [ -f "$PLUGIN_MARKETPLACE" ]; then
+  PLUGIN_MARKETPLACE_VERSION=$(jq -r '.plugins[0].version' "$PLUGIN_MARKETPLACE")
+  if [ "$PLUGIN_MARKETPLACE_VERSION" != "$VERSION" ]; then
+    echo "ERROR: $PLUGIN_MARKETPLACE version ($PLUGIN_MARKETPLACE_VERSION) != package.json ($VERSION)" >&2
     errors=$((errors + 1))
   fi
 fi

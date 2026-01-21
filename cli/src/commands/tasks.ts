@@ -1,22 +1,84 @@
 import { basename } from 'node:path'
-import { FulcrumClient } from '../client'
+import { FulcrumClient, type TaskDependenciesResponse } from '../client'
 import { output, isJsonOutput } from '../utils/output'
 import { CliError, ExitCodes } from '../utils/errors'
-import type { TaskStatus, Task } from '@shared/types'
+import type { TaskStatus, Task, TaskAttachment } from '@shared/types'
 
 // DONE is intentionally excluded - tasks complete automatically when PRs merge
 const VALID_STATUSES: TaskStatus[] = ['TO_DO', 'IN_PROGRESS', 'IN_REVIEW', 'CANCELED']
 
-function formatTask(task: Task): void {
+function formatTask(
+  task: Task,
+  dependencies?: TaskDependenciesResponse,
+  attachments?: TaskAttachment[]
+): void {
   console.log(`${task.title}`)
-  console.log(`  ID:       ${task.id}`)
-  console.log(`  Status:   ${task.status}`)
-  if (task.repoName) console.log(`  Repo:     ${task.repoName}`)
-  if (task.branch) console.log(`  Branch:   ${task.branch}`)
-  if (task.prUrl) console.log(`  PR:       ${task.prUrl}`)
-  if (task.projectId) console.log(`  Project:  ${task.projectId}`)
-  if (task.labels && task.labels.length > 0) console.log(`  Labels:   ${task.labels.join(', ')}`)
-  if (task.dueDate) console.log(`  Due:      ${task.dueDate}`)
+  console.log(`  ID:         ${task.id}`)
+  console.log(`  Status:     ${task.status}`)
+
+  // Description
+  if (task.description) {
+    console.log(`  Description: ${task.description}`)
+  }
+
+  // Repository info
+  if (task.repoName) console.log(`  Repo:       ${task.repoName}`)
+  if (task.branch) console.log(`  Branch:     ${task.branch}`)
+  if (task.worktreePath) console.log(`  Worktree:   ${task.worktreePath}`)
+
+  // Links
+  if (task.prUrl) console.log(`  PR:         ${task.prUrl}`)
+  if (task.links && task.links.length > 0) {
+    console.log(`  Links:      ${task.links.map((l) => l.label || l.url).join(', ')}`)
+  }
+
+  // Labels and due date
+  if (task.labels && task.labels.length > 0) {
+    console.log(`  Labels:     ${task.labels.join(', ')}`)
+  }
+  if (task.dueDate) console.log(`  Due:        ${task.dueDate}`)
+
+  // Project
+  if (task.projectId) console.log(`  Project:    ${task.projectId}`)
+
+  // Agent info
+  console.log(`  Agent:      ${task.agent}`)
+  if (task.aiMode) console.log(`  AI Mode:    ${task.aiMode}`)
+  if (task.agentOptions && Object.keys(task.agentOptions).length > 0) {
+    console.log(`  Options:    ${JSON.stringify(task.agentOptions)}`)
+  }
+
+  // Dependencies (only shown for detailed view)
+  if (dependencies) {
+    if (dependencies.isBlocked) {
+      console.log(`  Blocked:    Yes`)
+    }
+    if (dependencies.dependsOn.length > 0) {
+      console.log(`  Depends on: ${dependencies.dependsOn.length} task(s)`)
+      for (const dep of dependencies.dependsOn) {
+        if (dep.task) {
+          console.log(`    - ${dep.task.title} [${dep.task.status}]`)
+        }
+      }
+    }
+    if (dependencies.dependents.length > 0) {
+      console.log(`  Blocking:   ${dependencies.dependents.length} task(s)`)
+    }
+  }
+
+  // Attachments (only shown for detailed view)
+  if (attachments && attachments.length > 0) {
+    console.log(`  Attachments: ${attachments.length} file(s)`)
+  }
+
+  // Notes
+  if (task.notes) {
+    console.log(`  Notes:      ${task.notes}`)
+  }
+
+  // Timestamps
+  console.log(`  Created:    ${task.createdAt}`)
+  if (task.startedAt) console.log(`  Started:    ${task.startedAt}`)
 }
 
 function formatTaskList(tasks: Task[]): void {
@@ -127,10 +189,15 @@ export async function handleTasksCommand(
         throw new CliError('MISSING_ID', 'Task ID required', ExitCodes.INVALID_ARGS)
       }
       const task = await client.getTask(id)
+      // Fetch dependencies and attachments for comprehensive output
+      const [dependencies, attachments] = await Promise.all([
+        client.getTaskDependencies(id),
+        client.listTaskAttachments(id),
+      ])
       if (isJsonOutput()) {
-        output(task)
+        output({ ...task, dependencies, attachments })
       } else {
-        formatTask(task)
+        formatTask(task, dependencies, attachments)
       }
       break
     }
@@ -427,10 +494,111 @@ export async function handleTasksCommand(
       break
     }
 
+    case 'attachments': {
+      // Sub-command for attachments: list, upload, delete, path
+      const [subAction, taskIdOrFile, fileOrAttachmentId] = positional
+
+      if (!subAction || subAction === 'help') {
+        console.log('Usage:')
+        console.log('  fulcrum tasks attachments list <task-id>')
+        console.log('  fulcrum tasks attachments upload <task-id> <file-path>')
+        console.log('  fulcrum tasks attachments delete <task-id> <attachment-id>')
+        console.log('  fulcrum tasks attachments path <task-id> <attachment-id>')
+        break
+      }
+
+      if (subAction === 'list') {
+        const taskId = taskIdOrFile
+        if (!taskId) {
+          throw new CliError('MISSING_ID', 'Task ID required', ExitCodes.INVALID_ARGS)
+        }
+        const attachments = await client.listTaskAttachments(taskId)
+        if (isJsonOutput()) {
+          output(attachments)
+        } else {
+          if (attachments.length === 0) {
+            console.log('No attachments')
+          } else {
+            console.log(`\nAttachments (${attachments.length}):`)
+            for (const att of attachments) {
+              console.log(`  ${att.filename}`)
+              console.log(`    ID:   ${att.id}`)
+              console.log(`    Type: ${att.mimeType}`)
+              console.log(`    Size: ${att.size} bytes`)
+            }
+          }
+        }
+        break
+      }
+
+      if (subAction === 'upload') {
+        const taskId = taskIdOrFile
+        const filePath = fileOrAttachmentId
+        if (!taskId) {
+          throw new CliError('MISSING_ID', 'Task ID required', ExitCodes.INVALID_ARGS)
+        }
+        if (!filePath) {
+          throw new CliError('MISSING_FILE', 'File path required', ExitCodes.INVALID_ARGS)
+        }
+        const attachment = await client.uploadTaskAttachment(taskId, filePath)
+        if (isJsonOutput()) {
+          output(attachment)
+        } else {
+          console.log(`Uploaded: ${attachment.filename}`)
+          console.log(`  ID: ${attachment.id}`)
+        }
+        break
+      }
+
+      if (subAction === 'delete') {
+        const taskId = taskIdOrFile
+        const attachmentId = fileOrAttachmentId
+        if (!taskId) {
+          throw new CliError('MISSING_ID', 'Task ID required', ExitCodes.INVALID_ARGS)
+        }
+        if (!attachmentId) {
+          throw new CliError('MISSING_ATTACHMENT_ID', 'Attachment ID required', ExitCodes.INVALID_ARGS)
+        }
+        await client.deleteTaskAttachment(taskId, attachmentId)
+        if (isJsonOutput()) {
+          output({ success: true, deleted: attachmentId })
+        } else {
+          console.log(`Deleted attachment: ${attachmentId}`)
+        }
+        break
+      }
+
+      if (subAction === 'path') {
+        const taskId = taskIdOrFile
+        const attachmentId = fileOrAttachmentId
+        if (!taskId) {
+          throw new CliError('MISSING_ID', 'Task ID required', ExitCodes.INVALID_ARGS)
+        }
+        if (!attachmentId) {
+          throw new CliError('MISSING_ATTACHMENT_ID', 'Attachment ID required', ExitCodes.INVALID_ARGS)
+        }
+        const result = await client.getTaskAttachmentPath(taskId, attachmentId)
+        if (isJsonOutput()) {
+          output(result)
+        } else {
+          console.log(`Path: ${result.path}`)
+          console.log(`Filename: ${result.filename}`)
+          console.log(`Type: ${result.mimeType}`)
+        }
+        break
+      }
+
+      throw new CliError(
+        'UNKNOWN_SUBACTION',
+        `Unknown attachments action: ${subAction}. Valid: list, upload, delete, path`,
+        ExitCodes.INVALID_ARGS
+      )
+    }
+
     default:
       throw new CliError(
         'UNKNOWN_ACTION',
-        `Unknown action: ${action}. Valid: list, get, create, update, move, delete, add-label, remove-label, set-due-date, add-dependency, remove-dependency, list-dependencies, labels`,
+        `Unknown action: ${action}. Valid: list, get, create, update, move, delete, add-label, remove-label, set-due-date, add-dependency, remove-dependency, list-dependencies, labels, attachments`,
         ExitCodes.INVALID_ARGS
       )
   }

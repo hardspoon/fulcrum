@@ -448,6 +448,128 @@ const tasksListDependenciesCommand = defineCommand({
   },
 })
 
+const tasksLabelsCommand = defineCommand({
+  meta: {
+    name: 'labels',
+    description: 'List all labels in use across tasks',
+  },
+  args: {
+    ...globalArgs,
+    search: {
+      type: 'string' as const,
+      description: 'Filter labels by substring match',
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('labels', [], toFlags(args))
+  },
+})
+
+const tasksAttachmentsListCommand = defineCommand({
+  meta: {
+    name: 'list',
+    description: 'List attachments for a task',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('attachments', ['list', args.id as string], toFlags(args))
+  },
+})
+
+const tasksAttachmentsUploadCommand = defineCommand({
+  meta: {
+    name: 'upload',
+    description: 'Upload a file to a task',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID',
+      required: true,
+    },
+    file: {
+      type: 'positional' as const,
+      description: 'File path to upload',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('attachments', ['upload', args.id as string, args.file as string], toFlags(args))
+  },
+})
+
+const tasksAttachmentsDeleteCommand = defineCommand({
+  meta: {
+    name: 'delete',
+    description: 'Delete an attachment from a task',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID',
+      required: true,
+    },
+    'attachment-id': {
+      type: 'positional' as const,
+      description: 'Attachment ID',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('attachments', ['delete', args.id as string, args['attachment-id'] as string], toFlags(args))
+  },
+})
+
+const tasksAttachmentsPathCommand = defineCommand({
+  meta: {
+    name: 'path',
+    description: 'Get local file path for an attachment',
+  },
+  args: {
+    ...globalArgs,
+    id: {
+      type: 'positional' as const,
+      description: 'Task ID',
+      required: true,
+    },
+    'attachment-id': {
+      type: 'positional' as const,
+      description: 'Attachment ID',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.json) setJsonOutput(true)
+    await handleTasksCommand('attachments', ['path', args.id as string, args['attachment-id'] as string], toFlags(args))
+  },
+})
+
+const tasksAttachmentsCommand = defineCommand({
+  meta: {
+    name: 'attachments',
+    description: 'Manage task attachments',
+  },
+  subCommands: {
+    list: tasksAttachmentsListCommand,
+    upload: tasksAttachmentsUploadCommand,
+    delete: tasksAttachmentsDeleteCommand,
+    path: tasksAttachmentsPathCommand,
+  },
+})
+
 const tasksCommand = defineCommand({
   meta: {
     name: 'tasks',
@@ -466,6 +588,8 @@ const tasksCommand = defineCommand({
     'add-dependency': tasksAddDependencyCommand,
     'remove-dependency': tasksRemoveDependencyCommand,
     'list-dependencies': tasksListDependenciesCommand,
+    labels: tasksLabelsCommand,
+    attachments: tasksAttachmentsCommand,
   },
 })
 
