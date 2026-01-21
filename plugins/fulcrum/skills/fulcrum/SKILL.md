@@ -199,7 +199,7 @@ search_tools { category: "filesystem" }
 
 ### Task Tools
 
-- `list_tasks` - List tasks with flexible filtering (search, labels, statuses, date range, overdue)
+- `list_tasks` - List tasks with flexible filtering (search, tags, statuses, date range, overdue)
 - `get_task` - Get task details by ID (includes dependencies and attachments)
 - `create_task` - Create a new task with worktree
 - `update_task` - Update task metadata
@@ -208,10 +208,10 @@ search_tools { category: "filesystem" }
 - `add_task_link` - Add URL link to task
 - `remove_task_link` - Remove link from task
 - `list_task_links` - List all task links
-- `add_task_tag` - Add a label to a task (returns similar labels to catch typos)
-- `remove_task_tag` - Remove a label from a task
+- `add_task_tag` - Add a tag to a task (returns similar tags to catch typos)
+- `remove_task_tag` - Remove a tag from a task
 - `set_task_due_date` - Set or clear task due date
-- `list_tags` - List all unique labels in use with optional search
+- `list_tags` - List all unique tags in use with optional search
 
 #### Task Dependencies
 
@@ -233,8 +233,8 @@ The `list_tasks` tool supports powerful filtering for AI agents:
 
 ```json
 {
-  "search": "ocai",                              // Text search across title, labels, project name
-  "labels": ["bug", "urgent"],                   // Filter by multiple labels (OR logic)
+  "search": "ocai",                              // Text search across title, tags, project name
+  "tags": ["bug", "urgent"],                     // Filter by multiple tags (OR logic)
   "statuses": ["TO_DO", "IN_PROGRESS"],          // Filter by multiple statuses (OR logic)
   "dueDateStart": "2026-01-18",                  // Start of date range
   "dueDateEnd": "2026-01-25",                    // End of date range
@@ -242,17 +242,17 @@ The `list_tasks` tool supports powerful filtering for AI agents:
 }
 ```
 
-#### Label Discovery
+#### Tag Discovery
 
-Use `list_labels` to discover exact label names before filtering:
+Use `list_tags` to discover exact tag names before filtering:
 
 ```json
-// Find labels matching "communication"
+// Find tags matching "communication"
 { "search": "communication" }
 // Returns: [{ "name": "communication required", "count": 5 }]
 ```
 
-This helps handle typos and variations - search first, then use the exact label name.
+This helps handle typos and variations - search first, then use the exact tag name.
 
 ### Project Tools
 

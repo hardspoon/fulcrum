@@ -99,8 +99,8 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
   const [description, setDescription] = useState('')
   const [taskType, setTaskType] = useState<TaskType>('code')
   const [startImmediately, setStartImmediately] = useState(true)
-  const [labels, setLabels] = useState<string[]>([])
-  const [labelInput, setLabelInput] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
   const [repoPath, setRepoPath] = useState('')
@@ -320,7 +320,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
         agentOptions: isCodeTask ? (agentOptions || undefined) : undefined,
         opencodeModel: isCodeTask && agent === 'opencode' ? opencodeModel : undefined,
         // Generalized task fields
-        labels: labels.length > 0 ? labels : undefined,
+        tags: tags.length > 0 ? tags : undefined,
         dueDate: dueDate || null,
         notes: notes.trim() || null,
         projectId: !isCodeTask ? selectedProjectId : undefined,
@@ -374,8 +374,8 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
     setDescription('')
     setTaskType('code')
     setStartImmediately(true)
-    setLabels([])
-    setLabelInput('')
+    setTags([])
+    setTagInput('')
     setDueDate('')
     setNotes('')
     setPendingFiles([])
@@ -398,25 +398,25 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
     setRepoTab(repositories && repositories.length > 0 ? 'saved' : 'browse')
   }
 
-  const handleAddLabel = () => {
-    const trimmed = labelInput.trim()
-    if (trimmed && !labels.includes(trimmed)) {
-      setLabels([...labels, trimmed])
-      setLabelInput('')
+  const handleAddTag = () => {
+    const trimmed = tagInput.trim()
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed])
+      setTagInput('')
     }
   }
 
-  const handleRemoveLabel = (label: string) => {
-    setLabels(labels.filter((l) => l !== label))
+  const handleRemoveTag = (tag: string) => {
+    setTags(tags.filter((t) => t !== tag))
   }
 
-  const handleLabelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      handleAddLabel()
-    } else if (e.key === 'Backspace' && !labelInput && labels.length > 0) {
-      // Remove last label on backspace when input is empty
-      setLabels(labels.slice(0, -1))
+      handleAddTag()
+    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+      // Remove last tag on backspace when input is empty
+      setTags(tags.slice(0, -1))
     }
   }
 
@@ -781,20 +781,20 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                 </>
               )}
 
-              {/* Labels and Due Date row - always at bottom */}
+              {/* Tags and Due Date row - always at bottom */}
               <div className="flex gap-3">
                 <Field className="flex-1">
-                  <FieldLabel htmlFor="labels">{t('createModal.fields.labels')}</FieldLabel>
+                  <FieldLabel htmlFor="tags">{t('createModal.fields.tags')}</FieldLabel>
                   <div className="flex flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 min-h-[36px]">
-                    {labels.map((label) => (
+                    {tags.map((tag) => (
                       <span
-                        key={label}
+                        key={tag}
                         className="inline-flex items-center gap-0.5 rounded border border-border bg-card px-1.5 py-0.5 text-xs font-medium"
                       >
-                        {label}
+                        {tag}
                         <button
                           type="button"
-                          onClick={() => handleRemoveLabel(label)}
+                          onClick={() => handleRemoveTag(tag)}
                           className="text-muted-foreground hover:text-foreground"
                         >
                           <HugeiconsIcon icon={Cancel01Icon} size={10} />
@@ -802,13 +802,13 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                       </span>
                     ))}
                     <input
-                      id="labels"
+                      id="tags"
                       type="text"
-                      value={labelInput}
-                      onChange={(e) => setLabelInput(e.target.value)}
-                      onKeyDown={handleLabelKeyDown}
-                      onBlur={handleAddLabel}
-                      placeholder={labels.length === 0 ? t('createModal.fields.labelsPlaceholder') : ''}
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={handleTagKeyDown}
+                      onBlur={handleAddTag}
+                      placeholder={tags.length === 0 ? t('createModal.fields.tagsPlaceholder') : ''}
                       className="flex-1 min-w-[60px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                     />
                   </div>

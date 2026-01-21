@@ -167,7 +167,7 @@ function KanbanBoardInner({ projectFilter, searchQuery }: KanbanBoardProps) {
             fuzzyScore(t.description || '', searchQuery),
             fuzzyScore(t.branch || '', searchQuery),
             fuzzyScore(t.prUrl || '', searchQuery),
-            fuzzyScore(t.labels.join(' '), searchQuery)
+            fuzzyScore(t.tags.join(' '), searchQuery)
           ),
         }))
         .filter(({ score }) => score > 0)

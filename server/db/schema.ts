@@ -22,7 +22,7 @@ export const tasks = sqliteTable('tasks', {
   // Generalized task management fields
   projectId: text('project_id'), // FK to projects (nullable - null = orphan/inbox)
   repositoryId: text('repository_id'), // FK to repositories for code tasks
-  labels: text('labels'), // JSON array: ["bug", "urgent"]
+  tags: text('tags'), // JSON array: ["bug", "urgent"]
   startedAt: text('started_at'), // Timestamp when moved out of TO_DO
   dueDate: text('due_date'), // YYYY-MM-DD format
   notes: text('notes'), // Free-form notes/comments

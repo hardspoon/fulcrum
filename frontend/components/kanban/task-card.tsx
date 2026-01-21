@@ -193,26 +193,26 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
             {task.description}
           </p>
         )}
-        {/* Labels row */}
-        {task.labels.length > 0 && (
+        {/* Tags row */}
+        {task.tags.length > 0 && (
           <div className="mt-2 flex items-center gap-1 flex-wrap">
-            {task.labels.slice(0, 3).map((label) => (
+            {task.tags.slice(0, 3).map((tag) => (
               <span
-                key={label}
+                key={tag}
                 className="rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] font-medium"
               >
-                {label}
+                {tag}
               </span>
             ))}
-            {task.labels.length > 3 && (
-              <span className="text-[10px] text-muted-foreground">+{task.labels.length - 3}</span>
+            {task.tags.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">+{task.tags.length - 3}</span>
             )}
           </div>
         )}
         {/* Metadata row */}
         <div className={cn(
           'flex items-center gap-1 text-xs text-muted-foreground/70 flex-wrap',
-          task.labels.length > 0 ? 'mt-1.5' : 'mt-2'
+          task.tags.length > 0 ? 'mt-1.5' : 'mt-2'
         )}>
           {/* Blocked indicator (red) */}
           {isBlocked && (
@@ -270,7 +270,7 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
             </>
           )}
           {/* Fallback for non-code tasks with no metadata */}
-          {!isCodeTask && !isBlocked && !isBlocking && task.labels.length === 0 && !task.dueDate && (
+          {!isCodeTask && !isBlocked && !isBlocking && task.tags.length === 0 && !task.dueDate && (
             <span className="italic">Non-code task</span>
           )}
         </div>

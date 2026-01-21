@@ -89,7 +89,7 @@ export interface Task {
   // Generalized task management fields
   projectId: string | null // FK to project (null = orphan/inbox)
   repositoryId: string | null // FK to repository for code tasks
-  labels: string[] // Array of label strings
+  tags: string[] // Array of tag strings
   startedAt: string | null // Timestamp when moved out of TO_DO
   dueDate: string | null // YYYY-MM-DD format
   notes: string | null // Free-form notes/comments

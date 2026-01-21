@@ -37,9 +37,9 @@ function formatTask(
     console.log(`  Links:      ${task.links.map((l) => l.label || l.url).join(', ')}`)
   }
 
-  // Labels and due date
-  if (task.labels && task.labels.length > 0) {
-    console.log(`  Labels:     ${task.labels.join(', ')}`)
+  // Tags and due date
+  if (task.tags && task.tags.length > 0) {
+    console.log(`  Tags:       ${task.tags.join(', ')}`)
   }
   if (task.dueDate) console.log(`  Due:        ${task.dueDate}`)
 
