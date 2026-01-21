@@ -175,6 +175,10 @@ bunx eslint . || exit 1
 # This is critical because Bun caches os.homedir() at process startup,
 # before any JavaScript runs (including preload scripts).
 # Setting HOME here ensures the cached value is the temp directory.
+#
+# HOME_BACKUP preserves the original HOME so test isolation code can
+# detect and block access to production paths (~/.fulcrum, ~/.claude).
+export HOME_BACKUP="$HOME"
 export HOME=$(mktemp -d -t fulcrum-test-home-XXXXXX)
 export FULCRUM_DIR=$(mktemp -d -t fulcrum-test-dir-XXXXXX)
 echo "[test] Isolated environment: HOME=$HOME FULCRUM_DIR=$FULCRUM_DIR" >&2
@@ -197,6 +201,8 @@ run = """
 set -e
 
 # Create isolated test directories before bun starts
+# HOME_BACKUP preserves the original HOME for test isolation checks
+export HOME_BACKUP="$HOME"
 export HOME=$(mktemp -d -t fulcrum-test-home-XXXXXX)
 export FULCRUM_DIR=$(mktemp -d -t fulcrum-test-dir-XXXXXX)
 echo "[test:file] Isolated environment: HOME=$HOME FULCRUM_DIR=$FULCRUM_DIR" >&2
@@ -211,6 +217,8 @@ run = """
 set -e
 
 # Create isolated test directories before bun starts
+# HOME_BACKUP preserves the original HOME for test isolation checks
+export HOME_BACKUP="$HOME"
 export HOME=$(mktemp -d -t fulcrum-test-home-XXXXXX)
 export FULCRUM_DIR=$(mktemp -d -t fulcrum-test-dir-XXXXXX)
 echo "[test:watch] Isolated environment: HOME=$HOME FULCRUM_DIR=$FULCRUM_DIR" >&2
