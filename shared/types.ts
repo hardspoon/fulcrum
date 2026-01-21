@@ -587,6 +587,11 @@ export interface Project {
   appId: string | null
   terminalTabId: string | null
   status: ProjectStatus
+  // Agent configuration - inherited by repositories unless overridden
+  defaultAgent: AgentType | null
+  claudeOptions: Record<string, string> | null
+  opencodeOptions: Record<string, string> | null
+  opencodeModel: string | null
   lastAccessedAt: string | null
   createdAt: string
   updatedAt: string

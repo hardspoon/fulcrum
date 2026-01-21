@@ -127,6 +127,23 @@
     "running": "运行中",
     "archived": "已归档"
   },
+  "agentSettings": {
+    "summaryDefault": "默认",
+    "inherit": "继承",
+    "summaryClaudeOptions_one": "Claude: {{count}} 个选项",
+    "summaryClaudeOptions_other": "Claude: {{count}} 个选项",
+    "summaryOpencodeOptions_one": "OpenCode: {{count}} 个选项",
+    "summaryOpencodeOptions_other": "OpenCode: {{count}} 个选项",
+    "summaryModel": "模型",
+    "description": "配置此项目的默认代理设置。仓库可以覆盖这些设置。",
+    "useGlobalDefault": "使用全局默认"
+  },
+  "repoCard": {
+    "activeCount_one": "{{count}} 个进行中",
+    "activeCount_other": "{{count}} 个进行中",
+    "doneCount_one": "{{count}} 个已完成",
+    "doneCount_other": "{{count}} 个已完成"
+  },
   "detail": {
     "clickToEdit": "点击编辑",
     "actions": {

@@ -209,6 +209,11 @@ export const projects = sqliteTable('projects', {
   appId: text('app_id').unique(), // FK to apps (nullable, 1:1)
   terminalTabId: text('terminal_tab_id').unique(), // FK to terminalTabs (dedicated)
   status: text('status').notNull().default('active'), // 'active' | 'archived'
+  // Agent configuration - inherited by repositories unless overridden
+  defaultAgent: text('default_agent'), // 'claude' | 'opencode' | null - null means use global default
+  claudeOptions: text('claude_options'), // JSON: { [flag]: value } - CLI options for Claude Code
+  opencodeOptions: text('opencode_options'), // JSON: { [flag]: value } - CLI options for OpenCode
+  opencodeModel: text('opencode_model'), // OpenCode model in format 'provider/model' - null means use global default
   lastAccessedAt: text('last_accessed_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),

@@ -67,6 +67,7 @@ import {
   getProjectAttachmentDownloadUrl,
 } from '@/hooks/use-project-attachments'
 import { openExternalUrl } from '@/lib/editor-url'
+import { ProjectAgentSettings } from '@/components/project/project-agent-settings'
 
 export const Route = createFileRoute('/projects/$projectId')({
   component: ProjectDetailView,
@@ -83,6 +84,8 @@ const SPARKLINE_COLORS: Record<TaskStatus, string> = {
 
 // Task sparkline component - shows 8 dots representing recent task status distribution
 function TaskSparkline({ tasks }: { tasks: Task[] }) {
+  const { t } = useTranslation('projects')
+
   // Get up to 8 most recent active tasks for the sparkline
   const activeTasks = tasks
     .filter((t) => t.status !== 'DONE' && t.status !== 'CANCELED')
@@ -110,7 +113,8 @@ function TaskSparkline({ tasks }: { tasks: Task[] }) {
         )}
       </div>
       <span>
-        {activeCount} active{doneCount > 0 && ` · ${doneCount} done`}
+        {t('repoCard.activeCount', { count: activeCount })}
+        {doneCount > 0 && ` · ${t('repoCard.doneCount', { count: doneCount })}`}
       </span>
     </div>
   )
@@ -1041,6 +1045,9 @@ function ProjectDetailView() {
               </CollapsibleContent>
             </Collapsible>
           </div>
+
+          {/* Agent Settings - Collapsible */}
+          <ProjectAgentSettings project={project} />
 
           {/* Active Tasks Section */}
           <section className="rounded-lg border bg-card p-4 space-y-3">

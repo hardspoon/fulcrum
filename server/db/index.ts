@@ -330,6 +330,25 @@ function runMigrations(sqlite: Database, drizzleDb: BunSQLiteDatabase<typeof sch
             shouldMark = true
           }
         }
+        // 0036 adds unique constraint on repository_id in project_repositories
+        else if (entry.tag.startsWith('0036')) {
+          // Check if project_repositories table exists (the migration recreates it with the constraint)
+          const hasProjectRepositoriesTable = sqlite
+            .query("SELECT name FROM sqlite_master WHERE type='table' AND name='project_repositories'")
+            .get()
+          if (hasProjectRepositoriesTable) {
+            shouldMark = true
+          }
+        }
+        // 0037 adds agent configuration to projects table
+        else if (entry.tag.startsWith('0037')) {
+          const hasProjectDefaultAgentColumn = sqlite
+            .query("SELECT name FROM pragma_table_info('projects') WHERE name='default_agent'")
+            .get()
+          if (hasProjectDefaultAgentColumn) {
+            shouldMark = true
+          }
+        }
 
         if (shouldMark) {
           migrationsToMark.push(entry)

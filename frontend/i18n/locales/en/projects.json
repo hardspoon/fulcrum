@@ -128,6 +128,23 @@
     "running": "Running",
     "archived": "Archived"
   },
+  "agentSettings": {
+    "summaryDefault": "Default",
+    "inherit": "Inherit",
+    "summaryClaudeOptions_one": "Claude: {{count}} option",
+    "summaryClaudeOptions_other": "Claude: {{count}} options",
+    "summaryOpencodeOptions_one": "OpenCode: {{count}} option",
+    "summaryOpencodeOptions_other": "OpenCode: {{count}} options",
+    "summaryModel": "Model",
+    "description": "Configure default agent settings for this project. Repositories can override these settings.",
+    "useGlobalDefault": "Use global default"
+  },
+  "repoCard": {
+    "activeCount_one": "{{count}} active",
+    "activeCount_other": "{{count}} active",
+    "doneCount_one": "{{count}} done",
+    "doneCount_other": "{{count}} done"
+  },
   "detail": {
     "clickToEdit": "Click to edit",
     "actions": {
