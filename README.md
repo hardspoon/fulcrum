@@ -2,7 +2,7 @@
 
 **Harness Attention. Orchestrate Agents. Leverage Your Time Wisely.**
 
-![Fulcrum Kanban Board](./screenshots/tasks-kanban-board.png)
+![Fulcrum Kanban Board](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/tasks-kanban-board.png)
 
 ## What It Does
 
@@ -102,37 +102,37 @@ claude plugin install fulcrum@fulcrum --scope user
 
 Track tasks from planning to done. Create tasks that automatically spin up isolated git worktrees, and watch their status update in real-time as you work with your AI agents.
 
-![Kanban Board](./screenshots/tasks-kanban-board.png)
+![Kanban Board](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/tasks-kanban-board.png)
 
 ### Task Terminals View
 
 See all your AI agent sessions across every task in a single parallel view. Each task creates an isolated git worktree on-demand, and you can monitor and interact with all sessions simultaneously.
 
-![Task Terminals View](./screenshots/terminals-view-with-tests.png)
+![Task Terminals View](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/terminals-view-with-tests.png)
 
 ### App Deployment
 
 Deploy applications directly from Fulcrum with Docker Compose. Edit compose files inline, configure environment variables, and manage services with automatic Traefik routing and optional Cloudflare DNS integration.
 
-![App Deployment](./screenshots/app-deployment-config.png)
+![App Deployment](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/app-deployment-config.png)
 
 ### Projects
 
 Projects unify your code repositories and app deployments into a single entity. Manage workspace terminals, task settings, and deployment configuration from one place.
 
-![Projects](./screenshots/repositories-view.png)
+![Projects](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/repositories-view.png)
 
 ### Browser Preview
 
 Preview your app alongside the agent terminal in a split-pane view. Watch changes in real-time as your AI agent iterates on your code.
 
-![Browser Preview](./screenshots/browser-preview-split-view.png)
+![Browser Preview](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/browser-preview-split-view.png)
 
 ### System Monitoring
 
 Keep an eye on system resources while your agents work. CPU, memory, and disk usage at a glance. The Jobs tab lets you create and manage systemd (Linux) or launchd (macOS) timers.
 
-![System Monitoring](./screenshots/monitoring-system-metrics.png)
+![System Monitoring](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/monitoring-system-metrics.png)
 
 ## Supported Agents
 
