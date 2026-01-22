@@ -120,6 +120,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
   const [pendingLinks, setPendingLinks] = useState<Array<{ url: string; label?: string }>>([])
   const [linkUrlInput, setLinkUrlInput] = useState('')
   const [linkLabelInput, setLinkLabelInput] = useState('')
+  const [prUrl, setPrUrl] = useState('')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
 
   const navigate = useNavigate()
@@ -324,6 +325,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
         dueDate: dueDate || null,
         notes: notes.trim() || null,
         projectId: isCodeTask ? selectedRepoProject?.id : selectedProjectId,
+        prUrl: prUrl.trim() || null,
       },
       {
         onSuccess: async (task) => {
@@ -382,6 +384,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
     setPendingLinks([])
     setLinkUrlInput('')
     setLinkLabelInput('')
+    setPrUrl('')
     setRepoPath('')
     setBaseBranch('')
     setBranch('')
@@ -892,6 +895,18 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                     </Button>
                   </div>
                 </div>
+              </Field>
+
+              {/* GitHub PR */}
+              <Field>
+                <FieldLabel>{t('createModal.fields.prUrl')}</FieldLabel>
+                <Input
+                  type="url"
+                  value={prUrl}
+                  onChange={(e) => setPrUrl(e.target.value)}
+                  placeholder={t('createModal.fields.prUrlPlaceholder')}
+                  className="h-8 text-sm"
+                />
               </Field>
 
               {/* Attachments */}

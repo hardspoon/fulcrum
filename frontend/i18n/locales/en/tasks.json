@@ -43,6 +43,8 @@
       "links": "Links",
       "urlPlaceholder": "https://...",
       "linkLabelPlaceholder": "Label (optional)",
+      "prUrl": "GitHub PR",
+      "prUrlPlaceholder": "https://github.com/owner/repo/pull/123",
       "attachments": "Attachments",
       "addAttachments": "Add attachments...",
       "addMoreFiles": "Add more files..."

@@ -43,6 +43,8 @@
       "links": "链接",
       "urlPlaceholder": "https://...",
       "linkLabelPlaceholder": "标签（可选）",
+      "prUrl": "GitHub PR",
+      "prUrlPlaceholder": "https://github.com/owner/repo/pull/123",
       "attachments": "附件",
       "addAttachments": "添加附件...",
       "addMoreFiles": "添加更多文件..."

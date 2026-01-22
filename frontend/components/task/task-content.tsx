@@ -11,6 +11,8 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Delete02Icon,
   Cancel01Icon,
+  GitPullRequestIcon,
+  Link02Icon,
 } from '@hugeicons/core-free-icons'
 import {
   DropdownMenu,
@@ -21,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useUpdateTask } from '@/hooks/use-tasks'
 import { DeleteTaskDialog } from '@/components/delete-task-dialog'
+import { openExternalUrl } from '@/lib/editor-url'
 import type { Task, TaskStatus } from '@/types'
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -56,6 +59,8 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [editedNotes, setEditedNotes] = useState(task.notes || '')
   const [tagInput, setTagInput] = useState('')
+  const [prUrlInput, setPrUrlInput] = useState(task.prUrl || '')
+  const [isEditingPrUrl, setIsEditingPrUrl] = useState(false)
 
   const handleStatusChange = (status: string) => {
     updateTask.mutate({
@@ -123,6 +128,27 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
     if (e.key === 'Enter') {
       e.preventDefault()
       handleAddTag()
+    }
+  }
+
+  const handleSavePrUrl = () => {
+    const trimmed = prUrlInput.trim()
+    if (trimmed !== (task.prUrl || '')) {
+      updateTask.mutate({
+        taskId: task.id,
+        updates: { prUrl: trimmed || null },
+      })
+    }
+    setIsEditingPrUrl(false)
+  }
+
+  const handlePrUrlKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSavePrUrl()
+    } else if (e.key === 'Escape') {
+      setPrUrlInput(task.prUrl || '')
+      setIsEditingPrUrl(false)
     }
   }
 
@@ -296,6 +322,56 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
                 isOverdue={!!isOverdue}
               />
             </div>
+          </div>
+
+          {/* Pull Request */}
+          <div className={`rounded-lg border bg-card ${paddingClass}`}>
+            <div className={`flex items-center justify-between ${marginClass}`}>
+              <h2 className={`${headingClass} font-medium text-muted-foreground`}>Pull Request</h2>
+              {!isEditingPrUrl && task.prUrl && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditingPrUrl(true)}
+                  className={compact ? 'text-xs h-6' : 'text-xs'}
+                >
+                  Edit
+                </Button>
+              )}
+            </div>
+            {isEditingPrUrl ? (
+              <div className="flex gap-2">
+                <Input
+                  value={prUrlInput}
+                  onChange={(e) => setPrUrlInput(e.target.value)}
+                  onKeyDown={handlePrUrlKeyDown}
+                  placeholder="https://github.com/owner/repo/pull/123"
+                  className="flex-1"
+                  autoFocus
+                />
+                <Button size="sm" onClick={handleSavePrUrl}>
+                  Save
+                </Button>
+              </div>
+            ) : task.prUrl ? (
+              <button
+                onClick={() => openExternalUrl(task.prUrl!)}
+                className="flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                <HugeiconsIcon icon={GitPullRequestIcon} size={14} strokeWidth={2} />
+                <span>#{task.prUrl.match(/\/pull\/(\d+)/)?.[1] ?? 'PR'}</span>
+                <HugeiconsIcon icon={Link02Icon} size={12} strokeWidth={2} className="text-muted-foreground" />
+              </button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditingPrUrl(true)}
+                className={compact ? 'text-xs h-6' : 'text-xs'}
+              >
+                Link PR
+              </Button>
+            )}
           </div>
 
           {/* Dependencies */}
