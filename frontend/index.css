@@ -226,3 +226,10 @@
     background-color: hsl(var(--muted-foreground) / 0.5);
   }
 }
+
+/* Allow xterm.js to handle touch scrolling on mobile devices.
+ * Without this, the browser intercepts touch events and scrolls
+ * the page instead of the terminal viewport. */
+.xterm-viewport {
+  touch-action: none;
+}
