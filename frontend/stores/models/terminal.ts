@@ -43,6 +43,13 @@ export const TerminalModel = types
      * Disabled when user scrolls up, re-enabled when user scrolls to bottom.
      */
     followCursorEnabled: true,
+    /**
+     * Tracks cursor visibility from escape sequences.
+     * TUI apps like Claude Code hide the native cursor (ESC[?25l) and render their own.
+     * When cursor is hidden, we skip auto-scrollToBottom to avoid interfering with
+     * the TUI's viewport management (fixes cursor position issues in xterm 6.0.0+).
+     */
+    cursorVisible: true,
   }))
   .views((self) => ({
     /** Whether the terminal is alive (running) */
@@ -75,6 +82,11 @@ export const TerminalModel = types
     /** Set follow cursor state for VibeTunnel scroll management */
     setFollowCursorEnabled(enabled: boolean) {
       self.followCursorEnabled = enabled
+    },
+
+    /** Set cursor visibility state (tracked from terminal escape sequences) */
+    setCursorVisible(visible: boolean) {
+      self.cursorVisible = visible
     },
 
     /** Set the cleanup function for xterm attachment */

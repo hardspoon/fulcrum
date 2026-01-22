@@ -999,17 +999,31 @@ export const RootStore = types
             if (terminal?.xterm) {
               const xterm = terminal.xterm
 
+              // Track cursor visibility from escape sequences
+              // ESC[?25h = show cursor (DECTCEM), ESC[?25l = hide cursor
+              // TUI apps like Claude Code hide the native cursor and render their own
+              const ESC = '\x1b'
+              if (data.includes(`${ESC}[?25h`)) {
+                terminal.setCursorVisible(true)
+              }
+              if (data.includes(`${ESC}[?25l`)) {
+                terminal.setCursorVisible(false)
+              }
+
               if (USE_GHOSTTY_TERMINAL && isGhosttyTerminal(xterm)) {
                 // Ghostty handles scrolling natively
                 xterm.write(data)
               } else {
-                // xterm.js: always scroll to bottom after write
-                // This counteracts xterm.js behavior that can scroll viewport to 0 during writes
-                // (seen with TUI apps like Claude Code that do rapid screen updates)
+                // xterm.js: only scroll to bottom if cursor is visible
+                // When cursor is hidden (TUI app managing viewport), skip auto-scroll
+                // to avoid interfering with the TUI's viewport management
+                // (fixes cursor position issues in xterm 6.0.0+)
                 xterm.write(data, () => {
-                  requestAnimationFrame(() => {
-                    xterm.scrollToBottom()
-                  })
+                  if (terminal.cursorVisible) {
+                    requestAnimationFrame(() => {
+                      xterm.scrollToBottom()
+                    })
+                  }
                 })
               }
             } else {
