@@ -26,6 +26,7 @@ export const CONFIG_KEYS = {
   OPENCODE_PLAN_AGENT: 'agent.opencodePlanAgent',
   LANGUAGE: 'appearance.language',
   THEME: 'appearance.theme',
+  TIMEZONE: 'appearance.timezone',
   SYNC_CLAUDE_CODE_THEME: 'appearance.syncClaudeCodeTheme',
   CLAUDE_CODE_LIGHT_THEME: 'appearance.claudeCodeLightTheme',
   CLAUDE_CODE_DARK_THEME: 'appearance.claudeCodeDarkTheme',
@@ -190,6 +191,17 @@ export function useTheme() {
     ...query,
     // null means system preference (default)
     data: (query.data?.value as Theme | null) ?? 'system',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useTimezone() {
+  const query = useConfig(CONFIG_KEYS.TIMEZONE)
+
+  return {
+    ...query,
+    // null means system timezone (default)
+    data: (query.data?.value as string | null) ?? null,
     isDefault: query.data?.isDefault ?? true,
   }
 }

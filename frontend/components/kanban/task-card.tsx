@@ -16,6 +16,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { FolderLibraryIcon, GitPullRequestIcon, Calendar03Icon, AlertDiamondIcon, Alert02Icon } from '@hugeicons/core-free-icons'
 import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
 import { useRepositories } from '@/hooks/use-repositories'
+import { useIsOverdue } from '@/hooks/use-date-utils'
 
 interface TaskCardProps {
   task: Task
@@ -46,6 +47,9 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
   const pendingRepo = isPendingCodeTask
     ? repositories?.find((r) => r.id === task.repositoryId)
     : null
+
+  // Check if task is overdue using configured timezone
+  const isOverdue = useIsOverdue(task.dueDate, task.status)
 
   // Track if drag occurred to distinguish from click
   const hasDragged = useRef(false)
@@ -260,9 +264,7 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
               {isCodeTask && <span className="text-muted-foreground/30">•</span>}
               <span className={cn(
                 'inline-flex items-center gap-1 whitespace-nowrap',
-                new Date(task.dueDate) < new Date() && task.status !== 'DONE' && task.status !== 'CANCELED'
-                  ? 'text-destructive'
-                  : ''
+                isOverdue ? 'text-destructive' : ''
               )}>
                 <HugeiconsIcon icon={Calendar03Icon} size={12} strokeWidth={2} />
                 <span>{new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>

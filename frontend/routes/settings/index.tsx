@@ -49,6 +49,7 @@ import {
 
   useDefaultTaskType,
   useStartWorktreeTasksImmediately,
+  useTimezone,
   NotificationSettingsConflictError,
   CONFIG_KEYS,
   CLAUDE_CODE_THEMES,
@@ -107,6 +108,7 @@ function SettingsPage() {
   const { data: claudeCodeDarkTheme } = useClaudeCodeDarkTheme()
   const { data: defaultTaskType, isLoading: taskTypeLoading } = useDefaultTaskType()
   const { data: startWorktreeTasksImmediately, isLoading: startImmediatelyLoading } = useStartWorktreeTasksImmediately()
+  const { data: timezone, isLoading: timezoneLoading } = useTimezone()
   const { version } = useFulcrumVersion()
   const { data: versionCheck, isLoading: versionCheckLoading } = useVersionCheck()
   const refreshVersionCheck = useRefreshVersionCheck()
@@ -163,6 +165,9 @@ function SettingsPage() {
   // Task defaults local state
   const [localDefaultTaskType, setLocalDefaultTaskType] = useState<TaskType>('worktree')
   const [localStartWorktreeTasksImmediately, setLocalStartWorktreeTasksImmediately] = useState(true)
+
+  // Timezone local state
+  const [localTimezone, setLocalTimezone] = useState<string | null>(null)
 
   // Developer mode restart state
   const [isRestarting, setIsRestarting] = useState(false)
@@ -240,8 +245,13 @@ function SettingsPage() {
     if (startWorktreeTasksImmediately !== undefined) setLocalStartWorktreeTasksImmediately(startWorktreeTasksImmediately)
   }, [defaultTaskType, startWorktreeTasksImmediately])
 
+  // Sync timezone
+  useEffect(() => {
+    if (timezone !== undefined) setLocalTimezone(timezone)
+  }, [timezone])
+
   const isLoading =
-    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading
+    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading
 
   const hasZAiChanges = zAiSettings && (
     zAiEnabled !== zAiSettings.enabled ||
@@ -259,6 +269,8 @@ function SettingsPage() {
   const hasTaskDefaultsChanges =
     localDefaultTaskType !== defaultTaskType ||
     localStartWorktreeTasksImmediately !== startWorktreeTasksImmediately
+
+  const hasTimezoneChanges = localTimezone !== timezone
 
   // Check if deployment settings have changed
   // We compare local state against server values
@@ -307,7 +319,8 @@ function SettingsPage() {
     hasZAiChanges ||
     hasClaudeCodeChanges ||
     hasDeploymentChanges ||
-    hasTaskDefaultsChanges
+    hasTaskDefaultsChanges ||
+    hasTimezoneChanges
 
   const handleSaveAll = async () => {
     const promises: Promise<unknown>[] = []
@@ -531,6 +544,18 @@ function SettingsPage() {
           })
         )
       }
+    }
+
+    // Save timezone
+    if (hasTimezoneChanges) {
+      promises.push(
+        new Promise((resolve) => {
+          updateConfig.mutate(
+            { key: CONFIG_KEYS.TIMEZONE, value: localTimezone },
+            { onSettled: resolve }
+          )
+        })
+      )
     }
 
     // Save deployment settings (cloudflare token/account ID)
@@ -1704,6 +1729,44 @@ function SettingsPage() {
                     </div>
                     <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
                       {t('fields.theme.description')}
+                    </p>
+                  </div>
+
+                  {/* Timezone */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('fields.timezone.label')}
+                      </label>
+                      <Select
+                        value={localTimezone ?? 'auto'}
+                        onValueChange={(v) => setLocalTimezone(v === 'auto' ? null : v)}
+                      >
+                        <SelectTrigger className="w-56">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">{t('fields.timezone.options.auto')}</SelectItem>
+                          <SelectItem value="America/New_York">America/New_York (EST/EDT)</SelectItem>
+                          <SelectItem value="America/Chicago">America/Chicago (CST/CDT)</SelectItem>
+                          <SelectItem value="America/Denver">America/Denver (MST/MDT)</SelectItem>
+                          <SelectItem value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</SelectItem>
+                          <SelectItem value="America/Anchorage">America/Anchorage (AKST/AKDT)</SelectItem>
+                          <SelectItem value="Pacific/Honolulu">Pacific/Honolulu (HST)</SelectItem>
+                          <SelectItem value="Europe/London">Europe/London (GMT/BST)</SelectItem>
+                          <SelectItem value="Europe/Paris">Europe/Paris (CET/CEST)</SelectItem>
+                          <SelectItem value="Europe/Berlin">Europe/Berlin (CET/CEST)</SelectItem>
+                          <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
+                          <SelectItem value="Asia/Shanghai">Asia/Shanghai (CST)</SelectItem>
+                          <SelectItem value="Asia/Singapore">Asia/Singapore (SGT)</SelectItem>
+                          <SelectItem value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</SelectItem>
+                          <SelectItem value="Pacific/Auckland">Pacific/Auckland (NZST/NZDT)</SelectItem>
+                          <SelectItem value="UTC">UTC</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.timezone.description')}
                     </p>
                   </div>
 

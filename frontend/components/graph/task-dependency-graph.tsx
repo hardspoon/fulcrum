@@ -16,6 +16,7 @@ import ReactFlow, {
 import dagre from '@dagrejs/dagre'
 import { useTaskDependencyGraph, useTasks, type TaskGraphNode } from '@/hooks/use-tasks'
 import { useProjects } from '@/hooks/use-projects'
+import { useIsOverdue } from '@/hooks/use-date-utils'
 import type { Task, TaskStatus } from '@/types'
 import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
 import 'reactflow/dist/style.css'
@@ -38,7 +39,7 @@ interface TaskNodeData {
 function TaskNode({ data }: { data: TaskNodeData }) {
   const { task, isBlocked, direction } = data
   const colors = STATUS_COLORS[task.status]
-  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE' && task.status !== 'CANCELED'
+  const isOverdue = useIsOverdue(task.dueDate, task.status)
 
   // Handle positions based on layout direction
   const targetPosition = direction === 'LR' ? Position.Left : Position.Top

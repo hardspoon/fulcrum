@@ -112,6 +112,7 @@ export interface Settings {
   appearance: {
     language: 'en' | 'zh' | null
     theme: 'system' | 'light' | 'dark' | null
+    timezone: string | null // IANA timezone, null = system default
     syncClaudeCodeTheme: boolean
     claudeCodeLightTheme: ClaudeCodeTheme
     claudeCodeDarkTheme: ClaudeCodeTheme
@@ -150,6 +151,7 @@ const DEFAULT_SETTINGS: Settings = {
   appearance: {
     language: null,
     theme: null,
+    timezone: null,
     syncClaudeCodeTheme: false,
     claudeCodeLightTheme: 'light-ansi',
     claudeCodeDarkTheme: 'dark-ansi',
@@ -427,6 +429,7 @@ export function getSettings(): Settings {
     appearance: {
       language: ((parsed.appearance as Record<string, unknown>)?.language as 'en' | 'zh' | null) ?? null,
       theme: ((parsed.appearance as Record<string, unknown>)?.theme as 'system' | 'light' | 'dark' | null) ?? null,
+      timezone: ((parsed.appearance as Record<string, unknown>)?.timezone as string | null) ?? null,
       syncClaudeCodeTheme: ((parsed.appearance as Record<string, unknown>)?.syncClaudeCodeTheme as boolean) ?? false,
       claudeCodeLightTheme: ((parsed.appearance as Record<string, unknown>)?.claudeCodeLightTheme as ClaudeCodeTheme) ?? 'light-ansi',
       claudeCodeDarkTheme: ((parsed.appearance as Record<string, unknown>)?.claudeCodeDarkTheme as ClaudeCodeTheme) ?? 'dark-ansi',

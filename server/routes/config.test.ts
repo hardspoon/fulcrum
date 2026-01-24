@@ -165,6 +165,45 @@ describe('Config Routes', () => {
       expect(res4.status).toBe(400)
     })
 
+    test('validates timezone value', async () => {
+      const { put, get } = createTestApp()
+
+      // Valid IANA timezones
+      const res1 = await put('/api/config/appearance.timezone', { value: 'America/New_York' })
+      expect(res1.status).toBe(200)
+
+      const res2 = await put('/api/config/appearance.timezone', { value: 'Europe/London' })
+      expect(res2.status).toBe(200)
+
+      const res3 = await put('/api/config/appearance.timezone', { value: 'Asia/Tokyo' })
+      expect(res3.status).toBe(200)
+
+      const res4 = await put('/api/config/appearance.timezone', { value: 'UTC' })
+      expect(res4.status).toBe(200)
+
+      // Verify persistence
+      const checkRes = await get('/api/config/appearance.timezone')
+      const checkBody = await checkRes.json()
+      expect(checkBody.value).toBe('UTC')
+
+      // null is valid (system timezone)
+      const res5 = await put('/api/config/appearance.timezone', { value: null })
+      expect(res5.status).toBe(200)
+
+      // Empty string converts to null
+      const res6 = await put('/api/config/appearance.timezone', { value: '' })
+      expect(res6.status).toBe(200)
+      const checkRes2 = await get('/api/config/appearance.timezone')
+      const checkBody2 = await checkRes2.json()
+      expect(checkBody2.value).toBe(null)
+
+      // Invalid timezone
+      const res7 = await put('/api/config/appearance.timezone', { value: 'Invalid/Timezone' })
+      expect(res7.status).toBe(400)
+      const body7 = await res7.json()
+      expect(body7.error).toContain('Invalid timezone')
+    })
+
     test('converts empty string to null for nullable fields', async () => {
       const { put, get } = createTestApp()
       const res = await put('/api/config/integrations.githubPat', { value: '' })

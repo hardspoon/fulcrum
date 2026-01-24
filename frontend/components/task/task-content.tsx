@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useUpdateTask } from '@/hooks/use-tasks'
 import { useAddTaskTag, useRemoveTaskTag } from '@/hooks/use-tags'
+import { useIsOverdue } from '@/hooks/use-date-utils'
 import { DeleteTaskDialog } from '@/components/delete-task-dialog'
 import { openExternalUrl } from '@/lib/editor-url'
 import type { Task, TaskStatus } from '@/types'
@@ -152,7 +153,7 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
     }
   }
 
-  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE' && task.status !== 'CANCELED'
+  const isOverdue = useIsOverdue(task.dueDate, task.status)
 
   const paddingClass = compact ? 'p-3' : 'p-4'
   const marginClass = compact ? 'mb-2' : 'mb-3'

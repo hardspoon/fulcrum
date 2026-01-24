@@ -139,6 +139,13 @@
         "dark": "Dark"
       }
     },
+    "timezone": {
+      "label": "Timezone",
+      "description": "Timezone for due date calculations. Auto uses your system timezone.",
+      "options": {
+        "auto": "Auto (System)"
+      }
+    },
     "syncClaudeTheme": {
       "label": "Sync Claude Code",
       "description": "Automatically update Claude Code's theme when Fulcrum switches between light and dark mode"

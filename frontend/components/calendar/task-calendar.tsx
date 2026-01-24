@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useTasks } from '@/hooks/use-tasks'
 import { useProjects } from '@/hooks/use-projects'
+import { useToday } from '@/hooks/use-date-utils'
 import type { Task, TaskStatus } from '@/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -151,8 +152,10 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
     }
   }
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Get today's date string in configured timezone
+  const todayString = useToday()
+  // Create Date object from today string for visual highlighting
+  const today = new Date(todayString + 'T00:00:00')
 
   const monthYear = currentDate.toLocaleDateString('en-US', {
     month: 'long',
@@ -227,8 +230,9 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
                 <div className="flex flex-col gap-0.5">
                   {dayTasks.slice(0, 3).map((task) => {
                     const colors = STATUS_COLORS[task.status]
+                    // Compare date strings for timezone-aware overdue check
                     const isOverdue =
-                      date < today && task.status !== 'DONE' && task.status !== 'CANCELED'
+                      dateKey < todayString && task.status !== 'DONE' && task.status !== 'CANCELED'
 
                     return (
                       <button

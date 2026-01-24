@@ -11,6 +11,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon, GitPullRequestIcon, Link02Icon, Loading03Icon } from '@hugeicons/core-free-icons'
 import { useUpdateTask } from '@/hooks/use-tasks'
 import { useAddTaskTag, useRemoveTaskTag } from '@/hooks/use-tags'
+import { useIsOverdue } from '@/hooks/use-date-utils'
 import { openExternalUrl } from '@/lib/editor-url'
 import type { Task } from '@/types'
 
@@ -131,7 +132,7 @@ export function TaskDetailsPanel({ task }: TaskDetailsPanelProps) {
     }
   }
 
-  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE' && task.status !== 'CANCELED'
+  const isOverdue = useIsOverdue(task.dueDate, task.status)
 
   return (
     <div className="h-full overflow-auto p-4">

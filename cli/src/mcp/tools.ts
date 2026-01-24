@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { FulcrumClient } from '../client'
 import { formatSuccess, handleToolError } from './utils'
 import { searchTools, toolRegistry } from './registry'
+import { getTodayInTimezone } from '../../../shared/date-utils'
 
 const TaskStatusSchema = z.enum(['TO_DO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE', 'CANCELED'])
 const ProjectStatusSchema = z.enum(['active', 'archived'])
@@ -152,7 +153,10 @@ export function registerTools(server: McpServer, client: FulcrumClient) {
 
         // Overdue filter
         if (overdue) {
-          const today = new Date().toISOString().split('T')[0]
+          // Fetch timezone setting for consistent overdue calculation
+          const config = await client.getConfig('appearance.timezone')
+          const timezone = (config?.value as string | null) ?? null
+          const today = getTodayInTimezone(timezone)
           tasks = tasks.filter(
             (t) => t.dueDate && t.dueDate < today && t.status !== 'DONE' && t.status !== 'CANCELED'
           )
@@ -881,9 +885,12 @@ export function registerTools(server: McpServer, client: FulcrumClient) {
     async ({ startDate, endDate, overdue }) => {
       try {
         let tasks = await client.listTasks()
-        const today = new Date().toISOString().split('T')[0]
 
         if (overdue) {
+          // Fetch timezone setting for consistent overdue calculation
+          const config = await client.getConfig('appearance.timezone')
+          const timezone = (config?.value as string | null) ?? null
+          const today = getTodayInTimezone(timezone)
           tasks = tasks.filter((t) => t.dueDate && t.dueDate < today && t.status !== 'DONE' && t.status !== 'CANCELED')
         } else {
           if (startDate) {

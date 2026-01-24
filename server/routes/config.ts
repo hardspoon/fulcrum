@@ -40,6 +40,7 @@ export const CONFIG_KEYS = {
   START_WORKTREE_TASKS_IMMEDIATELY: 'tasks.startWorktreeTasksImmediately',
   LANGUAGE: 'appearance.language',
   THEME: 'appearance.theme',
+  TIMEZONE: 'appearance.timezone',
   SYNC_CLAUDE_CODE_THEME: 'appearance.syncClaudeCodeTheme',
   CLAUDE_CODE_LIGHT_THEME: 'appearance.claudeCodeLightTheme',
   CLAUDE_CODE_DARK_THEME: 'appearance.claudeCodeDarkTheme',
@@ -345,6 +346,16 @@ app.put('/:key', async (c) => {
         return c.json({ error: 'Theme must be "system", "light", "dark", or null' }, 400)
       }
       value = value === '' || value === 'system' ? null : value
+    } else if (path === CONFIG_KEYS.TIMEZONE) {
+      // Validate timezone is a valid IANA timezone
+      if (value !== null && value !== '') {
+        try {
+          Intl.DateTimeFormat(undefined, { timeZone: value as string })
+        } catch {
+          return c.json({ error: 'Invalid timezone' }, 400)
+        }
+      }
+      value = value === '' ? null : value
     } else if (path === CONFIG_KEYS.SYNC_CLAUDE_CODE_THEME) {
       if (typeof value !== 'boolean') {
         return c.json({ error: 'Sync setting must be a boolean' }, 400)
