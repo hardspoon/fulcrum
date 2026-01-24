@@ -77,7 +77,7 @@ app.post('/sound', async (c) => {
   await writeFile(filePath, Buffer.from(arrayBuffer))
 
   // Update settings with the new sound file path
-  updateNotificationSettings({
+  await updateNotificationSettings({
     sound: {
       ...getNotificationSettings().sound,
       customSoundFile: filePath,
@@ -105,7 +105,7 @@ app.delete('/sound', async (c) => {
   }
 
   // Clear the custom sound file from settings
-  updateNotificationSettings({
+  await updateNotificationSettings({
     sound: {
       ...getNotificationSettings().sound,
       customSoundFile: undefined,

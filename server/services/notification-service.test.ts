@@ -11,10 +11,10 @@ mock.module('../websocket/terminal-ws', () => ({
 describe('Notification Service', () => {
   let testEnv: TestEnv
 
-  beforeEach(() => {
+  beforeEach(async () => {
     testEnv = setupTestEnv()
     // Ensure notifications are enabled by default
-    updateNotificationSettings({ enabled: true })
+    await updateNotificationSettings({ enabled: true })
   })
 
   afterEach(() => {
@@ -23,7 +23,7 @@ describe('Notification Service', () => {
 
   describe('sendNotification', () => {
     test('returns empty array when notifications are disabled', async () => {
-      updateNotificationSettings({ enabled: false })
+      await updateNotificationSettings({ enabled: false })
 
       const payload: NotificationPayload = {
         title: 'Test',
@@ -36,7 +36,7 @@ describe('Notification Service', () => {
     })
 
     test('sends notification when enabled', async () => {
-      updateNotificationSettings({
+      await updateNotificationSettings({
         enabled: true,
         sound: { enabled: false },
         slack: { enabled: false, webhookUrl: '' },
@@ -56,7 +56,7 @@ describe('Notification Service', () => {
     })
 
     test('includes sound in results when sound is enabled', async () => {
-      updateNotificationSettings({
+      await updateNotificationSettings({
         enabled: true,
         sound: { enabled: true },
         slack: { enabled: false, webhookUrl: '' },
@@ -75,7 +75,7 @@ describe('Notification Service', () => {
     })
 
     test('handles different notification types', async () => {
-      updateNotificationSettings({ enabled: true })
+      await updateNotificationSettings({ enabled: true })
 
       const types: NotificationPayload['type'][] = [
         'task_status_change',
@@ -98,7 +98,7 @@ describe('Notification Service', () => {
     })
 
     test('includes optional fields in payload', async () => {
-      updateNotificationSettings({ enabled: true })
+      await updateNotificationSettings({ enabled: true })
 
       const payload: NotificationPayload = {
         title: 'Test',
@@ -127,7 +127,7 @@ describe('Notification Service', () => {
 
     describe('slack channel', () => {
       test('returns error when webhook URL not configured', async () => {
-        updateNotificationSettings({
+        await updateNotificationSettings({
           slack: { enabled: true, webhookUrl: '' },
         })
 
@@ -154,7 +154,7 @@ describe('Notification Service', () => {
         }
 
         try {
-          updateNotificationSettings({
+          await updateNotificationSettings({
             slack: { enabled: true, webhookUrl: 'https://hooks.slack.com/services/test' },
           })
 
@@ -171,7 +171,7 @@ describe('Notification Service', () => {
 
     describe('discord channel', () => {
       test('returns error when webhook URL not configured', async () => {
-        updateNotificationSettings({
+        await updateNotificationSettings({
           discord: { enabled: true, webhookUrl: '' },
         })
 
@@ -197,7 +197,7 @@ describe('Notification Service', () => {
         }
 
         try {
-          updateNotificationSettings({
+          await updateNotificationSettings({
             discord: { enabled: true, webhookUrl: 'https://discord.com/api/webhooks/test' },
           })
 
@@ -219,7 +219,7 @@ describe('Notification Service', () => {
 
     describe('pushover channel', () => {
       test('returns error when app token not configured', async () => {
-        updateNotificationSettings({
+        await updateNotificationSettings({
           pushover: { enabled: true, appToken: '', userKey: 'user123' },
         })
 
@@ -230,7 +230,7 @@ describe('Notification Service', () => {
       })
 
       test('returns error when user key not configured', async () => {
-        updateNotificationSettings({
+        await updateNotificationSettings({
           pushover: { enabled: true, appToken: 'app123', userKey: '' },
         })
 
@@ -256,7 +256,7 @@ describe('Notification Service', () => {
         }
 
         try {
-          updateNotificationSettings({
+          await updateNotificationSettings({
             pushover: { enabled: true, appToken: 'app-token', userKey: 'user-key' },
           })
 

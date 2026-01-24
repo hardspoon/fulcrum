@@ -310,7 +310,7 @@ describe('Settings', () => {
         await import('./settings')
       ensureFulcrumDir()
 
-      const result = updateNotificationSettings({
+      const result = await updateNotificationSettings({
         enabled: false,
         sound: { enabled: false },
       })
@@ -342,7 +342,7 @@ describe('Settings', () => {
       // Small delay to ensure timestamp changes
       await new Promise((resolve) => setTimeout(resolve, 10))
 
-      updateNotificationSettings({ enabled: true })
+      await updateNotificationSettings({ enabled: true })
       const after = getNotificationSettings()
 
       expect(after._updatedAt).toBeDefined()
@@ -362,11 +362,11 @@ describe('Settings', () => {
       await new Promise((resolve) => setTimeout(resolve, 5))
 
       // Simulate another client updating the settings
-      updateNotificationSettings({ enabled: true })
+      await updateNotificationSettings({ enabled: true })
       const afterOtherUpdate = getNotificationSettings()
 
       // Now try to update with the stale timestamp (should conflict)
-      const result = updateNotificationSettings(
+      const result = await updateNotificationSettings(
         { enabled: false },
         currentTimestamp // This is now stale
       )
@@ -392,7 +392,7 @@ describe('Settings', () => {
       const currentTimestamp = current._updatedAt
 
       // Update with matching timestamp (should succeed)
-      const result = updateNotificationSettings({ enabled: false }, currentTimestamp)
+      const result = await updateNotificationSettings({ enabled: false }, currentTimestamp)
 
       // Should not be a conflict
       expect('conflict' in result).toBe(false)
@@ -407,7 +407,7 @@ describe('Settings', () => {
       ensureFulcrumDir()
 
       // Update without passing a timestamp
-      const result = updateNotificationSettings({ enabled: false })
+      const result = await updateNotificationSettings({ enabled: false })
 
       // Should succeed (no conflict checking when no client timestamp)
       expect('conflict' in result).toBe(false)

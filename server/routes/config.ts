@@ -125,7 +125,7 @@ app.put('/notifications', async (c) => {
     const body = await c.req.json<Partial<NotificationSettings> & { _updatedAt?: number }>()
     const { _updatedAt, ...updates } = body
 
-    const result = updateNotificationSettings(updates, _updatedAt)
+    const result = await updateNotificationSettings(updates, _updatedAt)
 
     // Check if this is a conflict response
     if ('conflict' in result && result.conflict) {

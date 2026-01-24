@@ -4,6 +4,24 @@ import * as os from 'os'
 import { log } from './logger'
 import type { AgentType } from '@shared/types'
 
+// Simple mutex for synchronizing settings file access
+let notificationSettingsLock: Promise<void> = Promise.resolve()
+
+function withNotificationSettingsLock<T>(fn: () => T): Promise<T> {
+  const previousLock = notificationSettingsLock
+  let releaseLock: () => void
+  notificationSettingsLock = new Promise((resolve) => {
+    releaseLock = resolve
+  })
+  return previousLock.then(() => {
+    try {
+      return fn()
+    } finally {
+      releaseLock()
+    }
+  })
+}
+
 // ==================== Test Mode ====================
 // Test mode provides a safety layer to prevent tests from accidentally
 // modifying production settings files (~/.fulcrum/, ~/.claude/)
@@ -695,7 +713,16 @@ export function getNotificationSettings(): NotificationSettings {
 
 // Update notification settings with optional optimistic locking
 // If clientTimestamp is provided and doesn't match current _updatedAt, returns conflict
+// Uses a mutex to prevent race conditions between concurrent requests
 export function updateNotificationSettings(
+  updates: Partial<NotificationSettings>,
+  clientTimestamp?: number
+): Promise<NotificationSettingsUpdateResult> {
+  return withNotificationSettingsLock(() => updateNotificationSettingsSync(updates, clientTimestamp))
+}
+
+// Internal sync version - must be called within the lock
+function updateNotificationSettingsSync(
   updates: Partial<NotificationSettings>,
   clientTimestamp?: number
 ): NotificationSettingsUpdateResult {
