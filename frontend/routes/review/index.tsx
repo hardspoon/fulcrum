@@ -40,7 +40,7 @@ function ReviewPage() {
   if (!isUserLoading && !user) {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex shrink-0 items-center border-b border-border bg-background px-4 py-2" />
+        <div className="film-grain relative flex shrink-0 items-center border-b border-border px-4 py-2" style={{ background: 'var(--gradient-header)' }} />
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="max-w-md space-y-4 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -86,7 +86,7 @@ function ReviewPage() {
         onValueChange={(v) => setActiveTab(v as 'prs' | 'issues')}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <div className="flex shrink-0 flex-col border-b border-border bg-background sm:flex-row sm:items-center sm:justify-between">
+        <div className="film-grain relative flex shrink-0 flex-col border-b border-border sm:flex-row sm:items-center sm:justify-between" style={{ background: 'var(--gradient-header)' }}>
           <div className="flex items-center justify-between px-4 py-1 max-sm:px-2">
             <TabsList variant="line">
               <TabsTrigger value="prs">{t('tabs.pullRequests')}</TabsTrigger>

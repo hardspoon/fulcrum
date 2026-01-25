@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { FilesystemBrowser } from '@/components/ui/filesystem-browser'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -50,12 +51,19 @@ import {
   useDefaultTaskType,
   useStartWorktreeTasksImmediately,
   useTimezone,
+  useAssistantProvider,
+  useAssistantModel,
+  useAssistantCustomInstructions,
+  useAssistantDocumentsDir,
   NotificationSettingsConflictError,
   CONFIG_KEYS,
   CLAUDE_CODE_THEMES,
+  ASSISTANT_MODELS,
   type EditorApp,
   type ClaudeCodeTheme,
   type TaskType,
+  type AssistantProvider,
+  type AssistantModel,
 } from '@/hooks/use-config'
 import { useQueryClient } from '@tanstack/react-query'
 import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
@@ -66,6 +74,7 @@ import {
 } from '@/hooks/use-apps'
 import { useLanguageSync } from '@/hooks/use-language-sync'
 import { useThemeSync } from '@/hooks/use-theme-sync'
+import { useOpencodeModels } from '@/hooks/use-opencode-models'
 
 export const Route = createFileRoute('/settings/')({
   component: SettingsPage,
@@ -73,7 +82,7 @@ export const Route = createFileRoute('/settings/')({
 
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="relative rounded-lg border border-border bg-card p-4 pt-6">
+    <div className="film-grain relative rounded-lg border border-border p-4 pt-6" style={{ background: 'var(--gradient-card)' }}>
       <span className="absolute -top-2.5 left-3 rounded bg-card px-2 text-xs font-medium text-muted-foreground">
         {title}
       </span>
@@ -85,7 +94,6 @@ function SettingsSection({ title, children }: { title: string; children: React.R
 function SettingsPage() {
   const { t } = useTranslation('settings')
   const { t: tc } = useTranslation('common')
-  const isDesktop = typeof window !== 'undefined' && window.parent !== window
   const { data: port, isLoading: portLoading } = usePort()
   const { data: defaultGitReposDir, isLoading: reposDirLoading } = useDefaultGitReposDir()
   const { data: editorApp, isLoading: editorAppLoading } = useEditorApp()
@@ -109,6 +117,11 @@ function SettingsPage() {
   const { data: defaultTaskType, isLoading: taskTypeLoading } = useDefaultTaskType()
   const { data: startWorktreeTasksImmediately, isLoading: startImmediatelyLoading } = useStartWorktreeTasksImmediately()
   const { data: timezone, isLoading: timezoneLoading } = useTimezone()
+  const { data: assistantProvider, isLoading: assistantProviderLoading } = useAssistantProvider()
+  const { data: assistantModel, isLoading: assistantModelLoading } = useAssistantModel()
+  const { data: assistantCustomInstructions, isLoading: assistantInstructionsLoading } = useAssistantCustomInstructions()
+  const { data: assistantDocumentsDir, isLoading: assistantDocumentsDirLoading } = useAssistantDocumentsDir()
+  const { installed: opencodeInstalled } = useOpencodeModels()
   const { version } = useFulcrumVersion()
   const { data: versionCheck, isLoading: versionCheckLoading } = useVersionCheck()
   const refreshVersionCheck = useRefreshVersionCheck()
@@ -168,6 +181,12 @@ function SettingsPage() {
 
   // Timezone local state
   const [localTimezone, setLocalTimezone] = useState<string | null>(null)
+
+  // Assistant settings local state
+  const [localAssistantProvider, setLocalAssistantProvider] = useState<AssistantProvider>('claude')
+  const [localAssistantModel, setLocalAssistantModel] = useState<AssistantModel>('sonnet')
+  const [localAssistantCustomInstructions, setLocalAssistantCustomInstructions] = useState<string>('')
+  const [localAssistantDocumentsDir, setLocalAssistantDocumentsDir] = useState<string>('~/.fulcrum/documents')
 
   // Developer mode restart state
   const [isRestarting, setIsRestarting] = useState(false)
@@ -250,8 +269,16 @@ function SettingsPage() {
     if (timezone !== undefined) setLocalTimezone(timezone)
   }, [timezone])
 
+  // Sync assistant settings
+  useEffect(() => {
+    if (assistantProvider !== undefined) setLocalAssistantProvider(assistantProvider)
+    if (assistantModel !== undefined) setLocalAssistantModel(assistantModel)
+    if (assistantCustomInstructions !== undefined) setLocalAssistantCustomInstructions(assistantCustomInstructions ?? '')
+    if (assistantDocumentsDir !== undefined) setLocalAssistantDocumentsDir(assistantDocumentsDir)
+  }, [assistantProvider, assistantModel, assistantCustomInstructions, assistantDocumentsDir])
+
   const isLoading =
-    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading
+    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading || assistantProviderLoading || assistantModelLoading || assistantInstructionsLoading || assistantDocumentsDirLoading
 
   const hasZAiChanges = zAiSettings && (
     zAiEnabled !== zAiSettings.enabled ||
@@ -271,6 +298,12 @@ function SettingsPage() {
     localStartWorktreeTasksImmediately !== startWorktreeTasksImmediately
 
   const hasTimezoneChanges = localTimezone !== timezone
+
+  const hasAssistantChanges =
+    localAssistantProvider !== assistantProvider ||
+    localAssistantModel !== assistantModel ||
+    localAssistantCustomInstructions !== (assistantCustomInstructions ?? '') ||
+    localAssistantDocumentsDir !== assistantDocumentsDir
 
   // Check if deployment settings have changed
   // We compare local state against server values
@@ -320,7 +353,8 @@ function SettingsPage() {
     hasClaudeCodeChanges ||
     hasDeploymentChanges ||
     hasTaskDefaultsChanges ||
-    hasTimezoneChanges
+    hasTimezoneChanges ||
+    hasAssistantChanges
 
   const handleSaveAll = async () => {
     const promises: Promise<unknown>[] = []
@@ -558,6 +592,50 @@ function SettingsPage() {
       )
     }
 
+    // Save assistant settings
+    if (hasAssistantChanges) {
+      if (localAssistantProvider !== assistantProvider) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_PROVIDER, value: localAssistantProvider },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localAssistantModel !== assistantModel) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_MODEL, value: localAssistantModel },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localAssistantCustomInstructions !== (assistantCustomInstructions ?? '')) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_CUSTOM_INSTRUCTIONS, value: localAssistantCustomInstructions || null },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localAssistantDocumentsDir !== assistantDocumentsDir) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_DOCUMENTS_DIR, value: localAssistantDocumentsDir },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+    }
+
     // Save deployment settings (cloudflare token/account ID)
     // Only send values that were actually changed by the user (not masked placeholders)
     if (hasDeploymentChanges) {
@@ -742,7 +820,7 @@ function SettingsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b border-border bg-background px-4 py-2">
+      <div className="film-grain relative flex shrink-0 items-center justify-between border-b border-border px-4 py-2" style={{ background: 'var(--gradient-header)' }}>
         <h1 className="text-sm font-medium">{t('title')}</h1>
         <div className="flex items-center gap-2">
           {version && <span className="text-xs font-mono text-muted-foreground">v{version}</span>}
@@ -1371,6 +1449,127 @@ function SettingsPage() {
                 </Collapsible>
               </SettingsSection>
 
+              {/* AI Assistant */}
+              <SettingsSection title={t('sections.assistant')}>
+                <div className="space-y-4">
+                  {/* Default provider */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('fields.assistant.provider.label')}
+                      </label>
+                      <Select
+                        value={localAssistantProvider}
+                        onValueChange={(v) => setLocalAssistantProvider(v as AssistantProvider)}
+                      >
+                        <SelectTrigger className="w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="claude">Claude</SelectItem>
+                          {opencodeInstalled && (
+                            <SelectItem value="opencode">OpenCode</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.assistant.provider.description')}
+                    </p>
+                  </div>
+
+                  {/* Claude model (shown when provider is Claude) */}
+                  {localAssistantProvider === 'claude' && (
+                    <div className="space-y-1">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                          {t('fields.assistant.model.label')}
+                        </label>
+                        <Select
+                          value={localAssistantModel}
+                          onValueChange={(v) => setLocalAssistantModel(v as AssistantModel)}
+                        >
+                          <SelectTrigger className="w-48">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ASSISTANT_MODELS.map((model) => (
+                              <SelectItem key={model} value={model}>
+                                {t(`fields.assistant.model.options.${model}`)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                        {t('fields.assistant.model.description')}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* OpenCode model (shown when provider is OpenCode) */}
+                  {localAssistantProvider === 'opencode' && (
+                    <div className="space-y-1">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                          {t('fields.assistant.opencodeModel.label')}
+                        </label>
+                        <ModelPicker
+                          value={globalOpencodeModel}
+                          onChange={(v) => {
+                            updateConfig.mutate({ key: CONFIG_KEYS.OPENCODE_MODEL, value: v })
+                          }}
+                          placeholder={t('fields.assistant.opencodeModel.placeholder')}
+                          className="w-64"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                        {t('fields.assistant.opencodeModel.description')}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Custom instructions */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm text-muted-foreground">
+                        {t('fields.assistant.customInstructions.label')}
+                      </label>
+                      <Textarea
+                        value={localAssistantCustomInstructions}
+                        onChange={(e) => setLocalAssistantCustomInstructions(e.target.value)}
+                        placeholder={t('fields.assistant.customInstructions.placeholder')}
+                        disabled={isLoading}
+                        className="min-h-24 resize-y font-mono text-sm"
+                        rows={4}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t('fields.assistant.customInstructions.description')}
+                    </p>
+                  </div>
+
+                  {/* Documents directory */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('fields.assistant.documentsDir.label')}
+                      </label>
+                      <Input
+                        value={localAssistantDocumentsDir}
+                        onChange={(e) => setLocalAssistantDocumentsDir(e.target.value)}
+                        placeholder="~/.fulcrum/documents"
+                        disabled={isLoading}
+                        className="w-64 font-mono text-sm"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.assistant.documentsDir.description')}
+                    </p>
+                  </div>
+                </div>
+              </SettingsSection>
+
               {/* Task Defaults */}
               <SettingsSection title={t('sections.tasks')}>
                 <div className="space-y-4">
@@ -1915,8 +2114,8 @@ function SettingsPage() {
 
       {/* Sticky Save Button Footer */}
       <div className="shrink-0 border-t border-border bg-background px-6 py-3">
-        <div className="mx-auto flex max-w-5xl items-center justify-end">
-          <div className={`flex items-center gap-2 ${isDesktop ? 'flex-row-reverse' : ''}`}>
+        <div className="mx-auto flex max-w-5xl items-center justify-start">
+          <div className="flex items-center gap-2">
             {saved && (
               <span className="flex items-center gap-1 text-xs text-accent">
                 <HugeiconsIcon icon={Tick02Icon} size={12} strokeWidth={2} />

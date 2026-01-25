@@ -536,7 +536,7 @@ function TaskView() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Task Header */}
-      <div className="shrink-0 border-b border-border bg-background px-4 py-2">
+      <div className="film-grain relative shrink-0 border-b border-border px-4 py-2" style={{ background: 'var(--gradient-header)' }}>
         {/* Mobile: Two-row layout */}
         <div className="flex flex-col gap-1 sm:hidden">
           {/* Row 1: Title + status + operations + delete */}
@@ -952,7 +952,7 @@ function TaskView() {
 
           <TabsContent value="details" className="flex-1 min-h-0 bg-background">
             <Tabs value={activeTab} onValueChange={handleTabChange} className="flex h-full flex-col">
-              <div className="flex items-center justify-between shrink-0 border-b border-border bg-background px-2 py-1">
+              <div className="film-grain relative flex items-center justify-between shrink-0 border-b border-border px-2 py-1" style={{ background: 'var(--gradient-header)' }}>
                 <TabsList variant="line">
                   <TabsTrigger value="diff">
                     <HugeiconsIcon icon={CodeIcon} size={14} strokeWidth={2} data-slot="icon" />
@@ -1021,7 +1021,7 @@ function TaskView() {
           {/* Right: Diff/Browser Toggle */}
           <ResizablePanel defaultSize={50} minSize={30} className="bg-background">
             <Tabs value={activeTab} onValueChange={handleTabChange} className="flex h-full flex-col">
-              <div className="flex items-center justify-between shrink-0 border-b border-border bg-background px-2 py-1">
+              <div className="film-grain relative flex items-center justify-between shrink-0 border-b border-border px-2 py-1" style={{ background: 'var(--gradient-header)' }}>
                 <TabsList variant="line">
                   <TabsTrigger value="diff">
                     <HugeiconsIcon

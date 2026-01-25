@@ -143,7 +143,7 @@ function RepositoryCard({
 
   return (
     <Card
-      className="group transition-colors hover:border-foreground/20 cursor-pointer bg-card"
+      className="group transition-colors hover:border-foreground/20 cursor-pointer"
       onClick={handleCardClick}
     >
       <CardContent className="py-3 px-4">
@@ -807,7 +807,7 @@ function ProjectDetailView() {
     <>
       <div className="flex h-full flex-col">
         {/* Header bar - matches repo detail view pattern */}
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-4 py-2">
+        <div className="film-grain relative flex shrink-0 items-center justify-between gap-4 border-b border-border px-4 py-2" style={{ background: 'var(--gradient-header)' }}>
           {/* Left: Project name */}
           {isEditingName ? (
             <Input
@@ -916,7 +916,7 @@ function ProjectDetailView() {
             ) : null}
 
             {/* Repositories Section */}
-            <section className="rounded-lg border bg-card p-4 space-y-3">
+            <section className="rounded-lg border p-4 space-y-3 bg-card">
               <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 {t('detail.sections.repositories')}
               </h2>
@@ -962,10 +962,10 @@ function ProjectDetailView() {
 
           {/* Links and Attachments - Two column grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="rounded-lg border bg-card p-4">
+            <div className="film-grain relative rounded-lg border p-4" style={{ background: 'var(--gradient-card)' }}>
               <InlineLinks projectId={projectId} links={project.links || []} />
             </div>
-            <div className="rounded-lg border bg-card p-4">
+            <div className="film-grain relative rounded-lg border p-4" style={{ background: 'var(--gradient-card)' }}>
               <InlineAttachments projectId={projectId} />
             </div>
           </div>
@@ -973,13 +973,13 @@ function ProjectDetailView() {
           {/* Tags and Notes - Two column grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Tags */}
-            <div className="rounded-lg border bg-card p-4 space-y-2">
+            <div className="film-grain relative rounded-lg border p-4 space-y-2" style={{ background: 'var(--gradient-card)' }}>
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('detail.sections.tags')}</h3>
               <InlineTags projectId={projectId} tags={project.tags || []} />
             </div>
 
             {/* Notes - Collapsible */}
-            <Collapsible open={notesOpen} onOpenChange={setNotesOpen} className="rounded-lg border bg-card p-4">
+            <Collapsible open={notesOpen} onOpenChange={setNotesOpen} className="film-grain relative rounded-lg border p-4" style={{ background: 'var(--gradient-card)' }}>
               <CollapsibleTrigger className="flex items-center gap-2 w-full text-left group">
                 <HugeiconsIcon
                   icon={notesOpen ? ArrowDown01Icon : ArrowRight01Icon}
@@ -1050,7 +1050,7 @@ function ProjectDetailView() {
           <ProjectAgentSettings project={project} />
 
           {/* Active Tasks Section */}
-          <section className="rounded-lg border bg-card p-4 space-y-3">
+          <section className="film-grain relative rounded-lg border p-4 space-y-3" style={{ background: 'var(--gradient-card)' }}>
             <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               {t('detail.sections.activeTasks')}
             </h2>

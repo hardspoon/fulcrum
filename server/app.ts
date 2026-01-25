@@ -29,6 +29,8 @@ import taskDependenciesRoutes from './routes/task-dependencies'
 import tagsRoutes from './routes/tags'
 import versionRoutes from './routes/version'
 import mcpRoutes from './routes/mcp'
+import chatRoutes from './routes/chat'
+import assistantRoutes from './routes/assistant'
 import { writeEntry } from './lib/logger'
 import type { LogEntry } from '../shared/logger'
 
@@ -86,6 +88,10 @@ export function createApp() {
 
   // MCP HTTP transport endpoint
   app.route('/mcp', mcpRoutes)
+
+  // AI Chat assistant routes
+  app.route('/api/chat', chatRoutes)
+  app.route('/api/assistant', assistantRoutes)
 
   // Logging endpoint for frontend to send batched logs to server
   app.post('/api/logs', async (c) => {

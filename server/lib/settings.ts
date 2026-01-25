@@ -86,7 +86,7 @@ function assertNotProductionPath(p: string, context: string): void {
 // Schema version for settings migration
 // IMPORTANT: This must match the major version in package.json
 // When bumping schema version, also bump major version with: mise run bump major
-export const CURRENT_SCHEMA_VERSION = 1
+export const CURRENT_SCHEMA_VERSION = 2
 
 // Editor app types
 export type EditorApp = 'vscode' | 'cursor' | 'windsurf' | 'zed' | 'antigravity'
@@ -98,6 +98,10 @@ export const CLAUDE_CODE_THEMES: ClaudeCodeTheme[] = ['light', 'light-ansi', 'li
 // Nested settings interface
 // Task type for defaults
 export type TaskType = 'worktree' | 'non-worktree'
+
+// Assistant provider and model types
+export type AssistantProvider = 'claude' | 'opencode'
+export type AssistantModel = 'opus' | 'sonnet' | 'haiku'
 
 export interface Settings {
   _schemaVersion?: number
@@ -134,6 +138,12 @@ export interface Settings {
     syncClaudeCodeTheme: boolean
     claudeCodeLightTheme: ClaudeCodeTheme
     claudeCodeDarkTheme: ClaudeCodeTheme
+  }
+  assistant: {
+    provider: AssistantProvider
+    model: AssistantModel
+    customInstructions: string | null
+    documentsDir: string
   }
 }
 
@@ -174,10 +184,45 @@ const DEFAULT_SETTINGS: Settings = {
     claudeCodeLightTheme: 'light-ansi',
     claudeCodeDarkTheme: 'dark-ansi',
   },
+  assistant: {
+    provider: 'claude',
+    model: 'sonnet',
+    customInstructions: null,
+    documentsDir: '~/.fulcrum/documents',
+  },
 }
 
 // Old default port for migration detection
 const OLD_DEFAULT_PORT = 3333
+
+// Valid setting paths that can be updated via updateSettingByPath
+// This ensures we don't silently write to unknown paths
+export const VALID_SETTING_PATHS = new Set([
+  'server.port',
+  'paths.defaultGitReposDir',
+  'editor.app',
+  'editor.host',
+  'editor.sshPort',
+  'integrations.githubPat',
+  'integrations.cloudflareApiToken',
+  'integrations.cloudflareAccountId',
+  'agent.defaultAgent',
+  'agent.opencodeModel',
+  'agent.opencodeDefaultAgent',
+  'agent.opencodePlanAgent',
+  'tasks.defaultTaskType',
+  'tasks.startWorktreeTasksImmediately',
+  'appearance.language',
+  'appearance.theme',
+  'appearance.timezone',
+  'appearance.syncClaudeCodeTheme',
+  'appearance.claudeCodeLightTheme',
+  'appearance.claudeCodeDarkTheme',
+  'assistant.provider',
+  'assistant.model',
+  'assistant.customInstructions',
+  'assistant.documentsDir',
+])
 
 // Migration map from old flat keys to new nested paths
 const MIGRATION_MAP: Record<string, string> = {
@@ -452,6 +497,14 @@ export function getSettings(): Settings {
       claudeCodeLightTheme: ((parsed.appearance as Record<string, unknown>)?.claudeCodeLightTheme as ClaudeCodeTheme) ?? 'light-ansi',
       claudeCodeDarkTheme: ((parsed.appearance as Record<string, unknown>)?.claudeCodeDarkTheme as ClaudeCodeTheme) ?? 'dark-ansi',
     },
+    assistant: {
+      provider: ((parsed.assistant as Record<string, unknown>)?.provider as AssistantProvider) ?? DEFAULT_SETTINGS.assistant.provider,
+      model: ((parsed.assistant as Record<string, unknown>)?.model as AssistantModel) ?? DEFAULT_SETTINGS.assistant.model,
+      customInstructions: ((parsed.assistant as Record<string, unknown>)?.customInstructions as string | null) ?? null,
+      documentsDir: expandPath(
+        ((parsed.assistant as Record<string, unknown>)?.documentsDir as string) ?? DEFAULT_SETTINGS.assistant.documentsDir
+      ),
+    },
   }
 
   // Apply environment variable overrides
@@ -481,6 +534,7 @@ export function getSettings(): Settings {
     agent: fileSettings.agent,
     tasks: fileSettings.tasks,
     appearance: fileSettings.appearance,
+    assistant: fileSettings.assistant,
   }
 }
 
@@ -531,7 +585,13 @@ export function isDeveloperMode(): boolean {
 }
 
 // Update a setting by dot-notation path
+// Throws an error if the path is not a known valid setting path
 export function updateSettingByPath(settingPath: string, value: unknown): Settings {
+  // Validate that the path is a known setting
+  if (!VALID_SETTING_PATHS.has(settingPath)) {
+    throw new Error(`Unknown setting path: ${settingPath}`)
+  }
+
   ensureFulcrumDir()
   const settingsPath = getSettingsPath()
 

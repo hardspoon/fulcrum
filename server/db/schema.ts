@@ -22,7 +22,7 @@ export const tasks = sqliteTable('tasks', {
   // Generalized task management fields
   projectId: text('project_id'), // FK to projects (nullable - null = orphan/inbox)
   repositoryId: text('repository_id'), // FK to repositories for worktree tasks
-  tags: text('tags'), // JSON array: ["bug", "urgent"]
+  // NOTE: tags are now stored in task_tags join table, not here
   startedAt: text('started_at'), // Timestamp when moved out of TO_DO
   dueDate: text('due_date'), // YYYY-MM-DD format
   notes: text('notes'), // Free-form notes/comments
@@ -256,6 +256,55 @@ export const projectTags = sqliteTable('project_tags', {
   createdAt: text('created_at').notNull(),
 })
 
+// Chat sessions - AI assistant conversations
+export const chatSessions = sqliteTable('chat_sessions', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  provider: text('provider').notNull().default('claude'), // 'claude' | 'opencode'
+  model: text('model'), // Model used for this session
+  projectId: text('project_id'), // Optional: for organization
+  context: text('context'), // JSON: initial page context
+  editorContent: text('editor_content'), // Persisted editor/document content
+  documentPath: text('document_path'), // Relative path from documents dir (e.g., "my-report.md")
+  documentStarred: integer('document_starred', { mode: 'boolean' }).default(false), // Pin document to top
+  isFavorite: integer('is_favorite', { mode: 'boolean' }).default(false),
+  messageCount: integer('message_count').default(0),
+  lastMessageAt: text('last_message_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// Chat messages - individual messages within a chat session
+export const chatMessages = sqliteTable('chat_messages', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull(), // FK to chatSessions
+  role: text('role').notNull(), // 'user' | 'assistant' | 'system'
+  content: text('content').notNull(),
+  toolCalls: text('tool_calls'), // JSON: tool calls made by assistant
+  artifacts: text('artifacts'), // JSON: array of artifact IDs referenced
+  model: text('model'), // Model that generated this response
+  tokensIn: integer('tokens_in'), // Input tokens
+  tokensOut: integer('tokens_out'), // Output tokens
+  createdAt: text('created_at').notNull(),
+})
+
+// Artifacts - generated content from AI assistant (charts, diagrams, documents)
+export const artifacts = sqliteTable('artifacts', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id'), // FK to chatSessions (nullable - can be detached)
+  messageId: text('message_id'), // FK to chatMessages (nullable)
+  type: text('type').notNull(), // 'chart' | 'mermaid' | 'markdown' | 'code'
+  title: text('title').notNull(),
+  description: text('description'),
+  content: text('content'), // Content stored directly in DB
+  version: integer('version').default(1),
+  previewUrl: text('preview_url'), // External preview URL if applicable
+  isFavorite: integer('is_favorite', { mode: 'boolean' }).default(false),
+  tags: text('tags'), // JSON array of tags
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 // System metrics for monitoring - stores historical CPU, memory, disk usage
 export const systemMetrics = sqliteTable('system_metrics', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -312,3 +361,9 @@ export type ProjectTag = typeof projectTags.$inferSelect
 export type NewProjectTag = typeof projectTags.$inferInsert
 export type ProjectLink = typeof projectLinks.$inferSelect
 export type NewProjectLink = typeof projectLinks.$inferInsert
+export type ChatSession = typeof chatSessions.$inferSelect
+export type NewChatSession = typeof chatSessions.$inferInsert
+export type ChatMessage = typeof chatMessages.$inferSelect
+export type NewChatMessage = typeof chatMessages.$inferInsert
+export type Artifact = typeof artifacts.$inferSelect
+export type NewArtifact = typeof artifacts.$inferInsert

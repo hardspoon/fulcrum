@@ -32,6 +32,10 @@ export const CONFIG_KEYS = {
   CLAUDE_CODE_DARK_THEME: 'appearance.claudeCodeDarkTheme',
   DEFAULT_TASK_TYPE: 'tasks.defaultTaskType',
   START_WORKTREE_TASKS_IMMEDIATELY: 'tasks.startWorktreeTasksImmediately',
+  ASSISTANT_PROVIDER: 'assistant.provider',
+  ASSISTANT_MODEL: 'assistant.model',
+  ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
+  ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
 } as const
 
 // Default values (client-side fallbacks)
@@ -265,6 +269,51 @@ export function useStartWorktreeTasksImmediately() {
 
 /** @deprecated Use useStartWorktreeTasksImmediately instead */
 export const useStartCodeTasksImmediately = useStartWorktreeTasksImmediately
+
+// Assistant settings
+export type AssistantProvider = 'claude' | 'opencode'
+export type AssistantModel = 'opus' | 'sonnet' | 'haiku'
+export const ASSISTANT_MODELS: AssistantModel[] = ['opus', 'sonnet', 'haiku']
+
+export function useAssistantProvider() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_PROVIDER)
+
+  return {
+    ...query,
+    data: (query.data?.value as AssistantProvider) ?? 'claude',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantModel() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_MODEL)
+
+  return {
+    ...query,
+    data: (query.data?.value as AssistantModel) ?? 'sonnet',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantCustomInstructions() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_CUSTOM_INSTRUCTIONS)
+
+  return {
+    ...query,
+    data: (query.data?.value as string | null) ?? null,
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantDocumentsDir() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_DOCUMENTS_DIR)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '~/.fulcrum/documents',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
 
 export function useUpdateConfig() {
   const queryClient = useQueryClient()
