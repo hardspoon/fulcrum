@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { findClaudeCodePath } from '../lib/claude-code-path'
 
 const app = new Hono()
 
@@ -20,28 +21,13 @@ function isCommandAvailable(command: string): { installed: boolean; path?: strin
 
 /**
  * Check if Claude Code CLI is installed
- * Checks PATH first, then common installation locations
+ * Uses centralized detection from claude-code-path module
  */
 function isClaudeCodeInstalled(): { installed: boolean; path?: string } {
-  // First check PATH
-  const pathCheck = isCommandAvailable('claude')
-  if (pathCheck.installed) {
-    return pathCheck
+  const result = findClaudeCodePath()
+  if (result.path) {
+    return { installed: true, path: result.path }
   }
-
-  // Check common installation paths (e.g., when installed as alias)
-  const commonPaths = [
-    join(homedir(), '.claude', 'local', 'claude'),
-    '/usr/local/bin/claude',
-    '/opt/homebrew/bin/claude',
-  ]
-
-  for (const path of commonPaths) {
-    if (existsSync(path)) {
-      return { installed: true, path }
-    }
-  }
-
   return { installed: false }
 }
 

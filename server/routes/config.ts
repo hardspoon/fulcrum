@@ -37,6 +37,7 @@ export const CONFIG_KEYS = {
   OPENCODE_DEFAULT_AGENT: 'agent.opencodeDefaultAgent',
   OPENCODE_PLAN_AGENT: 'agent.opencodePlanAgent',
   AGENT_AUTO_SCROLL_TO_BOTTOM: 'agent.autoScrollToBottom',
+  CLAUDE_CODE_PATH: 'agent.claudeCodePath',
   DEFAULT_TASK_TYPE: 'tasks.defaultTaskType',
   START_WORKTREE_TASKS_IMMEDIATELY: 'tasks.startWorktreeTasksImmediately',
   LANGUAGE: 'appearance.language',
@@ -396,6 +397,15 @@ app.put('/:key', async (c) => {
     } else if (path === CONFIG_KEYS.AGENT_AUTO_SCROLL_TO_BOTTOM) {
       if (typeof value !== 'boolean') {
         return c.json({ error: 'Auto-scroll to bottom must be a boolean' }, 400)
+      }
+    } else if (path === CONFIG_KEYS.CLAUDE_CODE_PATH) {
+      // Claude Code path can be null or a string
+      if (value !== null && typeof value !== 'string') {
+        return c.json({ error: 'Claude Code path must be a string or null' }, 400)
+      }
+      // Convert empty string to null
+      if (value === '') {
+        value = null
       }
     } else if (path === CONFIG_KEYS.DEFAULT_TASK_TYPE) {
       const validTaskTypes = ['worktree', 'non-worktree']

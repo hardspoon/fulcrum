@@ -1,5 +1,6 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { getSettings } from '../lib/settings'
+import { getClaudeCodePathForSdk } from '../lib/claude-code-path'
 import { log } from '../lib/logger'
 import { db, tasks, projects, repositories, apps, projectRepositories } from '../db'
 import { eq } from 'drizzle-orm'
@@ -268,6 +269,7 @@ export async function* streamMessage(
         model: MODEL_MAP[modelId],
         resume: session.claudeSessionId, // Resume conversation if exists
         includePartialMessages: true, // Stream partial messages
+        pathToClaudeCodeExecutable: getClaudeCodePathForSdk(),
         mcpServers: {
           fulcrum: {
             type: 'http',

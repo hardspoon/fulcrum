@@ -45,6 +45,7 @@ export interface Settings {
     opencodeDefaultAgent: string
     opencodePlanAgent: string
     autoScrollToBottom: boolean
+    claudeCodePath: string | null
   }
   tasks: {
     defaultTaskType: TaskType
@@ -91,6 +92,7 @@ export const DEFAULT_SETTINGS: Settings = {
     opencodeDefaultAgent: 'build',
     opencodePlanAgent: 'plan',
     autoScrollToBottom: true,
+    claudeCodePath: null,
   },
   tasks: {
     defaultTaskType: 'worktree',
@@ -131,6 +133,7 @@ export const VALID_SETTING_PATHS = new Set([
   'agent.opencodeDefaultAgent',
   'agent.opencodePlanAgent',
   'agent.autoScrollToBottom',
+  'agent.claudeCodePath',
   'tasks.defaultTaskType',
   'tasks.startWorktreeTasksImmediately',
   'appearance.language',

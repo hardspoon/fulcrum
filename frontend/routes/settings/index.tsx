@@ -33,6 +33,7 @@ import {
   useOpencodeDefaultAgent,
   useOpencodePlanAgent,
   useAutoScrollToBottom,
+  useClaudeCodePath,
   useTriggerUpdate,
   useUpdateConfig,
   useResetConfig,
@@ -107,6 +108,7 @@ function SettingsPage() {
   const { data: globalOpencodeDefaultAgent, isLoading: opcodeDefaultAgentLoading } = useOpencodeDefaultAgent()
   const { data: globalOpencodePlanAgent, isLoading: opencodePlanAgentLoading } = useOpencodePlanAgent()
   const { data: autoScrollToBottom, isLoading: autoScrollLoading } = useAutoScrollToBottom()
+  const { data: claudeCodePath } = useClaudeCodePath()
   const { data: notificationSettings, isLoading: notificationsLoading } = useNotificationSettings()
   const { data: zAiSettings, isLoading: zAiLoading } = useZAiSettings()
   const { data: deploymentSettings, isLoading: deploymentLoading } = useDeploymentSettings()
@@ -147,6 +149,7 @@ function SettingsPage() {
   const [localOpencodeDefaultAgent, setLocalOpencodeDefaultAgent] = useState<string>('build')
   const [localOpencodePlanAgent, setLocalOpencodePlanAgent] = useState<string>('plan')
   const [localAutoScrollToBottom, setLocalAutoScrollToBottom] = useState(true)
+  const [localClaudeCodePath, setLocalClaudeCodePath] = useState<string>('')
   const [reposDirBrowserOpen, setReposDirBrowserOpen] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -213,7 +216,8 @@ function SettingsPage() {
     if (globalOpencodeDefaultAgent !== undefined) setLocalOpencodeDefaultAgent(globalOpencodeDefaultAgent)
     if (globalOpencodePlanAgent !== undefined) setLocalOpencodePlanAgent(globalOpencodePlanAgent)
     if (autoScrollToBottom !== undefined) setLocalAutoScrollToBottom(autoScrollToBottom)
-  }, [port, defaultGitReposDir, editorApp, editorHost, editorSshPort, githubPat, defaultAgent, globalOpencodeModel, globalOpencodeDefaultAgent, globalOpencodePlanAgent, autoScrollToBottom])
+    if (claudeCodePath !== undefined) setLocalClaudeCodePath(claudeCodePath ?? '')
+  }, [port, defaultGitReposDir, editorApp, editorHost, editorSshPort, githubPat, defaultAgent, globalOpencodeModel, globalOpencodeDefaultAgent, globalOpencodePlanAgent, autoScrollToBottom, claudeCodePath])
 
   // Sync notification settings
   useEffect(() => {
@@ -346,7 +350,8 @@ function SettingsPage() {
     localOpencodeModel !== (globalOpencodeModel ?? null) ||
     localOpencodeDefaultAgent !== globalOpencodeDefaultAgent ||
     localOpencodePlanAgent !== globalOpencodePlanAgent ||
-    localAutoScrollToBottom !== autoScrollToBottom
+    localAutoScrollToBottom !== autoScrollToBottom ||
+    localClaudeCodePath !== (claudeCodePath ?? '')
 
   const hasChanges =
     localPort !== String(port) ||
@@ -485,6 +490,17 @@ function SettingsPage() {
         new Promise((resolve) => {
           updateConfig.mutate(
             { key: CONFIG_KEYS.AGENT_AUTO_SCROLL_TO_BOTTOM, value: localAutoScrollToBottom },
+            { onSettled: resolve }
+          )
+        })
+      )
+    }
+
+    if (localClaudeCodePath !== (claudeCodePath ?? '')) {
+      promises.push(
+        new Promise((resolve) => {
+          updateConfig.mutate(
+            { key: CONFIG_KEYS.CLAUDE_CODE_PATH, value: localClaudeCodePath || null },
             { onSettled: resolve }
           )
         })
@@ -1479,6 +1495,25 @@ function SettingsPage() {
                   </div>
                   <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
                     {t('fields.agent.autoScrollToBottom.description')}
+                  </p>
+                </div>
+
+                {/* Claude Code Path */}
+                <div className="mt-4 space-y-1 border-t border-border pt-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                      {t('fields.agent.claudeCodePath.label')}
+                    </label>
+                    <Input
+                      value={localClaudeCodePath}
+                      onChange={(e) => setLocalClaudeCodePath(e.target.value)}
+                      placeholder={t('fields.agent.claudeCodePath.placeholder')}
+                      className="flex-1"
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                    {t('fields.agent.claudeCodePath.description')}
                   </p>
                 </div>
               </SettingsSection>

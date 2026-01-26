@@ -25,6 +25,7 @@ export const CONFIG_KEYS = {
   OPENCODE_DEFAULT_AGENT: 'agent.opencodeDefaultAgent',
   OPENCODE_PLAN_AGENT: 'agent.opencodePlanAgent',
   AGENT_AUTO_SCROLL_TO_BOTTOM: 'agent.autoScrollToBottom',
+  CLAUDE_CODE_PATH: 'agent.claudeCodePath',
   LANGUAGE: 'appearance.language',
   THEME: 'appearance.theme',
   TIMEZONE: 'appearance.timezone',
@@ -182,6 +183,16 @@ export function useAutoScrollToBottom() {
     ...query,
     // Default to true when value is undefined (preserve existing behavior)
     data: query.data?.value === undefined ? true : Boolean(query.data.value),
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useClaudeCodePath() {
+  const query = useConfig(CONFIG_KEYS.CLAUDE_CODE_PATH)
+
+  return {
+    ...query,
+    data: (query.data?.value as string | null) ?? null,
     isDefault: query.data?.isDefault ?? true,
   }
 }

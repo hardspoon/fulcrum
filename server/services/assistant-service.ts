@@ -4,6 +4,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 import { db, chatSessions, chatMessages, artifacts } from '../db'
 import type { ChatSession, NewChatSession, ChatMessage, NewChatMessage, Artifact, NewArtifact } from '../db/schema'
 import { getSettings } from '../lib/settings'
+import { getClaudeCodePathForSdk } from '../lib/claude-code-path'
 import { log } from '../lib/logger'
 import type { PageContext } from '../../shared/types'
 import { saveDocument, readDocument, deleteDocument, renameDocument, generateDocumentFilename } from './document-service'
@@ -474,6 +475,7 @@ User message: ${userMessage}`
         model: MODEL_MAP[effectiveModelId],
         resume: state.claudeSessionId,
         includePartialMessages: true,
+        pathToClaudeCodeExecutable: getClaudeCodePathForSdk(),
         mcpServers: {
           fulcrum: {
             type: 'http',

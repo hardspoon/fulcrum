@@ -110,6 +110,11 @@
       "autoScrollToBottom": {
         "label": "自动滚动到底部",
         "description": "当有新输出时自动将终端滚动到底部"
+      },
+      "claudeCodePath": {
+        "label": "Claude Code 路径",
+        "placeholder": "自动检测（留空）",
+        "description": "覆盖自动检测的 Claude Code 可执行文件路径。留空则从 PATH 或常见安装位置自动检测。"
       }
     },
     "assistant": {

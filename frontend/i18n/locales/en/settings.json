@@ -110,6 +110,11 @@
       "autoScrollToBottom": {
         "label": "Auto-scroll to Bottom",
         "description": "Automatically scroll terminals to the bottom when new output arrives"
+      },
+      "claudeCodePath": {
+        "label": "Claude Code Path",
+        "placeholder": "Auto-detect (leave empty)",
+        "description": "Override the auto-detected Claude Code executable path. Leave empty for automatic detection from PATH or common installation locations."
       }
     },
     "assistant": {
