@@ -2,7 +2,7 @@
 
 **Harness Attention. Orchestrate Agents. Leverage Your Time Wisely.**
 
-![Fulcrum Kanban Board with AI Assistant](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/kanban-with-assistant.png)
+![Fulcrum Kanban Board with AI Assistant](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/kanban-with-assistant-dark.png)
 
 ## What It Does
 
@@ -79,37 +79,37 @@ claude plugin install fulcrum@fulcrum --scope user
 
 Track tasks from planning to done. The built-in AI assistant has full context of everything you're tracking—tasks, projects, apps—and can help with planning, documentation, or running MCP tools.
 
-![Kanban Board with AI Assistant](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/kanban-with-assistant.png)
+![Kanban Board with AI Assistant](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/kanban-with-assistant-dark.png)
 
 ### Parallel Agent Orchestration
 
 Run multiple AI coding agents simultaneously across different tasks. Each task gets an isolated git worktree. Monitor and interact with all sessions from one screen.
 
-![Parallel Agent Terminals](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/parallel-agent-terminals.png)
+![Parallel Agent Terminals](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/parallel-agent-terminals-dark.png)
 
 ### Projects
 
 Unified view of repositories and deployments. Link repos, manage tasks, configure default agents, and see active work at a glance.
 
-![Projects List](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/projects-list.png)
+![Projects List](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/projects-list-dark.png)
 
 ### Project Workspace
 
 Terminal with integrated file browser. Direct access to project files alongside your agent sessions.
 
-![Project Workspace](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/project-workspace.png)
+![Project Workspace](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/project-workspace-dark.png)
 
 ### Task Dependencies
 
 Define prerequisite tasks that must complete before others can start. Visualize with an interactive dependency graph.
 
-![Task Dependency Graph](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/task-dependency-graph.png)
+![Task Dependency Graph](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/task-dependency-graph-dark.png)
 
 ### AI Assistant
 
 Create documents with live preview. Generate charts and visualizations. The assistant uses the same MCP tools available to external agents.
 
-![AI Assistant Editor](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/assistant-editor.png)
+![AI Assistant Editor](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/assistant-editor-dark.png)
 
 ### WhatsApp Integration
 
@@ -125,7 +125,7 @@ Enable in Settings → Messaging, then scan the QR code with WhatsApp mobile.
 
 Track CPU, memory, and disk usage while your agents work. The Jobs tab manages systemd (Linux) or launchd (macOS) timers.
 
-![System Monitoring](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/system-monitoring.png)
+![System Monitoring](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/system-monitoring-dark.png)
 
 ## Supported Agents
 
