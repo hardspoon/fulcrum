@@ -60,7 +60,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
-      should_release: ${{ steps.check_tag.outputs.exists == 'false' }}
+      should_release: ${{ steps.check_release.outputs.should_release }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,49 +74,71 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Check if tag exists
-        id: check_tag
+      - name: Check release status
+        id: check_release
         run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+          TAG="v${{ steps.version.outputs.version }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Check if tag exists
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            TAG_EXISTS="true"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            TAG_EXISTS="false"
           fi
 
+          # Check if npm version exists
+          if npm view @knowsuchagency/fulcrum@$VERSION version >/dev/null 2>&1; then
+            NPM_EXISTS="true"
+          else
+            NPM_EXISTS="false"
+          fi
+
+          # If tag exists but npm doesn't, we have an incomplete release - delete orphan tag
+          if [ "$TAG_EXISTS" = "true" ] && [ "$NPM_EXISTS" = "false" ]; then
+            echo "Found orphan tag without npm release, deleting tag..."
+            git push origin :refs/tags/$TAG || true
+            TAG_EXISTS="false"
+          fi
+
+          echo "tag_exists=$TAG_EXISTS" >> $GITHUB_OUTPUT
+          echo "npm_exists=$NPM_EXISTS" >> $GITHUB_OUTPUT
+          echo "should_release=$( [ "$TAG_EXISTS" = "false" ] && echo 'true' || echo 'false' )" >> $GITHUB_OUTPUT
+
       - name: Setup Bun
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.should_release == 'true'
         uses: oven-sh/setup-bun@v2
 
       - name: Setup Node.js
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.should_release == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Setup mise
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.should_release == 'true'
         uses: jdx/mise-action@v2
 
       - name: Install dependencies
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.should_release == 'true'
         run: bun install
 
       - name: Verify version sync
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.should_release == 'true'
         run: mise run check:version
 
       - name: Build CLI
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.should_release == 'true'
         run: mise run cli:build
 
       - name: Publish to npm
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.should_release == 'true'
         working-directory: cli
         run: npm publish --access public --provenance
 
       - name: Create and push tag
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.should_release == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -124,7 +146,7 @@ jobs:
           git push origin ${{ steps.version.outputs.tag }}
 
       - name: Create GitHub Release
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_release.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
