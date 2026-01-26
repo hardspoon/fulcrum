@@ -255,7 +255,7 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
             animation: 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
           }}
         >
-          <div className="film-grain relative flex flex-col font-sans rounded-3xl shadow-2xl overflow-hidden max-h-[min(600px,calc(100vh-140px))] bg-popover border border-border" style={{ background: 'var(--gradient-card)' }}>
+          <div className="film-grain relative flex flex-col font-sans rounded-xl shadow-2xl overflow-hidden max-h-[min(600px,calc(100vh-140px))] bg-popover border border-border" style={{ background: 'var(--gradient-card)' }}>
             {/* Header */}
             <div className="flex items-center justify-between px-3 sm:px-6 pt-3 sm:pt-4 pb-2">
               <div className="flex items-center gap-1.5">
@@ -307,7 +307,7 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
                       setIsDropdownOpen(newState)
                       if (!newState) setModelFilter('')
                     }}
-                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-2xl transition-colors bg-muted/60 text-foreground hover:bg-muted"
+                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg transition-colors bg-muted/60 text-foreground hover:bg-muted"
                   >
                     <span className="max-w-[60px] sm:max-w-[80px] truncate">{getModelLabel()}</span>
                     <ChevronDown
@@ -317,7 +317,7 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
 
                   {/* Model Dropdown */}
                   {isDropdownOpen && (
-                    <div className="absolute top-full right-0 mt-1 w-48 max-h-64 overflow-y-auto rounded-xl shadow-xl backdrop-blur-sm z-10 animate-in fade-in-0 slide-in-from-top-1 duration-150 scrollbar-thin bg-popover/95 border border-border scrollbar-thumb-muted">
+                    <div className="absolute top-full right-0 mt-1 w-48 max-h-64 overflow-y-auto rounded-lg shadow-xl backdrop-blur-sm z-10 animate-in fade-in-0 slide-in-from-top-1 duration-150 scrollbar-thin bg-popover/95 border border-border scrollbar-thumb-muted">
                       {/* Claude Models */}
                       {provider === 'claude' && (
                         <>
@@ -483,7 +483,7 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
             {/* Floating Overlay (dark mode only) */}
             {isDark && (
               <div
-                className="absolute inset-0 rounded-3xl pointer-events-none"
+                className="absolute inset-0 rounded-xl pointer-events-none"
                 style={{
                   background: 'linear-gradient(135deg, color-mix(in oklch, var(--destructive) 3%, transparent), transparent, color-mix(in oklch, var(--accent) 3%, transparent))',
                 }}

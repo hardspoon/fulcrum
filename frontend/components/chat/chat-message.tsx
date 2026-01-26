@@ -55,7 +55,7 @@ export function ChatMessage({ role, content, isStreaming, onClick }: ChatMessage
       {/* Message content */}
       <div
         onClick={isClickable ? onClick : undefined}
-        className={`flex-1 min-w-0 max-w-[85%] rounded-2xl px-4 py-3 text-sm overflow-hidden text-foreground ${
+        className={`flex-1 min-w-0 max-w-[85%] rounded-lg px-4 py-3 text-sm overflow-hidden text-foreground ${
           isUser
             ? 'bg-muted/50 border border-border/50 rounded-tr-sm'
             : 'bg-card/50 border border-border/50 rounded-tl-sm'
