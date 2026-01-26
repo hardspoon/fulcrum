@@ -8,6 +8,7 @@ import { getClaudeCodePathForSdk } from '../lib/claude-code-path'
 import { log } from '../lib/logger'
 import type { PageContext } from '../../shared/types'
 import { saveDocument, readDocument, deleteDocument, renameDocument, generateDocumentFilename } from './document-service'
+import { getFullKnowledge } from './assistant-knowledge'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
 
@@ -210,9 +211,11 @@ export function getMessages(sessionId: string): ChatMessage[] {
  * Build system prompt for assistant
  */
 function buildSystemPrompt(): string {
-  const basePrompt = `You are an AI assistant integrated into Fulcrum, a terminal-first tool for orchestrating AI coding agents.
+  const fulcrumKnowledge = getFullKnowledge()
 
-## Canvas Tool
+  const uiFeatures = `## UI Features
+
+### Canvas Tool
 
 You have a canvas panel on the right side of the chat. Use <canvas> XML tags to display content in the viewer:
 
@@ -229,10 +232,6 @@ This can include markdown, tables, code blocks, charts, etc.
 **When NOT to use the canvas:**
 - For simple text responses or explanations
 - When just answering questions conversationally
-
-## Creating Charts
-
-Inside canvas blocks (or standalone), you can use Recharts components:
 
 ### Creating Charts with Recharts
 
@@ -254,119 +253,25 @@ Use fenced code blocks with the \`chart\` language identifier. Write JSX using R
 </ResponsiveContainer>
 \`\`\`
 
-### Available Chart Components
+**Available Chart Components:**
+- BarChart, LineChart, AreaChart, PieChart, ScatterChart, RadarChart, ComposedChart
+- ResponsiveContainer (always wrap charts), CartesianGrid, XAxis, YAxis, Tooltip, Legend
 
-All Recharts components are available:
-- **BarChart, Bar** - Bar charts (horizontal/vertical)
-- **LineChart, Line** - Line charts
-- **AreaChart, Area** - Area charts
-- **PieChart, Pie, Cell** - Pie/donut charts
-- **ScatterChart, Scatter** - Scatter plots
-- **RadarChart, Radar** - Radar charts
-- **ComposedChart** - Mixed chart types
-- **ResponsiveContainer** - Responsive wrapper (always use this)
-- **CartesianGrid, XAxis, YAxis, Tooltip, Legend** - Chart accessories
+**Color Palette (CSS Variables):**
+- \`var(--chart-1)\` through \`var(--chart-5)\` for data colors
+- \`var(--muted-foreground)\` for axis labels
+- \`var(--border)\` for grid lines
+- \`var(--card)\`, \`var(--card-foreground)\` for tooltips
 
-### Example: Multi-series Line Chart
+**Styling Rules:**
+- Wrap charts in ResponsiveContainer with width="100%" and height={300}
+- Use strokeWidth={2} for lines, radius={[4, 4, 0, 0]} for rounded bar tops
 
-\`\`\`chart
-<ResponsiveContainer width="100%" height={300}>
-  <LineChart data={[
-    { month: 'Jan', productA: 100, productB: 80 },
-    { month: 'Feb', productA: 150, productB: 120 },
-    { month: 'Mar', productA: 130, productB: 140 }
-  ]}>
-    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-    <XAxis dataKey="month" stroke="var(--muted-foreground)" tick={{ fill: 'var(--muted-foreground)' }} />
-    <YAxis stroke="var(--muted-foreground)" tick={{ fill: 'var(--muted-foreground)' }} />
-    <Tooltip contentStyle={{ backgroundColor: 'var(--card)', color: 'var(--card-foreground)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-    <Legend wrapperStyle={{ color: 'var(--muted-foreground)' }} />
-    <Line type="monotone" dataKey="productA" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 4 }} />
-    <Line type="monotone" dataKey="productB" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 4 }} />
-  </LineChart>
-</ResponsiveContainer>
-\`\`\`
-
-### Example: Pie Chart
-
-\`\`\`chart
-<ResponsiveContainer width="100%" height={300}>
-  <PieChart>
-    <Pie
-      data={[
-        { name: 'Group A', value: 400 },
-        { name: 'Group B', value: 300 },
-        { name: 'Group C', value: 200 }
-      ]}
-      cx="50%"
-      cy="50%"
-      innerRadius={60}
-      outerRadius={100}
-      paddingAngle={2}
-      dataKey="value"
-    >
-      <Cell fill="var(--chart-1)" />
-      <Cell fill="var(--chart-2)" />
-      <Cell fill="var(--chart-3)" />
-    </Pie>
-    <Tooltip contentStyle={{ backgroundColor: 'var(--card)', color: 'var(--card-foreground)', border: '1px solid var(--border)', borderRadius: '8px' }} />
-    <Legend wrapperStyle={{ color: 'var(--muted-foreground)' }} />
-  </PieChart>
-</ResponsiveContainer>
-\`\`\`
-
-## Color Palette (CSS Variables)
-
-ALWAYS use these CSS variables for colors - they adapt to light/dark themes:
-
-**Data colors (for bars, lines, areas, pie slices):**
-- \`var(--chart-1)\` - Primary accent (blue)
-- \`var(--chart-2)\` - Secondary accent (teal)
-- \`var(--chart-3)\` - Tertiary accent (amber)
-- \`var(--chart-4)\` - Fourth accent (rose)
-- \`var(--chart-5)\` - Fifth accent (violet)
-
-**UI colors:**
-- \`var(--foreground)\` - Primary text color
-- \`var(--muted-foreground)\` - Secondary text (axis labels, legends)
-- \`var(--border)\` - Grid lines, borders
-- \`var(--card)\` - Tooltip/card backgrounds
-- \`var(--card-foreground)\` - Text on cards/tooltips
-
-**Usage pattern:**
-\`\`\`jsx
-// Bars, lines, fills - use chart colors
-<Bar fill="var(--chart-1)" />
-<Line stroke="var(--chart-2)" />
-
-// Axis text - use muted foreground
-<XAxis stroke="var(--muted-foreground)" tick={{ fill: 'var(--muted-foreground)' }} />
-
-// Grid - use border
-<CartesianGrid stroke="var(--border)" />
-
-// Tooltips - use card colors
-<Tooltip contentStyle={{ backgroundColor: 'var(--card)', color: 'var(--card-foreground)', border: '1px solid var(--border)' }} />
-\`\`\`
-
-## Styling Rules
-
-- Always wrap charts in ResponsiveContainer with width="100%" and height={300}
-- Use strokeWidth={2} for lines
-- Use radius={[4, 4, 0, 0]} for rounded bar tops
-- Use strokeDasharray="3 3" for grid lines
-
-## Markdown Formatting
-
-Use standard markdown for explanatory text. After the chart, explain key insights or patterns.
-
-## Editor Context
+### Editor Integration
 
 The user may have a document open in the Editor tab. When present, you'll see it in <editor_content> tags before their message.
 
-**IMPORTANT: To update the editor, use <editor> XML tags.**
-
-When the user asks you to help with, edit, fix, improve, or modify their document in any way, output the corrected/updated content wrapped in editor tags:
+**To update the editor, use <editor> XML tags:**
 
 <editor>
 The complete updated document content goes here.
@@ -374,19 +279,15 @@ The complete updated document content goes here.
 
 This will automatically update the editor. Always provide the COMPLETE document, not just the changes.
 
-**Example - User asks "fix my spelling":**
-
-<editor>
-Where in the world is Carmen Sandiego?
-</editor>
-
 **When to use <editor> tags:**
 - Fixing spelling, grammar, or typos
 - Rewriting or improving text
 - Adding new content
-- Any request that involves changing the document
+- Any request that involves changing the document`
 
-After the editor tags, you can explain what changes you made.`
+  const basePrompt = `${fulcrumKnowledge}
+
+${uiFeatures}`
 
   // Add custom instructions from settings if configured
   const settings = getSettings()

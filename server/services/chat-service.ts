@@ -5,6 +5,7 @@ import { log } from '../lib/logger'
 import { db, tasks, projects, repositories, apps, projectRepositories } from '../db'
 import { eq } from 'drizzle-orm'
 import type { PageContext } from '../../shared/types'
+import { getFullKnowledge } from './assistant-knowledge'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
 
@@ -73,19 +74,10 @@ export function endSession(id: string): boolean {
  * Build the system prompt for the chat assistant with page context
  */
 async function buildSystemPrompt(context?: PageContext): Promise<string> {
-  let prompt = `You are an AI assistant integrated into Fulcrum, a terminal-first tool for orchestrating AI coding agents across isolated git worktrees.
+  let prompt = getFullKnowledge() + `
 
-You have access to Fulcrum's MCP tools which allow you to:
-- List, create, update, and manage tasks
-- View and manage projects and repositories
-- Execute shell commands
-- Manage app deployments
-- Send notifications
-- And more
+## Guidelines
 
-When users ask you to do something, use the appropriate tools to help them. Be concise and helpful.
-
-Important guidelines:
 - Use tools proactively to gather information or complete tasks
 - Present results clearly and concisely
 - If a task requires multiple steps, explain what you're doing
