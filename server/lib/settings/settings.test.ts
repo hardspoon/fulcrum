@@ -6,8 +6,8 @@ import { join } from 'node:path'
 describe('Settings', () => {
   describe('schema version sync', () => {
     test('CURRENT_SCHEMA_VERSION matches package.json major version', async () => {
-      const { CURRENT_SCHEMA_VERSION } = await import('./settings')
-      const packageJson = await import('../../package.json')
+      const { CURRENT_SCHEMA_VERSION } = await import('./')
+      const packageJson = await import('../../../package.json')
       const majorVersion = parseInt(packageJson.version.split('.')[0], 10)
 
       expect(CURRENT_SCHEMA_VERSION).toBe(majorVersion)
@@ -56,7 +56,7 @@ describe('Settings', () => {
   describe('getFulcrumDir', () => {
     test('uses FULCRUM_DIR env var when set', async () => {
       // Dynamic import to pick up new env var
-      const { getFulcrumDir } = await import('./settings')
+      const { getFulcrumDir } = await import('./')
       expect(getFulcrumDir()).toBe(tempDir)
     })
 
@@ -65,7 +65,7 @@ describe('Settings', () => {
       process.env.FULCRUM_DIR = '~/test-fulcrum'
 
       // Re-import to get fresh module
-      const settingsModule = await import('./settings')
+      const settingsModule = await import('./')
       const result = settingsModule.getFulcrumDir()
 
       expect(result).toBe(join(home, 'test-fulcrum'))
@@ -74,7 +74,7 @@ describe('Settings', () => {
 
   describe('getSettings', () => {
     test('returns defaults when no settings file exists', async () => {
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       const settings = getSettings()
 
       expect(settings.server.port).toBe(7777)
@@ -94,7 +94,7 @@ describe('Settings', () => {
         })
       )
 
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       const settings = getSettings()
 
       expect(settings.server.port).toBe(8888)
@@ -116,7 +116,7 @@ describe('Settings', () => {
       process.env.PORT = '9999'
       process.env.GITHUB_PAT = 'env-key'
 
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       const settings = getSettings()
 
       expect(settings.server.port).toBe(9999)
@@ -126,7 +126,7 @@ describe('Settings', () => {
     test('ignores invalid PORT env var', async () => {
       process.env.PORT = 'not-a-number'
 
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       const settings = getSettings()
 
       expect(settings.server.port).toBe(7777) // Default
@@ -145,7 +145,7 @@ describe('Settings', () => {
         })
       )
 
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       const settings = getSettings()
 
       // Settings should be migrated
@@ -154,7 +154,7 @@ describe('Settings', () => {
       expect(settings.integrations.githubPat).toBe('migrated-key')
 
       // File should be updated with nested structure
-      const { CURRENT_SCHEMA_VERSION } = await import('./settings')
+      const { CURRENT_SCHEMA_VERSION } = await import('./')
       const migrated = JSON.parse(readFileSync(settingsPath, 'utf-8'))
       expect(migrated._schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
       expect(migrated.server?.port).toBe(8888)
@@ -176,7 +176,7 @@ describe('Settings', () => {
         })
       )
 
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       const settings = getSettings()
 
       // Should get new default, not old default
@@ -184,7 +184,7 @@ describe('Settings', () => {
     })
 
     test('skips migration if already at current schema version', async () => {
-      const { CURRENT_SCHEMA_VERSION } = await import('./settings')
+      const { CURRENT_SCHEMA_VERSION } = await import('./')
       const settingsPath = join(tempDir, 'settings.json')
       const originalContent = {
         _schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -192,7 +192,7 @@ describe('Settings', () => {
       }
       writeFileSync(settingsPath, JSON.stringify(originalContent))
 
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       getSettings()
 
       // File should be unchanged (no unnecessary writes)
@@ -206,7 +206,7 @@ describe('Settings', () => {
       const settingsPath = join(tempDir, 'settings.json')
       expect(existsSync(settingsPath)).toBe(false)
 
-      const { updateSettingByPath, getSettings, ensureFulcrumDir } = await import('./settings')
+      const { updateSettingByPath, getSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       updateSettingByPath('server.port', 9000)
 
@@ -225,7 +225,7 @@ describe('Settings', () => {
         })
       )
 
-      const { updateSettingByPath, getSettings } = await import('./settings')
+      const { updateSettingByPath, getSettings } = await import('./')
       updateSettingByPath('server.port', 8080)
 
       const settings = getSettings()
@@ -240,7 +240,7 @@ describe('Settings', () => {
       const settingsPath = join(tempDir, 'settings.json')
       writeFileSync(settingsPath, JSON.stringify({}))
 
-      const { updateSettingByPath } = await import('./settings')
+      const { updateSettingByPath } = await import('./')
       updateSettingByPath('integrations.githubPat', 'new-key')
 
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
@@ -251,7 +251,7 @@ describe('Settings', () => {
       const settingsPath = join(tempDir, 'settings.json')
       writeFileSync(settingsPath, JSON.stringify({}))
 
-      const { updateSettingByPath } = await import('./settings')
+      const { updateSettingByPath } = await import('./')
       expect(() => updateSettingByPath('unknown.path', 'value')).toThrow('Unknown setting path: unknown.path')
     })
   })
@@ -268,7 +268,7 @@ describe('Settings', () => {
         })
       )
 
-      const { resetSettings, getSettings, ensureFulcrumDir } = await import('./settings')
+      const { resetSettings, getSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       resetSettings()
 
@@ -280,7 +280,7 @@ describe('Settings', () => {
 
   describe('notification settings', () => {
     test('returns defaults when not configured', async () => {
-      const { getNotificationSettings, ensureFulcrumDir } = await import('./settings')
+      const { getNotificationSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       const settings = getNotificationSettings()
 
@@ -305,7 +305,7 @@ describe('Settings', () => {
         })
       )
 
-      const { getNotificationSettings } = await import('./settings')
+      const { getNotificationSettings } = await import('./')
       const settings = getNotificationSettings()
 
       expect(settings.enabled).toBe(true)
@@ -317,7 +317,7 @@ describe('Settings', () => {
 
     test('updates notification settings', async () => {
       const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
-        await import('./settings')
+        await import('./')
       ensureFulcrumDir()
 
       const result = await updateNotificationSettings({
@@ -333,7 +333,7 @@ describe('Settings', () => {
     })
 
     test('includes _updatedAt timestamp in notification settings', async () => {
-      const { getNotificationSettings, ensureFulcrumDir } = await import('./settings')
+      const { getNotificationSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
 
       const settings = getNotificationSettings()
@@ -343,7 +343,7 @@ describe('Settings', () => {
 
     test('updates _updatedAt timestamp on each update', async () => {
       const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
-        await import('./settings')
+        await import('./')
       ensureFulcrumDir()
 
       const before = getNotificationSettings()
@@ -361,7 +361,7 @@ describe('Settings', () => {
 
     test('rejects stale update when client timestamp does not match', async () => {
       const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
-        await import('./settings')
+        await import('./')
       ensureFulcrumDir()
 
       // Get current settings and timestamp
@@ -394,7 +394,7 @@ describe('Settings', () => {
 
     test('accepts update when client timestamp matches', async () => {
       const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
-        await import('./settings')
+        await import('./')
       ensureFulcrumDir()
 
       // Get current timestamp
@@ -413,7 +413,7 @@ describe('Settings', () => {
 
     test('allows update without client timestamp (backward compatibility)', async () => {
       const { updateNotificationSettings, getNotificationSettings, ensureFulcrumDir } =
-        await import('./settings')
+        await import('./')
       ensureFulcrumDir()
 
       // Update without passing a timestamp
@@ -429,7 +429,7 @@ describe('Settings', () => {
 
   describe('z.ai settings', () => {
     test('returns defaults when not configured', async () => {
-      const { getZAiSettings, ensureFulcrumDir } = await import('./settings')
+      const { getZAiSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       const settings = getZAiSettings()
 
@@ -453,7 +453,7 @@ describe('Settings', () => {
         })
       )
 
-      const { getZAiSettings } = await import('./settings')
+      const { getZAiSettings } = await import('./')
       const settings = getZAiSettings()
 
       expect(settings.enabled).toBe(true)
@@ -463,7 +463,7 @@ describe('Settings', () => {
     })
 
     test('updates z.ai settings', async () => {
-      const { updateZAiSettings, getZAiSettings, ensureFulcrumDir } = await import('./settings')
+      const { updateZAiSettings, getZAiSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
 
       updateZAiSettings({
@@ -489,7 +489,7 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -522,7 +522,7 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -550,7 +550,7 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -571,7 +571,7 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureFulcrumDir, CURRENT_SCHEMA_VERSION } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir, CURRENT_SCHEMA_VERSION } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -585,7 +585,7 @@ describe('Settings', () => {
       const settingsPath = join(tempDir, 'settings.json')
       expect(existsSync(settingsPath)).toBe(false)
 
-      const { ensureLatestSettings, ensureFulcrumDir, CURRENT_SCHEMA_VERSION } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir, CURRENT_SCHEMA_VERSION } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -611,7 +611,7 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -635,7 +635,7 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -651,7 +651,7 @@ describe('Settings', () => {
 
   describe('agent settings', () => {
     test('returns default agent as claude when not configured', async () => {
-      const { getSettings, ensureFulcrumDir } = await import('./settings')
+      const { getSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       const settings = getSettings()
 
@@ -668,7 +668,7 @@ describe('Settings', () => {
         })
       )
 
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       const settings = getSettings()
 
       expect(settings.agent.defaultAgent).toBe('opencode')
@@ -684,7 +684,7 @@ describe('Settings', () => {
         })
       )
 
-      const { updateSettingByPath, getSettings } = await import('./settings')
+      const { updateSettingByPath, getSettings } = await import('./')
       updateSettingByPath('agent.defaultAgent', 'opencode')
 
       const settings = getSettings()
@@ -705,7 +705,7 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -719,7 +719,7 @@ describe('Settings', () => {
 
   describe('task settings', () => {
     test('returns default task settings when not configured', async () => {
-      const { getSettings, ensureFulcrumDir } = await import('./settings')
+      const { getSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       const settings = getSettings()
 
@@ -740,7 +740,7 @@ describe('Settings', () => {
         })
       )
 
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       const settings = getSettings()
 
       expect(settings.tasks.defaultTaskType).toBe('non-worktree')
@@ -760,7 +760,7 @@ describe('Settings', () => {
         })
       )
 
-      const { getSettings } = await import('./settings')
+      const { getSettings } = await import('./')
       const settings = getSettings()
 
       // Old values should be migrated
@@ -781,7 +781,7 @@ describe('Settings', () => {
         })
       )
 
-      const { updateSettingByPath, getSettings } = await import('./settings')
+      const { updateSettingByPath, getSettings } = await import('./')
 
       updateSettingByPath('tasks.defaultTaskType', 'non-worktree')
       let settings = getSettings()
@@ -808,7 +808,7 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -834,7 +834,7 @@ describe('Settings', () => {
         })
       )
 
-      const { ensureLatestSettings, ensureFulcrumDir } = await import('./settings')
+      const { ensureLatestSettings, ensureFulcrumDir } = await import('./')
       ensureFulcrumDir()
       ensureLatestSettings()
 
@@ -849,7 +849,7 @@ describe('Settings', () => {
 
   describe('helper functions', () => {
     test('getNestedValue retrieves nested values', async () => {
-      const { getNestedValue } = await import('./settings')
+      const { getNestedValue } = await import('./')
 
       const obj = {
         server: { port: 8080 },
@@ -862,7 +862,7 @@ describe('Settings', () => {
     })
 
     test('setNestedValue sets nested values', async () => {
-      const { setNestedValue } = await import('./settings')
+      const { setNestedValue } = await import('./')
 
       const obj: Record<string, unknown> = {}
       setNestedValue(obj, 'server.port', 9000)
