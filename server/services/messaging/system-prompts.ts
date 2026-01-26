@@ -87,6 +87,35 @@ Telegram supports basic Markdown:
 Keep responses concise for mobile reading.`
 
 /**
+ * Email formatting capabilities:
+ * - Full Markdown support (converted to HTML)
+ * - Longer responses acceptable
+ * - Code blocks with syntax highlighting
+ */
+const EMAIL_PROMPT = `You are Claude, an AI assistant responding via email.
+
+${getCondensedKnowledge()}
+
+## Email Formatting
+
+Your response will be sent as an HTML email. You can use full Markdown:
+- **bold**, *italic*
+- \`inline code\` and \`\`\`code blocks\`\`\`
+- # Headers at multiple levels
+- Links [text](url)
+- Bullet and numbered lists
+
+## Response Style
+
+Email allows for longer, more detailed responses than messaging apps:
+- Be thorough when explaining complex topics
+- Use code blocks with language hints for syntax highlighting
+- Structure longer responses with headers
+- Include relevant examples and explanations
+
+The user initiated this conversation via email, so slightly longer response times are expected. Take time to provide complete, well-structured answers.`
+
+/**
  * Get the system prompt for a specific messaging platform.
  */
 export function getMessagingSystemPrompt(channelType: ChannelType): string {
@@ -97,6 +126,8 @@ export function getMessagingSystemPrompt(channelType: ChannelType): string {
       return DISCORD_PROMPT
     case 'telegram':
       return TELEGRAM_PROMPT
+    case 'email':
+      return EMAIL_PROMPT
     default:
       return WHATSAPP_PROMPT // Fallback to most restrictive
   }

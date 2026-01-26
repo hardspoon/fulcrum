@@ -71,6 +71,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
 import { ModelPicker } from '@/components/opencode/model-picker'
 import { WhatsAppSetup } from '@/components/messaging/whatsapp-setup'
+import { EmailSetup } from '@/components/messaging/email-setup'
 import {
   useDeploymentSettings,
   useUpdateDeploymentSettings,
@@ -1950,6 +1951,9 @@ function SettingsPage() {
               {/* Messaging Channels */}
               <SettingsSection title="Messaging">
                 <WhatsAppSetup isLoading={isLoading} />
+                <div className="border-t border-border pt-4 mt-4">
+                  <EmailSetup isLoading={isLoading} />
+                </div>
               </SettingsSection>
 
               {/* Appearance */}

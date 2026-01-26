@@ -11,6 +11,12 @@ import {
   requestWhatsAppAuth,
   disconnectWhatsApp,
   listSessionMappings,
+  getEmailStatus,
+  getEmailConfig,
+  configureEmail,
+  testEmailCredentials,
+  disableEmail,
+  type EmailAuthState,
 } from '../services/messaging'
 import { log } from '../lib/logger'
 
@@ -78,6 +84,84 @@ app.post('/whatsapp/disconnect', async (c) => {
 // GET /api/messaging/whatsapp/sessions - List WhatsApp session mappings
 app.get('/whatsapp/sessions', (c) => {
   const conn = getWhatsAppStatus()
+  if (!conn) {
+    return c.json({ sessions: [] })
+  }
+
+  const mappings = listSessionMappings(conn.id)
+  return c.json({ sessions: mappings })
+})
+
+// ==================== Email Routes ====================
+
+// GET /api/messaging/email - Get email connection status
+app.get('/email', (c) => {
+  const conn = getEmailStatus()
+  const config = getEmailConfig()
+  return c.json({
+    ...(conn || { enabled: false, status: 'credentials_required' }),
+    config,
+  })
+})
+
+// POST /api/messaging/email/configure - Configure and enable email
+app.post('/email/configure', async (c) => {
+  try {
+    const body = await c.req.json<EmailAuthState>()
+
+    // Validate required fields
+    if (!body.smtp?.host || !body.smtp?.user || !body.smtp?.password) {
+      return c.json({ error: 'Missing SMTP configuration' }, 400)
+    }
+    if (!body.imap?.host || !body.imap?.user || !body.imap?.password) {
+      return c.json({ error: 'Missing IMAP configuration' }, 400)
+    }
+
+    const conn = await configureEmail(body)
+    log.messaging.info('Email configured via API')
+    return c.json(conn)
+  } catch (err) {
+    log.messaging.error('Failed to configure email', { error: String(err) })
+    return c.json({ error: String(err) }, 500)
+  }
+})
+
+// POST /api/messaging/email/test - Test email credentials without saving
+app.post('/email/test', async (c) => {
+  try {
+    const body = await c.req.json<EmailAuthState>()
+
+    // Validate required fields
+    if (!body.smtp?.host || !body.smtp?.user || !body.smtp?.password) {
+      return c.json({ error: 'Missing SMTP configuration' }, 400)
+    }
+    if (!body.imap?.host || !body.imap?.user || !body.imap?.password) {
+      return c.json({ error: 'Missing IMAP configuration' }, 400)
+    }
+
+    const result = await testEmailCredentials(body)
+    return c.json(result)
+  } catch (err) {
+    log.messaging.error('Failed to test email credentials', { error: String(err) })
+    return c.json({ error: String(err) }, 500)
+  }
+})
+
+// POST /api/messaging/email/disable - Disable email
+app.post('/email/disable', async (c) => {
+  try {
+    const conn = await disableEmail()
+    log.messaging.info('Email disabled via API')
+    return c.json(conn)
+  } catch (err) {
+    log.messaging.error('Failed to disable email', { error: String(err) })
+    return c.json({ error: String(err) }, 500)
+  }
+})
+
+// GET /api/messaging/email/sessions - List email session mappings
+app.get('/email/sessions', (c) => {
+  const conn = getEmailStatus()
   if (!conn) {
     return c.json({ sessions: [] })
   }

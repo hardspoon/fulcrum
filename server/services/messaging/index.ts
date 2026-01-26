@@ -10,12 +10,14 @@ import type { MessagingConnection } from '../../db/schema'
 import { log } from '../../lib/logger'
 import { broadcast } from '../../websocket/terminal-ws'
 import { WhatsAppChannel } from './whatsapp-channel'
+import { EmailChannel, testEmailCredentials as testEmailCreds } from './email-channel'
 import { getOrCreateSession, resetSession } from './session-mapper'
 import * as assistantService from '../assistant-service'
 import type {
   MessagingChannel,
   ConnectionStatus,
   IncomingMessage,
+  EmailAuthState,
 } from './types'
 import { getMessagingSystemPrompt } from './system-prompts'
 
@@ -97,6 +99,9 @@ async function startChannel(conn: MessagingConnection): Promise<void> {
   switch (conn.channelType) {
     case 'whatsapp':
       channel = new WhatsAppChannel(conn.id)
+      break
+    case 'email':
+      channel = new EmailChannel(conn.id, conn.authState as EmailAuthState | undefined)
       break
     default:
       log.messaging.warn('Unknown channel type', {
@@ -513,6 +518,154 @@ export function getWhatsAppStatus(): MessagingConnection | null {
  */
 export function listConnections(): MessagingConnection[] {
   return db.select().from(messagingConnections).all()
+}
+
+// ==================== Email API Functions ====================
+
+/**
+ * Get or create an email connection.
+ */
+export function getOrCreateEmailConnection(): MessagingConnection {
+  const existing = db
+    .select()
+    .from(messagingConnections)
+    .where(eq(messagingConnections.channelType, 'email'))
+    .get()
+
+  if (existing) return existing
+
+  const now = new Date().toISOString()
+  const id = nanoid()
+
+  const newConn = {
+    id,
+    channelType: 'email' as const,
+    enabled: false,
+    status: 'credentials_required' as const,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  db.insert(messagingConnections).values(newConn).run()
+
+  return db
+    .select()
+    .from(messagingConnections)
+    .where(eq(messagingConnections.id, id))
+    .get()!
+}
+
+/**
+ * Configure email with credentials and enable the channel.
+ */
+export async function configureEmail(credentials: EmailAuthState): Promise<MessagingConnection> {
+  const conn = getOrCreateEmailConnection()
+
+  // Stop existing channel if running
+  await stopChannel(conn.id)
+
+  // Update connection with credentials
+  db.update(messagingConnections)
+    .set({
+      enabled: true,
+      authState: credentials,
+      displayName: credentials.smtp.user,
+      status: 'connecting',
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(messagingConnections.id, conn.id))
+    .run()
+
+  // Start the channel
+  const updatedConn = db
+    .select()
+    .from(messagingConnections)
+    .where(eq(messagingConnections.id, conn.id))
+    .get()!
+
+  await startChannel(updatedConn)
+
+  return db
+    .select()
+    .from(messagingConnections)
+    .where(eq(messagingConnections.id, conn.id))
+    .get()!
+}
+
+/**
+ * Test email credentials without saving them.
+ */
+export async function testEmailCredentials(credentials: EmailAuthState): Promise<{
+  success: boolean
+  smtpOk: boolean
+  imapOk: boolean
+  error?: string
+}> {
+  return testEmailCreds(credentials)
+}
+
+/**
+ * Disable email and stop the channel.
+ */
+export async function disableEmail(): Promise<MessagingConnection> {
+  const conn = getOrCreateEmailConnection()
+
+  await stopChannel(conn.id)
+
+  db.update(messagingConnections)
+    .set({
+      enabled: false,
+      status: 'disconnected',
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(messagingConnections.id, conn.id))
+    .run()
+
+  return db
+    .select()
+    .from(messagingConnections)
+    .where(eq(messagingConnections.id, conn.id))
+    .get()!
+}
+
+/**
+ * Get email connection status.
+ */
+export function getEmailStatus(): MessagingConnection | null {
+  return db
+    .select()
+    .from(messagingConnections)
+    .where(eq(messagingConnections.channelType, 'email'))
+    .get() ?? null
+}
+
+/**
+ * Get email configuration (without password).
+ */
+export function getEmailConfig(): {
+  smtp: { host: string; port: number; secure: boolean; user: string } | null
+  imap: { host: string; port: number; secure: boolean; user: string } | null
+  pollIntervalSeconds: number
+} | null {
+  const conn = getEmailStatus()
+  if (!conn?.authState) return null
+
+  const auth = conn.authState as EmailAuthState
+  return {
+    smtp: {
+      host: auth.smtp.host,
+      port: auth.smtp.port,
+      secure: auth.smtp.secure,
+      user: auth.smtp.user,
+    },
+    imap: {
+      host: auth.imap.host,
+      port: auth.imap.port,
+      secure: auth.imap.secure,
+      user: auth.imap.user,
+    },
+    pollIntervalSeconds: auth.pollIntervalSeconds,
+  }
 }
 
 // Re-export types

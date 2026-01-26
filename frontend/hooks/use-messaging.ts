@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { MessagingConnection, MessagingSessionMapping, MessagingConnectionStatus } from '@/types'
+import type { MessagingConnection, MessagingSessionMapping, MessagingConnectionStatus, EmailChannelConfig } from '@/types'
 
 // API base URL
 const API_BASE = '/api/messaging'
@@ -106,6 +106,120 @@ export function useWhatsAppSessions() {
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/whatsapp/sessions`)
       if (!res.ok) throw new Error('Failed to fetch WhatsApp sessions')
+      const data = await res.json()
+      return data.sessions as MessagingSessionMapping[]
+    },
+  })
+}
+
+// ==================== Email Hooks ====================
+
+export interface EmailStatus extends Partial<MessagingConnection> {
+  enabled: boolean
+  status: MessagingConnectionStatus
+  config?: EmailChannelConfig | null
+}
+
+export interface EmailCredentials {
+  smtp: {
+    host: string
+    port: number
+    secure: boolean
+    user: string
+    password: string
+  }
+  imap: {
+    host: string
+    port: number
+    secure: boolean
+    user: string
+    password: string
+  }
+  pollIntervalSeconds: number
+}
+
+export interface EmailTestResult {
+  success: boolean
+  smtpOk: boolean
+  imapOk: boolean
+  error?: string
+}
+
+// Get email status
+export function useEmailStatus() {
+  return useQuery({
+    queryKey: ['messaging', 'email'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/email`)
+      if (!res.ok) throw new Error('Failed to fetch email status')
+      return (await res.json()) as EmailStatus
+    },
+    refetchInterval: 5000, // Poll status every 5s
+  })
+}
+
+// Configure email
+export function useConfigureEmail() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (credentials: EmailCredentials) => {
+      const res = await fetch(`${API_BASE}/email/configure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to configure email')
+      }
+      return (await res.json()) as MessagingConnection
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messaging'] })
+    },
+  })
+}
+
+// Test email credentials
+export function useTestEmailCredentials() {
+  return useMutation({
+    mutationFn: async (credentials: EmailCredentials) => {
+      const res = await fetch(`${API_BASE}/email/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to test email credentials')
+      }
+      return (await res.json()) as EmailTestResult
+    },
+  })
+}
+
+// Disable email
+export function useDisableEmail() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_BASE}/email/disable`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to disable email')
+      return (await res.json()) as MessagingConnection
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messaging'] })
+    },
+  })
+}
+
+// Get email sessions
+export function useEmailSessions() {
+  return useQuery({
+    queryKey: ['messaging', 'email', 'sessions'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/email/sessions`)
+      if (!res.ok) throw new Error('Failed to fetch email sessions')
       const data = await res.json()
       return data.sessions as MessagingSessionMapping[]
     },

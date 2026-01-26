@@ -4,10 +4,10 @@
  */
 
 // Supported messaging channel types
-export type ChannelType = 'whatsapp' | 'discord' | 'telegram'
+export type ChannelType = 'whatsapp' | 'discord' | 'telegram' | 'email'
 
 // Connection status
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'qr_pending'
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'qr_pending' | 'credentials_required'
 
 /**
  * Incoming message from any messaging channel
@@ -84,4 +84,25 @@ export interface MessagingChannel {
 export interface WhatsAppAuthState {
   creds: unknown
   keys: unknown
+}
+
+/**
+ * Email-specific auth state stored in database (SMTP/IMAP credentials)
+ */
+export interface EmailAuthState {
+  smtp: {
+    host: string
+    port: number
+    secure: boolean
+    user: string
+    password: string
+  }
+  imap: {
+    host: string
+    port: number
+    secure: boolean
+    user: string
+    password: string
+  }
+  pollIntervalSeconds: number
 }
