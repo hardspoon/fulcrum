@@ -110,7 +110,7 @@ fulcrum notify <title> <message>  # Send notification
 
 | Table | Purpose |
 |-------|---------|
-| `tasks` | Task metadata, git worktree paths, status, Linear/PR integration |
+| `tasks` | Task metadata, git worktree paths, status, PR integration |
 | `repositories` | Git repositories with startupScript, copyFiles, agent, agentOptions |
 | `terminalTabs` | Tab entities for terminal organization |
 | `terminals` | Terminal instances with tmux session backing |
@@ -145,48 +145,23 @@ ALTER TABLE `tasks` ADD `new_column` text;
 
 ## Configuration
 
-Settings stored in `.fulcrum/settings.json` with nested structure (schema v7):
+Settings stored in `~/.fulcrum/settings.json`. See `server/lib/settings/types.ts` for the full schema.
 
-```json
-{
-  "server": { "port": 7777 },
-  "paths": { "defaultGitReposDir": "~" },
-  "editor": { "app": "vscode", "host": "", "sshPort": 22 },
-  "integrations": {
-    "linearApiKey": null,
-    "githubPat": null,
-    "cloudflareApiToken": null,
-    "cloudflareAccountId": null
-  },
-  "appearance": { "language": null, "theme": null, "syncClaudeCodeTheme": false },
-  "notifications": {
-    "enabled": true,
-    "toast": { "enabled": true },
-    "desktop": { "enabled": true },
-    "sound": { "enabled": true },
-    "slack": { "enabled": false, "webhookUrl": "" },
-    "discord": { "enabled": false, "webhookUrl": "" },
-    "pushover": { "enabled": false, "appToken": "", "userKey": "" }
-  },
-  "zai": { "enabled": false, "apiKey": null }
-}
-```
+**Settings sections:**
+- `server` - Port configuration
+- `paths` - Default directories
+- `editor` - Editor integration (VS Code, Cursor, Windsurf, Zed, Antigravity)
+- `integrations` - Third-party APIs (GitHub, Cloudflare)
+- `agent` - AI agent defaults (Claude Code, OpenCode)
+- `tasks` - Task creation defaults
+- `appearance` - UI theme and language
+- `assistant` - Built-in assistant settings
 
-### Environment Variables
+**Separate config files:**
+- `notifications.json` - Multi-channel notification settings
+- `zai.json` - z.ai integration settings
 
-| Variable | Description |
-|----------|-------------|
-| `FULCRUM_DIR` | Override fulcrum directory (default: ~/.fulcrum) |
-| `PORT` | Server port (default: 7777) |
-| `FULCRUM_GIT_REPOS_DIR` | Default git repos directory |
-| `FULCRUM_SSH_PORT` | SSH port for editor integration |
-| `LINEAR_API_KEY` | Linear API key |
-| `GITHUB_PAT` | GitHub Personal Access Token |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
-| `LOG_LEVEL` | Backend log level (debug, info, warn, error) |
-
-Precedence: environment variable → settings.json → default
+Environment variables override settings.json values where applicable.
 
 ## App Deployment
 
