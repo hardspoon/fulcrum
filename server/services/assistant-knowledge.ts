@@ -177,7 +177,8 @@ Fulcrum is a local orchestration tool. Some capabilities require external servic
 
 | User Need | What Fulcrum Does | What User Provides |
 |-----------|-------------------|--------------------|
-| Email automation | Task worktree + scheduling | IMAP/SMTP credentials or Gmail API keys |
+| Chat via email | Built-in Email messaging channel | SMTP/IMAP credentials (or Gmail app password) |
+| Email automation | Task worktree + scheduling | Same SMTP/IMAP credentials |
 | Cloud deployment | Docker Compose + execute_command | Cloud provider credentials (AWS, GCP, Azure) |
 | External APIs | Script execution | API keys (OpenAI, Stripe, etc.) |
 | Team notifications | send_notification to Slack/Discord | Webhook URLs (configured in settings) |
