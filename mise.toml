@@ -15,7 +15,10 @@ run = "bun install"
 
 [tasks.bump]
 description = "Bump version (major, minor, or patch)"
-usage = 'arg "[type]" help="Version type: major, minor, or patch" default="patch"'
+usage = '''
+arg "[type]" help="Version type: major, minor, or patch" default="patch"
+flag "-c" "--commit" help="Auto-commit after bumping"
+'''
 run = """
 #!/usr/bin/env bash
 set -e
@@ -88,6 +91,13 @@ if [ -f "$mcp_stdio" ]; then
 fi
 
 echo "Bumped version: $current → $new_version"
+
+# Auto-commit if --commit flag is set
+if [ "$usage_commit" = "true" ]; then
+  git add -A
+  git commit -m "chore: bump version to $new_version"
+  echo "Committed version bump"
+fi
 """
 
 [tasks.dev]

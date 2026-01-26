@@ -176,9 +176,9 @@ export class WhatsAppChannel implements MessagingChannel {
       const isSelfChat =
         (myNumber && remoteNumber === myNumber) || (myLidNumber && remoteNumber === myLidNumber)
 
-      // For self-chat: process our own messages (user talking to Claude)
-      // For other chats: skip our own messages (don't respond to messages we send to others)
-      if (msg.key.fromMe && !isSelfChat) continue
+      // Only respond to messages in self-chat (user messaging themselves via "Message yourself")
+      // Ignore: group chats, direct messages from other people
+      if (!isSelfChat) continue
 
       const content = msg.message.conversation || msg.message.extendedTextMessage?.text || ''
       // Keep full JID as senderId to preserve @lid vs @s.whatsapp.net for replies
