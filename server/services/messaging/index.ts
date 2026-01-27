@@ -702,6 +702,43 @@ export async function disableEmail(): Promise<{
 }
 
 /**
+ * Enable email using existing credentials from settings.
+ * Returns an error if credentials are not configured.
+ */
+export async function enableEmail(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+  error?: string
+}> {
+  const settings = getSettings()
+  const emailConfig = settings.channels.email
+
+  // Check if we have valid credentials
+  if (!emailConfig.smtp.host || !emailConfig.smtp.user || !emailConfig.smtp.password ||
+      !emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
+    return {
+      enabled: false,
+      status: 'credentials_required',
+      error: 'Email credentials not configured. Please configure SMTP and IMAP settings first.',
+    }
+  }
+
+  // Stop existing channel if running
+  await stopEmailChannel()
+
+  // Update settings to enable
+  updateSettingByPath('channels.email.enabled', true)
+
+  // Start the channel
+  await startEmailChannel()
+
+  return {
+    enabled: true,
+    status: activeEmailChannel?.getStatus() || 'connecting',
+  }
+}
+
+/**
  * Get email connection status.
  */
 export function getEmailStatus(): {

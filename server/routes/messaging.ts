@@ -15,6 +15,7 @@ import {
   getEmailConfig,
   configureEmail,
   testEmailCredentials,
+  enableEmail,
   disableEmail,
   getStoredEmails,
   searchImapEmails,
@@ -148,6 +149,21 @@ app.post('/email/test', async (c) => {
     return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to test email credentials', { error: String(err) })
+    return c.json({ error: String(err) }, 500)
+  }
+})
+
+// POST /api/messaging/email/enable - Enable email using existing credentials
+app.post('/email/enable', async (c) => {
+  try {
+    const result = await enableEmail()
+    if (result.error) {
+      return c.json({ error: result.error }, 400)
+    }
+    log.messaging.info('Email enabled via API')
+    return c.json(result)
+  } catch (err) {
+    log.messaging.error('Failed to enable email', { error: String(err) })
     return c.json({ error: String(err) }, 500)
   }
 })

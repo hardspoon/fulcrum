@@ -200,6 +200,24 @@ export function useTestEmailCredentials() {
   })
 }
 
+// Enable email using existing credentials
+export function useEnableEmail() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_BASE}/email/enable`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to enable email')
+      }
+      return (await res.json()) as MessagingConnection
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messaging'] })
+    },
+  })
+}
+
 // Disable email
 export function useDisableEmail() {
   const queryClient = useQueryClient()

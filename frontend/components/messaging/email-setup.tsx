@@ -20,6 +20,7 @@ import {
   useEmailStatus,
   useConfigureEmail,
   useTestEmailCredentials,
+  useEnableEmail,
   useDisableEmail,
   useEmailSessions,
 } from '@/hooks/use-messaging'
@@ -86,7 +87,11 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
   const { data: sessions } = useEmailSessions()
   const configureEmail = useConfigureEmail()
   const testCredentials = useTestEmailCredentials()
+  const enableEmailMutation = useEnableEmail()
   const disableEmailMutation = useDisableEmail()
+
+  // Check if credentials are already configured (have host values)
+  const hasCredentials = !!(status?.config?.smtp?.host && status?.config?.imap?.host)
 
   // Form state - simplified to just email + password
   const [email, setEmail] = useState('')
@@ -220,6 +225,18 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
     }
   }
 
+  const handleEnable = async () => {
+    try {
+      const result = await enableEmailMutation.mutateAsync()
+      if (result) {
+        toast.success('Email enabled')
+        refetchStatus()
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to enable email')
+    }
+  }
+
   const handleDisable = async () => {
     try {
       await disableEmailMutation.mutateAsync()
@@ -230,9 +247,22 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
     }
   }
 
+  const handleToggle = async (enabled: boolean) => {
+    if (enabled) {
+      if (hasCredentials) {
+        // Use existing credentials
+        await handleEnable()
+      }
+      // If no credentials, the form will be shown for user to fill
+    } else {
+      await handleDisable()
+    }
+  }
+
   const isPending =
     configureEmail.isPending ||
     testCredentials.isPending ||
+    enableEmailMutation.isPending ||
     disableEmailMutation.isPending
 
   const getStatusIcon = () => {
@@ -285,10 +315,8 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
         <div className="flex items-center gap-3">
           <Switch
             checked={isEnabled}
-            onCheckedChange={(enabled) => {
-              if (!enabled) handleDisable()
-            }}
-            disabled={isLoading || isPending || !isEnabled}
+            onCheckedChange={handleToggle}
+            disabled={isLoading || isPending}
           />
           <span className="flex items-center gap-2 text-sm">
             {getStatusIcon()}
@@ -596,7 +624,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
                   className="mr-2 animate-spin"
                 />
               ) : null}
-              Enable Email
+              Save & Enable
             </Button>
           </div>
         </div>
