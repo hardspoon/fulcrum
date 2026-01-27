@@ -14,6 +14,7 @@ import { ImapFlow } from 'imapflow'
 import { eq, and } from 'drizzle-orm'
 import { db, messagingConnections, emailAuthorizedThreads } from '../../db'
 import { log } from '../../lib/logger'
+import { sendNotification } from '../notification-service'
 import type {
   MessagingChannel,
   ChannelEvents,
@@ -234,6 +235,12 @@ export class EmailChannel implements MessagingChannel {
               from: headers.from,
               subject: headers.subject,
               reason: authResult.reason,
+            })
+
+            // Send notification about rejected email
+            sendNotification({
+              title: 'Email rejected',
+              message: `From: ${headers.from}\nSubject: ${headers.subject}\nReason: ${authResult.reason}`,
             })
 
             // Send canned response to unauthorized sender
