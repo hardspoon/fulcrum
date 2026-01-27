@@ -377,6 +377,34 @@ export const emails = sqliteTable('emails', {
   createdAt: text('created_at').notNull(), // When we stored this email
 })
 
+// Actionable events - the concierge's memory of things it noticed and decided on
+export const actionableEvents = sqliteTable('actionable_events', {
+  id: text('id').primaryKey(),
+  sourceChannel: text('source_channel').notNull(), // 'email' | 'whatsapp' | 'telegram' | 'slack'
+  sourceId: text('source_id').notNull(), // message ID / email ID
+  sourceMetadata: text('source_metadata', { mode: 'json' }).$type<Record<string, unknown>>(), // JSON: sender, subject, thread, etc.
+  status: text('status').notNull().default('pending'), // 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+  linkedTaskId: text('linked_task_id'), // FK to tasks (nullable)
+  summary: text('summary'), // AI-generated description
+  actionLog: text('action_log', { mode: 'json' }).$type<Array<{ timestamp: string; action: string }>>(), // JSON array: timestamped decisions/actions
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  lastEvaluatedAt: text('last_evaluated_at'),
+})
+
+// Sweep runs - track when sweeps happened for reliability and context
+export const sweepRuns = sqliteTable('sweep_runs', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(), // 'hourly' | 'morning_ritual' | 'evening_ritual'
+  startedAt: text('started_at').notNull(),
+  completedAt: text('completed_at'),
+  eventsProcessed: integer('events_processed').default(0),
+  tasksUpdated: integer('tasks_updated').default(0),
+  messagesSent: integer('messages_sent').default(0),
+  summary: text('summary'), // AI's summary of what it did
+  status: text('status').notNull(), // 'running' | 'completed' | 'failed'
+})
+
 // Type inference helpers
 export type Repository = typeof repositories.$inferSelect
 export type NewRepository = typeof repositories.$inferInsert
@@ -435,3 +463,7 @@ export type EmailAuthorizedThread = typeof emailAuthorizedThreads.$inferSelect
 export type NewEmailAuthorizedThread = typeof emailAuthorizedThreads.$inferInsert
 export type Email = typeof emails.$inferSelect
 export type NewEmail = typeof emails.$inferInsert
+export type ActionableEvent = typeof actionableEvents.$inferSelect
+export type NewActionableEvent = typeof actionableEvents.$inferInsert
+export type SweepRun = typeof sweepRuns.$inferSelect
+export type NewSweepRun = typeof sweepRuns.$inferInsert

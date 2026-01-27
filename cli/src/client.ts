@@ -98,6 +98,33 @@ export interface UpdateProjectInput {
   status?: 'active' | 'archived'
 }
 
+// Concierge types
+export interface ActionableEvent {
+  id: string
+  sourceChannel: string
+  sourceId: string
+  sourceMetadata: Record<string, unknown> | null
+  status: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+  linkedTaskId: string | null
+  summary: string | null
+  actionLog: Array<{ timestamp: string; action: string }> | null
+  createdAt: string
+  updatedAt: string
+  lastEvaluatedAt: string | null
+}
+
+export interface SweepRun {
+  id: string
+  type: 'hourly' | 'morning_ritual' | 'evening_ritual'
+  startedAt: string
+  completedAt: string | null
+  eventsProcessed: number | null
+  tasksUpdated: number | null
+  messagesSent: number | null
+  summary: string | null
+  status: 'running' | 'completed' | 'failed'
+}
+
 // Email types
 export interface StoredEmail {
   id: string
@@ -993,5 +1020,108 @@ export class FulcrumClient {
       method: 'POST',
       body: JSON.stringify({ uids, limit }),
     })
+  }
+
+  // Concierge - Actionable Events
+  async listActionableEvents(options?: {
+    status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+    channel?: string
+    limit?: number
+    offset?: number
+  }): Promise<{ events: ActionableEvent[]; total: number }> {
+    const params = new URLSearchParams()
+    if (options?.status) params.set('status', options.status)
+    if (options?.channel) params.set('channel', options.channel)
+    if (options?.limit) params.set('limit', String(options.limit))
+    if (options?.offset) params.set('offset', String(options.offset))
+    const query = params.toString()
+    return this.fetch(`/api/concierge/events${query ? `?${query}` : ''}`)
+  }
+
+  async getActionableEvent(id: string): Promise<ActionableEvent & { linkedTask?: Task | null }> {
+    return this.fetch(`/api/concierge/events/${id}`)
+  }
+
+  async createActionableEvent(data: {
+    sourceChannel: string
+    sourceId: string
+    sourceMetadata?: Record<string, unknown>
+    summary?: string
+    status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+    linkedTaskId?: string
+  }): Promise<ActionableEvent> {
+    return this.fetch('/api/concierge/events', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateActionableEvent(
+    id: string,
+    updates: {
+      status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+      linkedTaskId?: string | null
+      actionLogEntry?: string
+    }
+  ): Promise<ActionableEvent> {
+    return this.fetch(`/api/concierge/events/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async deleteActionableEvent(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/concierge/events/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Concierge - Sweep Runs
+  async listSweepRuns(options?: { type?: string; limit?: number }): Promise<{ runs: SweepRun[] }> {
+    const params = new URLSearchParams()
+    if (options?.type) params.set('type', options.type)
+    if (options?.limit) params.set('limit', String(options.limit))
+    const query = params.toString()
+    return this.fetch(`/api/concierge/sweeps${query ? `?${query}` : ''}`)
+  }
+
+  async getSweepRun(id: string): Promise<SweepRun> {
+    return this.fetch(`/api/concierge/sweeps/${id}`)
+  }
+
+  async getLastSweepRun(type: string): Promise<SweepRun | null> {
+    return this.fetch(`/api/concierge/sweeps/last/${type}`)
+  }
+
+  // Concierge - Message Sending
+  async sendMessage(data: {
+    channel: 'email' | 'whatsapp' | 'telegram' | 'slack' | 'all'
+    to: string
+    body: string
+    subject?: string
+    replyToMessageId?: string
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    return this.fetch('/api/concierge/message', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  // Concierge - Stats
+  async getConciergeStats(): Promise<{
+    events: {
+      pending: number
+      actedUpon: number
+      dismissed: number
+      monitoring: number
+      total: number
+    }
+    lastSweeps: {
+      hourly: string | null
+      morningRitual: string | null
+      eveningRitual: string | null
+    }
+  }> {
+    return this.fetch('/api/concierge/stats')
   }
 }

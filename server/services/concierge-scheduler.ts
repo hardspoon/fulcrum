@@ -1,0 +1,453 @@
+/**
+ * Concierge Scheduler - Manages hourly sweeps and daily rituals.
+ * Transforms the messaging assistant into a proactive digital concierge.
+ */
+
+import { nanoid } from 'nanoid'
+import { eq, desc, sql, notInArray } from 'drizzle-orm'
+import { db, actionableEvents, sweepRuns, tasks } from '../db'
+import type { SweepRun, NewSweepRun } from '../db/schema'
+import { log } from '../lib/logger'
+import { getSettings } from '../lib/settings'
+import * as assistantService from './assistant-service'
+import { getOrCreateSession } from './messaging/session-mapper'
+import { getSweepSystemPrompt, getRitualSystemPrompt } from './messaging/system-prompts'
+
+// Intervals
+const HOURLY_INTERVAL = 60 * 60 * 1000 // 1 hour
+
+// Scheduler state
+let hourlyIntervalId: ReturnType<typeof setInterval> | null = null
+let morningTimeoutId: ReturnType<typeof setTimeout> | null = null
+let eveningTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+// Dedicated session IDs for concierge operations
+const SWEEP_SESSION_PREFIX = 'concierge-sweep'
+const RITUAL_SESSION_PREFIX = 'concierge-ritual'
+
+/**
+ * Start the concierge scheduler.
+ * Called on server startup.
+ */
+export function startConciergeScheduler(): void {
+  const settings = getSettings()
+
+  if (!settings.concierge.enabled) {
+    log.concierge.info('Concierge is disabled')
+    return
+  }
+
+  log.concierge.info('Starting concierge scheduler', {
+    hourlySweep: settings.concierge.hourlySweepEnabled,
+    morningRitual: settings.concierge.morningRitual.enabled,
+    eveningRitual: settings.concierge.eveningRitual.enabled,
+  })
+
+  // Start hourly sweep
+  if (settings.concierge.hourlySweepEnabled) {
+    // Run immediately on start
+    runHourlySweep().catch((err) =>
+      log.concierge.error('Initial sweep failed', { error: String(err) })
+    )
+
+    // Then run every hour
+    hourlyIntervalId = setInterval(() => {
+      runHourlySweep().catch((err) =>
+        log.concierge.error('Hourly sweep failed', { error: String(err) })
+      )
+    }, HOURLY_INTERVAL)
+  }
+
+  // Schedule daily rituals
+  scheduleNextRitual('morning')
+  scheduleNextRitual('evening')
+}
+
+/**
+ * Stop the concierge scheduler.
+ * Called on server shutdown.
+ */
+export function stopConciergeScheduler(): void {
+  if (hourlyIntervalId) {
+    clearInterval(hourlyIntervalId)
+    hourlyIntervalId = null
+  }
+
+  if (morningTimeoutId) {
+    clearTimeout(morningTimeoutId)
+    morningTimeoutId = null
+  }
+
+  if (eveningTimeoutId) {
+    clearTimeout(eveningTimeoutId)
+    eveningTimeoutId = null
+  }
+
+  log.concierge.info('Concierge scheduler stopped')
+}
+
+/**
+ * Run the hourly sweep.
+ */
+async function runHourlySweep(): Promise<void> {
+  const run = createSweepRun('hourly')
+
+  try {
+    const lastSweep = getLastSweepRun('hourly')
+    const pendingCount = countEventsByStatus('pending')
+    const openTaskCount = countOpenTasks()
+
+    log.concierge.info('Running hourly sweep', {
+      runId: run.id,
+      pendingEvents: pendingCount,
+      openTasks: openTaskCount,
+    })
+
+    // Get or create a session for sweep operations
+    const { session } = getOrCreateSession(
+      SWEEP_SESSION_PREFIX,
+      'sweep-agent',
+      'Concierge Sweep'
+    )
+
+    // Build the prompt
+    const prompt = `Perform your hourly sweep. Last sweep: ${lastSweep?.completedAt ?? 'never'}`
+
+    // Get the system prompt
+    const systemPrompt = getSweepSystemPrompt({
+      lastSweepTime: lastSweep?.completedAt ?? null,
+      pendingCount,
+      openTaskCount,
+    })
+
+    // Invoke assistant
+    let eventsProcessed = 0
+    let tasksUpdated = 0
+    let messagesSent = 0
+    let summary = ''
+
+    const stream = assistantService.streamMessage(session.id, prompt, {
+      systemPromptOverride: systemPrompt,
+    })
+
+    for await (const event of stream) {
+      if (event.type === 'message:complete') {
+        const content = (event.data as { content: string }).content
+
+        // Count tool usage from the response
+        // The actual counts come from what the assistant did via MCP tools
+        // For now, we just capture the summary
+        summary = content.slice(0, 500)
+
+        // Parse basic metrics from the response
+        const processedMatch = content.match(/(\d+)\s*events?\s*(reviewed|processed)/i)
+        if (processedMatch) eventsProcessed = parseInt(processedMatch[1])
+
+        const tasksMatch = content.match(/(\d+)\s*tasks?\s*(updated|created)/i)
+        if (tasksMatch) tasksUpdated = parseInt(tasksMatch[1])
+
+        const messagesMatch = content.match(/(\d+)\s*messages?\s*sent/i)
+        if (messagesMatch) messagesSent = parseInt(messagesMatch[1])
+      }
+    }
+
+    // Complete the sweep run
+    completeSweepRun(run.id, {
+      eventsProcessed,
+      tasksUpdated,
+      messagesSent,
+      summary,
+    })
+
+    log.concierge.info('Hourly sweep completed', {
+      runId: run.id,
+      eventsProcessed,
+      tasksUpdated,
+      messagesSent,
+    })
+  } catch (err) {
+    failSweepRun(run.id, String(err))
+    throw err
+  }
+}
+
+/**
+ * Run a daily ritual (morning or evening).
+ */
+async function runDailyRitual(type: 'morning' | 'evening'): Promise<void> {
+  const settings = getSettings()
+  const config = settings.concierge[`${type}Ritual`]
+
+  if (!config.enabled) {
+    scheduleNextRitual(type)
+    return
+  }
+
+  const run = createSweepRun(`${type}_ritual`)
+
+  try {
+    log.concierge.info(`Running ${type} ritual`, { runId: run.id })
+
+    // Get or create a session for ritual operations
+    const { session } = getOrCreateSession(
+      RITUAL_SESSION_PREFIX,
+      `${type}-ritual-agent`,
+      `Concierge ${type} Ritual`
+    )
+
+    // Use the user's customizable prompt
+    const prompt = config.prompt
+
+    // Get the system prompt
+    const systemPrompt = getRitualSystemPrompt(type, settings.concierge.defaultChannels)
+
+    // Invoke assistant
+    let messagesSent = 0
+    let summary = ''
+
+    const stream = assistantService.streamMessage(session.id, prompt, {
+      systemPromptOverride: systemPrompt,
+    })
+
+    for await (const event of stream) {
+      if (event.type === 'message:complete') {
+        const content = (event.data as { content: string }).content
+        summary = content.slice(0, 500)
+
+        const messagesMatch = content.match(/(\d+)\s*messages?\s*sent/i)
+        if (messagesMatch) messagesSent = parseInt(messagesMatch[1])
+      }
+    }
+
+    // Complete the ritual run
+    completeSweepRun(run.id, {
+      eventsProcessed: 0,
+      tasksUpdated: 0,
+      messagesSent,
+      summary,
+    })
+
+    log.concierge.info(`${type} ritual completed`, { runId: run.id, messagesSent })
+  } catch (err) {
+    failSweepRun(run.id, String(err))
+    log.concierge.error(`${type} ritual failed`, { error: String(err) })
+  }
+
+  // Schedule the next occurrence
+  scheduleNextRitual(type)
+}
+
+/**
+ * Schedule the next occurrence of a daily ritual.
+ */
+function scheduleNextRitual(type: 'morning' | 'evening'): void {
+  const settings = getSettings()
+  const config = settings.concierge[`${type}Ritual`]
+
+  if (!config.enabled) {
+    log.concierge.debug(`${type} ritual disabled, not scheduling`)
+    return
+  }
+
+  // Parse the time string (e.g., "09:00")
+  const [hours, minutes] = config.time.split(':').map(Number)
+
+  // Calculate the next occurrence
+  const now = new Date()
+  const next = new Date()
+  next.setHours(hours, minutes, 0, 0)
+
+  // If the time has already passed today, schedule for tomorrow
+  if (next <= now) {
+    next.setDate(next.getDate() + 1)
+  }
+
+  const delay = next.getTime() - now.getTime()
+
+  log.concierge.info(`Scheduled ${type} ritual`, {
+    nextRun: next.toISOString(),
+    delayMs: delay,
+  })
+
+  const timeoutId = setTimeout(() => {
+    runDailyRitual(type).catch((err) =>
+      log.concierge.error(`${type} ritual error`, { error: String(err) })
+    )
+  }, delay)
+
+  if (type === 'morning') {
+    morningTimeoutId = timeoutId
+  } else {
+    eveningTimeoutId = timeoutId
+  }
+}
+
+// ==================== Sweep Run Database Helpers ====================
+
+function createSweepRun(type: 'hourly' | 'morning_ritual' | 'evening_ritual'): SweepRun {
+  const id = nanoid()
+  const now = new Date().toISOString()
+
+  const run: NewSweepRun = {
+    id,
+    type,
+    startedAt: now,
+    status: 'running',
+  }
+
+  db.insert(sweepRuns).values(run).run()
+
+  return db.select().from(sweepRuns).where(eq(sweepRuns.id, id)).get()!
+}
+
+function completeSweepRun(
+  id: string,
+  results: {
+    eventsProcessed: number
+    tasksUpdated: number
+    messagesSent: number
+    summary: string
+  }
+): void {
+  db.update(sweepRuns)
+    .set({
+      completedAt: new Date().toISOString(),
+      status: 'completed',
+      eventsProcessed: results.eventsProcessed,
+      tasksUpdated: results.tasksUpdated,
+      messagesSent: results.messagesSent,
+      summary: results.summary,
+    })
+    .where(eq(sweepRuns.id, id))
+    .run()
+}
+
+function failSweepRun(id: string, error: string): void {
+  db.update(sweepRuns)
+    .set({
+      completedAt: new Date().toISOString(),
+      status: 'failed',
+      summary: `Error: ${error}`,
+    })
+    .where(eq(sweepRuns.id, id))
+    .run()
+}
+
+function getLastSweepRun(type: string): SweepRun | null {
+  return db
+    .select()
+    .from(sweepRuns)
+    .where(eq(sweepRuns.type, type))
+    .orderBy(desc(sweepRuns.startedAt))
+    .limit(1)
+    .get() ?? null
+}
+
+function countEventsByStatus(status: string): number {
+  const result = db
+    .select({ count: sql<number>`count(*)` })
+    .from(actionableEvents)
+    .where(eq(actionableEvents.status, status))
+    .get()
+  return result?.count ?? 0
+}
+
+function countOpenTasks(): number {
+  const result = db
+    .select({ count: sql<number>`count(*)` })
+    .from(tasks)
+    .where(notInArray(tasks.status, ['DONE', 'CANCELED']))
+    .get()
+  return result?.count ?? 0
+}
+
+// ==================== Message Sending ====================
+
+/**
+ * Send a message to a channel.
+ * Used by the MCP `message` tool and internally by the concierge.
+ */
+export async function sendMessageToChannel(
+  channel: 'email' | 'whatsapp' | 'telegram' | 'slack' | 'all',
+  to: string,
+  body: string,
+  options?: {
+    subject?: string
+    replyToMessageId?: string
+  }
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  // Import the messaging module to access active channels
+  const { getEmailStatus, getWhatsAppStatus } = await import('./messaging')
+
+  // TODO: Implement actual message sending via the active channels
+  // For now, log the intent and return success
+  // The full implementation would:
+  // 1. Get the appropriate channel from activeChannels
+  // 2. Call channel.sendMessage(to, body, metadata)
+
+  if (channel === 'all') {
+    // Send to all configured default channels
+    const settings = getSettings()
+    const channels = settings.concierge.defaultChannels
+
+    const results: Array<{ channel: string; success: boolean; error?: string }> = []
+
+    for (const ch of channels) {
+      const result = await sendMessageToChannel(ch as 'email' | 'whatsapp', to, body, options)
+      results.push({ channel: ch, ...result })
+    }
+
+    const allSuccess = results.every((r) => r.success)
+    return {
+      success: allSuccess,
+      error: allSuccess ? undefined : results.filter((r) => !r.success).map((r) => `${r.channel}: ${r.error}`).join('; '),
+    }
+  }
+
+  // Channel-specific sending
+  switch (channel) {
+    case 'email': {
+      const emailStatus = getEmailStatus()
+      if (!emailStatus?.enabled || emailStatus.status !== 'connected') {
+        return { success: false, error: 'Email channel not connected' }
+      }
+
+      // Get the email channel and send
+      const { sendEmailMessage } = await import('./messaging/email-channel')
+      try {
+        const messageId = await sendEmailMessage(to, body, options?.subject, options?.replyToMessageId)
+        log.concierge.info('Sent email message', { to, subject: options?.subject, messageId })
+        return { success: true, messageId }
+      } catch (err) {
+        log.concierge.error('Failed to send email', { to, error: String(err) })
+        return { success: false, error: String(err) }
+      }
+    }
+
+    case 'whatsapp': {
+      const waStatus = getWhatsAppStatus()
+      if (!waStatus?.enabled || waStatus.status !== 'connected') {
+        return { success: false, error: 'WhatsApp channel not connected' }
+      }
+
+      // Get the WhatsApp channel and send
+      const { sendWhatsAppMessage } = await import('./messaging/whatsapp-channel')
+      try {
+        await sendWhatsAppMessage(to, body)
+        log.concierge.info('Sent WhatsApp message', { to })
+        return { success: true }
+      } catch (err) {
+        log.concierge.error('Failed to send WhatsApp message', { to, error: String(err) })
+        return { success: false, error: String(err) }
+      }
+    }
+
+    case 'telegram':
+    case 'slack':
+      // Not implemented yet
+      return { success: false, error: `${channel} channel not implemented` }
+
+    default:
+      return { success: false, error: `Unknown channel: ${channel}` }
+  }
+}

@@ -17,6 +17,7 @@ import { registerFilesystemTools } from './filesystem'
 import { registerSettingsTools } from './settings'
 import { registerBackupTools } from './backup'
 import { registerEmailTools } from './email'
+import { registerConciergeTools } from './concierge'
 
 export function registerTools(server: McpServer, client: FulcrumClient) {
   registerCoreTools(server, client)
@@ -30,6 +31,7 @@ export function registerTools(server: McpServer, client: FulcrumClient) {
   registerSettingsTools(server, client)
   registerBackupTools(server, client)
   registerEmailTools(server, client)
+  registerConciergeTools(server, client)
 }
 
 // Re-export types and schemas for external use

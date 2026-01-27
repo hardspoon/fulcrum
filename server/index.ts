@@ -13,6 +13,7 @@ import { startPRMonitor, stopPRMonitor } from './services/pr-monitor'
 import { startMetricsCollector, stopMetricsCollector } from './services/metrics-collector'
 import { startGitWatcher, stopGitWatcher } from './services/git-watcher'
 import { startMessagingChannels, stopMessagingChannels } from './services/messaging'
+import { startConciergeScheduler, stopConciergeScheduler } from './services/concierge-scheduler'
 import { log } from './lib/logger'
 import { clearSensitiveEnvVars } from './lib/env'
 
@@ -112,12 +113,16 @@ startGitWatcher()
 // Start messaging channels (WhatsApp, etc.)
 startMessagingChannels()
 
+// Start concierge scheduler (hourly sweeps, daily rituals)
+startConciergeScheduler()
+
 // Graceful shutdown - detach PTYs but keep dtach sessions running for persistence
 process.on('SIGINT', async () => {
   log.server.info('Shutting down (terminals will persist)')
   stopPRMonitor()
   stopMetricsCollector()
   stopGitWatcher()
+  stopConciergeScheduler()
   await stopMessagingChannels()
   ptyManager.detachAll()
   server.close()
@@ -129,6 +134,7 @@ process.on('SIGTERM', async () => {
   stopPRMonitor()
   stopMetricsCollector()
   stopGitWatcher()
+  stopConciergeScheduler()
   await stopMessagingChannels()
   ptyManager.detachAll()
   server.close()

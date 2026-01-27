@@ -5,7 +5,7 @@
  * Core tools are always loaded; deferred tools are loaded on-demand after search.
  */
 
-export type ToolCategory = 'core' | 'tasks' | 'projects' | 'repositories' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec' | 'settings' | 'backup' | 'email'
+export type ToolCategory = 'core' | 'tasks' | 'projects' | 'repositories' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec' | 'settings' | 'backup' | 'email' | 'concierge'
 
 export interface ToolMetadata {
   name: string
@@ -603,6 +603,57 @@ export const toolRegistry: ToolMetadata[] = [
     description: 'Fetch specific emails by IMAP UID and store locally',
     category: 'email',
     keywords: ['email', 'fetch', 'download', 'imap', 'uid', 'message', 'mail'],
+    deferred: false,
+  },
+
+  // Concierge tools - proactive digital concierge
+  {
+    name: 'message',
+    description: 'Send a message to a messaging channel (email, WhatsApp, etc.)',
+    category: 'concierge',
+    keywords: ['message', 'send', 'reply', 'email', 'whatsapp', 'communicate', 'respond'],
+    deferred: false,
+  },
+  {
+    name: 'create_actionable_event',
+    description: 'Create an actionable event to track something noticed',
+    category: 'concierge',
+    keywords: ['event', 'actionable', 'track', 'remember', 'log', 'decision', 'memory'],
+    deferred: false,
+  },
+  {
+    name: 'list_actionable_events',
+    description: 'List actionable events by status or channel',
+    category: 'concierge',
+    keywords: ['event', 'actionable', 'list', 'pending', 'review', 'memory'],
+    deferred: false,
+  },
+  {
+    name: 'get_actionable_event',
+    description: 'Get details of a specific actionable event',
+    category: 'concierge',
+    keywords: ['event', 'actionable', 'get', 'details', 'history'],
+    deferred: false,
+  },
+  {
+    name: 'update_actionable_event',
+    description: 'Update an actionable event status or link to a task',
+    category: 'concierge',
+    keywords: ['event', 'actionable', 'update', 'status', 'link', 'task', 'log'],
+    deferred: false,
+  },
+  {
+    name: 'get_concierge_stats',
+    description: 'Get concierge statistics (event counts, last sweep times)',
+    category: 'concierge',
+    keywords: ['concierge', 'stats', 'statistics', 'events', 'sweep', 'summary'],
+    deferred: false,
+  },
+  {
+    name: 'get_last_sweep',
+    description: 'Get information about the last sweep run of a type',
+    category: 'concierge',
+    keywords: ['sweep', 'last', 'hourly', 'morning', 'evening', 'ritual'],
     deferred: false,
   },
 ]
