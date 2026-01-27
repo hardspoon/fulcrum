@@ -222,7 +222,8 @@ export class EmailChannel implements MessagingChannel {
           if (!headers.from) continue
 
           // Skip emails from ourselves (to avoid loops)
-          if (headers.from.toLowerCase() === this.credentials!.smtp.user.toLowerCase()) {
+          const fromAddress = this.getFromAddress().toLowerCase()
+          if (headers.from.toLowerCase() === fromAddress) {
             continue
           }
 
