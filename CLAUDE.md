@@ -76,6 +76,7 @@ fulcrum notify <title> <message>  # Send notification
 
 ### Key Services (`server/services/`)
 - `messaging/` - Chat with AI via external channels (WhatsApp, Email)
+- `concierge-scheduler.ts` - Proactive assistant with hourly sweeps and daily rituals
 - `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
 - `pr-monitor.ts` - GitHub PR status polling, auto-close tasks on merge
 - `metrics-collector.ts` - System metrics collection (CPU, memory, disk)
@@ -92,6 +93,7 @@ fulcrum notify <title> <message>  # Send notification
 - `/api/deployments/*` - Deployment history
 - `/api/repositories/*` - Repository management
 - `/api/messaging/*` - Messaging channel management (WhatsApp, Email)
+- `/api/concierge/*` - Concierge events, sweeps, stats, message sending
 - `/ws/terminal` - Terminal I/O multiplexing
 
 ### Frontend Pages
@@ -123,6 +125,8 @@ fulcrum notify <title> <message>  # Send notification
 | `messagingConnections` | Messaging channel connections (WhatsApp, Email) with auth state |
 | `messagingSessionMappings` | Maps channel users (phone numbers, email threads) to AI chat sessions |
 | `emails` | Stored emails (sent/received) with threading, content, and metadata |
+| `actionableEvents` | Concierge's memory: tracked messages, requests, and decisions |
+| `sweepRuns` | Hourly sweep and daily ritual execution history |
 
 Task statuses: `IN_PROGRESS`, `IN_REVIEW`, `DONE`, `CANCELED`
 
@@ -157,6 +161,7 @@ Settings stored in `~/.fulcrum/settings.json`. See `server/lib/settings/types.ts
 - `tasks` - Task creation defaults
 - `appearance` - UI theme and language
 - `assistant` - Built-in assistant settings
+- `concierge` - Proactive assistant settings (sweeps, rituals)
 
 **Separate config files:**
 - `notifications.json` - Multi-channel notification settings
@@ -202,6 +207,34 @@ Chat with the AI assistant via external messaging platforms:
 **Auth storage**: `$FULCRUM_DIR/whatsapp-auth/<connectionId>/`
 
 Enable in Settings → Messaging.
+
+## Concierge Mode
+
+Proactive digital concierge that transforms the messaging assistant from reactive to proactive:
+
+**When enabled** (`concierge.enabled: true`):
+- Assistant decides whether to respond, create events, or stay silent
+- Simple conversations (hi, thanks, questions) get direct replies without tracking
+- Actionable requests get tracked in `actionableEvents` table
+- Can link events to Fulcrum tasks
+
+**Hourly Sweeps** (`concierge.hourlySweepEnabled: true`):
+- Reviews pending actionable events
+- Checks open tasks for updates needed
+- Logs sweep results in `sweepRuns` table
+
+**Daily Rituals**:
+- `morningRitual`: Morning briefing with today's priorities
+- `eveningRitual`: Evening summary with accomplishments and pending items
+- Configurable time (24h format, e.g., "09:00")
+- Custom prompts for personalization
+- Sends summaries to `defaultChannels` (e.g., email)
+
+**MCP Tools**:
+- `message`: Send to email/WhatsApp directly
+- `create_actionable_event`, `list_actionable_events`: Track decisions
+- `update_actionable_event`: Update status, link to tasks
+- `get_concierge_stats`, `get_last_sweep`: View statistics
 
 ## Desktop App
 
