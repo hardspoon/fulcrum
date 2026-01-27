@@ -1,106 +1,7 @@
-import { describe, test, expect, beforeEach, afterEach, afterAll, mock } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
-import { db, messagingConnections } from '../../db'
-
-// Mock the WebSocket broadcast
-mock.module('../../websocket/terminal-ws', () => ({
-  broadcast: () => {},
-}))
-
-// Mock the assistant service
-const mockStreamMessage = function* () {
-  yield { type: 'content:delta', data: { text: 'Hello ' } }
-  yield { type: 'content:delta', data: { text: 'from ' } }
-  yield { type: 'content:delta', data: { text: 'Claude!' } }
-}
-
-mock.module('../assistant-service', () => ({
-  streamMessage: mockStreamMessage,
-}))
-
-// Mock WhatsApp channel to avoid Baileys dependency
-interface MockChannelEvents {
-  onMessage?: (msg: {
-    channelType: string
-    connectionId: string
-    senderId: string
-    senderName?: string
-    content: string
-    timestamp: Date
-  }) => Promise<void>
-  onConnectionChange: (status: string) => void
-  onAuthRequired?: (data: { qrDataUrl: string }) => void
-  onDisplayNameChange?: (name: string) => void
-}
-
-// Base mock channel class for all channels
-class BaseMockChannel {
-  readonly connectionId: string
-  protected events: MockChannelEvents | null = null
-  protected status: 'disconnected' | 'connecting' | 'connected' | 'qr_pending' = 'disconnected'
-  sentMessages: Array<{ recipientId: string; content: string }> = []
-
-  constructor(connectionId: string) {
-    this.connectionId = connectionId
-  }
-
-  async initialize(events: MockChannelEvents): Promise<void> {
-    this.events = events
-    this.status = 'connected'
-    events.onConnectionChange('connected')
-  }
-
-  async shutdown(): Promise<void> {
-    this.status = 'disconnected'
-  }
-
-  async sendMessage(recipientId: string, content: string): Promise<boolean> {
-    this.sentMessages.push({ recipientId, content })
-    return true
-  }
-
-  getStatus() {
-    return this.status
-  }
-
-  async logout(): Promise<void> {
-    this.status = 'disconnected'
-  }
-}
-
-class MockWhatsAppChannel extends BaseMockChannel {
-  readonly type = 'whatsapp' as const
-}
-
-class MockDiscordChannel extends BaseMockChannel {
-  readonly type = 'discord' as const
-}
-
-class MockTelegramChannel extends BaseMockChannel {
-  readonly type = 'telegram' as const
-}
-
-class MockSlackChannel extends BaseMockChannel {
-  readonly type = 'slack' as const
-}
-
-mock.module('./whatsapp-channel', () => ({
-  WhatsAppChannel: MockWhatsAppChannel,
-}))
-
-mock.module('./discord-channel', () => ({
-  DiscordChannel: MockDiscordChannel,
-}))
-
-mock.module('./telegram-channel', () => ({
-  TelegramChannel: MockTelegramChannel,
-}))
-
-mock.module('./slack-channel', () => ({
-  SlackChannel: MockSlackChannel,
-}))
-
-// Import after mocks are set up
+import { resetDatabase } from '../../db'
+import type { MessagingChannel, ChannelEvents, ConnectionStatus, ChannelFactory } from './types'
 import {
   // Discord
   getOrCreateDiscordConnection,
@@ -123,23 +24,70 @@ import {
   // Common
   listConnections,
   stopMessagingChannels,
+  // DI
+  setChannelFactory,
+  resetChannelFactory,
 } from './index'
 
-// Clean up all mocks after this test file completes
-// This prevents mock pollution affecting other test files
-afterAll(() => {
-  mock.restore()
-})
+// Base mock channel class for all channels (no mock.module needed)
+class BaseMockChannel implements MessagingChannel {
+  readonly connectionId: string
+  readonly type: 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email'
+  protected events: ChannelEvents | null = null
+  protected status: ConnectionStatus = 'disconnected'
+  sentMessages: Array<{ recipientId: string; content: string }> = []
+
+  constructor(connectionId: string, type: 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email') {
+    this.connectionId = connectionId
+    this.type = type
+  }
+
+  async initialize(events: ChannelEvents): Promise<void> {
+    this.events = events
+    this.status = 'connected'
+    events.onConnectionChange('connected')
+  }
+
+  async shutdown(): Promise<void> {
+    this.status = 'disconnected'
+  }
+
+  async sendMessage(recipientId: string, content: string): Promise<boolean> {
+    this.sentMessages.push({ recipientId, content })
+    return true
+  }
+
+  getStatus(): ConnectionStatus {
+    return this.status
+  }
+
+  async logout(): Promise<void> {
+    this.status = 'disconnected'
+  }
+}
+
+// Mock factory that creates mock channels
+const mockChannelFactory: ChannelFactory = {
+  createWhatsAppChannel: (id) => new BaseMockChannel(id, 'whatsapp'),
+  createDiscordChannel: (id) => new BaseMockChannel(id, 'discord'),
+  createTelegramChannel: (id) => new BaseMockChannel(id, 'telegram'),
+  createSlackChannel: (id) => new BaseMockChannel(id, 'slack'),
+  createEmailChannel: (id) => new BaseMockChannel(id, 'email'),
+}
 
 describe('Discord Channel Manager', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
+    // Reset database first to ensure clean state
+    resetDatabase()
     testEnv = setupTestEnv()
+    setChannelFactory(mockChannelFactory)
   })
 
   afterEach(async () => {
     await stopMessagingChannels()
+    resetChannelFactory()
     testEnv.cleanup()
   })
 
@@ -212,8 +160,7 @@ describe('Discord Channel Manager', () => {
 
   describe('getDiscordStatus', () => {
     test('returns null when no connection exists', () => {
-      db.delete(messagingConnections).run()
-
+      // Database is fresh from beforeEach - no need to delete
       const status = getDiscordStatus()
       expect(status).toBeNull()
     })
@@ -233,11 +180,14 @@ describe('Telegram Channel Manager', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
+    resetDatabase()
     testEnv = setupTestEnv()
+    setChannelFactory(mockChannelFactory)
   })
 
   afterEach(async () => {
     await stopMessagingChannels()
+    resetChannelFactory()
     testEnv.cleanup()
   })
 
@@ -310,8 +260,7 @@ describe('Telegram Channel Manager', () => {
 
   describe('getTelegramStatus', () => {
     test('returns null when no connection exists', () => {
-      db.delete(messagingConnections).run()
-
+      // Database is fresh from beforeEach - no need to delete
       const status = getTelegramStatus()
       expect(status).toBeNull()
     })
@@ -331,11 +280,14 @@ describe('Slack Channel Manager', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
+    resetDatabase()
     testEnv = setupTestEnv()
+    setChannelFactory(mockChannelFactory)
   })
 
   afterEach(async () => {
     await stopMessagingChannels()
+    resetChannelFactory()
     testEnv.cleanup()
   })
 
@@ -410,8 +362,7 @@ describe('Slack Channel Manager', () => {
 
   describe('getSlackStatus', () => {
     test('returns null when no connection exists', () => {
-      db.delete(messagingConnections).run()
-
+      // Database is fresh from beforeEach - no need to delete
       const status = getSlackStatus()
       expect(status).toBeNull()
     })
@@ -431,11 +382,14 @@ describe('Multiple Channels', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
+    resetDatabase()
     testEnv = setupTestEnv()
+    setChannelFactory(mockChannelFactory)
   })
 
   afterEach(async () => {
     await stopMessagingChannels()
+    resetChannelFactory()
     testEnv.cleanup()
   })
 

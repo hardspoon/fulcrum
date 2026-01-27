@@ -22,11 +22,38 @@ import type {
   ConnectionStatus,
   IncomingMessage,
   EmailAuthState,
+  ChannelFactory,
 } from './types'
 import { getConciergeSystemPrompt, type ConciergeMessageContext } from './system-prompts'
 
 // Active channel instances
 const activeChannels = new Map<string, MessagingChannel>()
+
+// Default channel factory using real implementations
+const defaultChannelFactory: ChannelFactory = {
+  createWhatsAppChannel: (id) => new WhatsAppChannel(id),
+  createDiscordChannel: (id) => new DiscordChannel(id),
+  createTelegramChannel: (id) => new TelegramChannel(id),
+  createSlackChannel: (id) => new SlackChannel(id),
+  createEmailChannel: (id, authState) => new EmailChannel(id, authState),
+}
+
+// Current factory (can be overridden for testing)
+let channelFactory: ChannelFactory = defaultChannelFactory
+
+/**
+ * Set a custom channel factory (for testing).
+ */
+export function setChannelFactory(factory: ChannelFactory): void {
+  channelFactory = factory
+}
+
+/**
+ * Reset to the default channel factory.
+ */
+export function resetChannelFactory(): void {
+  channelFactory = defaultChannelFactory
+}
 
 // Special commands that don't go to the AI
 const COMMANDS = {
@@ -120,19 +147,19 @@ async function startChannel(conn: MessagingConnection): Promise<void> {
 
   switch (conn.channelType) {
     case 'whatsapp':
-      channel = new WhatsAppChannel(conn.id)
+      channel = channelFactory.createWhatsAppChannel(conn.id)
       break
     case 'discord':
-      channel = new DiscordChannel(conn.id)
+      channel = channelFactory.createDiscordChannel(conn.id)
       break
     case 'telegram':
-      channel = new TelegramChannel(conn.id)
+      channel = channelFactory.createTelegramChannel(conn.id)
       break
     case 'slack':
-      channel = new SlackChannel(conn.id)
+      channel = channelFactory.createSlackChannel(conn.id)
       break
     case 'email':
-      channel = new EmailChannel(conn.id, conn.authState as EmailAuthState | undefined)
+      channel = channelFactory.createEmailChannel(conn.id, conn.authState as EmailAuthState | undefined)
       break
     default:
       log.messaging.warn('Unknown channel type', {
@@ -998,7 +1025,8 @@ async function startEmailChannel(): Promise<void> {
   }
 
   // Create and initialize the email channel
-  const channel = new EmailChannel(EMAIL_CONNECTION_ID, credentials)
+  // Cast to EmailChannel for email-specific methods (getStoredEmails, searchImapEmails, etc.)
+  const channel = channelFactory.createEmailChannel(EMAIL_CONNECTION_ID, credentials) as EmailChannel
 
   await channel.initialize({
     onMessage: (msg) => handleIncomingMessage(msg),

@@ -143,3 +143,15 @@ export interface EmailAuthState {
    */
   allowedSenders?: string[]
 }
+
+/**
+ * Factory for creating channel instances.
+ * Used for dependency injection in tests.
+ */
+export interface ChannelFactory {
+  createWhatsAppChannel(connectionId: string): MessagingChannel
+  createDiscordChannel(connectionId: string): MessagingChannel
+  createTelegramChannel(connectionId: string): MessagingChannel
+  createSlackChannel(connectionId: string): MessagingChannel
+  createEmailChannel(connectionId: string, authState?: EmailAuthState): MessagingChannel
+}
