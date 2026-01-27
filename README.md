@@ -15,7 +15,7 @@ Run multiple AI coding agents in parallel across isolated git worktrees. Manage 
 - **Project Management** — Tasks with dependencies, due dates, labels, and attachments. Visual kanban boards and dependency graphs.
 - **Production Deployment** — Docker Compose with automatic Traefik routing and Cloudflare DNS/tunnels.
 - **MCP-First Architecture** — 60+ tools exposed via Model Context Protocol. Agents discover what they need.
-- **Chat From Anywhere** — Talk to the AI assistant via WhatsApp or Email. Link with QR code or configure SMTP/IMAP.
+- **Chat From Anywhere** — Talk to the AI assistant via WhatsApp, Discord, Telegram, or Slack.
 
 ## MCP-First Architecture
 
@@ -111,19 +111,21 @@ Create documents with live preview. Generate charts and visualizations. The assi
 
 ![AI Assistant Editor](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/assistant-editor-dark.png)
 
-### Messaging Channels
+### Messaging Integrations
 
-Chat with the AI assistant from anywhere via WhatsApp or Email.
+Chat with the AI assistant from anywhere via your favorite messaging platform.
 
-**WhatsApp:** Link your account with a QR code, then use WhatsApp's "Message yourself" feature to talk to Claude from your phone.
-
-**Email:** Configure SMTP/IMAP credentials to chat via email. Works with Gmail (app password), Outlook, or any email provider. Supports full markdown in responses.
+| Platform | Auth Method |
+|----------|-------------|
+| **WhatsApp** | QR code scan, uses "Message yourself" |
+| **Discord** | Bot token from Developer Portal |
+| **Telegram** | Bot token from @BotFather |
+| **Slack** | Bot + App tokens with Socket Mode |
 
 - **Persistent sessions** — Conversation context maintained across messages
 - **Commands** — `/reset` (new conversation), `/help`, `/status`
-- **Channel abstraction** — Architecture supports additional channels
 
-Enable in Settings → Channels.
+Enable in Settings → Messaging and follow the setup instructions for each platform.
 
 ### System Monitoring
 

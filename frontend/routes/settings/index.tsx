@@ -76,6 +76,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
 import { ModelPicker } from '@/components/opencode/model-picker'
 import { WhatsAppSetup } from '@/components/messaging/whatsapp-setup'
+import { DiscordSetup } from '@/components/messaging/discord-setup'
+import { TelegramSetup } from '@/components/messaging/telegram-setup'
+import { SlackSetup } from '@/components/messaging/slack-setup'
 import { EmailSetup } from '@/components/messaging/email-setup'
 import {
   useDeploymentSettings,
@@ -2125,9 +2128,12 @@ function SettingsPage() {
               </SettingsSection>
 
               {/* Messaging Channels */}
-              <SettingsSection title="Messaging">
-                <WhatsAppSetup isLoading={isLoading} />
-                <div className="border-t border-border pt-4 mt-4">
+              <SettingsSection title="Channels">
+                <div className="space-y-8">
+                  <WhatsAppSetup isLoading={isLoading} />
+                  <DiscordSetup isLoading={isLoading} />
+                  <TelegramSetup isLoading={isLoading} />
+                  <SlackSetup isLoading={isLoading} />
                   <EmailSetup isLoading={isLoading} />
                 </div>
               </SettingsSection>

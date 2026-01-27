@@ -691,7 +691,7 @@ export interface PageContext {
 }
 
 // Messaging channel types
-export type MessagingChannelType = 'whatsapp' | 'discord' | 'telegram' | 'email'
+export type MessagingChannelType = 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email'
 export type MessagingConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'qr_pending' | 'credentials_required'
 
 export interface MessagingConnection {

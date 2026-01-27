@@ -4,7 +4,7 @@
  */
 
 // Supported messaging channel types
-export type ChannelType = 'whatsapp' | 'discord' | 'telegram' | 'email'
+export type ChannelType = 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email'
 
 // Connection status
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'qr_pending' | 'credentials_required'
@@ -86,6 +86,28 @@ export interface MessagingChannel {
 export interface WhatsAppAuthState {
   creds: unknown
   keys: unknown
+}
+
+/**
+ * Discord-specific auth state stored in database
+ */
+export interface DiscordAuthState {
+  botToken: string
+}
+
+/**
+ * Telegram-specific auth state stored in database
+ */
+export interface TelegramAuthState {
+  botToken: string
+}
+
+/**
+ * Slack-specific auth state stored in database
+ */
+export interface SlackAuthState {
+  botToken: string      // xoxb-... token for Web API
+  appToken: string      // xapp-... token for Socket Mode
 }
 
 /**

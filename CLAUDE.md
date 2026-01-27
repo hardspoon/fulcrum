@@ -75,8 +75,7 @@ fulcrum notify <title> <message>  # Send notification
 - **bun-pty** for PTY management
 
 ### Key Services (`server/services/`)
-- `messaging/` - Chat with AI via external channels (WhatsApp, Email)
-- `assistant-scheduler.ts` - Proactive assistant with hourly sweeps and daily rituals
+- `messaging/` - Chat with AI via external channels (WhatsApp, Discord, Telegram, Slack)
 - `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
 - `pr-monitor.ts` - GitHub PR status polling, auto-close tasks on merge
 - `metrics-collector.ts` - System metrics collection (CPU, memory, disk)
@@ -92,8 +91,7 @@ fulcrum notify <title> <message>  # Send notification
 - `/api/monitoring/*` - System and Claude instance monitoring
 - `/api/deployments/*` - Deployment history
 - `/api/repositories/*` - Repository management
-- `/api/messaging/*` - Messaging channel management (WhatsApp, Email)
-- `/api/concierge/*` - Concierge events, sweeps, stats, message sending
+- `/api/messaging/*` - Messaging channel management (WhatsApp, Discord, Telegram, Slack)
 - `/ws/terminal` - Terminal I/O multiplexing
 
 ### Frontend Pages
@@ -122,11 +120,8 @@ fulcrum notify <title> <message>  # Send notification
 | `deployments` | Deployment history with logs |
 | `tunnels` | Cloudflare Tunnels for app exposure |
 | `systemMetrics` | CPU/memory/disk metrics (24h rolling) |
-| `messagingConnections` | Messaging channel connections (WhatsApp, Email) with auth state |
-| `messagingSessionMappings` | Maps channel users (phone numbers, email threads) to AI chat sessions |
-| `emails` | Stored emails (sent/received) with threading, content, and metadata |
-| `actionableEvents` | Concierge's memory: tracked messages, requests, and decisions |
-| `sweepRuns` | Hourly sweep and daily ritual execution history |
+| `messagingConnections` | Messaging channel connections (WhatsApp, Discord, Telegram, Slack) with auth state |
+| `messagingSessionMappings` | Maps channel users (phone numbers) to AI chat sessions |
 
 Task statuses: `IN_PROGRESS`, `IN_REVIEW`, `DONE`, `CANCELED`
 
@@ -160,8 +155,7 @@ Settings stored in `~/.fulcrum/settings.json`. See `server/lib/settings/types.ts
 - `agent` - AI agent defaults (Claude Code, OpenCode)
 - `tasks` - Task creation defaults
 - `appearance` - UI theme and language
-- `assistant` - Built-in assistant settings (including daily rituals)
-- `channels` - Messaging channels (email configuration)
+- `assistant` - Built-in assistant settings
 
 **Separate config files:**
 - `notifications.json` - Multi-channel notification settings
@@ -190,45 +184,13 @@ Multi-channel notification system:
 Chat with the AI assistant via external messaging platforms:
 
 - **WhatsApp**: Link via QR code, chat with Claude through "Message yourself"
-- **Email**: Configure SMTP/IMAP credentials to chat via email (Gmail, Outlook, or custom)
+- **Discord**: Bot token auth, handles DMs with users who message the bot
+- **Telegram**: Bot token from @BotFather, handles private chats
+- **Slack**: Socket Mode with bot + app tokens, handles DMs
+- **Session persistence**: Conversations map to `chatSessions` table, one session per user
+- **Commands**: `/reset` (new conversation), `/help`, `/status`
 
-**Session behavior:**
-- WhatsApp: One session per phone number
-- Email: One session per email thread (replies stay in context, new emails start fresh)
-
-**Commands**: `/help`, `/status`
-- `/reset` (WhatsApp only - for email, start a new email thread)
-
-**Email features:**
-- Local storage of sent/received emails in `emails` table
-- IMAP search for finding emails beyond what's stored
-- MCP tools: `list_emails`, `get_email`, `search_emails`, `fetch_emails`
-
-**Auth storage**: `$FULCRUM_DIR/whatsapp-auth/<connectionId>/`
-
-Enable in Settings → Channels.
-
-## Daily Rituals
-
-The assistant can send proactive daily briefings:
-
-**Configuration** (under `assistant` in settings.json):
-- `assistant.ritualsEnabled` - Enable/disable daily rituals
-- `assistant.morningRitual.time` - Time for morning briefing (24h format, e.g., "09:00")
-- `assistant.morningRitual.prompt` - Custom prompt for morning ritual
-- `assistant.eveningRitual.time` - Time for evening summary (24h format, e.g., "18:00")
-- `assistant.eveningRitual.prompt` - Custom prompt for evening ritual
-
-**Hourly Sweeps**:
-- Reviews pending actionable events
-- Checks open tasks for updates needed
-- Logs sweep results in `sweepRuns` table
-
-**MCP Tools**:
-- `message`: Send to email/WhatsApp directly
-- `create_actionable_event`, `list_actionable_events`: Track decisions
-- `update_actionable_event`: Update status, link to tasks
-- `get_assistant_stats`, `get_last_sweep`: View statistics
+Enable in Settings → Messaging and follow the setup instructions for each platform.
 
 ## Desktop App
 
@@ -269,14 +231,12 @@ frontend/
 server/
   routes/          # REST API handlers
   services/        # Business logic
-    messaging/     # External chat channels (WhatsApp, Email)
+    messaging/     # External chat channels (WhatsApp, Discord, Telegram, Slack)
   terminal/        # PTY management
   websocket/       # Terminal WebSocket protocol
   db/              # Drizzle schema
   lib/             # Utilities (settings, logger)
 shared/            # Shared types
-cli/
-  src/mcp/         # MCP server implementation
-    tools/         # Modular tool definitions (by category)
+cli/               # CLI source and build output
 desktop/           # Neutralino desktop app
 ```
