@@ -33,6 +33,48 @@ export interface ConciergeSettings {
   eveningRitual: ConciergeRitualConfig
 }
 
+// Email SMTP configuration
+export interface SmtpConfig {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  password: string
+}
+
+// Email IMAP configuration
+export interface ImapConfig {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  password: string
+}
+
+// Email messaging settings
+export interface EmailSettings {
+  enabled: boolean
+  smtp: SmtpConfig
+  imap: ImapConfig
+  pollIntervalSeconds: number
+  /**
+   * The email address to send from (appears in From header).
+   * Required when SMTP user is not an email address (e.g., AWS SES access key).
+   * Defaults to smtp.user if not specified.
+   */
+  sendAs: string | null
+  /**
+   * List of email addresses or domain patterns that can always interact with the assistant.
+   * Supports exact matches (user@example.com) and wildcard domains (*@example.com).
+   */
+  allowedSenders: string[]
+}
+
+// Messaging settings
+export interface MessagingSettings {
+  email: EmailSettings
+}
+
 // Nested settings interface
 export interface Settings {
   _schemaVersion?: number
@@ -79,6 +121,7 @@ export interface Settings {
     documentsDir: string
   }
   concierge: ConciergeSettings
+  messaging: MessagingSettings
 }
 
 // Default settings with new structure
@@ -137,6 +180,28 @@ export const DEFAULT_SETTINGS: Settings = {
       prompt: 'Summarize what was accomplished today, note pending items, and suggest focus areas for tomorrow.',
     },
   },
+  messaging: {
+    email: {
+      enabled: false,
+      smtp: {
+        host: '',
+        port: 587,
+        secure: false,
+        user: '',
+        password: '',
+      },
+      imap: {
+        host: '',
+        port: 993,
+        secure: true,
+        user: '',
+        password: '',
+      },
+      pollIntervalSeconds: 30,
+      sendAs: null,
+      allowedSenders: [],
+    },
+  },
 }
 
 // Old default port for migration detection
@@ -176,6 +241,20 @@ export const VALID_SETTING_PATHS = new Set([
   'concierge.morningRitual.prompt',
   'concierge.eveningRitual.time',
   'concierge.eveningRitual.prompt',
+  'messaging.email.enabled',
+  'messaging.email.smtp.host',
+  'messaging.email.smtp.port',
+  'messaging.email.smtp.secure',
+  'messaging.email.smtp.user',
+  'messaging.email.smtp.password',
+  'messaging.email.imap.host',
+  'messaging.email.imap.port',
+  'messaging.email.imap.secure',
+  'messaging.email.imap.user',
+  'messaging.email.imap.password',
+  'messaging.email.pollIntervalSeconds',
+  'messaging.email.sendAs',
+  'messaging.email.allowedSenders',
 ])
 
 // Legacy flat settings interface for backward compatibility

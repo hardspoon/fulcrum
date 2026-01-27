@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { db, messagingConnections } from '../../db'
 import type { MessagingConnection } from '../../db/schema'
 import { log } from '../../lib/logger'
+import { getSettings, updateSettingByPath } from '../../lib/settings'
 import { broadcast } from '../../websocket/terminal-ws'
 import { WhatsAppChannel } from './whatsapp-channel'
 import { EmailChannel, testEmailCredentials as testEmailCreds } from './email-channel'
@@ -36,17 +37,35 @@ const COMMANDS = {
  * Called on server startup.
  */
 export async function startMessagingChannels(): Promise<void> {
+  const settings = getSettings()
+
+  // Start email channel if enabled in settings
+  if (settings.messaging.email.enabled) {
+    try {
+      await startEmailChannel()
+    } catch (err) {
+      log.messaging.error('Failed to start email channel', {
+        error: String(err),
+      })
+    }
+  }
+
+  // Start WhatsApp and other database-tracked channels
   const connections = db
     .select()
     .from(messagingConnections)
     .where(eq(messagingConnections.enabled, true))
     .all()
 
+  // Filter out email (now handled via settings)
+  const nonEmailConnections = connections.filter(c => c.channelType !== 'email')
+
   log.messaging.info('Starting messaging channels', {
-    enabledCount: connections.length,
+    emailEnabled: settings.messaging.email.enabled,
+    otherChannels: nonEmailConnections.length,
   })
 
-  for (const conn of connections) {
+  for (const conn of nonEmailConnections) {
     try {
       await startChannel(conn)
     } catch (err) {
@@ -547,74 +566,109 @@ export function listConnections(): MessagingConnection[] {
 
 // ==================== Email API Functions ====================
 
+// Email channel connection ID (constant since there's only one email channel)
+const EMAIL_CONNECTION_ID = 'email-channel'
+
+// Track the active email channel
+let activeEmailChannel: EmailChannel | null = null
+
 /**
- * Get or create an email connection.
+ * Start the email channel from settings.
  */
-export function getOrCreateEmailConnection(): MessagingConnection {
-  const existing = db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.channelType, 'email'))
-    .get()
+async function startEmailChannel(): Promise<void> {
+  const settings = getSettings()
+  const emailConfig = settings.messaging.email
 
-  if (existing) return existing
-
-  const now = new Date().toISOString()
-  const id = nanoid()
-
-  const newConn = {
-    id,
-    channelType: 'email' as const,
-    enabled: false,
-    status: 'credentials_required' as const,
-    createdAt: now,
-    updatedAt: now,
+  if (!emailConfig.enabled) {
+    log.messaging.debug('Email channel not enabled')
+    return
   }
 
-  db.insert(messagingConnections).values(newConn).run()
+  // Check if we have valid credentials
+  if (!emailConfig.smtp.host || !emailConfig.smtp.user || !emailConfig.smtp.password) {
+    log.messaging.warn('Email enabled but SMTP credentials incomplete')
+    return
+  }
 
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, id))
-    .get()!
+  if (!emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
+    log.messaging.warn('Email enabled but IMAP credentials incomplete')
+    return
+  }
+
+  // Convert settings to EmailAuthState format
+  const credentials: EmailAuthState = {
+    smtp: emailConfig.smtp,
+    imap: emailConfig.imap,
+    pollIntervalSeconds: emailConfig.pollIntervalSeconds,
+    sendAs: emailConfig.sendAs || undefined,
+    allowedSenders: emailConfig.allowedSenders,
+  }
+
+  // Create and initialize the email channel
+  const channel = new EmailChannel(EMAIL_CONNECTION_ID, credentials)
+
+  await channel.initialize({
+    onMessage: (msg) => handleIncomingMessage(msg),
+    onConnectionChange: (status) => handleConnectionChange(EMAIL_CONNECTION_ID, status),
+    onAuthRequired: (data) => handleAuthRequired(EMAIL_CONNECTION_ID, data),
+    onDisplayNameChange: (name) => handleDisplayNameChange(EMAIL_CONNECTION_ID, name),
+  })
+
+  activeEmailChannel = channel
+  activeChannels.set(EMAIL_CONNECTION_ID, channel)
+
+  log.messaging.info('Email channel started from settings', {
+    smtpHost: emailConfig.smtp.host,
+    imapHost: emailConfig.imap.host,
+  })
+}
+
+/**
+ * Stop the email channel.
+ */
+async function stopEmailChannel(): Promise<void> {
+  if (activeEmailChannel) {
+    await activeEmailChannel.shutdown()
+    activeEmailChannel = null
+    activeChannels.delete(EMAIL_CONNECTION_ID)
+    log.messaging.info('Email channel stopped')
+  }
 }
 
 /**
  * Configure email with credentials and enable the channel.
+ * Saves configuration to settings.json and starts the channel.
  */
-export async function configureEmail(credentials: EmailAuthState): Promise<MessagingConnection> {
-  const conn = getOrCreateEmailConnection()
-
+export async function configureEmail(credentials: EmailAuthState): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
   // Stop existing channel if running
-  await stopChannel(conn.id)
+  await stopEmailChannel()
 
-  // Update connection with credentials
-  db.update(messagingConnections)
-    .set({
-      enabled: true,
-      authState: credentials,
-      displayName: credentials.sendAs || credentials.smtp.user,
-      status: 'connecting',
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
+  // Save credentials to settings
+  updateSettingByPath('messaging.email.enabled', true)
+  updateSettingByPath('messaging.email.smtp.host', credentials.smtp.host)
+  updateSettingByPath('messaging.email.smtp.port', credentials.smtp.port)
+  updateSettingByPath('messaging.email.smtp.secure', credentials.smtp.secure)
+  updateSettingByPath('messaging.email.smtp.user', credentials.smtp.user)
+  updateSettingByPath('messaging.email.smtp.password', credentials.smtp.password)
+  updateSettingByPath('messaging.email.imap.host', credentials.imap.host)
+  updateSettingByPath('messaging.email.imap.port', credentials.imap.port)
+  updateSettingByPath('messaging.email.imap.secure', credentials.imap.secure)
+  updateSettingByPath('messaging.email.imap.user', credentials.imap.user)
+  updateSettingByPath('messaging.email.imap.password', credentials.imap.password)
+  updateSettingByPath('messaging.email.pollIntervalSeconds', credentials.pollIntervalSeconds)
+  updateSettingByPath('messaging.email.sendAs', credentials.sendAs || null)
+  updateSettingByPath('messaging.email.allowedSenders', credentials.allowedSenders || [])
 
   // Start the channel
-  const updatedConn = db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
+  await startEmailChannel()
 
-  await startChannel(updatedConn)
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
+  return {
+    enabled: true,
+    status: activeEmailChannel?.getStatus() || 'connecting',
+  }
 }
 
 /**
@@ -632,36 +686,45 @@ export async function testEmailCredentials(credentials: EmailAuthState): Promise
 /**
  * Disable email and stop the channel.
  */
-export async function disableEmail(): Promise<MessagingConnection> {
-  const conn = getOrCreateEmailConnection()
+export async function disableEmail(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  await stopEmailChannel()
 
-  await stopChannel(conn.id)
+  // Update settings to disable
+  updateSettingByPath('messaging.email.enabled', false)
 
-  db.update(messagingConnections)
-    .set({
-      enabled: false,
-      status: 'disconnected',
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
+  return {
+    enabled: false,
+    status: 'disconnected',
+  }
 }
 
 /**
  * Get email connection status.
  */
-export function getEmailStatus(): MessagingConnection | null {
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.channelType, 'email'))
-    .get() ?? null
+export function getEmailStatus(): {
+  enabled: boolean
+  status: ConnectionStatus
+} {
+  const settings = getSettings()
+  const emailConfig = settings.messaging.email
+
+  if (!emailConfig.enabled) {
+    return { enabled: false, status: 'disconnected' }
+  }
+
+  // Check if we have valid credentials
+  if (!emailConfig.smtp.host || !emailConfig.smtp.user || !emailConfig.smtp.password ||
+      !emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
+    return { enabled: true, status: 'credentials_required' }
+  }
+
+  return {
+    enabled: true,
+    status: activeEmailChannel?.getStatus() || 'disconnected',
+  }
 }
 
 /**
@@ -671,29 +734,32 @@ export function getEmailConfig(): {
   smtp: { host: string; port: number; secure: boolean; user: string } | null
   imap: { host: string; port: number; secure: boolean; user: string } | null
   pollIntervalSeconds: number
-  sendAs?: string
-  allowedSenders?: string[]
+  sendAs: string | null
+  allowedSenders: string[]
 } | null {
-  const conn = getEmailStatus()
-  if (!conn?.authState) return null
+  const settings = getSettings()
+  const emailConfig = settings.messaging.email
 
-  const auth = conn.authState as EmailAuthState
+  if (!emailConfig.smtp.host && !emailConfig.imap.host) {
+    return null
+  }
+
   return {
-    smtp: {
-      host: auth.smtp.host,
-      port: auth.smtp.port,
-      secure: auth.smtp.secure,
-      user: auth.smtp.user,
-    },
-    imap: {
-      host: auth.imap.host,
-      port: auth.imap.port,
-      secure: auth.imap.secure,
-      user: auth.imap.user,
-    },
-    pollIntervalSeconds: auth.pollIntervalSeconds,
-    sendAs: auth.sendAs,
-    allowedSenders: auth.allowedSenders,
+    smtp: emailConfig.smtp.host ? {
+      host: emailConfig.smtp.host,
+      port: emailConfig.smtp.port,
+      secure: emailConfig.smtp.secure,
+      user: emailConfig.smtp.user,
+    } : null,
+    imap: emailConfig.imap.host ? {
+      host: emailConfig.imap.host,
+      port: emailConfig.imap.port,
+      secure: emailConfig.imap.secure,
+      user: emailConfig.imap.user,
+    } : null,
+    pollIntervalSeconds: emailConfig.pollIntervalSeconds,
+    sendAs: emailConfig.sendAs,
+    allowedSenders: emailConfig.allowedSenders,
   }
 }
 
@@ -716,11 +782,10 @@ export function getStoredEmails(options?: {
   search?: string
   folder?: string
 }) {
-  const channel = activeChannels.get('email') as EmailChannel | undefined
-  if (!channel) {
+  if (!activeEmailChannel) {
     return []
   }
-  return channel.getStoredEmails(options)
+  return activeEmailChannel.getStoredEmails(options)
 }
 
 /**
@@ -736,22 +801,20 @@ export async function searchImapEmails(criteria: {
   seen?: boolean
   flagged?: boolean
 }): Promise<number[]> {
-  const channel = activeChannels.get('email') as EmailChannel | undefined
-  if (!channel) {
+  if (!activeEmailChannel) {
     throw new Error('Email channel not configured')
   }
-  return channel.searchImapEmails(criteria)
+  return activeEmailChannel.searchImapEmails(criteria)
 }
 
 /**
  * Fetch emails by UID from IMAP and store them locally.
  */
 export async function fetchAndStoreEmails(uids: number[], options?: { limit?: number }) {
-  const channel = activeChannels.get('email') as EmailChannel | undefined
-  if (!channel) {
+  if (!activeEmailChannel) {
     throw new Error('Email channel not configured')
   }
-  return channel.fetchAndStoreEmails(uids, options)
+  return activeEmailChannel.fetchAndStoreEmails(uids, options)
 }
 
 // ==================== Send Message Functions (for concierge) ====================
@@ -766,12 +829,11 @@ export async function sendEmailMessage(
   subject?: string,
   replyToMessageId?: string
 ): Promise<string | undefined> {
-  const channel = activeChannels.get('email') as EmailChannel | undefined
-  if (!channel) {
+  if (!activeEmailChannel) {
     throw new Error('Email channel not configured or not connected')
   }
 
-  const success = await channel.sendMessage(to, body, {
+  const success = await activeEmailChannel.sendMessage(to, body, {
     subject,
     messageId: replyToMessageId,
   })
@@ -816,7 +878,7 @@ export async function sendMessageToChannel(
   switch (channel) {
     case 'email': {
       const emailStatus = getEmailStatus()
-      if (!emailStatus?.enabled || emailStatus.status !== 'connected') {
+      if (!emailStatus.enabled || emailStatus.status !== 'connected') {
         return { success: false, error: 'Email channel not connected' }
       }
 

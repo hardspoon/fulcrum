@@ -9,6 +9,8 @@ import { formatSuccess, handleToolError } from '../utils'
 const SENSITIVE_SETTINGS = new Set([
   'integrations.githubPat',
   'integrations.cloudflareApiToken',
+  'messaging.email.smtp.password',
+  'messaging.email.imap.password',
 ])
 
 // Mask sensitive values in settings output

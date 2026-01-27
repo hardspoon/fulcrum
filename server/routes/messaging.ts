@@ -101,10 +101,10 @@ app.get('/whatsapp/sessions', (c) => {
 
 // GET /api/messaging/email - Get email connection status
 app.get('/email', (c) => {
-  const conn = getEmailStatus()
+  const status = getEmailStatus()
   const config = getEmailConfig()
   return c.json({
-    ...(conn || { enabled: false, status: 'credentials_required' }),
+    ...status,
     config,
   })
 })
@@ -166,12 +166,13 @@ app.post('/email/disable', async (c) => {
 
 // GET /api/messaging/email/sessions - List email session mappings
 app.get('/email/sessions', (c) => {
-  const conn = getEmailStatus()
-  if (!conn) {
+  const status = getEmailStatus()
+  if (!status.enabled) {
     return c.json({ sessions: [] })
   }
 
-  const mappings = listSessionMappings(conn.id)
+  // Email sessions are tracked by the constant 'email-channel' ID
+  const mappings = listSessionMappings('email-channel')
   return c.json({ sessions: mappings })
 })
 

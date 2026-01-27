@@ -13,8 +13,9 @@ import { createTransport, type Transporter } from 'nodemailer'
 import { ImapFlow } from 'imapflow'
 import { eq, and, desc, like, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { db, messagingConnections, emailAuthorizedThreads, emails } from '../../db'
+import { db, emailAuthorizedThreads, emails } from '../../db'
 import { log } from '../../lib/logger'
+import { getSettings } from '../../lib/settings'
 import { sendNotification } from '../notification-service'
 import type {
   MessagingChannel,
@@ -81,19 +82,23 @@ export class EmailChannel implements MessagingChannel {
     this.isShuttingDown = false
 
     if (!this.credentials) {
-      // Load credentials from database
-      const conn = db
-        .select()
-        .from(messagingConnections)
-        .where(eq(messagingConnections.id, this.connectionId))
-        .get()
+      // Load credentials from settings
+      const settings = getSettings()
+      const emailConfig = settings.messaging.email
 
-      if (!conn?.authState) {
+      if (!emailConfig.smtp.host || !emailConfig.smtp.user || !emailConfig.smtp.password ||
+          !emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
         this.updateStatus('credentials_required')
         return
       }
 
-      this.credentials = conn.authState as EmailAuthState
+      this.credentials = {
+        smtp: emailConfig.smtp,
+        imap: emailConfig.imap,
+        pollIntervalSeconds: emailConfig.pollIntervalSeconds,
+        sendAs: emailConfig.sendAs || undefined,
+        allowedSenders: emailConfig.allowedSenders,
+      }
     }
 
     await this.connect()
@@ -798,16 +803,7 @@ If you believe this is an error, please contact the owner of this email address.
   private updateStatus(status: ConnectionStatus): void {
     this.status = status
 
-    // Update database
-    db.update(messagingConnections)
-      .set({
-        status,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(messagingConnections.id, this.connectionId))
-      .run()
-
-    // Notify listeners
+    // Notify listeners (no database update - email config is in settings.json)
     this.events?.onConnectionChange(status)
   }
 
