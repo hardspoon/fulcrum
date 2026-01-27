@@ -11,6 +11,8 @@ import {
   type Settings,
   type AssistantProvider,
   type AssistantModel,
+  type ConciergeSettings,
+  type ChannelsSettings,
 } from './types'
 import type { AgentType } from '@shared/types'
 import { ensureFulcrumDir, expandPath, getSettingsPath } from './paths'
@@ -115,6 +117,14 @@ export function getSettings(): Settings {
         ((parsed.assistant as Record<string, unknown>)?.documentsDir as string) ?? DEFAULT_SETTINGS.assistant.documentsDir
       ),
     },
+    concierge: deepMergeWithDefaults(
+      (parsed.concierge as Record<string, unknown>) ?? {},
+      DEFAULT_SETTINGS.concierge as unknown as Record<string, unknown>
+    ) as ConciergeSettings,
+    channels: deepMergeWithDefaults(
+      (parsed.channels as Record<string, unknown>) ?? {},
+      DEFAULT_SETTINGS.channels as unknown as Record<string, unknown>
+    ) as ChannelsSettings,
   }
 
   // Apply environment variable overrides
@@ -145,6 +155,8 @@ export function getSettings(): Settings {
     tasks: fileSettings.tasks,
     appearance: fileSettings.appearance,
     assistant: fileSettings.assistant,
+    concierge: fileSettings.concierge,
+    channels: fileSettings.channels,
   }
 }
 

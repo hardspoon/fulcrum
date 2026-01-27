@@ -40,7 +40,7 @@ export async function startMessagingChannels(): Promise<void> {
   const settings = getSettings()
 
   // Start email channel if enabled in settings
-  if (settings.messaging.email.enabled) {
+  if (settings.channels.email.enabled) {
     try {
       await startEmailChannel()
     } catch (err) {
@@ -61,7 +61,7 @@ export async function startMessagingChannels(): Promise<void> {
   const nonEmailConnections = connections.filter(c => c.channelType !== 'email')
 
   log.messaging.info('Starting messaging channels', {
-    emailEnabled: settings.messaging.email.enabled,
+    emailEnabled: settings.channels.email.enabled,
     otherChannels: nonEmailConnections.length,
   })
 
@@ -577,7 +577,7 @@ let activeEmailChannel: EmailChannel | null = null
  */
 async function startEmailChannel(): Promise<void> {
   const settings = getSettings()
-  const emailConfig = settings.messaging.email
+  const emailConfig = settings.channels.email
 
   if (!emailConfig.enabled) {
     log.messaging.debug('Email channel not enabled')
@@ -647,20 +647,20 @@ export async function configureEmail(credentials: EmailAuthState): Promise<{
   await stopEmailChannel()
 
   // Save credentials to settings
-  updateSettingByPath('messaging.email.enabled', true)
-  updateSettingByPath('messaging.email.smtp.host', credentials.smtp.host)
-  updateSettingByPath('messaging.email.smtp.port', credentials.smtp.port)
-  updateSettingByPath('messaging.email.smtp.secure', credentials.smtp.secure)
-  updateSettingByPath('messaging.email.smtp.user', credentials.smtp.user)
-  updateSettingByPath('messaging.email.smtp.password', credentials.smtp.password)
-  updateSettingByPath('messaging.email.imap.host', credentials.imap.host)
-  updateSettingByPath('messaging.email.imap.port', credentials.imap.port)
-  updateSettingByPath('messaging.email.imap.secure', credentials.imap.secure)
-  updateSettingByPath('messaging.email.imap.user', credentials.imap.user)
-  updateSettingByPath('messaging.email.imap.password', credentials.imap.password)
-  updateSettingByPath('messaging.email.pollIntervalSeconds', credentials.pollIntervalSeconds)
-  updateSettingByPath('messaging.email.sendAs', credentials.sendAs || null)
-  updateSettingByPath('messaging.email.allowedSenders', credentials.allowedSenders || [])
+  updateSettingByPath('channels.email.enabled', true)
+  updateSettingByPath('channels.email.smtp.host', credentials.smtp.host)
+  updateSettingByPath('channels.email.smtp.port', credentials.smtp.port)
+  updateSettingByPath('channels.email.smtp.secure', credentials.smtp.secure)
+  updateSettingByPath('channels.email.smtp.user', credentials.smtp.user)
+  updateSettingByPath('channels.email.smtp.password', credentials.smtp.password)
+  updateSettingByPath('channels.email.imap.host', credentials.imap.host)
+  updateSettingByPath('channels.email.imap.port', credentials.imap.port)
+  updateSettingByPath('channels.email.imap.secure', credentials.imap.secure)
+  updateSettingByPath('channels.email.imap.user', credentials.imap.user)
+  updateSettingByPath('channels.email.imap.password', credentials.imap.password)
+  updateSettingByPath('channels.email.pollIntervalSeconds', credentials.pollIntervalSeconds)
+  updateSettingByPath('channels.email.sendAs', credentials.sendAs || null)
+  updateSettingByPath('channels.email.allowedSenders', credentials.allowedSenders || [])
 
   // Start the channel
   await startEmailChannel()
@@ -693,7 +693,7 @@ export async function disableEmail(): Promise<{
   await stopEmailChannel()
 
   // Update settings to disable
-  updateSettingByPath('messaging.email.enabled', false)
+  updateSettingByPath('channels.email.enabled', false)
 
   return {
     enabled: false,
@@ -709,7 +709,7 @@ export function getEmailStatus(): {
   status: ConnectionStatus
 } {
   const settings = getSettings()
-  const emailConfig = settings.messaging.email
+  const emailConfig = settings.channels.email
 
   if (!emailConfig.enabled) {
     return { enabled: false, status: 'disconnected' }
@@ -738,7 +738,7 @@ export function getEmailConfig(): {
   allowedSenders: string[]
 } | null {
   const settings = getSettings()
-  const emailConfig = settings.messaging.email
+  const emailConfig = settings.channels.email
 
   if (!emailConfig.smtp.host && !emailConfig.imap.host) {
     return null

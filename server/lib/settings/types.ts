@@ -70,8 +70,8 @@ export interface EmailSettings {
   allowedSenders: string[]
 }
 
-// Messaging settings
-export interface MessagingSettings {
+// Channels settings (renamed from MessagingSettings)
+export interface ChannelsSettings {
   email: EmailSettings
 }
 
@@ -121,7 +121,7 @@ export interface Settings {
     documentsDir: string
   }
   concierge: ConciergeSettings
-  messaging: MessagingSettings
+  channels: ChannelsSettings
 }
 
 // Default settings with new structure
@@ -180,7 +180,7 @@ export const DEFAULT_SETTINGS: Settings = {
       prompt: 'Summarize what was accomplished today, note pending items, and suggest focus areas for tomorrow.',
     },
   },
-  messaging: {
+  channels: {
     email: {
       enabled: false,
       smtp: {
@@ -241,20 +241,20 @@ export const VALID_SETTING_PATHS = new Set([
   'concierge.morningRitual.prompt',
   'concierge.eveningRitual.time',
   'concierge.eveningRitual.prompt',
-  'messaging.email.enabled',
-  'messaging.email.smtp.host',
-  'messaging.email.smtp.port',
-  'messaging.email.smtp.secure',
-  'messaging.email.smtp.user',
-  'messaging.email.smtp.password',
-  'messaging.email.imap.host',
-  'messaging.email.imap.port',
-  'messaging.email.imap.secure',
-  'messaging.email.imap.user',
-  'messaging.email.imap.password',
-  'messaging.email.pollIntervalSeconds',
-  'messaging.email.sendAs',
-  'messaging.email.allowedSenders',
+  'channels.email.enabled',
+  'channels.email.smtp.host',
+  'channels.email.smtp.port',
+  'channels.email.smtp.secure',
+  'channels.email.smtp.user',
+  'channels.email.smtp.password',
+  'channels.email.imap.host',
+  'channels.email.imap.port',
+  'channels.email.imap.secure',
+  'channels.email.imap.user',
+  'channels.email.imap.password',
+  'channels.email.pollIntervalSeconds',
+  'channels.email.sendAs',
+  'channels.email.allowedSenders',
 ])
 
 // Legacy flat settings interface for backward compatibility
