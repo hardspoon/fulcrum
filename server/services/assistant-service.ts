@@ -431,6 +431,22 @@ User message: ${userMessage}`
     const tokensOut = 0
 
     for await (const message of result) {
+      // Log system init message to see MCP server status
+      if (message.type === 'system') {
+        const sysMsg = message as {
+          type: 'system'
+          subtype: string
+          tools?: string[]
+          mcp_servers?: { name: string; status: string }[]
+        }
+        log.assistant.info('SDK system message', {
+          sessionId,
+          subtype: sysMsg.subtype,
+          toolCount: sysMsg.tools?.length,
+          mcpServers: sysMsg.mcp_servers,
+        })
+      }
+
       if (message.type === 'stream_event') {
         const event = (message as { type: 'stream_event'; event: { type: string; delta?: { type: string; text?: string } } }).event
 

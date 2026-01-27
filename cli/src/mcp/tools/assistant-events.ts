@@ -43,7 +43,7 @@ export const registerAssistantEventTools: ToolRegistrar = (server, client) => {
     {
       source_channel: ChannelSchema.exclude(['all']).describe('Channel where the event originated'),
       source_id: z.string().describe('ID of the source message/email'),
-      source_metadata: z.optional(z.record(z.unknown())).describe('Additional context (sender, subject, etc.)'),
+      source_metadata: z.optional(z.record(z.string(), z.any())).describe('Additional context (sender, subject, etc.)'),
       summary: z.optional(z.string()).describe('AI-generated description of what this event is about'),
       status: z.optional(ActionableEventStatusSchema).describe('Event status (default: pending)'),
       linked_task_id: z.optional(z.string()).describe('Fulcrum task ID if this event relates to a task'),
