@@ -193,6 +193,43 @@ export interface PathStatResponse {
   isFile: boolean
 }
 
+// Backup types
+export interface BackupManifest {
+  createdAt: string
+  version: string
+  files: {
+    database: boolean
+    settings: boolean
+  }
+  databaseSize?: number
+  settingsSize?: number
+  description?: string
+}
+
+export interface BackupInfo {
+  name: string
+  createdAt: string
+  path: string
+  manifest: BackupManifest
+}
+
+export interface BackupCreateResult {
+  success: boolean
+  name: string
+  path: string
+  manifest: BackupManifest
+}
+
+export interface BackupRestoreResult {
+  success: boolean
+  restored: {
+    database: boolean
+    settings: boolean
+  }
+  preRestoreBackup: string | null
+  warning?: string
+}
+
 export class FulcrumClient {
   private baseUrl: string
 
@@ -842,5 +879,37 @@ export class FulcrumClient {
 
   async isGitRepo(path: string): Promise<{ path: string; isGitRepo: boolean }> {
     return this.fetch(`/api/fs/is-git-repo?path=${encodeURIComponent(path)}`)
+  }
+
+  // Backup and restore
+  async listBackups(): Promise<{ backups: BackupInfo[]; backupsDir: string }> {
+    return this.fetch('/api/backup')
+  }
+
+  async createBackup(description?: string): Promise<BackupCreateResult> {
+    return this.fetch('/api/backup', {
+      method: 'POST',
+      body: JSON.stringify({ description }),
+    })
+  }
+
+  async getBackup(name: string): Promise<{ name: string; path: string; manifest: BackupManifest }> {
+    return this.fetch(`/api/backup/${encodeURIComponent(name)}`)
+  }
+
+  async restoreBackup(
+    name: string,
+    options?: { database?: boolean; settings?: boolean }
+  ): Promise<BackupRestoreResult> {
+    return this.fetch(`/api/backup/${encodeURIComponent(name)}/restore`, {
+      method: 'POST',
+      body: JSON.stringify(options ?? {}),
+    })
+  }
+
+  async deleteBackup(name: string): Promise<{ success: boolean; deleted: string }> {
+    return this.fetch(`/api/backup/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    })
   }
 }

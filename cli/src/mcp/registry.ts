@@ -5,7 +5,7 @@
  * Core tools are always loaded; deferred tools are loaded on-demand after search.
  */
 
-export type ToolCategory = 'core' | 'tasks' | 'projects' | 'repositories' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec' | 'settings'
+export type ToolCategory = 'core' | 'tasks' | 'projects' | 'repositories' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec' | 'settings' | 'backup'
 
 export interface ToolMetadata {
   name: string
@@ -537,6 +537,43 @@ export const toolRegistry: ToolMetadata[] = [
     category: 'projects',
     keywords: ['project', 'link', 'url', 'remove', 'delete'],
     deferred: true,
+  },
+
+  // Backup tools
+  {
+    name: 'list_backups',
+    description: 'List all available backups',
+    category: 'backup',
+    keywords: ['backup', 'list', 'restore', 'database', 'settings', 'recovery'],
+    deferred: false,
+  },
+  {
+    name: 'create_backup',
+    description: 'Create a new backup of database and settings',
+    category: 'backup',
+    keywords: ['backup', 'create', 'save', 'database', 'settings', 'snapshot'],
+    deferred: false,
+  },
+  {
+    name: 'get_backup',
+    description: 'Get details of a specific backup',
+    category: 'backup',
+    keywords: ['backup', 'get', 'details', 'info'],
+    deferred: false,
+  },
+  {
+    name: 'restore_backup',
+    description: 'Restore database and/or settings from a backup',
+    category: 'backup',
+    keywords: ['backup', 'restore', 'recovery', 'database', 'settings', 'rollback'],
+    deferred: false,
+  },
+  {
+    name: 'delete_backup',
+    description: 'Delete a backup',
+    category: 'backup',
+    keywords: ['backup', 'delete', 'remove', 'cleanup'],
+    deferred: false,
   },
 ]
 

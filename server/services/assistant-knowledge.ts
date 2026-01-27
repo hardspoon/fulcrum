@@ -119,6 +119,13 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`get_notification_settings\` - View notification channel configuration
 - \`update_notification_settings\` - Configure notification channels
 
+**Backup & Restore:**
+- \`list_backups\` - List all available backups
+- \`create_backup\` - Create a backup of database and settings
+- \`get_backup\` - Get details of a specific backup
+- \`restore_backup\` - Restore from a backup (auto-creates pre-restore backup)
+- \`delete_backup\` - Delete a backup to free space
+
 **Utilities:**
 - \`list_tags\` - See all tags in use
 - \`get_task_dependency_graph\` - Visualize task dependencies
