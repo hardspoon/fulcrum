@@ -643,8 +643,18 @@ export async function configureEmail(credentials: EmailAuthState): Promise<{
   enabled: boolean
   status: ConnectionStatus
 }> {
+  const MASKED = '••••••••'
+
   // Stop existing channel if running
   await stopEmailChannel()
+
+  // Get existing settings to preserve masked passwords
+  const settings = getSettings()
+  const stored = settings.channels.email
+
+  // Determine final passwords (use stored if masked)
+  const smtpPassword = credentials.smtp.password === MASKED ? stored.smtp.password : credentials.smtp.password
+  const imapPassword = credentials.imap.password === MASKED ? stored.imap.password : credentials.imap.password
 
   // Save credentials to settings
   updateSettingByPath('channels.email.enabled', true)
@@ -652,12 +662,12 @@ export async function configureEmail(credentials: EmailAuthState): Promise<{
   updateSettingByPath('channels.email.smtp.port', credentials.smtp.port)
   updateSettingByPath('channels.email.smtp.secure', credentials.smtp.secure)
   updateSettingByPath('channels.email.smtp.user', credentials.smtp.user)
-  updateSettingByPath('channels.email.smtp.password', credentials.smtp.password)
+  updateSettingByPath('channels.email.smtp.password', smtpPassword)
   updateSettingByPath('channels.email.imap.host', credentials.imap.host)
   updateSettingByPath('channels.email.imap.port', credentials.imap.port)
   updateSettingByPath('channels.email.imap.secure', credentials.imap.secure)
   updateSettingByPath('channels.email.imap.user', credentials.imap.user)
-  updateSettingByPath('channels.email.imap.password', credentials.imap.password)
+  updateSettingByPath('channels.email.imap.password', imapPassword)
   updateSettingByPath('channels.email.pollIntervalSeconds', credentials.pollIntervalSeconds)
   updateSettingByPath('channels.email.sendAs', credentials.sendAs || null)
   updateSettingByPath('channels.email.allowedSenders', credentials.allowedSenders || [])
@@ -673,6 +683,7 @@ export async function configureEmail(credentials: EmailAuthState): Promise<{
 
 /**
  * Test email credentials without saving them.
+ * If passwords are masked (••••••••), uses stored credentials instead.
  */
 export async function testEmailCredentials(credentials: EmailAuthState): Promise<{
   success: boolean
@@ -680,7 +691,37 @@ export async function testEmailCredentials(credentials: EmailAuthState): Promise
   imapOk: boolean
   error?: string
 }> {
-  return testEmailCreds(credentials)
+  const MASKED = '••••••••'
+
+  // If passwords are masked, substitute with stored credentials
+  let finalCreds = credentials
+  if (credentials.smtp.password === MASKED || credentials.imap.password === MASKED) {
+    const settings = getSettings()
+    const stored = settings.channels.email
+
+    if (!stored.smtp.password || !stored.imap.password) {
+      return {
+        success: false,
+        smtpOk: false,
+        imapOk: false,
+        error: 'No stored credentials found. Please enter passwords.',
+      }
+    }
+
+    finalCreds = {
+      ...credentials,
+      smtp: {
+        ...credentials.smtp,
+        password: credentials.smtp.password === MASKED ? stored.smtp.password : credentials.smtp.password,
+      },
+      imap: {
+        ...credentials.imap,
+        password: credentials.imap.password === MASKED ? stored.imap.password : credentials.imap.password,
+      },
+    }
+  }
+
+  return testEmailCreds(finalCreds)
 }
 
 /**

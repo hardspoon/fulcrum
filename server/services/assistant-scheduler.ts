@@ -10,8 +10,8 @@ import type { SweepRun, NewSweepRun } from '../db/schema'
 import { log } from '../lib/logger'
 import { getSettings } from '../lib/settings'
 import * as assistantService from './assistant-service'
-import { getOrCreateSession } from './messaging/session-mapper'
-import { getSweepSystemPrompt, getRitualSystemPrompt } from './messaging/system-prompts'
+import { getOrCreateSession } from './channels/session-mapper'
+import { getSweepSystemPrompt, getRitualSystemPrompt } from './channels/system-prompts'
 
 // Intervals
 const HOURLY_INTERVAL = 60 * 60 * 1000 // 1 hour
@@ -366,7 +366,7 @@ export async function sendMessageToChannel(
   }
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   // Import the messaging module to access active channels
-  const { getEmailStatus, getWhatsAppStatus } = await import('./messaging')
+  const { getEmailStatus, getWhatsAppStatus } = await import('./channels')
 
   // Channel-specific sending
   switch (channel) {
@@ -377,7 +377,7 @@ export async function sendMessageToChannel(
       }
 
       // Get the email channel and send
-      const { sendEmailMessage } = await import('./messaging/email-channel')
+      const { sendEmailMessage } = await import('./channels/email-channel')
       try {
         const messageId = await sendEmailMessage(to, body, options?.subject, options?.replyToMessageId)
         log.assistant.info('Sent email message', { to, subject: options?.subject, messageId })
@@ -395,7 +395,7 @@ export async function sendMessageToChannel(
       }
 
       // Get the WhatsApp channel and send
-      const { sendWhatsAppMessage } = await import('./messaging/whatsapp-channel')
+      const { sendWhatsAppMessage } = await import('./channels/whatsapp-channel')
       try {
         await sendWhatsAppMessage(to, body)
         log.assistant.info('Sent WhatsApp message', { to })

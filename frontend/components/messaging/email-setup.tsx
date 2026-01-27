@@ -204,13 +204,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
   }
 
   const handleTest = async () => {
-    // Validate that passwords aren't masked placeholders
     const creds = buildCredentials()
-    if (creds.smtp.password === '••••••••' || creds.imap.password === '••••••••') {
-      toast.error('Please enter actual passwords to test connection')
-      return
-    }
-
     setTestResult(null)
     try {
       const result = await testCredentials.mutateAsync(creds)
@@ -226,13 +220,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
   }
 
   const handleConfigure = async () => {
-    // Validate that passwords aren't masked placeholders
     const creds = buildCredentials()
-    if (creds.smtp.password === '••••••••' || creds.imap.password === '••••••••') {
-      toast.error('Please enter actual passwords, not the masked placeholder')
-      return
-    }
-
     try {
       await configureEmail.mutateAsync(creds)
       toast.success('Email configured successfully')
