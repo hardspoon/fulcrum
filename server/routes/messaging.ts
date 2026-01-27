@@ -36,6 +36,7 @@ import {
   getStoredEmails,
   searchImapEmails,
   fetchAndStoreEmails,
+  sendMessageToChannel,
   type EmailAuthState,
 } from '../services/channels'
 import { db, emails } from '../db'
@@ -511,6 +512,52 @@ app.post('/email/fetch', async (c) => {
   } catch (err) {
     log.messaging.error('Failed to fetch emails', { error: String(err) })
     return c.json({ error: String(err) }, 500)
+  }
+})
+
+// POST /api/messaging/send - Send a message to a channel
+app.post('/send', async (c) => {
+  try {
+    const body = await c.req.json<{
+      channel: 'email' | 'whatsapp' | 'discord' | 'telegram' | 'slack'
+      to: string
+      body: string
+      subject?: string
+      replyToMessageId?: string
+    }>()
+
+    if (!body.channel || !body.to || !body.body) {
+      return c.json({ error: 'Missing required fields: channel, to, body' }, 400)
+    }
+
+    const result = await sendMessageToChannel(
+      body.channel,
+      body.to,
+      body.body,
+      {
+        subject: body.subject,
+        replyToMessageId: body.replyToMessageId,
+      }
+    )
+
+    if (result.success) {
+      log.messaging.info('Message sent via API', {
+        channel: body.channel,
+        to: body.to,
+        messageId: result.messageId,
+      })
+      return c.json(result)
+    } else {
+      log.messaging.warn('Failed to send message via API', {
+        channel: body.channel,
+        to: body.to,
+        error: result.error,
+      })
+      return c.json(result, 400)
+    }
+  } catch (err) {
+    log.messaging.error('Error sending message', { error: String(err) })
+    return c.json({ success: false, error: String(err) }, 500)
   }
 })
 

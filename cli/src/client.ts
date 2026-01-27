@@ -1095,7 +1095,7 @@ export class FulcrumClient {
 
   // Messaging - Send Message
   async sendMessage(data: {
-    channel: 'email' | 'whatsapp' | 'telegram' | 'slack'
+    channel: 'email' | 'whatsapp' | 'discord' | 'telegram' | 'slack'
     to: string
     body: string
     subject?: string

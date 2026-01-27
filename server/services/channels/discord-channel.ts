@@ -131,6 +131,15 @@ export class DiscordChannel implements MessagingChannel {
   }
 
   private async handleMessage(message: Message): Promise<void> {
+    log.messaging.debug('Discord messageCreate event', {
+      connectionId: this.connectionId,
+      authorId: message.author.id,
+      authorBot: message.author.bot,
+      channelType: message.channel.type,
+      isDMBased: message.channel.isDMBased(),
+      hasContent: !!message.content,
+    })
+
     // Ignore messages from bots (including self)
     if (message.author.bot) return
 
