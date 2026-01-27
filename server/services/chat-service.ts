@@ -1,4 +1,4 @@
-import { query } from '@anthropic-ai/claude-agent-sdk'
+import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { getSettings } from '../lib/settings'
 import { getClaudeCodePathForSdk } from '../lib/claude-code-path'
 import { log } from '../lib/logger'
@@ -6,6 +6,7 @@ import { db, tasks, projects, repositories, apps, projectRepositories } from '..
 import { eq } from 'drizzle-orm'
 import type { PageContext } from '../../shared/types'
 import { getFullKnowledge } from './assistant-knowledge'
+import type { ImageData } from '../routes/chat'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
 
@@ -226,6 +227,68 @@ async function buildSystemPrompt(context?: PageContext): Promise<string> {
   return prompt
 }
 
+type ImageBlock = { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+type TextBlock = { type: 'text'; text: string }
+type UserMessageContent = string | Array<ImageBlock | TextBlock>
+type UserMessageParam = { role: 'user'; content: UserMessageContent }
+
+/**
+ * Build MessageParam content with optional images for the Anthropic SDK
+ */
+function buildMessageParam(
+  message: string,
+  images?: ImageData[]
+): UserMessageParam {
+  if (!images || images.length === 0) {
+    return {
+      role: 'user',
+      content: message,
+    }
+  }
+
+  // Build content array with images first, then text
+  const content: Array<ImageBlock | TextBlock> = []
+
+  // Add images
+  for (const img of images) {
+    content.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: img.mediaType,
+        data: img.data,
+      },
+    })
+  }
+
+  // Add text (even if empty, to ensure the message has content)
+  content.push({
+    type: 'text',
+    text: message || 'What is in this image?',
+  })
+
+  return {
+    role: 'user',
+    content,
+  }
+}
+
+/**
+ * Create an async iterable that yields a single SDKUserMessage
+ */
+async function* createPromptIterable(
+  sessionId: string,
+  message: string,
+  images?: ImageData[]
+): AsyncIterable<SDKUserMessage> {
+  yield {
+    type: 'user',
+    message: buildMessageParam(message, images),
+    parent_tool_use_id: null,
+    session_id: sessionId,
+  }
+}
+
 /**
  * Stream a chat message response using Claude Agent SDK
  */
@@ -233,7 +296,8 @@ export async function* streamMessage(
   sessionId: string,
   userMessage: string,
   modelId: ModelId = 'sonnet',
-  context?: PageContext
+  context?: PageContext,
+  images?: ImageData[]
 ): AsyncGenerator<{ type: string; data: unknown }> {
   const session = sessions.get(sessionId)
   if (!session) {
@@ -249,14 +313,21 @@ export async function* streamMessage(
       sessionId,
       hasResume: !!session.claudeSessionId,
       pageType: context?.pageType,
+      hasImages: images && images.length > 0,
     })
 
     // Build system prompt with page context
     const systemPrompt = await buildSystemPrompt(context)
 
+    // Use async iterable for images, simple string otherwise
+    const hasImages = images && images.length > 0
+    const prompt = hasImages
+      ? createPromptIterable(sessionId, userMessage, images)
+      : userMessage
+
     // Create query with Claude Agent SDK
     const result = query({
-      prompt: userMessage,
+      prompt,
       options: {
         model: MODEL_MAP[modelId],
         resume: session.claudeSessionId, // Resume conversation if exists

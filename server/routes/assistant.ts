@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import * as assistantService from '../services/assistant-service'
 import type { PageContext } from '../../shared/types'
+import type { ImageData } from './chat'
 
 const assistantRoutes = new Hono()
 
@@ -109,14 +110,16 @@ assistantRoutes.delete('/sessions/:id', async (c) => {
  */
 assistantRoutes.post('/sessions/:id/messages', async (c) => {
   const sessionId = c.req.param('id')
-  const { message, model, editorContent } = await c.req.json<{
+  const { message, model, editorContent, images } = await c.req.json<{
     message: string
     model?: 'opus' | 'sonnet' | 'haiku'
     editorContent?: string
+    images?: ImageData[]
   }>()
 
-  if (!message || typeof message !== 'string') {
-    return c.json({ error: 'Message is required' }, 400)
+  // Allow empty message if images are present
+  if ((!message || typeof message !== 'string') && (!images || images.length === 0)) {
+    return c.json({ error: 'Message or images required' }, 400)
   }
 
   const session = assistantService.getSession(sessionId)
@@ -125,7 +128,11 @@ assistantRoutes.post('/sessions/:id/messages', async (c) => {
   }
 
   return streamSSE(c, async (stream) => {
-    for await (const event of assistantService.streamMessage(sessionId, message, model, editorContent)) {
+    for await (const event of assistantService.streamMessage(sessionId, message || '', {
+      modelId: model,
+      editorContent,
+      images,
+    })) {
       await stream.writeSSE({
         event: event.type,
         data: JSON.stringify(event.data),

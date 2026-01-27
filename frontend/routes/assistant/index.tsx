@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { AssistantLayout, type ClaudeModelId } from '@/components/assistant'
 import type { ChatSession, ChatMessage, Artifact, Document } from '@/components/assistant'
+import type { ImageAttachment } from '@/components/assistant/chat-panel'
 import type { AgentType } from '../../../shared/types'
 import { log } from '@/lib/logger'
 import { useOpencodeModels } from '@/hooks/use-opencode-models'
@@ -307,17 +308,24 @@ function AssistantView() {
 
   // Send message handler
   const handleSendMessage = useCallback(
-    async (message: string) => {
+    async (message: string, images?: ImageAttachment[]) => {
       if (!chatId || isStreaming) return
 
       setIsStreaming(true)
+
+      // Build display content (show [image] placeholders for attached images)
+      let displayContent = message
+      if (images && images.length > 0) {
+        const imageIndicator = images.length === 1 ? '[image]' : `[${images.length} images]`
+        displayContent = message ? `${imageIndicator} ${message}` : imageIndicator
+      }
 
       // Optimistically add user message
       const userMessage: ChatMessage = {
         id: `temp-${Date.now()}`,
         sessionId: chatId,
         role: 'user',
-        content: message,
+        content: displayContent,
         toolCalls: null,
         artifacts: null,
         model: null,
@@ -337,6 +345,12 @@ function AssistantView() {
       // Use current model from state
       const currentModel = model
 
+      // Prepare images for the API (extract base64 data without the data URL prefix)
+      const imageData = images?.map((img) => ({
+        mediaType: img.mediaType,
+        data: img.dataUrl.split(',')[1], // Remove "data:image/png;base64," prefix
+      }))
+
       try {
         const response = await fetch(`/api/assistant/sessions/${chatId}/messages`, {
           method: 'POST',
@@ -345,6 +359,7 @@ function AssistantView() {
             message,
             model: currentModel,
             editorContent: editorContent || undefined,
+            images: imageData,
           }),
         })
 

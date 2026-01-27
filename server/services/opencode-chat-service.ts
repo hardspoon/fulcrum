@@ -3,6 +3,7 @@ import { log } from '../lib/logger'
 import { db, tasks, projects, repositories, apps, projectRepositories } from '../db'
 import { eq } from 'drizzle-orm'
 import type { PageContext } from '../../shared/types'
+import type { ImageData } from '../routes/chat'
 
 // Default OpenCode server port
 const OPENCODE_DEFAULT_PORT = 4096
@@ -242,7 +243,8 @@ export async function* streamOpencodeMessage(
   sessionId: string,
   userMessage: string,
   model?: string,
-  context?: PageContext
+  context?: PageContext,
+  images?: ImageData[]
 ): AsyncGenerator<{ type: string; data: unknown }> {
   const session = sessions.get(sessionId)
   if (!session) {
@@ -256,6 +258,7 @@ export async function* streamOpencodeMessage(
       hasResume: !!session.opencodeSessionId,
       pageType: context?.pageType,
       model,
+      hasImages: images && images.length > 0,
     })
 
     const client = await getClient()
@@ -316,12 +319,29 @@ export async function* streamOpencodeMessage(
       }
     }
 
+    // Build parts array with images (if any) followed by text
+    const parts: Array<{ type: 'text'; text: string } | { type: 'image'; media_type: string; data: string }> = []
+
+    // Add images first
+    if (images && images.length > 0) {
+      for (const img of images) {
+        parts.push({
+          type: 'image',
+          media_type: img.mediaType,
+          data: img.data,
+        })
+      }
+    }
+
+    // Add text message
+    parts.push({ type: 'text', text: fullMessage })
+
     // Send the prompt asynchronously - include model to ensure it's used
-    log.chat.debug('Sending prompt to OpenCode', { opencodeSessionId, model, promptModelConfig, messageLength: fullMessage.length })
+    log.chat.debug('Sending prompt to OpenCode', { opencodeSessionId, model, promptModelConfig, messageLength: fullMessage.length, imageCount: images?.length || 0 })
     const promptPromise = client.session.prompt({
       path: { id: opencodeSessionId },
       body: {
-        parts: [{ type: 'text', text: fullMessage }],
+        parts,
         ...(promptModelConfig && { model: promptModelConfig }),
       },
     })

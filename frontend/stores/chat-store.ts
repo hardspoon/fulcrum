@@ -3,6 +3,7 @@ import type { Instance } from 'mobx-state-tree'
 import { API_BASE } from '@/hooks/use-apps'
 import type { Logger } from '../../shared/logger'
 import type { PageContext } from '../../shared/types'
+import type { ImageAttachment } from '@/components/chat/chat-input'
 
 export type ProviderId = 'claude' | 'opencode'
 export type ClaudeModelId = 'opus' | 'sonnet' | 'haiku'
@@ -147,7 +148,11 @@ export const ChatStore = types
         }
       }),
 
-      sendMessage: flow(function* sendMessage(message: string, context?: PageContext) {
+      sendMessage: flow(function* sendMessage(
+        message: string,
+        context?: PageContext,
+        images?: ImageAttachment[]
+      ) {
         const log = getLog()
 
         if (!self.sessionId) {
@@ -174,11 +179,18 @@ export const ChatStore = types
           }
         }
 
+        // Build display content (show [image] placeholders for attached images)
+        let displayContent = message
+        if (images && images.length > 0) {
+          const imageIndicator = images.length === 1 ? '[image]' : `[${images.length} images]`
+          displayContent = message ? `${imageIndicator} ${message}` : imageIndicator
+        }
+
         // Add user message
         const userMessage = ChatMessageModel.create({
           id: crypto.randomUUID(),
           role: 'user',
-          content: message,
+          content: displayContent,
           timestamp: new Date(),
         })
         self.messages.push(userMessage)
@@ -235,6 +247,12 @@ export const ChatStore = types
           // Use the appropriate model based on provider
           const modelToSend = self.provider === 'opencode' ? self.opencodeModel : self.model
 
+          // Prepare images for the API (extract base64 data without the data URL prefix)
+          const imageData = images?.map((img) => ({
+            mediaType: img.mediaType,
+            data: img.dataUrl.split(',')[1], // Remove "data:image/png;base64," prefix
+          }))
+
           const response: Response = yield fetch(`${API_BASE}/api/chat/${self.sessionId}/messages`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -243,6 +261,7 @@ export const ChatStore = types
               model: modelToSend,
               context,
               provider: self.provider,
+              images: imageData,
             }),
           })
 

@@ -9,6 +9,7 @@ import { log } from '../lib/logger'
 import type { PageContext } from '../../shared/types'
 import { saveDocument, readDocument, deleteDocument, renameDocument, generateDocumentFilename } from './document-service'
 import { getFullKnowledge } from './assistant-knowledge'
+import type { ImageData } from '../routes/chat'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
 
@@ -307,6 +308,7 @@ export interface StreamMessageOptions {
   modelId?: ModelId
   editorContent?: string
   systemPromptOverride?: string
+  images?: ImageData[]
 }
 
 /**
@@ -361,13 +363,43 @@ export async function* streamMessage(
     const systemPrompt = options.systemPromptOverride ?? buildSystemPrompt()
 
     // Build the full prompt, including editor content if present
-    let fullPrompt = userMessage
+    let textMessage = userMessage
     if (options.editorContent && options.editorContent.trim()) {
-      fullPrompt = `<editor_content>
+      textMessage = `<editor_content>
 ${options.editorContent}
 </editor_content>
 
 User message: ${userMessage}`
+    }
+
+    // Build the prompt - either simple string or content array with images
+    let fullPrompt: string | Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }>
+
+    if (options.images && options.images.length > 0) {
+      // Build content array with images first, then text
+      const content: Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }> = []
+
+      // Add images
+      for (const img of options.images) {
+        content.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: img.mediaType,
+            data: img.data,
+          },
+        })
+      }
+
+      // Add text (even if empty, to ensure the message has content)
+      content.push({
+        type: 'text',
+        text: textMessage || 'What is in this image?',
+      })
+
+      fullPrompt = content
+    } else {
+      fullPrompt = textMessage
     }
 
     const result = query({
