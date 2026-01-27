@@ -228,12 +228,8 @@
     "customSoundActive": "使用自定义声音"
   },
   "concierge": {
-    "enable": "启用",
-    "enableDescription": "将消息助手从被动转变为主动。启用后，助手会决定是回复、跟踪可操作事件还是保持沉默。",
-    "hourlySweep": "每小时扫描",
-    "hourlySweepDescription": "审查待处理的可操作事件并检查需要更新的任务。",
-    "outputChannels": "输出渠道",
-    "outputChannelsDescription": "发送仪式摘要的渠道。",
+    "rituals": "每日仪式",
+    "ritualsDescription": "启用通过已连接消息渠道发送的晨间和晚间定时简报。",
     "morningRitual": "晨间仪式",
     "morningRitualDescription": "包含今日优先事项的晨间简报。",
     "morningRitualPromptPlaceholder": "自定义晨间仪式提示词...",

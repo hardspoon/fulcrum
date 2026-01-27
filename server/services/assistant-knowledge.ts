@@ -132,13 +132,13 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`search_emails\` - Search emails via IMAP
 - \`fetch_emails\` - Fetch specific emails by IMAP UID
 
-**Concierge Tools (Proactive Agent):**
+**Assistant Tools (Proactive Agent):**
 - \`message\` - Send a message to a channel (email, whatsapp)
 - \`create_actionable_event\` - Track something noticed (message, request)
 - \`list_actionable_events\` - Review your event memory
 - \`get_actionable_event\` - Get event details
 - \`update_actionable_event\` - Update event status, link to task
-- \`get_concierge_stats\` - Get event counts and last sweep times
+- \`get_assistant_stats\` - Get event counts and last sweep times
 - \`get_last_sweep\` - Check when last sweep ran
 
 **Utilities:**
@@ -336,16 +336,12 @@ You can read and modify all Fulcrum settings using the settings MCP tools. Setti
 - \`assistant.customInstructions\` - Custom system prompt additions
 - \`assistant.documentsDir\` - Directory for assistant documents
 
-**concierge** - Proactive assistant settings
-- \`concierge.enabled\` - Master toggle for concierge mode
-- \`concierge.hourlySweepEnabled\` - Enable hourly sweeps to review events/tasks
-- \`concierge.morningRitual.enabled\` - Enable morning briefing
+**concierge** - Daily rituals settings (assistant proactively sends briefings)
+- \`concierge.ritualsEnabled\` - Enable/disable daily rituals (morning/evening briefings)
 - \`concierge.morningRitual.time\` - Time for morning ritual (24h format, e.g., "09:00")
 - \`concierge.morningRitual.prompt\` - Custom prompt for morning ritual
-- \`concierge.eveningRitual.enabled\` - Enable evening summary
 - \`concierge.eveningRitual.time\` - Time for evening ritual (24h format, e.g., "18:00")
 - \`concierge.eveningRitual.prompt\` - Custom prompt for evening ritual
-- \`concierge.defaultChannels\` - Channels for ritual output (e.g., ['email'])
 
 ### Notification Settings
 

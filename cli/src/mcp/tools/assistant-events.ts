@@ -1,5 +1,5 @@
 /**
- * Concierge MCP tools - Proactive digital concierge functionality
+ * Assistant MCP tools - Events, sweeps, stats and messaging
  */
 import { z } from 'zod'
 import type { ToolRegistrar } from './types'
@@ -8,7 +8,7 @@ import { formatSuccess, handleToolError } from '../utils'
 const ActionableEventStatusSchema = z.enum(['pending', 'acted_upon', 'dismissed', 'monitoring'])
 const ChannelSchema = z.enum(['email', 'whatsapp', 'telegram', 'slack', 'all'])
 
-export const registerConciergeTools: ToolRegistrar = (server, client) => {
+export const registerAssistantEventTools: ToolRegistrar = (server, client) => {
   // message - Send a message to a channel
   server.tool(
     'message',
@@ -129,14 +129,14 @@ export const registerConciergeTools: ToolRegistrar = (server, client) => {
     }
   )
 
-  // get_concierge_stats - Get overall statistics
+  // get_assistant_stats - Get overall statistics
   server.tool(
-    'get_concierge_stats',
-    'Get concierge statistics: event counts by status and last sweep times. Useful for understanding workload and activity.',
+    'get_assistant_stats',
+    'Get assistant statistics: event counts by status and last sweep times. Useful for understanding workload and activity.',
     {},
     async () => {
       try {
-        const result = await client.getConciergeStats()
+        const result = await client.getAssistantStats()
         return formatSuccess(result)
       } catch (err) {
         return handleToolError(err)

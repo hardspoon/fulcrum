@@ -26,37 +26,26 @@ const SWEEP_SESSION_PREFIX = 'concierge-sweep'
 const RITUAL_SESSION_PREFIX = 'concierge-ritual'
 
 /**
- * Start the concierge scheduler.
+ * Start the assistant scheduler.
  * Called on server startup.
  */
-export function startConciergeScheduler(): void {
+export function startAssistantScheduler(): void {
   const settings = getSettings()
 
-  if (!settings.concierge.enabled) {
-    log.concierge.info('Concierge is disabled')
-    return
-  }
-
-  log.concierge.info('Starting concierge scheduler', {
-    hourlySweep: settings.concierge.hourlySweepEnabled,
-    morningRitual: settings.concierge.morningRitual.enabled,
-    eveningRitual: settings.concierge.eveningRitual.enabled,
+  log.assistant.info('Starting concierge scheduler', {
+    ritualsEnabled: settings.concierge.ritualsEnabled,
   })
 
-  // Start hourly sweep
-  if (settings.concierge.hourlySweepEnabled) {
-    // Run immediately on start
-    runHourlySweep().catch((err) =>
-      log.concierge.error('Initial sweep failed', { error: String(err) })
-    )
+  // Start hourly sweep (always runs to process incoming messages)
+  runHourlySweep().catch((err) =>
+    log.assistant.error('Initial sweep failed', { error: String(err) })
+  )
 
-    // Then run every hour
-    hourlyIntervalId = setInterval(() => {
-      runHourlySweep().catch((err) =>
-        log.concierge.error('Hourly sweep failed', { error: String(err) })
-      )
-    }, HOURLY_INTERVAL)
-  }
+  hourlyIntervalId = setInterval(() => {
+    runHourlySweep().catch((err) =>
+      log.assistant.error('Hourly sweep failed', { error: String(err) })
+    )
+  }, HOURLY_INTERVAL)
 
   // Schedule daily rituals
   scheduleNextRitual('morning')
@@ -64,10 +53,10 @@ export function startConciergeScheduler(): void {
 }
 
 /**
- * Stop the concierge scheduler.
+ * Stop the assistant scheduler.
  * Called on server shutdown.
  */
-export function stopConciergeScheduler(): void {
+export function stopAssistantScheduler(): void {
   if (hourlyIntervalId) {
     clearInterval(hourlyIntervalId)
     hourlyIntervalId = null
@@ -83,7 +72,7 @@ export function stopConciergeScheduler(): void {
     eveningTimeoutId = null
   }
 
-  log.concierge.info('Concierge scheduler stopped')
+  log.assistant.info('Concierge scheduler stopped')
 }
 
 /**
@@ -97,7 +86,7 @@ async function runHourlySweep(): Promise<void> {
     const pendingCount = countEventsByStatus('pending')
     const openTaskCount = countOpenTasks()
 
-    log.concierge.info('Running hourly sweep', {
+    log.assistant.info('Running hourly sweep', {
       runId: run.id,
       pendingEvents: pendingCount,
       openTasks: openTaskCount,
@@ -159,7 +148,7 @@ async function runHourlySweep(): Promise<void> {
       summary,
     })
 
-    log.concierge.info('Hourly sweep completed', {
+    log.assistant.info('Hourly sweep completed', {
       runId: run.id,
       eventsProcessed,
       tasksUpdated,
@@ -178,7 +167,7 @@ async function runDailyRitual(type: 'morning' | 'evening'): Promise<void> {
   const settings = getSettings()
   const config = settings.concierge[`${type}Ritual`]
 
-  if (!config.enabled) {
+  if (!settings.concierge.ritualsEnabled) {
     scheduleNextRitual(type)
     return
   }
@@ -186,7 +175,7 @@ async function runDailyRitual(type: 'morning' | 'evening'): Promise<void> {
   const run = createSweepRun(`${type}_ritual`)
 
   try {
-    log.concierge.info(`Running ${type} ritual`, { runId: run.id })
+    log.assistant.info(`Running ${type} ritual`, { runId: run.id })
 
     // Get or create a session for ritual operations
     const { session } = getOrCreateSession(
@@ -199,7 +188,7 @@ async function runDailyRitual(type: 'morning' | 'evening'): Promise<void> {
     const prompt = config.prompt
 
     // Get the system prompt
-    const systemPrompt = getRitualSystemPrompt(type, settings.concierge.defaultChannels)
+    const systemPrompt = getRitualSystemPrompt(type)
 
     // Invoke assistant
     let messagesSent = 0
@@ -227,10 +216,10 @@ async function runDailyRitual(type: 'morning' | 'evening'): Promise<void> {
       summary,
     })
 
-    log.concierge.info(`${type} ritual completed`, { runId: run.id, messagesSent })
+    log.assistant.info(`${type} ritual completed`, { runId: run.id, messagesSent })
   } catch (err) {
     failSweepRun(run.id, String(err))
-    log.concierge.error(`${type} ritual failed`, { error: String(err) })
+    log.assistant.error(`${type} ritual failed`, { error: String(err) })
   }
 
   // Schedule the next occurrence
@@ -244,8 +233,8 @@ function scheduleNextRitual(type: 'morning' | 'evening'): void {
   const settings = getSettings()
   const config = settings.concierge[`${type}Ritual`]
 
-  if (!config.enabled) {
-    log.concierge.debug(`${type} ritual disabled, not scheduling`)
+  if (!settings.concierge.ritualsEnabled) {
+    log.assistant.debug(`Rituals disabled, not scheduling ${type} ritual`)
     return
   }
 
@@ -264,14 +253,14 @@ function scheduleNextRitual(type: 'morning' | 'evening'): void {
 
   const delay = next.getTime() - now.getTime()
 
-  log.concierge.info(`Scheduled ${type} ritual`, {
+  log.assistant.info(`Scheduled ${type} ritual`, {
     nextRun: next.toISOString(),
     delayMs: delay,
   })
 
   const timeoutId = setTimeout(() => {
     runDailyRitual(type).catch((err) =>
-      log.concierge.error(`${type} ritual error`, { error: String(err) })
+      log.assistant.error(`${type} ritual error`, { error: String(err) })
     )
   }, delay)
 
@@ -368,7 +357,7 @@ function countOpenTasks(): number {
  * Used by the MCP `message` tool and internally by the concierge.
  */
 export async function sendMessageToChannel(
-  channel: 'email' | 'whatsapp' | 'telegram' | 'slack' | 'all',
+  channel: 'email' | 'whatsapp' | 'telegram' | 'slack',
   to: string,
   body: string,
   options?: {
@@ -378,31 +367,6 @@ export async function sendMessageToChannel(
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   // Import the messaging module to access active channels
   const { getEmailStatus, getWhatsAppStatus } = await import('./messaging')
-
-  // TODO: Implement actual message sending via the active channels
-  // For now, log the intent and return success
-  // The full implementation would:
-  // 1. Get the appropriate channel from activeChannels
-  // 2. Call channel.sendMessage(to, body, metadata)
-
-  if (channel === 'all') {
-    // Send to all configured default channels
-    const settings = getSettings()
-    const channels = settings.concierge.defaultChannels
-
-    const results: Array<{ channel: string; success: boolean; error?: string }> = []
-
-    for (const ch of channels) {
-      const result = await sendMessageToChannel(ch as 'email' | 'whatsapp', to, body, options)
-      results.push({ channel: ch, ...result })
-    }
-
-    const allSuccess = results.every((r) => r.success)
-    return {
-      success: allSuccess,
-      error: allSuccess ? undefined : results.filter((r) => !r.success).map((r) => `${r.channel}: ${r.error}`).join('; '),
-    }
-  }
 
   // Channel-specific sending
   switch (channel) {
@@ -416,10 +380,10 @@ export async function sendMessageToChannel(
       const { sendEmailMessage } = await import('./messaging/email-channel')
       try {
         const messageId = await sendEmailMessage(to, body, options?.subject, options?.replyToMessageId)
-        log.concierge.info('Sent email message', { to, subject: options?.subject, messageId })
+        log.assistant.info('Sent email message', { to, subject: options?.subject, messageId })
         return { success: true, messageId }
       } catch (err) {
-        log.concierge.error('Failed to send email', { to, error: String(err) })
+        log.assistant.error('Failed to send email', { to, error: String(err) })
         return { success: false, error: String(err) }
       }
     }
@@ -434,10 +398,10 @@ export async function sendMessageToChannel(
       const { sendWhatsAppMessage } = await import('./messaging/whatsapp-channel')
       try {
         await sendWhatsAppMessage(to, body)
-        log.concierge.info('Sent WhatsApp message', { to })
+        log.assistant.info('Sent WhatsApp message', { to })
         return { success: true }
       } catch (err) {
-        log.concierge.error('Failed to send WhatsApp message', { to, error: String(err) })
+        log.assistant.error('Failed to send WhatsApp message', { to, error: String(err) })
         return { success: false, error: String(err) }
       }
     }

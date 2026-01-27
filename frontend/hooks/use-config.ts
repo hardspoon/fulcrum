@@ -39,15 +39,11 @@ export const CONFIG_KEYS = {
   ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
   ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
   // Concierge settings
-  CONCIERGE_ENABLED: 'concierge.enabled',
-  CONCIERGE_HOURLY_SWEEP_ENABLED: 'concierge.hourlySweepEnabled',
-  CONCIERGE_MORNING_RITUAL_ENABLED: 'concierge.morningRitual.enabled',
+  CONCIERGE_RITUALS_ENABLED: 'concierge.ritualsEnabled',
   CONCIERGE_MORNING_RITUAL_TIME: 'concierge.morningRitual.time',
   CONCIERGE_MORNING_RITUAL_PROMPT: 'concierge.morningRitual.prompt',
-  CONCIERGE_EVENING_RITUAL_ENABLED: 'concierge.eveningRitual.enabled',
   CONCIERGE_EVENING_RITUAL_TIME: 'concierge.eveningRitual.time',
   CONCIERGE_EVENING_RITUAL_PROMPT: 'concierge.eveningRitual.prompt',
-  CONCIERGE_DEFAULT_CHANNELS: 'concierge.defaultChannels',
 } as const
 
 // Default values (client-side fallbacks)
@@ -349,28 +345,8 @@ export function useAssistantDocumentsDir() {
 }
 
 // Concierge settings
-export function useConciergeEnabled() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_ENABLED)
-
-  return {
-    ...query,
-    data: Boolean(query.data?.value),
-    isDefault: query.data?.isDefault ?? true,
-  }
-}
-
-export function useConciergeHourlySweepEnabled() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_HOURLY_SWEEP_ENABLED)
-
-  return {
-    ...query,
-    data: query.data?.value === undefined ? true : Boolean(query.data.value),
-    isDefault: query.data?.isDefault ?? true,
-  }
-}
-
-export function useConciergeMorningRitualEnabled() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_MORNING_RITUAL_ENABLED)
+export function useConciergeRitualsEnabled() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_RITUALS_ENABLED)
 
   return {
     ...query,
@@ -399,16 +375,6 @@ export function useConciergeMorningRitualPrompt() {
   }
 }
 
-export function useConciergeEveningRitualEnabled() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_ENABLED)
-
-  return {
-    ...query,
-    data: Boolean(query.data?.value),
-    isDefault: query.data?.isDefault ?? true,
-  }
-}
-
 export function useConciergeEveningRitualTime() {
   const query = useConfig(CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_TIME)
 
@@ -425,19 +391,6 @@ export function useConciergeEveningRitualPrompt() {
   return {
     ...query,
     data: (query.data?.value as string) ?? '',
-    isDefault: query.data?.isDefault ?? true,
-  }
-}
-
-const EMPTY_CHANNELS: string[] = []
-
-export function useConciergeDefaultChannels() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_DEFAULT_CHANNELS)
-  const value = query.data?.value as string[] | undefined
-
-  return {
-    ...query,
-    data: value ?? EMPTY_CHANNELS,
     isDefault: query.data?.isDefault ?? true,
   }
 }

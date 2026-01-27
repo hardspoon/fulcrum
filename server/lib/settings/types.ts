@@ -22,18 +22,15 @@ export type AssistantModel = 'opus' | 'sonnet' | 'haiku'
 
 // Concierge ritual configuration
 export interface ConciergeRitualConfig {
-  enabled: boolean
   time: string // "09:00" (24h format)
   prompt: string
 }
 
 // Concierge settings
 export interface ConciergeSettings {
-  enabled: boolean
-  hourlySweepEnabled: boolean
+  ritualsEnabled: boolean
   morningRitual: ConciergeRitualConfig
   eveningRitual: ConciergeRitualConfig
-  defaultChannels: string[] // ['email', 'whatsapp'] - for ritual output
 }
 
 // Nested settings interface
@@ -130,19 +127,15 @@ export const DEFAULT_SETTINGS: Settings = {
     documentsDir: '~/.fulcrum/documents',
   },
   concierge: {
-    enabled: false,
-    hourlySweepEnabled: true,
+    ritualsEnabled: false,
     morningRitual: {
-      enabled: false,
       time: '09:00',
-      prompt: 'Review messages since yesterday evening, summarize what needs attention today, and send a prioritized action plan to my configured channels.',
+      prompt: 'Review messages since yesterday evening, summarize what needs attention today, and send a prioritized action plan.',
     },
     eveningRitual: {
-      enabled: false,
       time: '18:00',
-      prompt: 'Summarize what was accomplished today, note pending items, and suggest focus areas for tomorrow. Send to my configured channels.',
+      prompt: 'Summarize what was accomplished today, note pending items, and suggest focus areas for tomorrow.',
     },
-    defaultChannels: [],
   },
 }
 
@@ -178,15 +171,11 @@ export const VALID_SETTING_PATHS = new Set([
   'assistant.model',
   'assistant.customInstructions',
   'assistant.documentsDir',
-  'concierge.enabled',
-  'concierge.hourlySweepEnabled',
-  'concierge.morningRitual.enabled',
+  'concierge.ritualsEnabled',
   'concierge.morningRitual.time',
   'concierge.morningRitual.prompt',
-  'concierge.eveningRitual.enabled',
   'concierge.eveningRitual.time',
   'concierge.eveningRitual.prompt',
-  'concierge.defaultChannels',
 ])
 
 // Legacy flat settings interface for backward compatibility

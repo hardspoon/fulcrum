@@ -13,7 +13,7 @@ import { startPRMonitor, stopPRMonitor } from './services/pr-monitor'
 import { startMetricsCollector, stopMetricsCollector } from './services/metrics-collector'
 import { startGitWatcher, stopGitWatcher } from './services/git-watcher'
 import { startMessagingChannels, stopMessagingChannels } from './services/messaging'
-import { startConciergeScheduler, stopConciergeScheduler } from './services/concierge-scheduler'
+import { startAssistantScheduler, stopAssistantScheduler } from './services/assistant-scheduler'
 import { log } from './lib/logger'
 import { clearSensitiveEnvVars } from './lib/env'
 
@@ -113,8 +113,8 @@ startGitWatcher()
 // Start messaging channels (WhatsApp, etc.)
 startMessagingChannels()
 
-// Start concierge scheduler (hourly sweeps, daily rituals)
-startConciergeScheduler()
+// Start assistant scheduler (hourly sweeps, daily rituals)
+startAssistantScheduler()
 
 // Graceful shutdown - detach PTYs but keep dtach sessions running for persistence
 process.on('SIGINT', async () => {
@@ -122,7 +122,7 @@ process.on('SIGINT', async () => {
   stopPRMonitor()
   stopMetricsCollector()
   stopGitWatcher()
-  stopConciergeScheduler()
+  stopAssistantScheduler()
   await stopMessagingChannels()
   ptyManager.detachAll()
   server.close()
@@ -134,7 +134,7 @@ process.on('SIGTERM', async () => {
   stopPRMonitor()
   stopMetricsCollector()
   stopGitWatcher()
-  stopConciergeScheduler()
+  stopAssistantScheduler()
   await stopMessagingChannels()
   ptyManager.detachAll()
   server.close()

@@ -277,11 +277,8 @@ After completing your sweep, provide a brief summary of:
 /**
  * Get the system prompt for daily rituals (morning/evening).
  */
-export function getRitualSystemPrompt(type: 'morning' | 'evening', defaultChannels: string[]): string {
+export function getRitualSystemPrompt(type: 'morning' | 'evening'): string {
   const instanceContext = getInstanceContext()
-  const channelList = defaultChannels.length > 0
-    ? defaultChannels.join(', ')
-    : 'no channels configured'
 
   if (type === 'morning') {
     return `${instanceContext}
@@ -299,9 +296,10 @@ Review the current state and prepare a morning briefing:
 
 ## Output Channels
 
-Send your morning briefing to: ${channelList}
+Use the \`list_messaging_channels\` tool to discover which messaging channels are available and connected.
+Then use the \`message\` tool to send your briefing to the connected channels.
 
-Use the \`message\` tool to send your summary. Make it:
+Make your briefing:
 - Concise but complete
 - Prioritized (most important items first)
 - Actionable (clear next steps)
@@ -312,6 +310,7 @@ Use the \`message\` tool to send your summary. Make it:
 - \`list_tasks\`: Review open tasks
 - \`get_last_sweep\`: Check yesterday's evening summary
 - \`get_concierge_stats\`: Get overall statistics
+- \`list_messaging_channels\`: Discover available messaging channels
 - \`message\`: Send the briefing`
   }
 
@@ -330,9 +329,10 @@ Review the day and prepare an evening summary:
 
 ## Output Channels
 
-Send your evening summary to: ${channelList}
+Use the \`list_messaging_channels\` tool to discover which messaging channels are available and connected.
+Then use the \`message\` tool to send your summary to the connected channels.
 
-Use the \`message\` tool to send your summary. Make it:
+Make your summary:
 - Recap of accomplishments
 - Note any blockers or pending items
 - Suggest focus areas for tomorrow
@@ -343,6 +343,7 @@ Use the \`message\` tool to send your summary. Make it:
 - \`list_tasks\`: Review task progress
 - \`get_last_sweep\`: Check morning's plan
 - \`get_concierge_stats\`: Get overall statistics
+- \`list_messaging_channels\`: Discover available messaging channels
 - \`message\`: Send the summary`
 }
 

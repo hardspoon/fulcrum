@@ -33,7 +33,6 @@ import chatRoutes from './routes/chat'
 import assistantRoutes from './routes/assistant'
 import messagingRoutes from './routes/messaging'
 import backupRoutes from './routes/backup'
-import conciergeRoutes from './routes/concierge'
 import { writeEntry } from './lib/logger'
 import type { LogEntry } from '../shared/logger'
 
@@ -101,9 +100,6 @@ export function createApp() {
 
   // Backup and restore
   app.route('/api/backup', backupRoutes)
-
-  // Concierge (proactive assistant)
-  app.route('/api/concierge', conciergeRoutes)
 
   // Logging endpoint for frontend to send batched logs to server
   app.post('/api/logs', async (c) => {

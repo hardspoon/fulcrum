@@ -5,7 +5,7 @@
  * Core tools are always loaded; deferred tools are loaded on-demand after search.
  */
 
-export type ToolCategory = 'core' | 'tasks' | 'projects' | 'repositories' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec' | 'settings' | 'backup' | 'email' | 'concierge'
+export type ToolCategory = 'core' | 'tasks' | 'projects' | 'repositories' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec' | 'settings' | 'backup' | 'email' | 'messaging' | 'assistant'
 
 export interface ToolMetadata {
   name: string

@@ -167,5 +167,4 @@ export const log = {
   assistant: createLogger('Assistant'),
   messaging: createLogger('Messaging'),
   claude: createLogger('Claude'),
-  concierge: createLogger('Concierge'),
 }

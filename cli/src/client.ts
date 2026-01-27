@@ -1022,7 +1022,7 @@ export class FulcrumClient {
     })
   }
 
-  // Concierge - Actionable Events
+  // Assistant - Actionable Events
   async listActionableEvents(options?: {
     status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
     channel?: string
@@ -1035,11 +1035,11 @@ export class FulcrumClient {
     if (options?.limit) params.set('limit', String(options.limit))
     if (options?.offset) params.set('offset', String(options.offset))
     const query = params.toString()
-    return this.fetch(`/api/concierge/events${query ? `?${query}` : ''}`)
+    return this.fetch(`/api/assistant/events${query ? `?${query}` : ''}`)
   }
 
   async getActionableEvent(id: string): Promise<ActionableEvent & { linkedTask?: Task | null }> {
-    return this.fetch(`/api/concierge/events/${id}`)
+    return this.fetch(`/api/assistant/events/${id}`)
   }
 
   async createActionableEvent(data: {
@@ -1050,7 +1050,7 @@ export class FulcrumClient {
     status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
     linkedTaskId?: string
   }): Promise<ActionableEvent> {
-    return this.fetch('/api/concierge/events', {
+    return this.fetch('/api/assistant/events', {
       method: 'POST',
       body: JSON.stringify(data),
     })
@@ -1064,51 +1064,51 @@ export class FulcrumClient {
       actionLogEntry?: string
     }
   ): Promise<ActionableEvent> {
-    return this.fetch(`/api/concierge/events/${id}`, {
+    return this.fetch(`/api/assistant/events/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     })
   }
 
   async deleteActionableEvent(id: string): Promise<{ success: boolean }> {
-    return this.fetch(`/api/concierge/events/${id}`, {
+    return this.fetch(`/api/assistant/events/${id}`, {
       method: 'DELETE',
     })
   }
 
-  // Concierge - Sweep Runs
+  // Assistant - Sweep Runs
   async listSweepRuns(options?: { type?: string; limit?: number }): Promise<{ runs: SweepRun[] }> {
     const params = new URLSearchParams()
     if (options?.type) params.set('type', options.type)
     if (options?.limit) params.set('limit', String(options.limit))
     const query = params.toString()
-    return this.fetch(`/api/concierge/sweeps${query ? `?${query}` : ''}`)
+    return this.fetch(`/api/assistant/sweeps${query ? `?${query}` : ''}`)
   }
 
   async getSweepRun(id: string): Promise<SweepRun> {
-    return this.fetch(`/api/concierge/sweeps/${id}`)
+    return this.fetch(`/api/assistant/sweeps/${id}`)
   }
 
   async getLastSweepRun(type: string): Promise<SweepRun | null> {
-    return this.fetch(`/api/concierge/sweeps/last/${type}`)
+    return this.fetch(`/api/assistant/sweeps/last/${type}`)
   }
 
-  // Concierge - Message Sending
+  // Messaging - Send Message
   async sendMessage(data: {
-    channel: 'email' | 'whatsapp' | 'telegram' | 'slack' | 'all'
+    channel: 'email' | 'whatsapp' | 'telegram' | 'slack'
     to: string
     body: string
     subject?: string
     replyToMessageId?: string
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    return this.fetch('/api/concierge/message', {
+    return this.fetch('/api/messaging/send', {
       method: 'POST',
       body: JSON.stringify(data),
     })
   }
 
-  // Concierge - Stats
-  async getConciergeStats(): Promise<{
+  // Assistant - Stats
+  async getAssistantStats(): Promise<{
     events: {
       pending: number
       actedUpon: number
@@ -1122,6 +1122,6 @@ export class FulcrumClient {
       eveningRitual: string | null
     }
   }> {
-    return this.fetch('/api/concierge/stats')
+    return this.fetch('/api/assistant/stats')
   }
 }

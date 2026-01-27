@@ -19,8 +19,7 @@ import type {
   IncomingMessage,
   EmailAuthState,
 } from './types'
-import { getMessagingSystemPrompt, getConciergeSystemPrompt, type ConciergeMessageContext } from './system-prompts'
-import { getSettings } from '../../lib/settings'
+import { getConciergeSystemPrompt, type ConciergeMessageContext } from './system-prompts'
 
 // Active channel instances
 const activeChannels = new Map<string, MessagingChannel>()
@@ -178,81 +177,39 @@ async function handleIncomingMessage(msg: IncomingMessage): Promise<void> {
     emailThreadId
   )
 
-  // Check if concierge mode is enabled
-  const settings = getSettings()
-  const conciergeEnabled = settings.concierge.enabled
-
   log.messaging.info('Routing message to assistant', {
     connectionId: msg.connectionId,
     senderId: msg.senderId,
     sessionId: session.id,
     channelType: msg.channelType,
-    conciergeMode: conciergeEnabled,
   })
 
   try {
-    // Build system prompt based on mode
-    let systemPrompt: string
+    // Build context for intelligent message handling
+    // The assistant decides whether to respond, create events, or ignore
+    const context: ConciergeMessageContext = {
+      channel: msg.channelType,
+      sender: msg.senderId,
+      senderName: msg.senderName,
+      content,
+      metadata: {
+        subject: msg.metadata?.subject as string | undefined,
+        threadId: msg.metadata?.threadId as string | undefined,
+        messageId: msg.metadata?.messageId as string | undefined,
+      },
+    }
+    const systemPrompt = getConciergeSystemPrompt(msg.channelType, context)
 
-    if (conciergeEnabled) {
-      // Concierge mode: agent decides whether to respond
-      const context: ConciergeMessageContext = {
-        channel: msg.channelType,
-        sender: msg.senderId,
-        senderName: msg.senderName,
-        content,
-        metadata: {
-          subject: msg.metadata?.subject as string | undefined,
-          threadId: msg.metadata?.threadId as string | undefined,
-          messageId: msg.metadata?.messageId as string | undefined,
-        },
-      }
-      systemPrompt = getConciergeSystemPrompt(msg.channelType, context)
+    // Stream the response - assistant handles everything via tools
+    const stream = assistantService.streamMessage(session.id, content, {
+      systemPromptOverride: systemPrompt,
+    })
 
-      // In concierge mode, the assistant handles everything including response
-      // We don't auto-send responses - the assistant uses the message tool
-      const stream = assistantService.streamMessage(session.id, content, {
-        systemPromptOverride: systemPrompt,
-      })
-
-      // Consume the stream but don't auto-send
-      for await (const event of stream) {
-        if (event.type === 'error') {
-          const errorMsg = (event.data as { message: string }).message
-          log.messaging.error('Concierge assistant error', { error: errorMsg })
-          // In concierge mode, we don't auto-reply even on errors
-          // The assistant should handle its own error logging
-        }
-        // In concierge mode, responses are sent via the message tool
-      }
-    } else {
-      // Traditional mode: auto-respond to all messages
-      systemPrompt = getMessagingSystemPrompt(msg.channelType)
-      const stream = assistantService.streamMessage(session.id, content, {
-        systemPromptOverride: systemPrompt,
-      })
-
-      // Collect full response (don't stream to messaging channels)
-      let fullResponse = ''
-
-      for await (const event of stream) {
-        if (event.type === 'content:delta') {
-          fullResponse += (event.data as { text: string }).text
-        } else if (event.type === 'error') {
-          const errorMsg = (event.data as { message: string }).message
-          await sendResponse(msg, `Sorry, an error occurred: ${errorMsg}`)
-          return
-        }
-      }
-
-      // Clean up response - remove <canvas>, <editor> tags and their content
-      fullResponse = fullResponse
-        .replace(/<canvas>[\s\S]*?<\/canvas>/g, '')
-        .replace(/<editor>[\s\S]*?<\/editor>/g, '')
-        .trim()
-
-      if (fullResponse) {
-        await sendResponse(msg, fullResponse)
+    // Consume stream - responses are sent via the message tool
+    for await (const event of stream) {
+      if (event.type === 'error') {
+        const errorMsg = (event.data as { message: string }).message
+        log.messaging.error('Assistant error handling message', { error: errorMsg })
       }
     }
   } catch (err) {
@@ -261,10 +218,6 @@ async function handleIncomingMessage(msg: IncomingMessage): Promise<void> {
       sessionId: session.id,
       error: String(err),
     })
-    // Only send error response in non-concierge mode
-    if (!conciergeEnabled) {
-      await sendResponse(msg, 'Sorry, I encountered an error processing your message.')
-    }
   }
 }
 
@@ -833,7 +786,7 @@ export async function sendEmailMessage(
 
 /**
  * Send a WhatsApp message directly.
- * Used by the concierge scheduler for proactive messaging.
+ * Used by the assistant scheduler for proactive messaging.
  */
 export async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
   const channel = activeChannels.get('whatsapp') as WhatsAppChannel | undefined
@@ -844,5 +797,60 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<voi
   const success = await channel.sendMessage(to, body)
   if (!success) {
     throw new Error('Failed to send WhatsApp message')
+  }
+}
+
+/**
+ * Send a message to a channel.
+ * Unified interface for sending messages across all supported channels.
+ */
+export async function sendMessageToChannel(
+  channel: 'email' | 'whatsapp' | 'telegram' | 'slack',
+  to: string,
+  body: string,
+  options?: {
+    subject?: string
+    replyToMessageId?: string
+  }
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  switch (channel) {
+    case 'email': {
+      const emailStatus = getEmailStatus()
+      if (!emailStatus?.enabled || emailStatus.status !== 'connected') {
+        return { success: false, error: 'Email channel not connected' }
+      }
+
+      try {
+        const messageId = await sendEmailMessage(to, body, options?.subject, options?.replyToMessageId)
+        log.messaging.info('Sent email message', { to, subject: options?.subject, messageId })
+        return { success: true, messageId }
+      } catch (err) {
+        log.messaging.error('Failed to send email', { to, error: String(err) })
+        return { success: false, error: String(err) }
+      }
+    }
+
+    case 'whatsapp': {
+      const waStatus = getWhatsAppStatus()
+      if (!waStatus?.enabled || waStatus.status !== 'connected') {
+        return { success: false, error: 'WhatsApp channel not connected' }
+      }
+
+      try {
+        await sendWhatsAppMessage(to, body)
+        log.messaging.info('Sent WhatsApp message', { to })
+        return { success: true }
+      } catch (err) {
+        log.messaging.error('Failed to send WhatsApp message', { to, error: String(err) })
+        return { success: false, error: String(err) }
+      }
+    }
+
+    case 'telegram':
+    case 'slack':
+      return { success: false, error: `${channel} channel not implemented` }
+
+    default:
+      return { success: false, error: `Unknown channel: ${channel}` }
   }
 }

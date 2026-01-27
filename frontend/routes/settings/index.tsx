@@ -57,15 +57,11 @@ import {
   useAssistantModel,
   useAssistantCustomInstructions,
   useAssistantDocumentsDir,
-  useConciergeEnabled,
-  useConciergeHourlySweepEnabled,
-  useConciergeMorningRitualEnabled,
+  useConciergeRitualsEnabled,
   useConciergeMorningRitualTime,
   useConciergeMorningRitualPrompt,
-  useConciergeEveningRitualEnabled,
   useConciergeEveningRitualTime,
   useConciergeEveningRitualPrompt,
-  useConciergeDefaultChannels,
   NotificationSettingsConflictError,
   CONFIG_KEYS,
   CLAUDE_CODE_THEMES,
@@ -136,15 +132,11 @@ function SettingsPage() {
   const { data: assistantModel, isLoading: assistantModelLoading } = useAssistantModel()
   const { data: assistantCustomInstructions, isLoading: assistantInstructionsLoading } = useAssistantCustomInstructions()
   const { data: assistantDocumentsDir, isLoading: assistantDocumentsDirLoading } = useAssistantDocumentsDir()
-  const { data: conciergeEnabled, isLoading: conciergeEnabledLoading } = useConciergeEnabled()
-  const { data: conciergeHourlySweepEnabled, isLoading: conciergeHourlySweepLoading } = useConciergeHourlySweepEnabled()
-  const { data: conciergeMorningRitualEnabled, isLoading: conciergeMorningEnabledLoading } = useConciergeMorningRitualEnabled()
+  const { data: conciergeRitualsEnabled, isLoading: conciergeRitualsLoading } = useConciergeRitualsEnabled()
   const { data: conciergeMorningRitualTime, isLoading: conciergeMorningTimeLoading } = useConciergeMorningRitualTime()
   const { data: conciergeMorningRitualPrompt, isLoading: conciergeMorningPromptLoading } = useConciergeMorningRitualPrompt()
-  const { data: conciergeEveningRitualEnabled, isLoading: conciergeEveningEnabledLoading } = useConciergeEveningRitualEnabled()
   const { data: conciergeEveningRitualTime, isLoading: conciergeEveningTimeLoading } = useConciergeEveningRitualTime()
   const { data: conciergeEveningRitualPrompt, isLoading: conciergeEveningPromptLoading } = useConciergeEveningRitualPrompt()
-  const { data: conciergeDefaultChannels, isLoading: conciergeChannelsLoading } = useConciergeDefaultChannels()
   const { installed: opencodeInstalled } = useOpencodeModels()
   const { version } = useFulcrumVersion()
   const { data: versionCheck, isLoading: versionCheckLoading } = useVersionCheck()
@@ -215,15 +207,11 @@ function SettingsPage() {
   const [localAssistantDocumentsDir, setLocalAssistantDocumentsDir] = useState<string>('~/.fulcrum/documents')
 
   // Concierge settings local state
-  const [localConciergeEnabled, setLocalConciergeEnabled] = useState(false)
-  const [localConciergeHourlySweepEnabled, setLocalConciergeHourlySweepEnabled] = useState(true)
-  const [localConciergeMorningRitualEnabled, setLocalConciergeMorningRitualEnabled] = useState(false)
+  const [localConciergeRitualsEnabled, setLocalConciergeRitualsEnabled] = useState(false)
   const [localConciergeMorningRitualTime, setLocalConciergeMorningRitualTime] = useState('09:00')
   const [localConciergeMorningRitualPrompt, setLocalConciergeMorningRitualPrompt] = useState('')
-  const [localConciergeEveningRitualEnabled, setLocalConciergeEveningRitualEnabled] = useState(false)
   const [localConciergeEveningRitualTime, setLocalConciergeEveningRitualTime] = useState('18:00')
   const [localConciergeEveningRitualPrompt, setLocalConciergeEveningRitualPrompt] = useState('')
-  const [localConciergeDefaultChannels, setLocalConciergeDefaultChannels] = useState<string[]>([])
 
   // Developer mode restart state
   const [isRestarting, setIsRestarting] = useState(false)
@@ -318,30 +306,22 @@ function SettingsPage() {
 
   // Sync concierge settings
   useEffect(() => {
-    if (conciergeEnabled !== undefined) setLocalConciergeEnabled(conciergeEnabled)
-    if (conciergeHourlySweepEnabled !== undefined) setLocalConciergeHourlySweepEnabled(conciergeHourlySweepEnabled)
-    if (conciergeMorningRitualEnabled !== undefined) setLocalConciergeMorningRitualEnabled(conciergeMorningRitualEnabled)
+    if (conciergeRitualsEnabled !== undefined) setLocalConciergeRitualsEnabled(conciergeRitualsEnabled)
     if (conciergeMorningRitualTime !== undefined) setLocalConciergeMorningRitualTime(conciergeMorningRitualTime)
     if (conciergeMorningRitualPrompt !== undefined) setLocalConciergeMorningRitualPrompt(conciergeMorningRitualPrompt)
-    if (conciergeEveningRitualEnabled !== undefined) setLocalConciergeEveningRitualEnabled(conciergeEveningRitualEnabled)
     if (conciergeEveningRitualTime !== undefined) setLocalConciergeEveningRitualTime(conciergeEveningRitualTime)
     if (conciergeEveningRitualPrompt !== undefined) setLocalConciergeEveningRitualPrompt(conciergeEveningRitualPrompt)
-    if (conciergeDefaultChannels !== undefined) setLocalConciergeDefaultChannels(conciergeDefaultChannels)
   }, [
-    conciergeEnabled,
-    conciergeHourlySweepEnabled,
-    conciergeMorningRitualEnabled,
+    conciergeRitualsEnabled,
     conciergeMorningRitualTime,
     conciergeMorningRitualPrompt,
-    conciergeEveningRitualEnabled,
     conciergeEveningRitualTime,
     conciergeEveningRitualPrompt,
-    conciergeDefaultChannels,
   ])
 
   const isLoading =
     portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || autoScrollLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading || assistantProviderLoading || assistantModelLoading || assistantInstructionsLoading || assistantDocumentsDirLoading ||
-    conciergeEnabledLoading || conciergeHourlySweepLoading || conciergeMorningEnabledLoading || conciergeMorningTimeLoading || conciergeMorningPromptLoading || conciergeEveningEnabledLoading || conciergeEveningTimeLoading || conciergeEveningPromptLoading || conciergeChannelsLoading
+    conciergeRitualsLoading || conciergeMorningTimeLoading || conciergeMorningPromptLoading || conciergeEveningTimeLoading || conciergeEveningPromptLoading
 
   const hasZAiChanges = zAiSettings && (
     zAiEnabled !== zAiSettings.enabled ||
@@ -369,15 +349,11 @@ function SettingsPage() {
     localAssistantDocumentsDir !== assistantDocumentsDir
 
   const hasConciergeChanges =
-    localConciergeEnabled !== conciergeEnabled ||
-    localConciergeHourlySweepEnabled !== conciergeHourlySweepEnabled ||
-    localConciergeMorningRitualEnabled !== conciergeMorningRitualEnabled ||
+    localConciergeRitualsEnabled !== conciergeRitualsEnabled ||
     localConciergeMorningRitualTime !== conciergeMorningRitualTime ||
     localConciergeMorningRitualPrompt !== conciergeMorningRitualPrompt ||
-    localConciergeEveningRitualEnabled !== conciergeEveningRitualEnabled ||
     localConciergeEveningRitualTime !== conciergeEveningRitualTime ||
-    localConciergeEveningRitualPrompt !== conciergeEveningRitualPrompt ||
-    JSON.stringify(localConciergeDefaultChannels) !== JSON.stringify(conciergeDefaultChannels)
+    localConciergeEveningRitualPrompt !== conciergeEveningRitualPrompt
 
   // Check if deployment settings have changed
   // We compare local state against server values
@@ -737,31 +713,11 @@ function SettingsPage() {
 
     // Save concierge settings
     if (hasConciergeChanges) {
-      if (localConciergeEnabled !== conciergeEnabled) {
+      if (localConciergeRitualsEnabled !== conciergeRitualsEnabled) {
         promises.push(
           new Promise((resolve) => {
             updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_ENABLED, value: localConciergeEnabled },
-              { onSettled: resolve }
-            )
-          })
-        )
-      }
-      if (localConciergeHourlySweepEnabled !== conciergeHourlySweepEnabled) {
-        promises.push(
-          new Promise((resolve) => {
-            updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_HOURLY_SWEEP_ENABLED, value: localConciergeHourlySweepEnabled },
-              { onSettled: resolve }
-            )
-          })
-        )
-      }
-      if (localConciergeMorningRitualEnabled !== conciergeMorningRitualEnabled) {
-        promises.push(
-          new Promise((resolve) => {
-            updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_MORNING_RITUAL_ENABLED, value: localConciergeMorningRitualEnabled },
+              { key: CONFIG_KEYS.CONCIERGE_RITUALS_ENABLED, value: localConciergeRitualsEnabled },
               { onSettled: resolve }
             )
           })
@@ -787,16 +743,6 @@ function SettingsPage() {
           })
         )
       }
-      if (localConciergeEveningRitualEnabled !== conciergeEveningRitualEnabled) {
-        promises.push(
-          new Promise((resolve) => {
-            updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_ENABLED, value: localConciergeEveningRitualEnabled },
-              { onSettled: resolve }
-            )
-          })
-        )
-      }
       if (localConciergeEveningRitualTime !== conciergeEveningRitualTime) {
         promises.push(
           new Promise((resolve) => {
@@ -812,16 +758,6 @@ function SettingsPage() {
           new Promise((resolve) => {
             updateConfig.mutate(
               { key: CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_PROMPT, value: localConciergeEveningRitualPrompt },
-              { onSettled: resolve }
-            )
-          })
-        )
-      }
-      if (JSON.stringify(localConciergeDefaultChannels) !== JSON.stringify(conciergeDefaultChannels)) {
-        promises.push(
-          new Promise((resolve) => {
-            updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_DEFAULT_CHANNELS, value: localConciergeDefaultChannels },
               { onSettled: resolve }
             )
           })
@@ -2116,129 +2052,55 @@ function SettingsPage() {
               </SettingsSection>
 
               {/* Concierge */}
-              <SettingsSection title="Concierge">
+              <SettingsSection title={t('sections.concierge')}>
                 <div className="space-y-4">
-                  {/* Enable Concierge */}
+                  {/* Daily Rituals */}
                   <div className="space-y-1">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                        Enable
+                        {t('concierge.rituals')}
                       </label>
                       <Switch
-                        checked={localConciergeEnabled}
-                        onCheckedChange={setLocalConciergeEnabled}
+                        checked={localConciergeRitualsEnabled}
+                        onCheckedChange={setLocalConciergeRitualsEnabled}
                         disabled={isLoading}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                      Transform messaging assistant from reactive to proactive. When enabled, the assistant decides whether to respond, track actionable events, or stay silent.
+                      {t('concierge.ritualsDescription')}
                     </p>
                   </div>
 
-                  {localConciergeEnabled && (
+                  {localConciergeRitualsEnabled && (
                     <>
-                      {/* Hourly Sweep */}
-                      <div className="space-y-1">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                            Hourly Sweep
-                          </label>
-                          <Switch
-                            checked={localConciergeHourlySweepEnabled}
-                            onCheckedChange={setLocalConciergeHourlySweepEnabled}
-                            disabled={isLoading}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                          Review pending actionable events and check open tasks for updates.
-                        </p>
-                      </div>
-
-                      {/* Default Channels */}
-                      <div className="space-y-1">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                            Output Channels
-                          </label>
-                          <div className="flex gap-4">
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={localConciergeDefaultChannels.includes('email')}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setLocalConciergeDefaultChannels([...localConciergeDefaultChannels, 'email'])
-                                  } else {
-                                    setLocalConciergeDefaultChannels(localConciergeDefaultChannels.filter(c => c !== 'email'))
-                                  }
-                                }}
-                                disabled={isLoading}
-                                className="rounded border-border"
-                              />
-                              <span className="text-sm">Email</span>
-                            </label>
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={localConciergeDefaultChannels.includes('whatsapp')}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setLocalConciergeDefaultChannels([...localConciergeDefaultChannels, 'whatsapp'])
-                                  } else {
-                                    setLocalConciergeDefaultChannels(localConciergeDefaultChannels.filter(c => c !== 'whatsapp'))
-                                  }
-                                }}
-                                disabled={isLoading}
-                                className="rounded border-border"
-                              />
-                              <span className="text-sm">WhatsApp</span>
-                            </label>
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                          Channels to send ritual summaries to.
-                        </p>
-                      </div>
-
                       {/* Morning Ritual */}
                       <div className="space-y-3 border-t border-border pt-4">
                         <div className="space-y-1">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                              Morning Ritual
+                              {t('concierge.morningRitual')}
                             </label>
-                            <div className="flex items-center gap-4">
-                              <Switch
-                                checked={localConciergeMorningRitualEnabled}
-                                onCheckedChange={setLocalConciergeMorningRitualEnabled}
-                                disabled={isLoading}
-                              />
-                              {localConciergeMorningRitualEnabled && (
-                                <Input
-                                  type="time"
-                                  value={localConciergeMorningRitualTime}
-                                  onChange={(e) => setLocalConciergeMorningRitualTime(e.target.value)}
-                                  disabled={isLoading}
-                                  className="w-32"
-                                />
-                              )}
-                            </div>
-                          </div>
-                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                            Morning briefing with today's priorities.
-                          </p>
-                        </div>
-                        {localConciergeMorningRitualEnabled && (
-                          <div className="sm:ml-32 sm:pl-2">
-                            <Textarea
-                              value={localConciergeMorningRitualPrompt}
-                              onChange={(e) => setLocalConciergeMorningRitualPrompt(e.target.value)}
-                              placeholder="Custom prompt for morning ritual..."
+                            <Input
+                              type="time"
+                              value={localConciergeMorningRitualTime}
+                              onChange={(e) => setLocalConciergeMorningRitualTime(e.target.value)}
                               disabled={isLoading}
-                              className="min-h-[80px] text-sm"
+                              className="w-32"
                             />
                           </div>
-                        )}
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('concierge.morningRitualDescription')}
+                          </p>
+                        </div>
+                        <div className="sm:ml-32 sm:pl-2">
+                          <Textarea
+                            value={localConciergeMorningRitualPrompt}
+                            onChange={(e) => setLocalConciergeMorningRitualPrompt(e.target.value)}
+                            placeholder={t('concierge.morningRitualPromptPlaceholder')}
+                            disabled={isLoading}
+                            className="min-h-[80px] text-sm"
+                          />
+                        </div>
                       </div>
 
                       {/* Evening Ritual */}
@@ -2246,40 +2108,29 @@ function SettingsPage() {
                         <div className="space-y-1">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                              Evening Ritual
+                              {t('concierge.eveningRitual')}
                             </label>
-                            <div className="flex items-center gap-4">
-                              <Switch
-                                checked={localConciergeEveningRitualEnabled}
-                                onCheckedChange={setLocalConciergeEveningRitualEnabled}
-                                disabled={isLoading}
-                              />
-                              {localConciergeEveningRitualEnabled && (
-                                <Input
-                                  type="time"
-                                  value={localConciergeEveningRitualTime}
-                                  onChange={(e) => setLocalConciergeEveningRitualTime(e.target.value)}
-                                  disabled={isLoading}
-                                  className="w-32"
-                                />
-                              )}
-                            </div>
-                          </div>
-                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                            Evening summary with accomplishments and pending items.
-                          </p>
-                        </div>
-                        {localConciergeEveningRitualEnabled && (
-                          <div className="sm:ml-32 sm:pl-2">
-                            <Textarea
-                              value={localConciergeEveningRitualPrompt}
-                              onChange={(e) => setLocalConciergeEveningRitualPrompt(e.target.value)}
-                              placeholder="Custom prompt for evening ritual..."
+                            <Input
+                              type="time"
+                              value={localConciergeEveningRitualTime}
+                              onChange={(e) => setLocalConciergeEveningRitualTime(e.target.value)}
                               disabled={isLoading}
-                              className="min-h-[80px] text-sm"
+                              className="w-32"
                             />
                           </div>
-                        )}
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('concierge.eveningRitualDescription')}
+                          </p>
+                        </div>
+                        <div className="sm:ml-32 sm:pl-2">
+                          <Textarea
+                            value={localConciergeEveningRitualPrompt}
+                            onChange={(e) => setLocalConciergeEveningRitualPrompt(e.target.value)}
+                            placeholder={t('concierge.eveningRitualPromptPlaceholder')}
+                            disabled={isLoading}
+                            className="min-h-[80px] text-sm"
+                          />
+                        </div>
                       </div>
                     </>
                   )}
