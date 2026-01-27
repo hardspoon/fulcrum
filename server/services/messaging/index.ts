@@ -147,6 +147,11 @@ async function handleIncomingMessage(msg: IncomingMessage): Promise<void> {
 
   // Check for special commands
   if (COMMANDS.RESET.some((cmd) => content.toLowerCase() === cmd)) {
+    // For email, reset doesn't make sense - each thread is its own session
+    if (msg.channelType === 'email') {
+      await sendResponse(msg, 'To start a new conversation, simply send a new email (not a reply). Each email thread has its own conversation history.')
+      return
+    }
     await handleResetCommand(msg)
     return
   }
@@ -162,10 +167,14 @@ async function handleIncomingMessage(msg: IncomingMessage): Promise<void> {
   }
 
   // Route to AI assistant
+  // For email, use threadId as session key (each email thread = separate conversation)
+  // For other channels, use senderId (each user = separate conversation)
+  const emailThreadId = msg.channelType === 'email' ? (msg.metadata?.threadId as string) : undefined
   const { session } = getOrCreateSession(
     msg.connectionId,
     msg.senderId,
-    msg.senderName
+    msg.senderName,
+    emailThreadId
   )
 
   log.messaging.info('Routing message to assistant', {
@@ -229,7 +238,22 @@ async function handleResetCommand(msg: IncomingMessage): Promise<void> {
  * Handle /help command.
  */
 async function handleHelpCommand(msg: IncomingMessage): Promise<void> {
-  const helpText = `*Fulcrum AI Assistant*
+  const isEmail = msg.channelType === 'email'
+
+  const helpText = isEmail
+    ? `*Fulcrum AI Assistant*
+
+I'm Claude, ready to help you with questions and tasks.
+
+*Available commands:*
+/help - Show this help message
+/status - Show session info
+
+*Email threading:*
+Each email thread has its own conversation history. To start a fresh conversation, send a new email (not a reply).
+
+Just send any message and I'll do my best to help!`
+    : `*Fulcrum AI Assistant*
 
 I'm Claude, ready to help you with questions and tasks.
 
@@ -247,10 +271,12 @@ Just send any message and I'll do my best to help!`
  * Handle /status command.
  */
 async function handleStatusCommand(msg: IncomingMessage): Promise<void> {
+  const emailThreadId = msg.channelType === 'email' ? (msg.metadata?.threadId as string) : undefined
   const { session, mapping } = getOrCreateSession(
     msg.connectionId,
     msg.senderId,
-    msg.senderName
+    msg.senderName,
+    emailThreadId
   )
 
   const statusText = `*Session Status*

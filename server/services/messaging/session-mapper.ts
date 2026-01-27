@@ -18,22 +18,28 @@ export interface SessionMapperResult {
 /**
  * Get or create a chat session for a channel user.
  * Each user gets one persistent session per connection.
+ *
+ * For email, pass sessionKey as the threadId to create per-thread sessions.
+ * For other channels, sessionKey defaults to channelUserId (per-user sessions).
  */
 export function getOrCreateSession(
   connectionId: string,
   channelUserId: string,
-  channelUserName?: string
+  channelUserName?: string,
+  sessionKey?: string
 ): SessionMapperResult {
+  // Use sessionKey if provided (e.g., threadId for email), otherwise use channelUserId
+  const lookupKey = sessionKey ?? channelUserId
   const now = new Date().toISOString()
 
-  // Check for existing mapping
+  // Check for existing mapping (using lookupKey which may be threadId for email)
   const existingMapping = db
     .select()
     .from(messagingSessionMappings)
     .where(
       and(
         eq(messagingSessionMappings.connectionId, connectionId),
-        eq(messagingSessionMappings.channelUserId, channelUserId)
+        eq(messagingSessionMappings.channelUserId, lookupKey)
       )
     )
     .get()
@@ -70,9 +76,11 @@ export function getOrCreateSession(
 
   // Create new chat session
   const sessionId = nanoid()
+  // Use channelUserName if available, otherwise use channelUserId for the title
+  // (even if lookupKey is different, like a threadId)
   const sessionTitle = channelUserName
     ? `Chat with ${channelUserName}`
-    : `WhatsApp ${channelUserId}`
+    : `Chat ${channelUserId}`
 
   const newSession = {
     id: sessionId,
@@ -88,11 +96,12 @@ export function getOrCreateSession(
   db.insert(chatSessions).values(newSession).run()
 
   // Create or update the mapping
+  // Store lookupKey as channelUserId (may be threadId for email)
   const mappingId = existingMapping?.id ?? nanoid()
   const newMapping = {
     id: mappingId,
     connectionId,
-    channelUserId,
+    channelUserId: lookupKey,
     channelUserName: channelUserName ?? null,
     sessionId,
     createdAt: existingMapping?.createdAt ?? now,
@@ -127,6 +136,7 @@ export function getOrCreateSession(
   log.messaging.info('Created new session for channel user', {
     connectionId,
     channelUserId,
+    sessionKey: lookupKey,
     sessionId,
   })
 
@@ -139,9 +149,11 @@ export function getOrCreateSession(
 export function resetSession(
   connectionId: string,
   channelUserId: string,
-  channelUserName?: string
+  channelUserName?: string,
+  sessionKey?: string
 ): SessionMapperResult {
   const now = new Date().toISOString()
+  const lookupKey = sessionKey ?? channelUserId
 
   // Find existing mapping
   const existingMapping = db
@@ -150,7 +162,7 @@ export function resetSession(
     .where(
       and(
         eq(messagingSessionMappings.connectionId, connectionId),
-        eq(messagingSessionMappings.channelUserId, channelUserId)
+        eq(messagingSessionMappings.channelUserId, lookupKey)
       )
     )
     .get()
@@ -159,7 +171,7 @@ export function resetSession(
   const sessionId = nanoid()
   const sessionTitle = channelUserName
     ? `Chat with ${channelUserName}`
-    : `WhatsApp ${channelUserId}`
+    : `Chat ${channelUserId}`
 
   const newSession = {
     id: sessionId,
@@ -174,7 +186,7 @@ export function resetSession(
 
   db.insert(chatSessions).values(newSession).run()
 
-  // Update or create mapping
+  // Update or create mapping (using lookupKey as channelUserId)
   const mappingId = existingMapping?.id ?? nanoid()
 
   if (existingMapping) {
@@ -191,7 +203,7 @@ export function resetSession(
       .values({
         id: mappingId,
         connectionId,
-        channelUserId,
+        channelUserId: lookupKey,
         channelUserName: channelUserName ?? null,
         sessionId,
         createdAt: now,
