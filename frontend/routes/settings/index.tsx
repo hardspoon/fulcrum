@@ -57,11 +57,11 @@ import {
   useAssistantModel,
   useAssistantCustomInstructions,
   useAssistantDocumentsDir,
-  useConciergeRitualsEnabled,
-  useConciergeMorningRitualTime,
-  useConciergeMorningRitualPrompt,
-  useConciergeEveningRitualTime,
-  useConciergeEveningRitualPrompt,
+  useAssistantRitualsEnabled,
+  useAssistantMorningRitualTime,
+  useAssistantMorningRitualPrompt,
+  useAssistantEveningRitualTime,
+  useAssistantEveningRitualPrompt,
   NotificationSettingsConflictError,
   CONFIG_KEYS,
   CLAUDE_CODE_THEMES,
@@ -132,11 +132,11 @@ function SettingsPage() {
   const { data: assistantModel, isLoading: assistantModelLoading } = useAssistantModel()
   const { data: assistantCustomInstructions, isLoading: assistantInstructionsLoading } = useAssistantCustomInstructions()
   const { data: assistantDocumentsDir, isLoading: assistantDocumentsDirLoading } = useAssistantDocumentsDir()
-  const { data: conciergeRitualsEnabled, isLoading: conciergeRitualsLoading } = useConciergeRitualsEnabled()
-  const { data: conciergeMorningRitualTime, isLoading: conciergeMorningTimeLoading } = useConciergeMorningRitualTime()
-  const { data: conciergeMorningRitualPrompt, isLoading: conciergeMorningPromptLoading } = useConciergeMorningRitualPrompt()
-  const { data: conciergeEveningRitualTime, isLoading: conciergeEveningTimeLoading } = useConciergeEveningRitualTime()
-  const { data: conciergeEveningRitualPrompt, isLoading: conciergeEveningPromptLoading } = useConciergeEveningRitualPrompt()
+  const { data: ritualsEnabled, isLoading: ritualsEnabledLoading } = useAssistantRitualsEnabled()
+  const { data: morningRitualTime, isLoading: morningTimeLoading } = useAssistantMorningRitualTime()
+  const { data: morningRitualPrompt, isLoading: morningPromptLoading } = useAssistantMorningRitualPrompt()
+  const { data: eveningRitualTime, isLoading: eveningTimeLoading } = useAssistantEveningRitualTime()
+  const { data: eveningRitualPrompt, isLoading: eveningPromptLoading } = useAssistantEveningRitualPrompt()
   const { installed: opencodeInstalled } = useOpencodeModels()
   const { version } = useFulcrumVersion()
   const { data: versionCheck, isLoading: versionCheckLoading } = useVersionCheck()
@@ -206,12 +206,12 @@ function SettingsPage() {
   const [localAssistantCustomInstructions, setLocalAssistantCustomInstructions] = useState<string>('')
   const [localAssistantDocumentsDir, setLocalAssistantDocumentsDir] = useState<string>('~/.fulcrum/documents')
 
-  // Concierge settings local state
-  const [localConciergeRitualsEnabled, setLocalConciergeRitualsEnabled] = useState(false)
-  const [localConciergeMorningRitualTime, setLocalConciergeMorningRitualTime] = useState('09:00')
-  const [localConciergeMorningRitualPrompt, setLocalConciergeMorningRitualPrompt] = useState('')
-  const [localConciergeEveningRitualTime, setLocalConciergeEveningRitualTime] = useState('18:00')
-  const [localConciergeEveningRitualPrompt, setLocalConciergeEveningRitualPrompt] = useState('')
+  // Ritual settings local state (under assistant)
+  const [localRitualsEnabled, setLocalRitualsEnabled] = useState(false)
+  const [localMorningRitualTime, setLocalMorningRitualTime] = useState('09:00')
+  const [localMorningRitualPrompt, setLocalMorningRitualPrompt] = useState('')
+  const [localEveningRitualTime, setLocalEveningRitualTime] = useState('18:00')
+  const [localEveningRitualPrompt, setLocalEveningRitualPrompt] = useState('')
 
   // Developer mode restart state
   const [isRestarting, setIsRestarting] = useState(false)
@@ -304,24 +304,24 @@ function SettingsPage() {
     if (assistantDocumentsDir !== undefined) setLocalAssistantDocumentsDir(assistantDocumentsDir)
   }, [assistantProvider, assistantModel, assistantCustomInstructions, assistantDocumentsDir])
 
-  // Sync concierge settings
+  // Sync ritual settings
   useEffect(() => {
-    if (conciergeRitualsEnabled !== undefined) setLocalConciergeRitualsEnabled(conciergeRitualsEnabled)
-    if (conciergeMorningRitualTime !== undefined) setLocalConciergeMorningRitualTime(conciergeMorningRitualTime)
-    if (conciergeMorningRitualPrompt !== undefined) setLocalConciergeMorningRitualPrompt(conciergeMorningRitualPrompt)
-    if (conciergeEveningRitualTime !== undefined) setLocalConciergeEveningRitualTime(conciergeEveningRitualTime)
-    if (conciergeEveningRitualPrompt !== undefined) setLocalConciergeEveningRitualPrompt(conciergeEveningRitualPrompt)
+    if (ritualsEnabled !== undefined) setLocalRitualsEnabled(ritualsEnabled)
+    if (morningRitualTime !== undefined) setLocalMorningRitualTime(morningRitualTime)
+    if (morningRitualPrompt !== undefined) setLocalMorningRitualPrompt(morningRitualPrompt)
+    if (eveningRitualTime !== undefined) setLocalEveningRitualTime(eveningRitualTime)
+    if (eveningRitualPrompt !== undefined) setLocalEveningRitualPrompt(eveningRitualPrompt)
   }, [
-    conciergeRitualsEnabled,
-    conciergeMorningRitualTime,
-    conciergeMorningRitualPrompt,
-    conciergeEveningRitualTime,
-    conciergeEveningRitualPrompt,
+    ritualsEnabled,
+    morningRitualTime,
+    morningRitualPrompt,
+    eveningRitualTime,
+    eveningRitualPrompt,
   ])
 
   const isLoading =
     portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || autoScrollLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading || assistantProviderLoading || assistantModelLoading || assistantInstructionsLoading || assistantDocumentsDirLoading ||
-    conciergeRitualsLoading || conciergeMorningTimeLoading || conciergeMorningPromptLoading || conciergeEveningTimeLoading || conciergeEveningPromptLoading
+    ritualsEnabledLoading || morningTimeLoading || morningPromptLoading || eveningTimeLoading || eveningPromptLoading
 
   const hasZAiChanges = zAiSettings && (
     zAiEnabled !== zAiSettings.enabled ||
@@ -348,12 +348,12 @@ function SettingsPage() {
     localAssistantCustomInstructions !== (assistantCustomInstructions ?? '') ||
     localAssistantDocumentsDir !== assistantDocumentsDir
 
-  const hasConciergeChanges =
-    localConciergeRitualsEnabled !== conciergeRitualsEnabled ||
-    localConciergeMorningRitualTime !== conciergeMorningRitualTime ||
-    localConciergeMorningRitualPrompt !== conciergeMorningRitualPrompt ||
-    localConciergeEveningRitualTime !== conciergeEveningRitualTime ||
-    localConciergeEveningRitualPrompt !== conciergeEveningRitualPrompt
+  const hasRitualsChanges =
+    localRitualsEnabled !== ritualsEnabled ||
+    localMorningRitualTime !== morningRitualTime ||
+    localMorningRitualPrompt !== morningRitualPrompt ||
+    localEveningRitualTime !== eveningRitualTime ||
+    localEveningRitualPrompt !== eveningRitualPrompt
 
   // Check if deployment settings have changed
   // We compare local state against server values
@@ -407,7 +407,7 @@ function SettingsPage() {
     hasTaskDefaultsChanges ||
     hasTimezoneChanges ||
     hasAssistantChanges ||
-    hasConciergeChanges
+    hasRitualsChanges
 
   const handleSaveAll = async () => {
     const promises: Promise<unknown>[] = []
@@ -711,53 +711,53 @@ function SettingsPage() {
       }
     }
 
-    // Save concierge settings
-    if (hasConciergeChanges) {
-      if (localConciergeRitualsEnabled !== conciergeRitualsEnabled) {
+    // Save ritual settings (under assistant)
+    if (hasRitualsChanges) {
+      if (localRitualsEnabled !== ritualsEnabled) {
         promises.push(
           new Promise((resolve) => {
             updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_RITUALS_ENABLED, value: localConciergeRitualsEnabled },
+              { key: CONFIG_KEYS.ASSISTANT_RITUALS_ENABLED, value: localRitualsEnabled },
               { onSettled: resolve }
             )
           })
         )
       }
-      if (localConciergeMorningRitualTime !== conciergeMorningRitualTime) {
+      if (localMorningRitualTime !== morningRitualTime) {
         promises.push(
           new Promise((resolve) => {
             updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_MORNING_RITUAL_TIME, value: localConciergeMorningRitualTime },
+              { key: CONFIG_KEYS.ASSISTANT_MORNING_RITUAL_TIME, value: localMorningRitualTime },
               { onSettled: resolve }
             )
           })
         )
       }
-      if (localConciergeMorningRitualPrompt !== conciergeMorningRitualPrompt) {
+      if (localMorningRitualPrompt !== morningRitualPrompt) {
         promises.push(
           new Promise((resolve) => {
             updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_MORNING_RITUAL_PROMPT, value: localConciergeMorningRitualPrompt },
+              { key: CONFIG_KEYS.ASSISTANT_MORNING_RITUAL_PROMPT, value: localMorningRitualPrompt },
               { onSettled: resolve }
             )
           })
         )
       }
-      if (localConciergeEveningRitualTime !== conciergeEveningRitualTime) {
+      if (localEveningRitualTime !== eveningRitualTime) {
         promises.push(
           new Promise((resolve) => {
             updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_TIME, value: localConciergeEveningRitualTime },
+              { key: CONFIG_KEYS.ASSISTANT_EVENING_RITUAL_TIME, value: localEveningRitualTime },
               { onSettled: resolve }
             )
           })
         )
       }
-      if (localConciergeEveningRitualPrompt !== conciergeEveningRitualPrompt) {
+      if (localEveningRitualPrompt !== eveningRitualPrompt) {
         promises.push(
           new Promise((resolve) => {
             updateConfig.mutate(
-              { key: CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_PROMPT, value: localConciergeEveningRitualPrompt },
+              { key: CONFIG_KEYS.ASSISTANT_EVENING_RITUAL_PROMPT, value: localEveningRitualPrompt },
               { onSettled: resolve }
             )
           })
@@ -1740,8 +1740,8 @@ function SettingsPage() {
                         {t('concierge.rituals')}
                       </label>
                       <Switch
-                        checked={localConciergeRitualsEnabled}
-                        onCheckedChange={setLocalConciergeRitualsEnabled}
+                        checked={localRitualsEnabled}
+                        onCheckedChange={setLocalRitualsEnabled}
                         disabled={isLoading}
                       />
                     </div>
@@ -1750,7 +1750,7 @@ function SettingsPage() {
                     </p>
                   </div>
 
-                  {localConciergeRitualsEnabled && (
+                  {localRitualsEnabled && (
                     <>
                       {/* Morning Ritual */}
                       <div className="space-y-3">
@@ -1761,8 +1761,8 @@ function SettingsPage() {
                             </label>
                             <Input
                               type="time"
-                              value={localConciergeMorningRitualTime}
-                              onChange={(e) => setLocalConciergeMorningRitualTime(e.target.value)}
+                              value={localMorningRitualTime}
+                              onChange={(e) => setLocalMorningRitualTime(e.target.value)}
                               disabled={isLoading}
                               className="w-32"
                             />
@@ -1773,8 +1773,8 @@ function SettingsPage() {
                         </div>
                         <div className="sm:ml-32 sm:pl-2">
                           <Textarea
-                            value={localConciergeMorningRitualPrompt}
-                            onChange={(e) => setLocalConciergeMorningRitualPrompt(e.target.value)}
+                            value={localMorningRitualPrompt}
+                            onChange={(e) => setLocalMorningRitualPrompt(e.target.value)}
                             placeholder={t('concierge.morningRitualPromptPlaceholder')}
                             disabled={isLoading}
                             className="min-h-[80px] text-sm"
@@ -1791,8 +1791,8 @@ function SettingsPage() {
                             </label>
                             <Input
                               type="time"
-                              value={localConciergeEveningRitualTime}
-                              onChange={(e) => setLocalConciergeEveningRitualTime(e.target.value)}
+                              value={localEveningRitualTime}
+                              onChange={(e) => setLocalEveningRitualTime(e.target.value)}
                               disabled={isLoading}
                               className="w-32"
                             />
@@ -1803,8 +1803,8 @@ function SettingsPage() {
                         </div>
                         <div className="sm:ml-32 sm:pl-2">
                           <Textarea
-                            value={localConciergeEveningRitualPrompt}
-                            onChange={(e) => setLocalConciergeEveningRitualPrompt(e.target.value)}
+                            value={localEveningRitualPrompt}
+                            onChange={(e) => setLocalEveningRitualPrompt(e.target.value)}
                             placeholder={t('concierge.eveningRitualPromptPlaceholder')}
                             disabled={isLoading}
                             className="min-h-[80px] text-sm"

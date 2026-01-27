@@ -20,17 +20,10 @@ export type TaskType = 'worktree' | 'non-worktree'
 export type AssistantProvider = 'claude' | 'opencode'
 export type AssistantModel = 'opus' | 'sonnet' | 'haiku'
 
-// Concierge ritual configuration
-export interface ConciergeRitualConfig {
+// Ritual configuration (for assistant daily rituals)
+export interface RitualConfig {
   time: string // "09:00" (24h format)
   prompt: string
-}
-
-// Concierge settings
-export interface ConciergeSettings {
-  ritualsEnabled: boolean
-  morningRitual: ConciergeRitualConfig
-  eveningRitual: ConciergeRitualConfig
 }
 
 // Email SMTP configuration
@@ -119,8 +112,10 @@ export interface Settings {
     model: AssistantModel
     customInstructions: string | null
     documentsDir: string
+    ritualsEnabled: boolean
+    morningRitual: RitualConfig
+    eveningRitual: RitualConfig
   }
-  concierge: ConciergeSettings
   channels: ChannelsSettings
 }
 
@@ -168,8 +163,6 @@ export const DEFAULT_SETTINGS: Settings = {
     model: 'sonnet',
     customInstructions: null,
     documentsDir: '~/.fulcrum/documents',
-  },
-  concierge: {
     ritualsEnabled: false,
     morningRitual: {
       time: '09:00',
@@ -236,11 +229,11 @@ export const VALID_SETTING_PATHS = new Set([
   'assistant.model',
   'assistant.customInstructions',
   'assistant.documentsDir',
-  'concierge.ritualsEnabled',
-  'concierge.morningRitual.time',
-  'concierge.morningRitual.prompt',
-  'concierge.eveningRitual.time',
-  'concierge.eveningRitual.prompt',
+  'assistant.ritualsEnabled',
+  'assistant.morningRitual.time',
+  'assistant.morningRitual.prompt',
+  'assistant.eveningRitual.time',
+  'assistant.eveningRitual.prompt',
   'channels.email.enabled',
   'channels.email.smtp.host',
   'channels.email.smtp.port',

@@ -33,7 +33,7 @@ export function startAssistantScheduler(): void {
   const settings = getSettings()
 
   log.assistant.info('Starting concierge scheduler', {
-    ritualsEnabled: settings.concierge.ritualsEnabled,
+    ritualsEnabled: settings.assistant.ritualsEnabled,
   })
 
   // Start hourly sweep (always runs to process incoming messages)
@@ -165,9 +165,9 @@ async function runHourlySweep(): Promise<void> {
  */
 async function runDailyRitual(type: 'morning' | 'evening'): Promise<void> {
   const settings = getSettings()
-  const config = settings.concierge[`${type}Ritual`]
+  const config = settings.assistant[`${type}Ritual`]
 
-  if (!settings.concierge.ritualsEnabled) {
+  if (!settings.assistant.ritualsEnabled) {
     scheduleNextRitual(type)
     return
   }
@@ -231,9 +231,9 @@ async function runDailyRitual(type: 'morning' | 'evening'): Promise<void> {
  */
 function scheduleNextRitual(type: 'morning' | 'evening'): void {
   const settings = getSettings()
-  const config = settings.concierge[`${type}Ritual`]
+  const config = settings.assistant[`${type}Ritual`]
 
-  if (!settings.concierge.ritualsEnabled) {
+  if (!settings.assistant.ritualsEnabled) {
     log.assistant.debug(`Rituals disabled, not scheduling ${type} ritual`)
     return
   }

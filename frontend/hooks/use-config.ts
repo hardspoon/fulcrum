@@ -38,12 +38,12 @@ export const CONFIG_KEYS = {
   ASSISTANT_MODEL: 'assistant.model',
   ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
   ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
-  // Concierge settings
-  CONCIERGE_RITUALS_ENABLED: 'concierge.ritualsEnabled',
-  CONCIERGE_MORNING_RITUAL_TIME: 'concierge.morningRitual.time',
-  CONCIERGE_MORNING_RITUAL_PROMPT: 'concierge.morningRitual.prompt',
-  CONCIERGE_EVENING_RITUAL_TIME: 'concierge.eveningRitual.time',
-  CONCIERGE_EVENING_RITUAL_PROMPT: 'concierge.eveningRitual.prompt',
+  // Ritual settings (under assistant)
+  ASSISTANT_RITUALS_ENABLED: 'assistant.ritualsEnabled',
+  ASSISTANT_MORNING_RITUAL_TIME: 'assistant.morningRitual.time',
+  ASSISTANT_MORNING_RITUAL_PROMPT: 'assistant.morningRitual.prompt',
+  ASSISTANT_EVENING_RITUAL_TIME: 'assistant.eveningRitual.time',
+  ASSISTANT_EVENING_RITUAL_PROMPT: 'assistant.eveningRitual.prompt',
 } as const
 
 // Default values (client-side fallbacks)
@@ -344,9 +344,9 @@ export function useAssistantDocumentsDir() {
   }
 }
 
-// Concierge settings
-export function useConciergeRitualsEnabled() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_RITUALS_ENABLED)
+// Ritual settings (under assistant)
+export function useAssistantRitualsEnabled() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_RITUALS_ENABLED)
 
   return {
     ...query,
@@ -355,8 +355,8 @@ export function useConciergeRitualsEnabled() {
   }
 }
 
-export function useConciergeMorningRitualTime() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_MORNING_RITUAL_TIME)
+export function useAssistantMorningRitualTime() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_MORNING_RITUAL_TIME)
 
   return {
     ...query,
@@ -365,8 +365,8 @@ export function useConciergeMorningRitualTime() {
   }
 }
 
-export function useConciergeMorningRitualPrompt() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_MORNING_RITUAL_PROMPT)
+export function useAssistantMorningRitualPrompt() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_MORNING_RITUAL_PROMPT)
 
   return {
     ...query,
@@ -375,8 +375,8 @@ export function useConciergeMorningRitualPrompt() {
   }
 }
 
-export function useConciergeEveningRitualTime() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_TIME)
+export function useAssistantEveningRitualTime() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_EVENING_RITUAL_TIME)
 
   return {
     ...query,
@@ -385,8 +385,8 @@ export function useConciergeEveningRitualTime() {
   }
 }
 
-export function useConciergeEveningRitualPrompt() {
-  const query = useConfig(CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_PROMPT)
+export function useAssistantEveningRitualPrompt() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_EVENING_RITUAL_PROMPT)
 
   return {
     ...query,

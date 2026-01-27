@@ -100,6 +100,28 @@ export function migrateSettings(parsed: Record<string, unknown>): MigrationResul
       delete parsed.email
       result.migrated = true
     }
+
+    // Migrate concierge → assistant (ritual settings now live under assistant)
+    if (parsed.concierge && typeof parsed.concierge === 'object') {
+      const concierge = parsed.concierge as Record<string, unknown>
+      const assistant = (parsed.assistant as Record<string, unknown>) ?? {}
+
+      // Move ritual settings to assistant if not already present
+      if (concierge.ritualsEnabled !== undefined && assistant.ritualsEnabled === undefined) {
+        assistant.ritualsEnabled = concierge.ritualsEnabled
+      }
+      if (concierge.morningRitual !== undefined && assistant.morningRitual === undefined) {
+        assistant.morningRitual = concierge.morningRitual
+      }
+      if (concierge.eveningRitual !== undefined && assistant.eveningRitual === undefined) {
+        assistant.eveningRitual = concierge.eveningRitual
+      }
+
+      parsed.assistant = assistant
+      delete parsed.concierge
+      result.migratedKeys.push('concierge → assistant')
+      result.migrated = true
+    }
   }
 
   // Set schema version
