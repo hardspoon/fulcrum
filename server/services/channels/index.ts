@@ -1352,7 +1352,10 @@ export async function sendEmailMessage(
  * Used by the assistant scheduler for proactive messaging.
  */
 export async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
-  const channel = activeChannels.get('whatsapp') as WhatsAppChannel | undefined
+  // Find the WhatsApp channel by type (channels are stored by connection ID)
+  const channel = Array.from(activeChannels.values()).find(
+    (ch) => ch.type === 'whatsapp'
+  ) as WhatsAppChannel | undefined
   if (!channel) {
     throw new Error('WhatsApp channel not configured or not connected')
   }
