@@ -544,3 +544,25 @@
 [data-color-mode*="light"] .w-md-editor-preview pre[class*="language-"] {
   color: oklch(0.25 0 0) !important;
 }
+
+/* Slower pulse animation for AI assistant button (2x slower than default) */
+@keyframes pulse-slow {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes ping-slow {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-ping-slow {
+  animation: ping-slow 3s cubic-bezier(0, 0, 0.2, 1) infinite;
+}

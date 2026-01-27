@@ -262,8 +262,8 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
           </div>
 
           {/* Breathing glow animation */}
-          <div className={`absolute inset-0 rounded-full animate-pulse opacity-30 ${isDark ? 'bg-destructive' : 'bg-accent'}`} />
-          {!isOpen && <div className={`absolute -inset-1 rounded-full animate-ping opacity-15 ${isDark ? 'bg-destructive' : 'bg-accent'}`} />}
+          <div className={`absolute inset-0 rounded-full animate-pulse-slow opacity-30 ${isDark ? 'bg-destructive' : 'bg-accent'}`} />
+          {!isOpen && <div className={`absolute -inset-1 rounded-full animate-ping-slow opacity-15 ${isDark ? 'bg-destructive' : 'bg-accent'}`} />}
         </button>
       </div>
 
