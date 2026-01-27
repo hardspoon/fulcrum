@@ -72,14 +72,14 @@ export const registerConciergeTools: ToolRegistrar = (server, client) => {
     {
       status: z.optional(ActionableEventStatusSchema).describe('Filter by status'),
       source_channel: z.optional(z.string()).describe('Filter by source channel'),
-      limit: z.optional(z.number()).default(50).describe('Maximum events to return'),
+      limit: z.optional(z.number()).describe('Maximum events to return (default: 50)'),
     },
     async ({ status, source_channel, limit }) => {
       try {
         const result = await client.listActionableEvents({
           status,
           channel: source_channel,
-          limit,
+          limit: limit ?? 50,
         })
         return formatSuccess(result)
       } catch (err) {

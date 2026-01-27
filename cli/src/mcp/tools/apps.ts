@@ -55,8 +55,8 @@ export const registerAppTools: ToolRegistrar = (server, client) => {
       composeFile: z
         .optional(z.string())
         .describe('Path to compose file (auto-detected if omitted)'),
-      autoDeployEnabled: z.boolean().default(false).describe('Enable auto-deploy on git push'),
-      noCacheBuild: z.boolean().default(false).describe('Disable Docker build cache'),
+      autoDeployEnabled: z.optional(z.boolean()).describe('Enable auto-deploy on git push (default: false)'),
+      noCacheBuild: z.optional(z.boolean()).describe('Disable Docker build cache (default: false)'),
     },
     async ({ name, repositoryId, branch, composeFile, autoDeployEnabled, noCacheBuild }) => {
       try {
@@ -65,8 +65,8 @@ export const registerAppTools: ToolRegistrar = (server, client) => {
           repositoryId,
           branch,
           composeFile,
-          autoDeployEnabled,
-          noCacheBuild,
+          autoDeployEnabled: autoDeployEnabled ?? false,
+          noCacheBuild: noCacheBuild ?? false,
         })
         return formatSuccess(app)
       } catch (err) {
@@ -168,11 +168,11 @@ export const registerAppTools: ToolRegistrar = (server, client) => {
     'Delete an app and optionally stop its containers',
     {
       id: z.string().describe('App ID'),
-      stopContainers: z.boolean().default(true).describe('Stop running containers before deletion'),
+      stopContainers: z.optional(z.boolean()).describe('Stop running containers before deletion (default: true)'),
     },
     async ({ id, stopContainers }) => {
       try {
-        await client.deleteApp(id, stopContainers)
+        await client.deleteApp(id, stopContainers ?? true)
         return formatSuccess({ deleted: id })
       } catch (err) {
         return handleToolError(err)

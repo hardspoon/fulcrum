@@ -171,7 +171,7 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
       repoPath: z
         .optional(z.string())
         .describe('Absolute path to the git repository (optional for non-worktree tasks)'),
-      baseBranch: z.string().default('main').describe('Base branch for the worktree'),
+      baseBranch: z.optional(z.string()).describe('Base branch for the worktree (default: main)'),
       branch: z
         .optional(z.string())
         .describe('Branch name for the task worktree (auto-generated if omitted)'),
@@ -200,11 +200,12 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
     }) => {
       try {
         const repoName = repoPath ? basename(repoPath) : null
+        const effectiveBaseBranch = baseBranch ?? 'main'
         const task = await client.createTask({
           title,
           repoPath: repoPath ?? null,
           repoName,
-          baseBranch: repoPath ? baseBranch : null,
+          baseBranch: repoPath ? effectiveBaseBranch : null,
           branch: branch ?? null,
           worktreePath: null,
           description,
@@ -267,12 +268,13 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
     'Delete a task and optionally its linked git worktree',
     {
       id: z.string().describe('Task ID'),
-      deleteWorktree: z.boolean().default(false).describe('Also delete the linked git worktree'),
+      deleteWorktree: z.optional(z.boolean()).describe('Also delete the linked git worktree (default: false)'),
     },
     async ({ id, deleteWorktree }) => {
       try {
-        await client.deleteTask(id, deleteWorktree)
-        return formatSuccess({ deleted: id, worktreeDeleted: deleteWorktree })
+        const effectiveDeleteWorktree = deleteWorktree ?? false
+        await client.deleteTask(id, effectiveDeleteWorktree)
+        return formatSuccess({ deleted: id, worktreeDeleted: effectiveDeleteWorktree })
       } catch (err) {
         return handleToolError(err)
       }

@@ -108,14 +108,16 @@ export const registerProjectTools: ToolRegistrar = (server, client) => {
     {
       id: z.string().describe('Project ID'),
       deleteDirectory: z
-        .boolean()
-        .default(false)
-        .describe('Also delete the repository directory from disk'),
-      deleteApp: z.boolean().default(false).describe('Also delete the linked app'),
+        .optional(z.boolean())
+        .describe('Also delete the repository directory from disk (default: false)'),
+      deleteApp: z.optional(z.boolean()).describe('Also delete the linked app (default: false)'),
     },
     async ({ id, deleteDirectory, deleteApp }) => {
       try {
-        const result = await client.deleteProject(id, { deleteDirectory, deleteApp })
+        const result = await client.deleteProject(id, {
+          deleteDirectory: deleteDirectory ?? false,
+          deleteApp: deleteApp ?? false,
+        })
         return formatSuccess({ deleted: id, ...result })
       } catch (err) {
         return handleToolError(err)
