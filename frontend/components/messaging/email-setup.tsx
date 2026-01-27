@@ -35,12 +35,12 @@ const KNOWN_PROVIDERS: Record<string, {
   note?: string
 }> = {
   'gmail.com': {
-    smtp: { host: 'smtp.gmail.com', port: 465, secure: true },
+    smtp: { host: 'smtp.gmail.com', port: 587, secure: false },
     imap: { host: 'imap.gmail.com', port: 993, secure: true },
     note: 'Requires an App Password. Go to Google Account > Security > 2-Step Verification > App passwords.',
   },
   'googlemail.com': {
-    smtp: { host: 'smtp.gmail.com', port: 465, secure: true },
+    smtp: { host: 'smtp.gmail.com', port: 587, secure: false },
     imap: { host: 'imap.gmail.com', port: 993, secure: true },
     note: 'Requires an App Password. Go to Google Account > Security > 2-Step Verification > App passwords.',
   },

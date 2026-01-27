@@ -282,9 +282,6 @@ export class EmailChannel implements MessagingChannel {
             authorizedBy: authResult.authorizedBy,
           })
 
-          // Mark as read
-          await client.messageFlagsAdd({ uid: message.uid }, ['\\Seen'])
-
           // Process message
           try {
             await this.events?.onMessage(incomingMessage)
@@ -294,6 +291,10 @@ export class EmailChannel implements MessagingChannel {
               error: String(err),
             })
           }
+
+          // Note: We don't mark messages as read here because imapflow's
+          // messageFlagsAdd hangs when called inside the fetch loop.
+          // Messages will be skipped on subsequent polls via UID tracking.
         }
       } finally {
         lock.release()
