@@ -34,10 +34,13 @@ import {
   ComboboxEmpty,
 } from '@/components/ui/combobox'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { TaskAdd01Icon, Folder01Icon, Cancel01Icon, Attachment01Icon, Link01Icon, Add01Icon } from '@hugeicons/core-free-icons'
+import { TaskAdd01Icon, Folder01Icon, Cancel01Icon, Attachment01Icon, Link01Icon, Add01Icon, Tick01Icon } from '@hugeicons/core-free-icons'
+import { cn } from '@/lib/utils'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Switch } from '@/components/ui/switch'
 import { useCreateTask, useAddTaskLink } from '@/hooks/use-tasks'
+import { useSearchTags } from '@/hooks/use-tags'
+import type { TagWithUsage } from '@shared/types'
 import { useBranches, checkIsGitRepo } from '@/hooks/use-filesystem'
 import { useWorktreeBasePath, useDefaultGitReposDir, useDefaultAgent, useOpencodeModel, useDefaultTaskType, useStartWorktreeTasksImmediately } from '@/hooks/use-config'
 import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
@@ -124,6 +127,11 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
   const [prUrl, setPrUrl] = useState('')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [blockedByTaskIds, setBlockedByTaskIds] = useState<string[]>([])
+  const [showTagDropdown, setShowTagDropdown] = useState(false)
+  const [projectSearchQuery, setProjectSearchQuery] = useState('')
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false)
+  const tagContainerRef = useRef<HTMLDivElement>(null)
+  const projectContainerRef = useRef<HTMLDivElement>(null)
 
   const navigate = useNavigate()
   const createTask = useCreateTask()
@@ -151,6 +159,28 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
     if (!selectedRepoId || !projects) return null
     return projects.find((p) => p.repositories.some((r) => r.id === selectedRepoId)) ?? null
   }, [selectedRepoId, projects])
+
+  // Search for existing tags
+  const { data: tagSearchResults = [] } = useSearchTags(tagInput)
+
+  // Filter out already added tags
+  const availableTags = tagSearchResults.filter(
+    (result) => !tags.includes(result.name)
+  )
+
+  // Check for exact tag match
+  const exactTagMatch = tagSearchResults.find(
+    (t) => t.name.toLowerCase() === tagInput.toLowerCase()
+  )
+  const showCreateTagOption = tagInput.trim() && !exactTagMatch && !tags.includes(tagInput.trim())
+
+  // Filter projects based on search query (for non-worktree tasks)
+  const filteredProjects = useMemo(() => {
+    if (!projects) return []
+    if (!projectSearchQuery.trim()) return projects
+    const query = projectSearchQuery.toLowerCase()
+    return projects.filter((p) => p.name.toLowerCase().includes(query))
+  }, [projects, projectSearchQuery])
 
   // Filter repositories based on search query (case-insensitive fuzzy match)
   const filteredRepositories = useMemo(() => {
@@ -241,6 +271,20 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
       setBaseBranch('')
     }
   }, [branchData, repoPath])
+
+  // Close tag dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tagContainerRef.current && !tagContainerRef.current.contains(e.target as Node)) {
+        setShowTagDropdown(false)
+      }
+      if (projectContainerRef.current && !projectContainerRef.current.contains(e.target as Node)) {
+        setShowProjectDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleTitleChange = (value: string) => {
     setTitle(value)
@@ -402,16 +446,20 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
     setRepoError(null)
     setSelectedProjectId(null)
     setBlockedByTaskIds([])
+    setShowTagDropdown(false)
+    setProjectSearchQuery('')
+    setShowProjectDropdown(false)
     // Reset tab to saved if repositories exist, otherwise browse
     setRepoTab(repositories && repositories.length > 0 ? 'saved' : 'browse')
   }
 
-  const handleAddTag = () => {
-    const trimmed = tagInput.trim()
+  const handleAddTag = (tagName?: string) => {
+    const trimmed = (tagName ?? tagInput).trim()
     if (trimmed && !tags.includes(trimmed)) {
       setTags([...tags, trimmed])
-      setTagInput('')
     }
+    setTagInput('')
+    setShowTagDropdown(false)
   }
 
   const handleRemoveTag = (tag: string) => {
@@ -419,9 +467,17 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
   }
 
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && tagInput.trim()) {
       e.preventDefault()
-      handleAddTag()
+      // Add exact match if available, otherwise create new tag
+      if (exactTagMatch && !tags.includes(exactTagMatch.name)) {
+        handleAddTag(exactTagMatch.name)
+      } else if (showCreateTagOption) {
+        handleAddTag(tagInput.trim())
+      }
+    } else if (e.key === 'Escape') {
+      setShowTagDropdown(false)
+      setTagInput('')
     } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
       // Remove last tag on backspace when input is empty
       setTags(tags.slice(0, -1))
@@ -575,26 +631,75 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
               {taskType === 'non-worktree' && (
                 <Field>
                   <FieldLabel>{t('createModal.fields.project')}</FieldLabel>
-                  <Select
-                    value={selectedProjectId || '_none'}
-                    onValueChange={(value) => setSelectedProjectId(value === '_none' ? null : value)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {selectedProjectId
-                          ? projects?.find((p) => p.id === selectedProjectId)?.name || 'Select project'
-                          : t('createModal.noProject')}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">{t('createModal.noProject')}</SelectItem>
-                      {projects?.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="relative" ref={projectContainerRef}>
+                    <Input
+                      value={selectedProjectId
+                        ? projects?.find((p) => p.id === selectedProjectId)?.name || ''
+                        : projectSearchQuery
+                      }
+                      onChange={(e) => {
+                        setProjectSearchQuery(e.target.value)
+                        setSelectedProjectId(null)
+                        setShowProjectDropdown(true)
+                      }}
+                      onFocus={() => setShowProjectDropdown(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setShowProjectDropdown(false)
+                        }
+                      }}
+                      placeholder={t('createModal.noProject')}
+                      className="w-full"
+                    />
+
+                    {/* Project dropdown */}
+                    {showProjectDropdown && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                        <button
+                          type="button"
+                          className={cn(
+                            'w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between',
+                            selectedProjectId === null && 'bg-accent'
+                          )}
+                          onClick={() => {
+                            setSelectedProjectId(null)
+                            setProjectSearchQuery('')
+                            setShowProjectDropdown(false)
+                          }}
+                        >
+                          <span className="text-muted-foreground">{t('createModal.noProject')}</span>
+                          {selectedProjectId === null && (
+                            <HugeiconsIcon icon={Tick01Icon} size={14} className="text-primary" />
+                          )}
+                        </button>
+                        {filteredProjects.map((project) => (
+                          <button
+                            key={project.id}
+                            type="button"
+                            className={cn(
+                              'w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between',
+                              selectedProjectId === project.id && 'bg-accent'
+                            )}
+                            onClick={() => {
+                              setSelectedProjectId(project.id)
+                              setProjectSearchQuery('')
+                              setShowProjectDropdown(false)
+                            }}
+                          >
+                            <span>{project.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {project.taskCount ?? 0} tasks
+                            </span>
+                          </button>
+                        ))}
+                        {filteredProjects.length === 0 && projectSearchQuery && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                            No projects found
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <FieldDescription>
                     {t('createModal.projectHint')}
                   </FieldDescription>
@@ -793,32 +898,74 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
               <div className="flex gap-3">
                 <Field className="flex-1">
                   <FieldLabel htmlFor="tags">{t('createModal.fields.tags')}</FieldLabel>
-                  <div className="flex flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 min-h-[36px]">
-                    {tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center gap-0.5 rounded border border-border bg-card px-1.5 py-0.5 text-xs font-medium"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tag)}
-                          className="text-muted-foreground hover:text-foreground"
+                  <div className="relative" ref={tagContainerRef}>
+                    <div className="flex flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 min-h-[36px]">
+                      {tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-0.5 rounded border border-border bg-card px-1.5 py-0.5 text-xs font-medium"
                         >
-                          <HugeiconsIcon icon={Cancel01Icon} size={10} />
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      id="tags"
-                      type="text"
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onKeyDown={handleTagKeyDown}
-                      onBlur={handleAddTag}
-                      placeholder={tags.length === 0 ? t('createModal.fields.tagsPlaceholder') : ''}
-                      className="flex-1 min-w-[60px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                    />
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTag(tag)}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <HugeiconsIcon icon={Cancel01Icon} size={10} />
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        id="tags"
+                        type="text"
+                        value={tagInput}
+                        onChange={(e) => {
+                          setTagInput(e.target.value)
+                          setShowTagDropdown(true)
+                        }}
+                        onFocus={() => setShowTagDropdown(true)}
+                        onKeyDown={handleTagKeyDown}
+                        placeholder={tags.length === 0 ? t('createModal.fields.tagsPlaceholder') : ''}
+                        className="flex-1 min-w-[60px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                      />
+                    </div>
+
+                    {/* Tag dropdown */}
+                    {showTagDropdown && (tagInput || availableTags.length > 0) && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                        {availableTags.map((tag: TagWithUsage) => (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between"
+                            onClick={() => handleAddTag(tag.name)}
+                          >
+                            <span>{tag.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {tag.taskCount + tag.projectCount} uses
+                            </span>
+                          </button>
+                        ))}
+                        {showCreateTagOption && (
+                          <button
+                            type="button"
+                            className={cn(
+                              'w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center gap-2',
+                              availableTags.length > 0 && 'border-t'
+                            )}
+                            onClick={() => handleAddTag(tagInput.trim())}
+                          >
+                            <HugeiconsIcon icon={Add01Icon} size={14} />
+                            <span>Create "{tagInput.trim()}"</span>
+                          </button>
+                        )}
+                        {!showCreateTagOption && availableTags.length === 0 && tagInput && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                            No matching tags
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </Field>
 
