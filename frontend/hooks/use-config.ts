@@ -6,7 +6,7 @@ const API_BASE = ''
 
 interface ConfigResponse {
   key: string
-  value: string | number | null
+  value: string | number | boolean | string[] | null
   isDefault?: boolean
 }
 
@@ -38,6 +38,16 @@ export const CONFIG_KEYS = {
   ASSISTANT_MODEL: 'assistant.model',
   ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
   ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
+  // Concierge settings
+  CONCIERGE_ENABLED: 'concierge.enabled',
+  CONCIERGE_HOURLY_SWEEP_ENABLED: 'concierge.hourlySweepEnabled',
+  CONCIERGE_MORNING_RITUAL_ENABLED: 'concierge.morningRitual.enabled',
+  CONCIERGE_MORNING_RITUAL_TIME: 'concierge.morningRitual.time',
+  CONCIERGE_MORNING_RITUAL_PROMPT: 'concierge.morningRitual.prompt',
+  CONCIERGE_EVENING_RITUAL_ENABLED: 'concierge.eveningRitual.enabled',
+  CONCIERGE_EVENING_RITUAL_TIME: 'concierge.eveningRitual.time',
+  CONCIERGE_EVENING_RITUAL_PROMPT: 'concierge.eveningRitual.prompt',
+  CONCIERGE_DEFAULT_CHANNELS: 'concierge.defaultChannels',
 } as const
 
 // Default values (client-side fallbacks)
@@ -338,11 +348,105 @@ export function useAssistantDocumentsDir() {
   }
 }
 
+// Concierge settings
+export function useConciergeEnabled() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_ENABLED)
+
+  return {
+    ...query,
+    data: Boolean(query.data?.value),
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useConciergeHourlySweepEnabled() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_HOURLY_SWEEP_ENABLED)
+
+  return {
+    ...query,
+    data: query.data?.value === undefined ? true : Boolean(query.data.value),
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useConciergeMorningRitualEnabled() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_MORNING_RITUAL_ENABLED)
+
+  return {
+    ...query,
+    data: Boolean(query.data?.value),
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useConciergeMorningRitualTime() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_MORNING_RITUAL_TIME)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '09:00',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useConciergeMorningRitualPrompt() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_MORNING_RITUAL_PROMPT)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useConciergeEveningRitualEnabled() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_ENABLED)
+
+  return {
+    ...query,
+    data: Boolean(query.data?.value),
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useConciergeEveningRitualTime() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_TIME)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '18:00',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useConciergeEveningRitualPrompt() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_EVENING_RITUAL_PROMPT)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+const EMPTY_CHANNELS: string[] = []
+
+export function useConciergeDefaultChannels() {
+  const query = useConfig(CONFIG_KEYS.CONCIERGE_DEFAULT_CHANNELS)
+  const value = query.data?.value as string[] | undefined
+
+  return {
+    ...query,
+    data: value ?? EMPTY_CHANNELS,
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
 export function useUpdateConfig() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string | number | boolean | null }) =>
+    mutationFn: ({ key, value }: { key: string; value: string | number | boolean | string[] | null }) =>
       fetchJSON<ConfigResponse>(`${API_BASE}/api/config/${key}`, {
         method: 'PUT',
         body: JSON.stringify({ value }),

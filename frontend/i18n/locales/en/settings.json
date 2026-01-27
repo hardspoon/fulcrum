@@ -11,6 +11,8 @@
     "assistant": "AI Assistant",
     "tasks": "Task Defaults",
     "notifications": "Notifications",
+    "messaging": "Messaging",
+    "concierge": "Concierge",
     "appearance": "Appearance",
     "developer": "Developer"
   },
@@ -224,6 +226,20 @@
     "soundDeleted": "Custom sound removed",
     "soundDeleteFailed": "Failed to remove custom sound",
     "customSoundActive": "Custom sound active"
+  },
+  "concierge": {
+    "enable": "Enable",
+    "enableDescription": "Transform messaging assistant from reactive to proactive. When enabled, the assistant decides whether to respond, track actionable events, or stay silent.",
+    "hourlySweep": "Hourly Sweep",
+    "hourlySweepDescription": "Review pending actionable events and check open tasks for updates.",
+    "outputChannels": "Output Channels",
+    "outputChannelsDescription": "Channels to send ritual summaries to.",
+    "morningRitual": "Morning Ritual",
+    "morningRitualDescription": "Morning briefing with today's priorities.",
+    "morningRitualPromptPlaceholder": "Custom prompt for morning ritual...",
+    "eveningRitual": "Evening Ritual",
+    "eveningRitualDescription": "Evening summary with accomplishments and pending items.",
+    "eveningRitualPromptPlaceholder": "Custom prompt for evening ritual..."
   },
   "developer": {
     "restartButton": "Restart Fulcrum",

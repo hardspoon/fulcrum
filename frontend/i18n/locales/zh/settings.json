@@ -11,6 +11,8 @@
     "assistant": "AI 助手",
     "tasks": "任务默认值",
     "notifications": "通知",
+    "messaging": "消息",
+    "concierge": "礼宾服务",
     "appearance": "外观",
     "developer": "开发者"
   },
@@ -224,6 +226,20 @@
     "soundDeleted": "自定义声音已删除",
     "soundDeleteFailed": "删除自定义声音失败",
     "customSoundActive": "使用自定义声音"
+  },
+  "concierge": {
+    "enable": "启用",
+    "enableDescription": "将消息助手从被动转变为主动。启用后，助手会决定是回复、跟踪可操作事件还是保持沉默。",
+    "hourlySweep": "每小时扫描",
+    "hourlySweepDescription": "审查待处理的可操作事件并检查需要更新的任务。",
+    "outputChannels": "输出渠道",
+    "outputChannelsDescription": "发送仪式摘要的渠道。",
+    "morningRitual": "晨间仪式",
+    "morningRitualDescription": "包含今日优先事项的晨间简报。",
+    "morningRitualPromptPlaceholder": "自定义晨间仪式提示词...",
+    "eveningRitual": "晚间仪式",
+    "eveningRitualDescription": "包含成就和待办事项的晚间总结。",
+    "eveningRitualPromptPlaceholder": "自定义晚间仪式提示词..."
   },
   "developer": {
     "restartButton": "重启 Fulcrum",

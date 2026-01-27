@@ -331,7 +331,7 @@ app.put('/:key', async (c) => {
   }
 
   try {
-    const body = await c.req.json<{ value: string | number | null }>()
+    const body = await c.req.json<{ value: string | number | boolean | string[] | null }>()
     let { value } = body
 
     // Validate based on the setting type
