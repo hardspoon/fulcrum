@@ -1732,6 +1732,87 @@ function SettingsPage() {
                       {t('fields.assistant.documentsDir.description')}
                     </p>
                   </div>
+
+                  {/* Daily Rituals */}
+                  <div className="border-t border-border pt-4 space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('concierge.rituals')}
+                      </label>
+                      <Switch
+                        checked={localConciergeRitualsEnabled}
+                        onCheckedChange={setLocalConciergeRitualsEnabled}
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('concierge.ritualsDescription')}
+                    </p>
+                  </div>
+
+                  {localConciergeRitualsEnabled && (
+                    <>
+                      {/* Morning Ritual */}
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                              {t('concierge.morningRitual')}
+                            </label>
+                            <Input
+                              type="time"
+                              value={localConciergeMorningRitualTime}
+                              onChange={(e) => setLocalConciergeMorningRitualTime(e.target.value)}
+                              disabled={isLoading}
+                              className="w-32"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('concierge.morningRitualDescription')}
+                          </p>
+                        </div>
+                        <div className="sm:ml-32 sm:pl-2">
+                          <Textarea
+                            value={localConciergeMorningRitualPrompt}
+                            onChange={(e) => setLocalConciergeMorningRitualPrompt(e.target.value)}
+                            placeholder={t('concierge.morningRitualPromptPlaceholder')}
+                            disabled={isLoading}
+                            className="min-h-[80px] text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Evening Ritual */}
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                              {t('concierge.eveningRitual')}
+                            </label>
+                            <Input
+                              type="time"
+                              value={localConciergeEveningRitualTime}
+                              onChange={(e) => setLocalConciergeEveningRitualTime(e.target.value)}
+                              disabled={isLoading}
+                              className="w-32"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('concierge.eveningRitualDescription')}
+                          </p>
+                        </div>
+                        <div className="sm:ml-32 sm:pl-2">
+                          <Textarea
+                            value={localConciergeEveningRitualPrompt}
+                            onChange={(e) => setLocalConciergeEveningRitualPrompt(e.target.value)}
+                            placeholder={t('concierge.eveningRitualPromptPlaceholder')}
+                            disabled={isLoading}
+                            className="min-h-[80px] text-sm"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </SettingsSection>
 
@@ -2048,92 +2129,6 @@ function SettingsPage() {
                 <WhatsAppSetup isLoading={isLoading} />
                 <div className="border-t border-border pt-4 mt-4">
                   <EmailSetup isLoading={isLoading} />
-                </div>
-              </SettingsSection>
-
-              {/* Concierge */}
-              <SettingsSection title={t('sections.concierge')}>
-                <div className="space-y-4">
-                  {/* Daily Rituals */}
-                  <div className="space-y-1">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                        {t('concierge.rituals')}
-                      </label>
-                      <Switch
-                        checked={localConciergeRitualsEnabled}
-                        onCheckedChange={setLocalConciergeRitualsEnabled}
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                      {t('concierge.ritualsDescription')}
-                    </p>
-                  </div>
-
-                  {localConciergeRitualsEnabled && (
-                    <>
-                      {/* Morning Ritual */}
-                      <div className="space-y-3 border-t border-border pt-4">
-                        <div className="space-y-1">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                              {t('concierge.morningRitual')}
-                            </label>
-                            <Input
-                              type="time"
-                              value={localConciergeMorningRitualTime}
-                              onChange={(e) => setLocalConciergeMorningRitualTime(e.target.value)}
-                              disabled={isLoading}
-                              className="w-32"
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                            {t('concierge.morningRitualDescription')}
-                          </p>
-                        </div>
-                        <div className="sm:ml-32 sm:pl-2">
-                          <Textarea
-                            value={localConciergeMorningRitualPrompt}
-                            onChange={(e) => setLocalConciergeMorningRitualPrompt(e.target.value)}
-                            placeholder={t('concierge.morningRitualPromptPlaceholder')}
-                            disabled={isLoading}
-                            className="min-h-[80px] text-sm"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Evening Ritual */}
-                      <div className="space-y-3 border-t border-border pt-4">
-                        <div className="space-y-1">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                              {t('concierge.eveningRitual')}
-                            </label>
-                            <Input
-                              type="time"
-                              value={localConciergeEveningRitualTime}
-                              onChange={(e) => setLocalConciergeEveningRitualTime(e.target.value)}
-                              disabled={isLoading}
-                              className="w-32"
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                            {t('concierge.eveningRitualDescription')}
-                          </p>
-                        </div>
-                        <div className="sm:ml-32 sm:pl-2">
-                          <Textarea
-                            value={localConciergeEveningRitualPrompt}
-                            onChange={(e) => setLocalConciergeEveningRitualPrompt(e.target.value)}
-                            placeholder={t('concierge.eveningRitualPromptPlaceholder')}
-                            disabled={isLoading}
-                            className="min-h-[80px] text-sm"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
                 </div>
               </SettingsSection>
 

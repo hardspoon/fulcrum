@@ -12,7 +12,6 @@
     "tasks": "Task Defaults",
     "notifications": "Notifications",
     "messaging": "Messaging",
-    "concierge": "Concierge",
     "appearance": "Appearance",
     "developer": "Developer"
   },
@@ -229,13 +228,13 @@
   },
   "concierge": {
     "rituals": "Daily Rituals",
-    "ritualsDescription": "Enable scheduled morning and evening briefings via connected messaging channels.",
+    "ritualsDescription": "Schedule morning and evening briefings. The assistant will execute your prompts at the specified times.",
     "morningRitual": "Morning Ritual",
     "morningRitualDescription": "Morning briefing with today's priorities.",
-    "morningRitualPromptPlaceholder": "Custom prompt for morning ritual...",
+    "morningRitualPromptPlaceholder": "Review messages since yesterday evening, summarize what needs attention today, and send a prioritized action plan.",
     "eveningRitual": "Evening Ritual",
     "eveningRitualDescription": "Evening summary with accomplishments and pending items.",
-    "eveningRitualPromptPlaceholder": "Custom prompt for evening ritual..."
+    "eveningRitualPromptPlaceholder": "Summarize what was accomplished today, note pending items, and suggest focus areas for tomorrow."
   },
   "developer": {
     "restartButton": "Restart Fulcrum",
