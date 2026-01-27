@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
-import { resetDatabase } from '../../db'
 import type { MessagingChannel, ChannelEvents, ConnectionStatus, ChannelFactory } from './types'
 import {
   getOrCreateWhatsAppConnection,
@@ -63,7 +62,6 @@ describe('Messaging Channel Manager', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
-    resetDatabase()
     testEnv = setupTestEnv()
     setChannelFactory(mockChannelFactory)
   })

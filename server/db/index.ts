@@ -7,30 +7,47 @@ import * as schema from './schema'
 import { initializeFulcrumDirectories, getDatabasePath } from '../lib/settings'
 import { log } from '../lib/logger'
 
-// Lazy-initialized database instance
-let _db: BunSQLiteDatabase<typeof schema> | null = null
-let _sqlite: Database | null = null
+// Use globalThis to ensure singleton across multiple module instances
+// (Bun test runner can sometimes create duplicate module instances)
+const GLOBAL_KEY = '__FULCRUM_DB_SINGLETON__'
+
+interface DbSingleton {
+  db: BunSQLiteDatabase<typeof schema> | null
+  sqlite: Database | null
+}
+
+function getGlobalState(): DbSingleton {
+  if (!(globalThis as Record<string, unknown>)[GLOBAL_KEY]) {
+    ;(globalThis as Record<string, unknown>)[GLOBAL_KEY] = {
+      db: null,
+      sqlite: null,
+    }
+  }
+  return (globalThis as Record<string, unknown>)[GLOBAL_KEY] as DbSingleton
+}
 
 // Initialize and return the database (lazy initialization)
 function initializeDatabase(): BunSQLiteDatabase<typeof schema> {
-  if (_db) return _db
+  const state = getGlobalState()
+
+  if (state.db) return state.db
 
   // Initialize all fulcrum directories (data dir, worktrees, etc.)
   initializeFulcrumDirectories()
 
   const dbPath = getDatabasePath()
 
-  _sqlite = new Database(dbPath)
+  state.sqlite = new Database(dbPath)
 
   // Enable WAL mode for better performance
-  _sqlite.exec('PRAGMA journal_mode = WAL')
+  state.sqlite.exec('PRAGMA journal_mode = WAL')
 
-  _db = drizzle(_sqlite, { schema })
+  state.db = drizzle(state.sqlite, { schema })
 
   // Run migrations (works for both source and bundled mode)
-  runMigrations(_sqlite, _db)
+  runMigrations(state.sqlite, state.db)
 
-  return _db
+  return state.db
 }
 
 // Export a proxy that lazily initializes the database on first access
@@ -48,16 +65,18 @@ export const db = new Proxy({} as BunSQLiteDatabase<typeof schema>, {
 
 // For testing: reset the database instance so a new one can be created
 export function resetDatabase(): void {
-  if (_sqlite) {
-    _sqlite.close()
+  const state = getGlobalState()
+
+  if (state.sqlite) {
+    state.sqlite.close()
   }
-  _db = null
-  _sqlite = null
+  state.db = null
+  state.sqlite = null
 }
 
 // For testing: get the underlying SQLite instance
 export function getSqlite(): Database | null {
-  return _sqlite
+  return getGlobalState().sqlite
 }
 
 // Run migrations (works for both source and bundled mode)

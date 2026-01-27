@@ -21,6 +21,10 @@ export interface TestEnv {
  * Call this in beforeEach() to get a fresh environment for each test.
  */
 export function setupTestEnv(): TestEnv {
+  // Reset database FIRST to clear any singleton from previous test file
+  // This is critical for test isolation when Bun runs multiple test files
+  resetDatabase()
+
   const fulcrumDir = mkdtempSync(join(tmpdir(), 'fulcrum-test-'))
 
   // Store original env values

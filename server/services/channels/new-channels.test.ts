@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
-import { resetDatabase } from '../../db'
 import type { MessagingChannel, ChannelEvents, ConnectionStatus, ChannelFactory } from './types'
 import {
   // Discord
@@ -79,8 +78,6 @@ describe('Discord Channel Manager', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
-    // Reset database first to ensure clean state
-    resetDatabase()
     testEnv = setupTestEnv()
     setChannelFactory(mockChannelFactory)
   })
@@ -180,7 +177,6 @@ describe('Telegram Channel Manager', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
-    resetDatabase()
     testEnv = setupTestEnv()
     setChannelFactory(mockChannelFactory)
   })
@@ -280,7 +276,6 @@ describe('Slack Channel Manager', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
-    resetDatabase()
     testEnv = setupTestEnv()
     setChannelFactory(mockChannelFactory)
   })
@@ -382,7 +377,6 @@ describe('Multiple Channels', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
-    resetDatabase()
     testEnv = setupTestEnv()
     setChannelFactory(mockChannelFactory)
   })
