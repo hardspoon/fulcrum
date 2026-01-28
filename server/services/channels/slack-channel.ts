@@ -3,7 +3,8 @@
  * Uses Socket Mode for real-time messaging without needing a public URL.
  */
 
-import { App, LogLevel } from '@slack/bolt'
+import { App, LogLevel, type SlashCommand, type RespondFn } from '@slack/bolt'
+import type { KnownBlock, ChatPostMessageArguments } from '@slack/web-api'
 import { eq } from 'drizzle-orm'
 import { db, messagingConnections } from '../../db'
 import { log } from '../../lib/logger'
@@ -78,6 +79,12 @@ export class SlackChannel implements MessagingChannel {
         appToken: this.appToken,
         socketMode: true,
         logLevel: LogLevel.WARN,
+      })
+
+      // Handle slash commands (must register before starting)
+      this.app.command(/.*/, async ({ ack, command, respond }) => {
+        await ack() // Must acknowledge immediately
+        await this.handleSlashCommand(command, respond)
       })
 
       // Handle messages
@@ -173,6 +180,52 @@ export class SlackChannel implements MessagingChannel {
     }
   }
 
+  /**
+   * Handle slash command interactions.
+   * Commands are routed to the message handler and acknowledged with an ephemeral response.
+   */
+  private async handleSlashCommand(
+    command: SlashCommand,
+    respond: RespondFn
+  ): Promise<void> {
+    log.messaging.info('Slack slash command received', {
+      connectionId: this.connectionId,
+      command: command.command,
+      userId: command.user_id,
+      userName: command.user_name,
+    })
+
+    // Convert slash command to an IncomingMessage for the standard command handler
+    const incomingMessage: IncomingMessage = {
+      channelType: 'slack',
+      connectionId: this.connectionId,
+      senderId: command.user_id,
+      senderName: command.user_name,
+      content: command.command, // e.g., "/reset"
+      timestamp: new Date(),
+      metadata: {
+        isSlashCommand: true,
+      },
+    }
+
+    try {
+      await this.events?.onMessage(incomingMessage)
+
+      // Ephemeral acknowledgment to the user
+      await respond({ text: '✓ Command received', response_type: 'ephemeral' })
+    } catch (err) {
+      log.messaging.error('Error processing Slack slash command', {
+        connectionId: this.connectionId,
+        command: command.command,
+        error: String(err),
+      })
+      await respond({
+        text: 'Sorry, something went wrong processing your command.',
+        response_type: 'ephemeral',
+      })
+    }
+  }
+
   async shutdown(): Promise<void> {
     this.isShuttingDown = true
 
@@ -192,7 +245,11 @@ export class SlackChannel implements MessagingChannel {
     })
   }
 
-  async sendMessage(recipientId: string, content: string): Promise<boolean> {
+  async sendMessage(
+    recipientId: string,
+    content: string,
+    metadata?: Record<string, unknown>
+  ): Promise<boolean> {
     if (!this.app || this.status !== 'connected') {
       log.messaging.warn('Cannot send Slack message - not connected', {
         connectionId: this.connectionId,
@@ -215,13 +272,21 @@ export class SlackChannel implements MessagingChannel {
       // Slack has a ~40000 character limit but best practice is to keep it shorter
       // We'll use 4000 as a practical limit
       if (content.length <= 4000) {
-        await this.app.client.chat.postMessage({
+        const messageOptions: ChatPostMessageArguments = {
           channel: channelId,
-          text: content,
-          mrkdwn: true,
-        })
+          text: content, // Fallback for notifications
+        }
+
+        // Use blocks if provided, otherwise use mrkdwn text
+        if (metadata?.blocks) {
+          messageOptions.blocks = metadata.blocks as KnownBlock[]
+        } else {
+          messageOptions.mrkdwn = true
+        }
+
+        await this.app.client.chat.postMessage(messageOptions)
       } else {
-        // Split message if too long
+        // Split message if too long (blocks not supported for split messages)
         const parts = this.splitMessage(content, 4000)
         for (const part of parts) {
           await this.app.client.chat.postMessage({
@@ -238,6 +303,7 @@ export class SlackChannel implements MessagingChannel {
         connectionId: this.connectionId,
         to: recipientId,
         contentLength: content.length,
+        hasBlocks: !!metadata?.blocks,
       })
 
       return true

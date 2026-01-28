@@ -385,6 +385,26 @@ WhatsApp does NOT render full Markdown. Keep formatting simple:
 - No markdown headers or links
 - Keep responses concise for mobile`
 
+    case 'slack':
+      return `## Slack Formatting
+
+Use Slack's mrkdwn format:
+- *bold* with single asterisks, _italic_ with underscores
+- \`code\` and \`\`\`code blocks\`\`\`
+- > blockquotes, lists with - or numbers
+- Links: <url|text> or paste URLs directly
+- Keep responses focused for desktop and mobile`
+
+    case 'discord':
+      return `## Discord Formatting
+
+Discord supports full Markdown:
+- **bold**, *italic*, ~~strikethrough~~
+- \`code\` and \`\`\`code blocks\`\`\` with syntax highlighting
+- > blockquotes, - lists
+- [text](url) links
+- Keep under 2000 characters per message`
+
     case 'email':
       return `## Email Formatting
 

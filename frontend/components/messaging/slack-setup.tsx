@@ -231,6 +231,7 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
           <li>
             Under <strong>OAuth &amp; Permissions</strong>, add these <strong>Bot Token Scopes</strong>:{' '}
             <code className="bg-muted px-1 rounded text-xs">chat:write</code>,{' '}
+            <code className="bg-muted px-1 rounded text-xs">commands</code>,{' '}
             <code className="bg-muted px-1 rounded text-xs">im:history</code>,{' '}
             <code className="bg-muted px-1 rounded text-xs">im:read</code>,{' '}
             <code className="bg-muted px-1 rounded text-xs">im:write</code>,{' '}
@@ -238,6 +239,13 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
           </li>
           <li>Install the app to your workspace to get the Bot Token (xoxb-...)</li>
           <li>Under <strong>Event Subscriptions</strong>, subscribe to <code className="bg-muted px-1 rounded text-xs">message.im</code></li>
+          <li>
+            Under <strong>Slash Commands</strong>, create these commands:{' '}
+            <code className="bg-muted px-1 rounded text-xs">/reset</code>,{' '}
+            <code className="bg-muted px-1 rounded text-xs">/help</code>,{' '}
+            <code className="bg-muted px-1 rounded text-xs">/info</code>{' '}
+            <span className="text-muted-foreground/60">(/status is reserved by Slack)</span>
+          </li>
           <li>Under <strong>App Home</strong>, enable <strong>Messages Tab</strong> and check <em>"Allow users to send Slash commands and messages from the messages tab"</em></li>
           <li>Paste both tokens above and click Connect</li>
           <li>DM the bot in Slack to chat with the AI assistant</li>

@@ -59,7 +59,7 @@ export function resetChannelFactory(): void {
 const COMMANDS = {
   RESET: ['/reset', '/new', '/clear'],
   HELP: ['/help', '/?'],
-  STATUS: ['/status'],
+  STATUS: ['/status', '/info'], // /info for Slack (where /status is reserved)
 }
 
 /**
@@ -284,6 +284,22 @@ async function handleIncomingMessage(msg: IncomingMessage): Promise<void> {
  */
 async function handleResetCommand(msg: IncomingMessage): Promise<void> {
   resetSession(msg.connectionId, msg.senderId, msg.senderName)
+
+  // Use Block Kit for Slack
+  if (msg.channelType === 'slack') {
+    const blocks = [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '✓ *Conversation reset!* I\'ve started a fresh session. How can I help you?',
+        },
+      },
+    ]
+    await sendResponse(msg, 'Conversation reset!', { blocks })
+    return
+  }
+
   await sendResponse(
     msg,
     "Conversation reset! I've started a fresh session. How can I help you?"
@@ -295,6 +311,42 @@ async function handleResetCommand(msg: IncomingMessage): Promise<void> {
  */
 async function handleHelpCommand(msg: IncomingMessage): Promise<void> {
   const isEmail = msg.channelType === 'email'
+
+  // Use Block Kit for Slack
+  if (msg.channelType === 'slack') {
+    const blocks = [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: 'AI Assistant Help', emoji: true },
+      },
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: '*Available Commands:*' },
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text:
+            '• `/reset` - Start a fresh conversation\n' +
+            '• `/help` - Show this help message\n' +
+            '• `/info` - Show your session status',
+        },
+      },
+      { type: 'divider' },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: 'Just message me to chat! I\'m powered by Claude.',
+          },
+        ],
+      },
+    ]
+    await sendResponse(msg, 'AI Assistant Help', { blocks })
+    return
+  }
 
   const helpText = isEmail
     ? `*Fulcrum AI Assistant*
@@ -335,6 +387,34 @@ async function handleStatusCommand(msg: IncomingMessage): Promise<void> {
     emailThreadId
   )
 
+  // Use Block Kit for Slack
+  if (msg.channelType === 'slack') {
+    const blocks = [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: 'Session Status', emoji: true },
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*Session ID:*\n\`${session.id.slice(0, 8)}...\`` },
+          { type: 'mrkdwn', text: `*Messages:*\n${session.messageCount ?? 0}` },
+          { type: 'mrkdwn', text: `*Started:*\n${new Date(mapping.createdAt).toLocaleString()}` },
+          { type: 'mrkdwn', text: `*Last Active:*\n${new Date(mapping.lastMessageAt).toLocaleString()}` },
+        ],
+      },
+      { type: 'divider' },
+      {
+        type: 'context',
+        elements: [
+          { type: 'mrkdwn', text: 'Use `/reset` to start a fresh conversation.' },
+        ],
+      },
+    ]
+    await sendResponse(msg, 'Session Status', { blocks })
+    return
+  }
+
   const statusText = `*Session Status*
 
 Session ID: ${session.id.slice(0, 8)}...
@@ -350,7 +430,8 @@ Last active: ${new Date(mapping.lastMessageAt).toLocaleString()}`
  */
 async function sendResponse(
   originalMsg: IncomingMessage,
-  content: string
+  content: string,
+  metadata?: Record<string, unknown>
 ): Promise<void> {
   const channel = activeChannels.get(originalMsg.connectionId)
   if (!channel) {
@@ -364,9 +445,12 @@ async function sendResponse(
   const maxLength = 4000
   const parts = splitMessage(content, maxLength)
 
+  // Merge provided metadata with original message metadata
+  const combinedMetadata = { ...originalMsg.metadata, ...metadata }
+
   for (const part of parts) {
-    // Pass metadata for email threading (ignored by other channels)
-    await channel.sendMessage(originalMsg.senderId, part, originalMsg.metadata)
+    // Pass metadata for email threading and Slack blocks
+    await channel.sendMessage(originalMsg.senderId, part, combinedMetadata)
     // Small delay between parts to maintain order
     if (parts.length > 1) {
       await new Promise((resolve) => setTimeout(resolve, 500))
