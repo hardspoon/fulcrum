@@ -1742,8 +1742,33 @@ export async function sendMessageToChannel(
       }
     }
 
-    case 'telegram':
-      return { success: false, error: `${channel} channel not implemented` }
+    case 'telegram': {
+      const telegramStatus = getTelegramStatus()
+      if (!telegramStatus?.enabled || telegramStatus.status !== 'connected') {
+        return { success: false, error: 'Telegram channel not connected' }
+      }
+
+      // Find the active Telegram channel
+      const telegramChannel = Array.from(activeChannels.values()).find(
+        (ch) => ch.type === 'telegram'
+      )
+      if (!telegramChannel) {
+        return { success: false, error: 'Telegram channel not active' }
+      }
+
+      try {
+        const success = await telegramChannel.sendMessage(to, body)
+        if (success) {
+          log.messaging.info('Sent Telegram message', { to })
+          return { success: true }
+        } else {
+          return { success: false, error: 'Failed to send Telegram message' }
+        }
+      } catch (err) {
+        log.messaging.error('Failed to send Telegram message', { to, error: String(err) })
+        return { success: false, error: String(err) }
+      }
+    }
 
     case 'slack': {
       const slackStatus = getSlackStatus()

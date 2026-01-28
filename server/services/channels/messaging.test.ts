@@ -9,6 +9,7 @@ import {
   disableWhatsApp,
   getWhatsAppStatus,
   configureDiscord,
+  configureTelegram,
   configureSlack,
   listConnections,
   stopMessagingChannels,
@@ -408,10 +409,9 @@ describe('sendMessageToChannel', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
-      // Error should mention the channel or "not connected/implemented"
+      // Error should mention the channel or "not connected"
       expect(
         result.error?.includes('not connected') ||
-        result.error?.includes('not implemented') ||
         result.error?.includes('not active')
       ).toBe(true)
     }
@@ -433,11 +433,12 @@ describe('sendMessageToChannel', () => {
     expect(result.success).toBe(true)
   })
 
-  test('telegram returns not implemented error', async () => {
-    const result = await sendMessageToChannel('telegram', '123456789', 'Hello')
+  test('telegram sends message when connected', async () => {
+    await configureTelegram('fake-bot-token')
 
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('not implemented')
+    const result = await sendMessageToChannel('telegram', '123456789', 'Hello from test')
+
+    expect(result.success).toBe(true)
   })
 
   test('slack sends message when connected', async () => {

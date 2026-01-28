@@ -417,10 +417,23 @@ export async function sendMessageToChannel(
       return sendViaChannel('discord', to, body)
     }
 
-    case 'telegram':
-    case 'slack':
-      // Not implemented yet
-      return { success: false, error: `${channel} channel not implemented` }
+    case 'telegram': {
+      const { getTelegramStatus, sendMessageToChannel: sendViaTelegram } = await import('./channels')
+      const telegramStatus = getTelegramStatus()
+      if (!telegramStatus?.enabled || telegramStatus.status !== 'connected') {
+        return { success: false, error: 'Telegram channel not connected' }
+      }
+      return sendViaTelegram('telegram', to, body)
+    }
+
+    case 'slack': {
+      const { getSlackStatus, sendMessageToChannel: sendViaSlack } = await import('./channels')
+      const slackStatus = getSlackStatus()
+      if (!slackStatus?.enabled || slackStatus.status !== 'connected') {
+        return { success: false, error: 'Slack channel not connected' }
+      }
+      return sendViaSlack('slack', to, body, options)
+    }
 
     default:
       return { success: false, error: `Unknown channel: ${channel}` }
