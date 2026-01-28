@@ -11,7 +11,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Loading03Icon, Logout01Icon, Tick02Icon, Cancel01Icon } from '@hugeicons/core-free-icons'
 import {
   useDiscordStatus,
-  useEnableDiscord,
+  useConfigureDiscord,
   useDisableDiscord,
   useDisconnectDiscord,
   useDiscordSessions,
@@ -24,7 +24,7 @@ interface DiscordSetupProps {
 export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
   const { data: status, refetch: refetchStatus } = useDiscordStatus()
   const { data: sessions } = useDiscordSessions()
-  const enableDiscord = useEnableDiscord()
+  const configureDiscord = useConfigureDiscord()
   const disableDiscord = useDisableDiscord()
   const disconnect = useDisconnectDiscord()
 
@@ -57,7 +57,7 @@ export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
     }
 
     try {
-      await enableDiscord.mutateAsync(botToken.trim())
+      await configureDiscord.mutateAsync(botToken.trim())
       setShowTokenInput(false)
       setBotToken('')
       toast.success('Discord connected')
@@ -94,7 +94,7 @@ export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
     return 'Disconnected'
   }
 
-  const isPending = enableDiscord.isPending || disableDiscord.isPending || disconnect.isPending
+  const isPending = configureDiscord.isPending || disableDiscord.isPending || disconnect.isPending
 
   return (
     <div className="space-y-4">
@@ -135,7 +135,7 @@ export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
               onClick={handleConnect}
               disabled={isPending || !botToken.trim()}
             >
-              {enableDiscord.isPending ? (
+              {configureDiscord.isPending ? (
                 <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="mr-2 animate-spin" />
               ) : null}
               Connect

@@ -11,7 +11,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Loading03Icon, Logout01Icon, Tick02Icon, Cancel01Icon } from '@hugeicons/core-free-icons'
 import {
   useSlackStatus,
-  useEnableSlack,
+  useConfigureSlack,
   useDisableSlack,
   useDisconnectSlack,
   useSlackSessions,
@@ -24,7 +24,7 @@ interface SlackSetupProps {
 export function SlackSetup({ isLoading = false }: SlackSetupProps) {
   const { data: status, refetch: refetchStatus } = useSlackStatus()
   const { data: sessions } = useSlackSessions()
-  const enableSlack = useEnableSlack()
+  const configureSlack = useConfigureSlack()
   const disableSlack = useDisableSlack()
   const disconnect = useDisconnectSlack()
 
@@ -63,7 +63,7 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
     }
 
     try {
-      await enableSlack.mutateAsync({
+      await configureSlack.mutateAsync({
         botToken: botToken.trim(),
         appToken: appToken.trim(),
       })
@@ -104,7 +104,7 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
     return 'Disconnected'
   }
 
-  const isPending = enableSlack.isPending || disableSlack.isPending || disconnect.isPending
+  const isPending = configureSlack.isPending || disableSlack.isPending || disconnect.isPending
 
   return (
     <div className="space-y-4">
@@ -155,7 +155,7 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
               onClick={handleConnect}
               disabled={isPending || !botToken.trim() || !appToken.trim()}
             >
-              {enableSlack.isPending ? (
+              {configureSlack.isPending ? (
                 <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="mr-2 animate-spin" />
               ) : null}
               Connect

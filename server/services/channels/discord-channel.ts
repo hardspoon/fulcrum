@@ -17,12 +17,12 @@ import {
 import { eq } from 'drizzle-orm'
 import { db, messagingConnections } from '../../db'
 import { log } from '../../lib/logger'
+import { getSettings } from '../../lib/settings'
 import type {
   MessagingChannel,
   ChannelEvents,
   ConnectionStatus,
   IncomingMessage,
-  DiscordAuthState,
 } from './types'
 
 // Slash command definitions
@@ -57,32 +57,19 @@ export class DiscordChannel implements MessagingChannel {
     this.events = events
     this.isShuttingDown = false
 
-    // Load auth state from database
-    const connection = db
-      .select()
-      .from(messagingConnections)
-      .where(eq(messagingConnections.id, this.connectionId))
-      .get()
+    // Load credentials from settings
+    const settings = getSettings()
+    const discordConfig = settings.channels.discord
 
-    if (!connection?.authState) {
-      log.messaging.warn('Discord channel has no auth state', {
+    if (!discordConfig.botToken) {
+      log.messaging.warn('Discord channel missing bot token', {
         connectionId: this.connectionId,
       })
       this.updateStatus('disconnected')
       return
     }
 
-    try {
-      const authState = JSON.parse(connection.authState) as DiscordAuthState
-      this.botToken = authState.botToken
-    } catch (err) {
-      log.messaging.error('Failed to parse Discord auth state', {
-        connectionId: this.connectionId,
-        error: String(err),
-      })
-      this.updateStatus('disconnected')
-      return
-    }
+    this.botToken = discordConfig.botToken
 
     await this.connect()
   }
@@ -403,10 +390,9 @@ export class DiscordChannel implements MessagingChannel {
 
     this.botToken = null
 
-    // Clear auth state in database
+    // Clear runtime state in database (credentials are in settings.json)
     db.update(messagingConnections)
       .set({
-        authState: null,
         displayName: null,
         status: 'disconnected',
         updatedAt: new Date().toISOString(),

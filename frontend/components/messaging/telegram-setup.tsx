@@ -11,7 +11,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Loading03Icon, Logout01Icon, Tick02Icon, Cancel01Icon } from '@hugeicons/core-free-icons'
 import {
   useTelegramStatus,
-  useEnableTelegram,
+  useConfigureTelegram,
   useDisableTelegram,
   useDisconnectTelegram,
   useTelegramSessions,
@@ -24,7 +24,7 @@ interface TelegramSetupProps {
 export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
   const { data: status, refetch: refetchStatus } = useTelegramStatus()
   const { data: sessions } = useTelegramSessions()
-  const enableTelegram = useEnableTelegram()
+  const configureTelegram = useConfigureTelegram()
   const disableTelegram = useDisableTelegram()
   const disconnect = useDisconnectTelegram()
 
@@ -57,7 +57,7 @@ export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
     }
 
     try {
-      await enableTelegram.mutateAsync(botToken.trim())
+      await configureTelegram.mutateAsync(botToken.trim())
       setShowTokenInput(false)
       setBotToken('')
       toast.success('Telegram connected')
@@ -94,7 +94,7 @@ export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
     return 'Disconnected'
   }
 
-  const isPending = enableTelegram.isPending || disableTelegram.isPending || disconnect.isPending
+  const isPending = configureTelegram.isPending || disableTelegram.isPending || disconnect.isPending
 
   return (
     <div className="space-y-4">
@@ -135,7 +135,7 @@ export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
               onClick={handleConnect}
               disabled={isPending || !botToken.trim()}
             >
-              {enableTelegram.isPending ? (
+              {configureTelegram.isPending ? (
                 <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="mr-2 animate-spin" />
               ) : null}
               Connect

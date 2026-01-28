@@ -13,16 +13,22 @@ import {
   listSessionMappings,
   // Discord
   getDiscordStatus,
+  getDiscordConfig,
+  configureDiscord,
   enableDiscord,
   disableDiscord,
   disconnectDiscord,
   // Telegram
   getTelegramStatus,
+  getTelegramConfig,
+  configureTelegram,
   enableTelegram,
   disableTelegram,
   disconnectTelegram,
   // Slack
   getSlackStatus,
+  getSlackConfig,
+  configureSlack,
   enableSlack,
   disableSlack,
   disconnectSlack,
@@ -38,6 +44,10 @@ import {
   fetchAndStoreEmails,
   sendMessageToChannel,
   type EmailAuthState,
+  // Connection IDs for session lookups
+  SLACK_CONNECTION_ID,
+  DISCORD_CONNECTION_ID,
+  TELEGRAM_CONNECTION_ID,
 } from '../services/channels'
 import { db, emails } from '../db'
 import { eq } from 'drizzle-orm'
@@ -119,12 +129,16 @@ app.get('/whatsapp/sessions', (c) => {
 
 // GET /api/messaging/discord - Get Discord connection status
 app.get('/discord', (c) => {
-  const conn = getDiscordStatus()
-  return c.json(conn || { enabled: false, status: 'disconnected' })
+  const status = getDiscordStatus()
+  const config = getDiscordConfig()
+  return c.json({
+    ...status,
+    config,
+  })
 })
 
-// POST /api/messaging/discord/enable - Enable Discord integration with bot token
-app.post('/discord/enable', async (c) => {
+// POST /api/messaging/discord/configure - Configure and enable Discord with bot token
+app.post('/discord/configure', async (c) => {
   try {
     const body = await c.req.json()
     const { botToken } = body
@@ -133,9 +147,24 @@ app.post('/discord/enable', async (c) => {
       return c.json({ error: 'botToken is required' }, 400)
     }
 
-    const conn = await enableDiscord(botToken)
+    const result = await configureDiscord(botToken)
+    log.messaging.info('Discord configured via API')
+    return c.json(result)
+  } catch (err) {
+    log.messaging.error('Failed to configure Discord', { error: String(err) })
+    return c.json({ error: String(err) }, 500)
+  }
+})
+
+// POST /api/messaging/discord/enable - Enable Discord using existing credentials
+app.post('/discord/enable', async (c) => {
+  try {
+    const result = await enableDiscord()
+    if (result.error) {
+      return c.json({ error: result.error }, 400)
+    }
     log.messaging.info('Discord enabled via API')
-    return c.json(conn)
+    return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to enable Discord', { error: String(err) })
     return c.json({ error: String(err) }, 500)
@@ -145,21 +174,21 @@ app.post('/discord/enable', async (c) => {
 // POST /api/messaging/discord/disable - Disable Discord integration
 app.post('/discord/disable', async (c) => {
   try {
-    const conn = await disableDiscord()
+    const result = await disableDiscord()
     log.messaging.info('Discord disabled via API')
-    return c.json(conn)
+    return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to disable Discord', { error: String(err) })
     return c.json({ error: String(err) }, 500)
   }
 })
 
-// POST /api/messaging/discord/disconnect - Disconnect and clear auth
+// POST /api/messaging/discord/disconnect - Disconnect and clear credentials
 app.post('/discord/disconnect', async (c) => {
   try {
-    const conn = await disconnectDiscord()
+    const result = await disconnectDiscord()
     log.messaging.info('Discord disconnected via API')
-    return c.json(conn)
+    return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to disconnect Discord', { error: String(err) })
     return c.json({ error: String(err) }, 500)
@@ -168,12 +197,12 @@ app.post('/discord/disconnect', async (c) => {
 
 // GET /api/messaging/discord/sessions - List Discord session mappings
 app.get('/discord/sessions', (c) => {
-  const conn = getDiscordStatus()
-  if (!conn) {
+  const status = getDiscordStatus()
+  if (!status.enabled) {
     return c.json({ sessions: [] })
   }
 
-  const mappings = listSessionMappings(conn.id)
+  const mappings = listSessionMappings(DISCORD_CONNECTION_ID)
   return c.json({ sessions: mappings })
 })
 
@@ -181,12 +210,16 @@ app.get('/discord/sessions', (c) => {
 
 // GET /api/messaging/telegram - Get Telegram connection status
 app.get('/telegram', (c) => {
-  const conn = getTelegramStatus()
-  return c.json(conn || { enabled: false, status: 'disconnected' })
+  const status = getTelegramStatus()
+  const config = getTelegramConfig()
+  return c.json({
+    ...status,
+    config,
+  })
 })
 
-// POST /api/messaging/telegram/enable - Enable Telegram integration with bot token
-app.post('/telegram/enable', async (c) => {
+// POST /api/messaging/telegram/configure - Configure and enable Telegram with bot token
+app.post('/telegram/configure', async (c) => {
   try {
     const body = await c.req.json()
     const { botToken } = body
@@ -195,9 +228,24 @@ app.post('/telegram/enable', async (c) => {
       return c.json({ error: 'botToken is required' }, 400)
     }
 
-    const conn = await enableTelegram(botToken)
+    const result = await configureTelegram(botToken)
+    log.messaging.info('Telegram configured via API')
+    return c.json(result)
+  } catch (err) {
+    log.messaging.error('Failed to configure Telegram', { error: String(err) })
+    return c.json({ error: String(err) }, 500)
+  }
+})
+
+// POST /api/messaging/telegram/enable - Enable Telegram using existing credentials
+app.post('/telegram/enable', async (c) => {
+  try {
+    const result = await enableTelegram()
+    if (result.error) {
+      return c.json({ error: result.error }, 400)
+    }
     log.messaging.info('Telegram enabled via API')
-    return c.json(conn)
+    return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to enable Telegram', { error: String(err) })
     return c.json({ error: String(err) }, 500)
@@ -207,21 +255,21 @@ app.post('/telegram/enable', async (c) => {
 // POST /api/messaging/telegram/disable - Disable Telegram integration
 app.post('/telegram/disable', async (c) => {
   try {
-    const conn = await disableTelegram()
+    const result = await disableTelegram()
     log.messaging.info('Telegram disabled via API')
-    return c.json(conn)
+    return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to disable Telegram', { error: String(err) })
     return c.json({ error: String(err) }, 500)
   }
 })
 
-// POST /api/messaging/telegram/disconnect - Disconnect and clear auth
+// POST /api/messaging/telegram/disconnect - Disconnect and clear credentials
 app.post('/telegram/disconnect', async (c) => {
   try {
-    const conn = await disconnectTelegram()
+    const result = await disconnectTelegram()
     log.messaging.info('Telegram disconnected via API')
-    return c.json(conn)
+    return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to disconnect Telegram', { error: String(err) })
     return c.json({ error: String(err) }, 500)
@@ -230,12 +278,12 @@ app.post('/telegram/disconnect', async (c) => {
 
 // GET /api/messaging/telegram/sessions - List Telegram session mappings
 app.get('/telegram/sessions', (c) => {
-  const conn = getTelegramStatus()
-  if (!conn) {
+  const status = getTelegramStatus()
+  if (!status.enabled) {
     return c.json({ sessions: [] })
   }
 
-  const mappings = listSessionMappings(conn.id)
+  const mappings = listSessionMappings(TELEGRAM_CONNECTION_ID)
   return c.json({ sessions: mappings })
 })
 
@@ -243,12 +291,16 @@ app.get('/telegram/sessions', (c) => {
 
 // GET /api/messaging/slack - Get Slack connection status
 app.get('/slack', (c) => {
-  const conn = getSlackStatus()
-  return c.json(conn || { enabled: false, status: 'disconnected' })
+  const status = getSlackStatus()
+  const config = getSlackConfig()
+  return c.json({
+    ...status,
+    config,
+  })
 })
 
-// POST /api/messaging/slack/enable - Enable Slack integration with bot and app tokens
-app.post('/slack/enable', async (c) => {
+// POST /api/messaging/slack/configure - Configure and enable Slack with tokens
+app.post('/slack/configure', async (c) => {
   try {
     const body = await c.req.json()
     const { botToken, appToken } = body
@@ -261,9 +313,24 @@ app.post('/slack/enable', async (c) => {
       return c.json({ error: 'appToken is required for Socket Mode' }, 400)
     }
 
-    const conn = await enableSlack(botToken, appToken)
+    const result = await configureSlack(botToken, appToken)
+    log.messaging.info('Slack configured via API')
+    return c.json(result)
+  } catch (err) {
+    log.messaging.error('Failed to configure Slack', { error: String(err) })
+    return c.json({ error: String(err) }, 500)
+  }
+})
+
+// POST /api/messaging/slack/enable - Enable Slack using existing credentials
+app.post('/slack/enable', async (c) => {
+  try {
+    const result = await enableSlack()
+    if (result.error) {
+      return c.json({ error: result.error }, 400)
+    }
     log.messaging.info('Slack enabled via API')
-    return c.json(conn)
+    return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to enable Slack', { error: String(err) })
     return c.json({ error: String(err) }, 500)
@@ -273,21 +340,21 @@ app.post('/slack/enable', async (c) => {
 // POST /api/messaging/slack/disable - Disable Slack integration
 app.post('/slack/disable', async (c) => {
   try {
-    const conn = await disableSlack()
+    const result = await disableSlack()
     log.messaging.info('Slack disabled via API')
-    return c.json(conn)
+    return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to disable Slack', { error: String(err) })
     return c.json({ error: String(err) }, 500)
   }
 })
 
-// POST /api/messaging/slack/disconnect - Disconnect and clear auth
+// POST /api/messaging/slack/disconnect - Disconnect and clear credentials
 app.post('/slack/disconnect', async (c) => {
   try {
-    const conn = await disconnectSlack()
+    const result = await disconnectSlack()
     log.messaging.info('Slack disconnected via API')
-    return c.json(conn)
+    return c.json(result)
   } catch (err) {
     log.messaging.error('Failed to disconnect Slack', { error: String(err) })
     return c.json({ error: String(err) }, 500)
@@ -296,12 +363,12 @@ app.post('/slack/disconnect', async (c) => {
 
 // GET /api/messaging/slack/sessions - List Slack session mappings
 app.get('/slack/sessions', (c) => {
-  const conn = getSlackStatus()
-  if (!conn) {
+  const status = getSlackStatus()
+  if (!status.enabled) {
     return c.json({ sessions: [] })
   }
 
-  const mappings = listSessionMappings(conn.id)
+  const mappings = listSessionMappings(SLACK_CONNECTION_ID)
   return c.json({ sessions: mappings })
 })
 

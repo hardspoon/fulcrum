@@ -3,25 +3,27 @@ import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
 import type { MessagingChannel, ChannelEvents, ConnectionStatus, ChannelFactory } from './types'
 import {
   // Discord
-  getOrCreateDiscordConnection,
+  configureDiscord,
   enableDiscord,
   disableDiscord,
   getDiscordStatus,
+  getDiscordConfig,
   disconnectDiscord,
   // Telegram
-  getOrCreateTelegramConnection,
+  configureTelegram,
   enableTelegram,
   disableTelegram,
   getTelegramStatus,
+  getTelegramConfig,
   disconnectTelegram,
   // Slack
-  getOrCreateSlackConnection,
+  configureSlack,
   enableSlack,
   disableSlack,
   getSlackStatus,
+  getSlackConfig,
   disconnectSlack,
   // Common
-  listConnections,
   stopMessagingChannels,
   // DI
   setChannelFactory,
@@ -74,7 +76,7 @@ const mockChannelFactory: ChannelFactory = {
   createEmailChannel: (id) => new BaseMockChannel(id, 'email'),
 }
 
-describe('Discord Channel Manager', () => {
+describe('Discord Channel Manager (settings-based)', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
@@ -88,92 +90,107 @@ describe('Discord Channel Manager', () => {
     testEnv.cleanup()
   })
 
-  describe('getOrCreateDiscordConnection', () => {
-    test('creates new connection when none exists', () => {
-      const conn = getOrCreateDiscordConnection()
+  describe('configureDiscord', () => {
+    test('saves bot token to settings and enables channel', async () => {
+      const result = await configureDiscord('test-bot-token')
 
-      expect(conn).toBeDefined()
-      expect(conn.id).toBeDefined()
-      expect(conn.channelType).toBe('discord')
-      expect(conn.enabled).toBe(false)
-      expect(conn.status).toBe('disconnected')
+      expect(result.enabled).toBe(true)
+      expect(result.status).toBe('connected') // Mock channel connects immediately
     })
 
-    test('returns existing connection on subsequent calls', () => {
-      const first = getOrCreateDiscordConnection()
-      const second = getOrCreateDiscordConnection()
+    test('can be called multiple times to update token', async () => {
+      await configureDiscord('token1')
+      const result = await configureDiscord('token2')
 
-      expect(first.id).toBe(second.id)
+      expect(result.enabled).toBe(true)
+      expect(result.status).toBe('connected')
     })
   })
 
   describe('enableDiscord', () => {
-    test('enables Discord with bot token and returns updated connection', async () => {
-      const conn = await enableDiscord('test-bot-token')
+    test('returns error when no credentials configured', async () => {
+      const result = await enableDiscord()
 
-      expect(conn.enabled).toBe(true)
-      expect(conn.authState).toBeDefined()
-
-      const authState = JSON.parse(conn.authState!)
-      expect(authState.botToken).toBe('test-bot-token')
+      expect(result.enabled).toBe(false)
+      expect(result.status).toBe('credentials_required')
+      expect(result.error).toBeDefined()
     })
 
-    test('can be called multiple times safely', async () => {
-      await enableDiscord('token1')
-      const conn = await enableDiscord('token2')
+    test('enables channel when credentials exist', async () => {
+      await configureDiscord('test-token')
+      await disableDiscord()
 
-      expect(conn.enabled).toBe(true)
-      const authState = JSON.parse(conn.authState!)
-      expect(authState.botToken).toBe('token2')
+      const result = await enableDiscord()
+
+      expect(result.enabled).toBe(true)
+      expect(result.status).toBe('connected')
     })
   })
 
   describe('disableDiscord', () => {
-    test('disables Discord and returns updated connection', async () => {
-      await enableDiscord('test-token')
-      const conn = await disableDiscord()
+    test('disables channel but preserves credentials', async () => {
+      await configureDiscord('test-token')
+      const result = await disableDiscord()
 
-      expect(conn.enabled).toBe(false)
-      expect(conn.status).toBe('disconnected')
-    })
+      expect(result.enabled).toBe(false)
+      expect(result.status).toBe('disconnected')
 
-    test('can be called when already disabled', async () => {
-      const conn = await disableDiscord()
-      expect(conn.enabled).toBe(false)
+      // Credentials should still exist
+      const config = getDiscordConfig()
+      expect(config).not.toBeNull()
+      expect(config!.botToken).toBe('••••••••')
     })
   })
 
   describe('disconnectDiscord', () => {
-    test('disconnects and clears auth state', async () => {
-      await enableDiscord('test-token')
-      const conn = await disconnectDiscord()
+    test('clears credentials from settings', async () => {
+      await configureDiscord('test-token')
+      const result = await disconnectDiscord()
 
-      expect(conn.enabled).toBe(false)
-      expect(conn.status).toBe('disconnected')
-      expect(conn.authState).toBeNull()
-      expect(conn.displayName).toBeNull()
+      expect(result.enabled).toBe(false)
+      expect(result.status).toBe('disconnected')
+
+      // Credentials should be cleared
+      const config = getDiscordConfig()
+      expect(config).toBeNull()
     })
   })
 
   describe('getDiscordStatus', () => {
-    test('returns null when no connection exists', () => {
-      // Database is fresh from beforeEach - no need to delete
+    test('returns disabled when not configured', () => {
       const status = getDiscordStatus()
-      expect(status).toBeNull()
+
+      expect(status.enabled).toBe(false)
+      expect(status.status).toBe('disconnected')
     })
 
-    test('returns connection status when exists', async () => {
-      await enableDiscord('test-token')
+    test('returns connected when configured and running', async () => {
+      await configureDiscord('test-token')
 
       const status = getDiscordStatus()
-      expect(status).not.toBeNull()
-      expect(status!.channelType).toBe('discord')
-      expect(status!.enabled).toBe(true)
+
+      expect(status.enabled).toBe(true)
+      expect(status.status).toBe('connected')
+    })
+  })
+
+  describe('getDiscordConfig', () => {
+    test('returns null when not configured', () => {
+      const config = getDiscordConfig()
+      expect(config).toBeNull()
+    })
+
+    test('returns masked token when configured', async () => {
+      await configureDiscord('test-token')
+
+      const config = getDiscordConfig()
+      expect(config).not.toBeNull()
+      expect(config!.botToken).toBe('••••••••')
     })
   })
 })
 
-describe('Telegram Channel Manager', () => {
+describe('Telegram Channel Manager (settings-based)', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
@@ -187,92 +204,107 @@ describe('Telegram Channel Manager', () => {
     testEnv.cleanup()
   })
 
-  describe('getOrCreateTelegramConnection', () => {
-    test('creates new connection when none exists', () => {
-      const conn = getOrCreateTelegramConnection()
+  describe('configureTelegram', () => {
+    test('saves bot token to settings and enables channel', async () => {
+      const result = await configureTelegram('test-bot-token')
 
-      expect(conn).toBeDefined()
-      expect(conn.id).toBeDefined()
-      expect(conn.channelType).toBe('telegram')
-      expect(conn.enabled).toBe(false)
-      expect(conn.status).toBe('disconnected')
+      expect(result.enabled).toBe(true)
+      expect(result.status).toBe('connected')
     })
 
-    test('returns existing connection on subsequent calls', () => {
-      const first = getOrCreateTelegramConnection()
-      const second = getOrCreateTelegramConnection()
+    test('can be called multiple times to update token', async () => {
+      await configureTelegram('token1')
+      const result = await configureTelegram('token2')
 
-      expect(first.id).toBe(second.id)
+      expect(result.enabled).toBe(true)
+      expect(result.status).toBe('connected')
     })
   })
 
   describe('enableTelegram', () => {
-    test('enables Telegram with bot token and returns updated connection', async () => {
-      const conn = await enableTelegram('test-bot-token')
+    test('returns error when no credentials configured', async () => {
+      const result = await enableTelegram()
 
-      expect(conn.enabled).toBe(true)
-      expect(conn.authState).toBeDefined()
-
-      const authState = JSON.parse(conn.authState!)
-      expect(authState.botToken).toBe('test-bot-token')
+      expect(result.enabled).toBe(false)
+      expect(result.status).toBe('credentials_required')
+      expect(result.error).toBeDefined()
     })
 
-    test('can be called multiple times safely', async () => {
-      await enableTelegram('token1')
-      const conn = await enableTelegram('token2')
+    test('enables channel when credentials exist', async () => {
+      await configureTelegram('test-token')
+      await disableTelegram()
 
-      expect(conn.enabled).toBe(true)
-      const authState = JSON.parse(conn.authState!)
-      expect(authState.botToken).toBe('token2')
+      const result = await enableTelegram()
+
+      expect(result.enabled).toBe(true)
+      expect(result.status).toBe('connected')
     })
   })
 
   describe('disableTelegram', () => {
-    test('disables Telegram and returns updated connection', async () => {
-      await enableTelegram('test-token')
-      const conn = await disableTelegram()
+    test('disables channel but preserves credentials', async () => {
+      await configureTelegram('test-token')
+      const result = await disableTelegram()
 
-      expect(conn.enabled).toBe(false)
-      expect(conn.status).toBe('disconnected')
-    })
+      expect(result.enabled).toBe(false)
+      expect(result.status).toBe('disconnected')
 
-    test('can be called when already disabled', async () => {
-      const conn = await disableTelegram()
-      expect(conn.enabled).toBe(false)
+      // Credentials should still exist
+      const config = getTelegramConfig()
+      expect(config).not.toBeNull()
+      expect(config!.botToken).toBe('••••••••')
     })
   })
 
   describe('disconnectTelegram', () => {
-    test('disconnects and clears auth state', async () => {
-      await enableTelegram('test-token')
-      const conn = await disconnectTelegram()
+    test('clears credentials from settings', async () => {
+      await configureTelegram('test-token')
+      const result = await disconnectTelegram()
 
-      expect(conn.enabled).toBe(false)
-      expect(conn.status).toBe('disconnected')
-      expect(conn.authState).toBeNull()
-      expect(conn.displayName).toBeNull()
+      expect(result.enabled).toBe(false)
+      expect(result.status).toBe('disconnected')
+
+      // Credentials should be cleared
+      const config = getTelegramConfig()
+      expect(config).toBeNull()
     })
   })
 
   describe('getTelegramStatus', () => {
-    test('returns null when no connection exists', () => {
-      // Database is fresh from beforeEach - no need to delete
+    test('returns disabled when not configured', () => {
       const status = getTelegramStatus()
-      expect(status).toBeNull()
+
+      expect(status.enabled).toBe(false)
+      expect(status.status).toBe('disconnected')
     })
 
-    test('returns connection status when exists', async () => {
-      await enableTelegram('test-token')
+    test('returns connected when configured and running', async () => {
+      await configureTelegram('test-token')
 
       const status = getTelegramStatus()
-      expect(status).not.toBeNull()
-      expect(status!.channelType).toBe('telegram')
-      expect(status!.enabled).toBe(true)
+
+      expect(status.enabled).toBe(true)
+      expect(status.status).toBe('connected')
+    })
+  })
+
+  describe('getTelegramConfig', () => {
+    test('returns null when not configured', () => {
+      const config = getTelegramConfig()
+      expect(config).toBeNull()
+    })
+
+    test('returns masked token when configured', async () => {
+      await configureTelegram('test-token')
+
+      const config = getTelegramConfig()
+      expect(config).not.toBeNull()
+      expect(config!.botToken).toBe('••••••••')
     })
   })
 })
 
-describe('Slack Channel Manager', () => {
+describe('Slack Channel Manager (settings-based)', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
@@ -286,94 +318,109 @@ describe('Slack Channel Manager', () => {
     testEnv.cleanup()
   })
 
-  describe('getOrCreateSlackConnection', () => {
-    test('creates new connection when none exists', () => {
-      const conn = getOrCreateSlackConnection()
+  describe('configureSlack', () => {
+    test('saves bot and app tokens to settings and enables channel', async () => {
+      const result = await configureSlack('xoxb-test-bot-token', 'xapp-test-app-token')
 
-      expect(conn).toBeDefined()
-      expect(conn.id).toBeDefined()
-      expect(conn.channelType).toBe('slack')
-      expect(conn.enabled).toBe(false)
-      expect(conn.status).toBe('disconnected')
+      expect(result.enabled).toBe(true)
+      expect(result.status).toBe('connected')
     })
 
-    test('returns existing connection on subsequent calls', () => {
-      const first = getOrCreateSlackConnection()
-      const second = getOrCreateSlackConnection()
+    test('can be called multiple times to update tokens', async () => {
+      await configureSlack('bot1', 'app1')
+      const result = await configureSlack('bot2', 'app2')
 
-      expect(first.id).toBe(second.id)
+      expect(result.enabled).toBe(true)
+      expect(result.status).toBe('connected')
     })
   })
 
   describe('enableSlack', () => {
-    test('enables Slack with bot and app tokens and returns updated connection', async () => {
-      const conn = await enableSlack('xoxb-test-bot-token', 'xapp-test-app-token')
+    test('returns error when no credentials configured', async () => {
+      const result = await enableSlack()
 
-      expect(conn.enabled).toBe(true)
-      expect(conn.authState).toBeDefined()
-
-      const authState = JSON.parse(conn.authState!)
-      expect(authState.botToken).toBe('xoxb-test-bot-token')
-      expect(authState.appToken).toBe('xapp-test-app-token')
+      expect(result.enabled).toBe(false)
+      expect(result.status).toBe('credentials_required')
+      expect(result.error).toBeDefined()
     })
 
-    test('can be called multiple times safely', async () => {
-      await enableSlack('bot1', 'app1')
-      const conn = await enableSlack('bot2', 'app2')
+    test('enables channel when credentials exist', async () => {
+      await configureSlack('bot-token', 'app-token')
+      await disableSlack()
 
-      expect(conn.enabled).toBe(true)
-      const authState = JSON.parse(conn.authState!)
-      expect(authState.botToken).toBe('bot2')
-      expect(authState.appToken).toBe('app2')
+      const result = await enableSlack()
+
+      expect(result.enabled).toBe(true)
+      expect(result.status).toBe('connected')
     })
   })
 
   describe('disableSlack', () => {
-    test('disables Slack and returns updated connection', async () => {
-      await enableSlack('bot-token', 'app-token')
-      const conn = await disableSlack()
+    test('disables channel but preserves credentials', async () => {
+      await configureSlack('bot-token', 'app-token')
+      const result = await disableSlack()
 
-      expect(conn.enabled).toBe(false)
-      expect(conn.status).toBe('disconnected')
-    })
+      expect(result.enabled).toBe(false)
+      expect(result.status).toBe('disconnected')
 
-    test('can be called when already disabled', async () => {
-      const conn = await disableSlack()
-      expect(conn.enabled).toBe(false)
+      // Credentials should still exist
+      const config = getSlackConfig()
+      expect(config).not.toBeNull()
+      expect(config!.botToken).toBe('••••••••')
+      expect(config!.appToken).toBe('••••••••')
     })
   })
 
   describe('disconnectSlack', () => {
-    test('disconnects and clears auth state', async () => {
-      await enableSlack('bot-token', 'app-token')
-      const conn = await disconnectSlack()
+    test('clears credentials from settings', async () => {
+      await configureSlack('bot-token', 'app-token')
+      const result = await disconnectSlack()
 
-      expect(conn.enabled).toBe(false)
-      expect(conn.status).toBe('disconnected')
-      expect(conn.authState).toBeNull()
-      expect(conn.displayName).toBeNull()
+      expect(result.enabled).toBe(false)
+      expect(result.status).toBe('disconnected')
+
+      // Credentials should be cleared
+      const config = getSlackConfig()
+      expect(config).toBeNull()
     })
   })
 
   describe('getSlackStatus', () => {
-    test('returns null when no connection exists', () => {
-      // Database is fresh from beforeEach - no need to delete
+    test('returns disabled when not configured', () => {
       const status = getSlackStatus()
-      expect(status).toBeNull()
+
+      expect(status.enabled).toBe(false)
+      expect(status.status).toBe('disconnected')
     })
 
-    test('returns connection status when exists', async () => {
-      await enableSlack('bot-token', 'app-token')
+    test('returns connected when configured and running', async () => {
+      await configureSlack('bot-token', 'app-token')
 
       const status = getSlackStatus()
-      expect(status).not.toBeNull()
-      expect(status!.channelType).toBe('slack')
-      expect(status!.enabled).toBe(true)
+
+      expect(status.enabled).toBe(true)
+      expect(status.status).toBe('connected')
+    })
+  })
+
+  describe('getSlackConfig', () => {
+    test('returns null when not configured', () => {
+      const config = getSlackConfig()
+      expect(config).toBeNull()
+    })
+
+    test('returns masked tokens when configured', async () => {
+      await configureSlack('bot-token', 'app-token')
+
+      const config = getSlackConfig()
+      expect(config).not.toBeNull()
+      expect(config!.botToken).toBe('••••••••')
+      expect(config!.appToken).toBe('••••••••')
     })
   })
 })
 
-describe('Multiple Channels', () => {
+describe('Multiple Channels (settings-based)', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
@@ -388,41 +435,37 @@ describe('Multiple Channels', () => {
   })
 
   test('all channels can be enabled simultaneously', async () => {
-    await enableDiscord('discord-token')
-    await enableTelegram('telegram-token')
-    await enableSlack('slack-bot', 'slack-app')
+    await configureDiscord('discord-token')
+    await configureTelegram('telegram-token')
+    await configureSlack('slack-bot', 'slack-app')
 
-    const connections = listConnections()
+    const discordStatus = getDiscordStatus()
+    const telegramStatus = getTelegramStatus()
+    const slackStatus = getSlackStatus()
 
-    const discord = connections.find(c => c.channelType === 'discord')
-    const telegram = connections.find(c => c.channelType === 'telegram')
-    const slack = connections.find(c => c.channelType === 'slack')
+    expect(discordStatus.enabled).toBe(true)
+    expect(discordStatus.status).toBe('connected')
 
-    expect(discord).toBeDefined()
-    expect(discord!.enabled).toBe(true)
+    expect(telegramStatus.enabled).toBe(true)
+    expect(telegramStatus.status).toBe('connected')
 
-    expect(telegram).toBeDefined()
-    expect(telegram!.enabled).toBe(true)
-
-    expect(slack).toBeDefined()
-    expect(slack!.enabled).toBe(true)
+    expect(slackStatus.enabled).toBe(true)
+    expect(slackStatus.status).toBe('connected')
   })
 
   test('disabling one channel does not affect others', async () => {
-    await enableDiscord('discord-token')
-    await enableTelegram('telegram-token')
-    await enableSlack('slack-bot', 'slack-app')
+    await configureDiscord('discord-token')
+    await configureTelegram('telegram-token')
+    await configureSlack('slack-bot', 'slack-app')
 
     await disableDiscord()
 
-    const connections = listConnections()
+    const discordStatus = getDiscordStatus()
+    const telegramStatus = getTelegramStatus()
+    const slackStatus = getSlackStatus()
 
-    const discord = connections.find(c => c.channelType === 'discord')
-    const telegram = connections.find(c => c.channelType === 'telegram')
-    const slack = connections.find(c => c.channelType === 'slack')
-
-    expect(discord!.enabled).toBe(false)
-    expect(telegram!.enabled).toBe(true)
-    expect(slack!.enabled).toBe(true)
+    expect(discordStatus.enabled).toBe(false)
+    expect(telegramStatus.enabled).toBe(true)
+    expect(slackStatus.enabled).toBe(true)
   })
 })

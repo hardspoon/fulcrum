@@ -132,21 +132,39 @@ export function useDiscordStatus() {
   })
 }
 
-// Enable Discord with bot token
-export function useEnableDiscord() {
+// Configure Discord with bot token (saves to settings and enables)
+export function useConfigureDiscord() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (botToken: string) => {
-      const res = await fetch(`${API_BASE}/discord/enable`, {
+      const res = await fetch(`${API_BASE}/discord/configure`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ botToken }),
       })
       if (!res.ok) {
         const data = await res.json()
+        throw new Error(data.error || 'Failed to configure Discord')
+      }
+      return await res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messaging'] })
+    },
+  })
+}
+
+// Enable Discord using existing credentials
+export function useEnableDiscord() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_BASE}/discord/enable`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json()
         throw new Error(data.error || 'Failed to enable Discord')
       }
-      return (await res.json()) as MessagingConnection
+      return await res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messaging'] })
@@ -217,21 +235,39 @@ export function useTelegramStatus() {
   })
 }
 
-// Enable Telegram with bot token
-export function useEnableTelegram() {
+// Configure Telegram with bot token (saves to settings and enables)
+export function useConfigureTelegram() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (botToken: string) => {
-      const res = await fetch(`${API_BASE}/telegram/enable`, {
+      const res = await fetch(`${API_BASE}/telegram/configure`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ botToken }),
       })
       if (!res.ok) {
         const data = await res.json()
+        throw new Error(data.error || 'Failed to configure Telegram')
+      }
+      return await res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messaging'] })
+    },
+  })
+}
+
+// Enable Telegram using existing credentials
+export function useEnableTelegram() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_BASE}/telegram/enable`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json()
         throw new Error(data.error || 'Failed to enable Telegram')
       }
-      return (await res.json()) as MessagingConnection
+      return await res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messaging'] })
@@ -302,21 +338,39 @@ export function useSlackStatus() {
   })
 }
 
-// Enable Slack with bot and app tokens
-export function useEnableSlack() {
+// Configure Slack with bot and app tokens (saves to settings and enables)
+export function useConfigureSlack() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (tokens: { botToken: string; appToken: string }) => {
-      const res = await fetch(`${API_BASE}/slack/enable`, {
+      const res = await fetch(`${API_BASE}/slack/configure`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tokens),
       })
       if (!res.ok) {
         const data = await res.json()
+        throw new Error(data.error || 'Failed to configure Slack')
+      }
+      return await res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messaging'] })
+    },
+  })
+}
+
+// Enable Slack using existing credentials
+export function useEnableSlack() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_BASE}/slack/enable`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json()
         throw new Error(data.error || 'Failed to enable Slack')
       }
-      return (await res.json()) as MessagingConnection
+      return await res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messaging'] })

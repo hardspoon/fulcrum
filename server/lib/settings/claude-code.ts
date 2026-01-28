@@ -1,15 +1,19 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { log } from '../logger'
-import { getHomeDir, assertNotProductionPath } from './paths'
+import { getHomeDir, assertNotProductionPath, isNonDefaultFulcrumDir, getFulcrumDir } from './paths'
 import { getSettings } from './core'
 
 // ==================== Claude Code Settings ====================
 // These functions manage ~/.claude/settings.json for configuring Claude Code
+// When FULCRUM_DIR is set (dev/test mode), uses $FULCRUM_DIR/.claude instead
 
 // Get Claude settings file path
+// In dev mode: $FULCRUM_DIR/.claude/settings.json
+// In prod mode: ~/.claude/settings.json
 export function getClaudeSettingsPath(): string {
-  const p = path.join(getHomeDir(), '.claude', 'settings.json')
+  const baseDir = isNonDefaultFulcrumDir() ? getFulcrumDir() : getHomeDir()
+  const p = path.join(baseDir, '.claude', 'settings.json')
   assertNotProductionPath(p, 'getClaudeSettingsPath')
   return p
 }
@@ -38,10 +42,14 @@ export function updateClaudeSettings(updates: Record<string, unknown>): void {
 
 // ==================== Claude Code Config ====================
 // These functions manage ~/.claude.json for Claude Code preferences (theme, etc.)
+// When FULCRUM_DIR is set (dev/test mode), uses $FULCRUM_DIR/.claude.json instead
 
-// Get Claude config file path (~/.claude.json)
+// Get Claude config file path
+// In dev mode: $FULCRUM_DIR/.claude.json
+// In prod mode: ~/.claude.json
 export function getClaudeConfigPath(): string {
-  const p = path.join(getHomeDir(), '.claude.json')
+  const baseDir = isNonDefaultFulcrumDir() ? getFulcrumDir() : getHomeDir()
+  const p = path.join(baseDir, '.claude.json')
   assertNotProductionPath(p, 'getClaudeConfigPath')
   return p
 }

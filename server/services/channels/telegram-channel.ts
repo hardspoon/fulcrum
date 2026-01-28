@@ -7,12 +7,12 @@ import TelegramBot from 'node-telegram-bot-api'
 import { eq } from 'drizzle-orm'
 import { db, messagingConnections } from '../../db'
 import { log } from '../../lib/logger'
+import { getSettings } from '../../lib/settings'
 import type {
   MessagingChannel,
   ChannelEvents,
   ConnectionStatus,
   IncomingMessage,
-  TelegramAuthState,
 } from './types'
 
 export class TelegramChannel implements MessagingChannel {
@@ -34,32 +34,19 @@ export class TelegramChannel implements MessagingChannel {
     this.events = events
     this.isShuttingDown = false
 
-    // Load auth state from database
-    const connection = db
-      .select()
-      .from(messagingConnections)
-      .where(eq(messagingConnections.id, this.connectionId))
-      .get()
+    // Load credentials from settings
+    const settings = getSettings()
+    const telegramConfig = settings.channels.telegram
 
-    if (!connection?.authState) {
-      log.messaging.warn('Telegram channel has no auth state', {
+    if (!telegramConfig.botToken) {
+      log.messaging.warn('Telegram channel missing bot token', {
         connectionId: this.connectionId,
       })
       this.updateStatus('disconnected')
       return
     }
 
-    try {
-      const authState = JSON.parse(connection.authState) as TelegramAuthState
-      this.botToken = authState.botToken
-    } catch (err) {
-      log.messaging.error('Failed to parse Telegram auth state', {
-        connectionId: this.connectionId,
-        error: String(err),
-      })
-      this.updateStatus('disconnected')
-      return
-    }
+    this.botToken = telegramConfig.botToken
 
     await this.connect()
   }
@@ -278,10 +265,9 @@ export class TelegramChannel implements MessagingChannel {
 
     this.botToken = null
 
-    // Clear auth state in database
+    // Clear runtime state in database (credentials are in settings.json)
     db.update(messagingConnections)
       .set({
-        authState: null,
         displayName: null,
         status: 'disconnected',
         updatedAt: new Date().toISOString(),

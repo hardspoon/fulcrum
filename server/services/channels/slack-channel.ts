@@ -8,12 +8,12 @@ import type { KnownBlock, ChatPostMessageArguments } from '@slack/web-api'
 import { eq } from 'drizzle-orm'
 import { db, messagingConnections } from '../../db'
 import { log } from '../../lib/logger'
+import { getSettings } from '../../lib/settings'
 import type {
   MessagingChannel,
   ChannelEvents,
   ConnectionStatus,
   IncomingMessage,
-  SlackAuthState,
 } from './types'
 
 export class SlackChannel implements MessagingChannel {
@@ -36,33 +36,20 @@ export class SlackChannel implements MessagingChannel {
     this.events = events
     this.isShuttingDown = false
 
-    // Load auth state from database
-    const connection = db
-      .select()
-      .from(messagingConnections)
-      .where(eq(messagingConnections.id, this.connectionId))
-      .get()
+    // Load credentials from settings
+    const settings = getSettings()
+    const slackConfig = settings.channels.slack
 
-    if (!connection?.authState) {
-      log.messaging.warn('Slack channel has no auth state', {
+    if (!slackConfig.botToken || !slackConfig.appToken) {
+      log.messaging.warn('Slack channel missing credentials', {
         connectionId: this.connectionId,
       })
       this.updateStatus('disconnected')
       return
     }
 
-    try {
-      const authState = JSON.parse(connection.authState) as SlackAuthState
-      this.botToken = authState.botToken
-      this.appToken = authState.appToken
-    } catch (err) {
-      log.messaging.error('Failed to parse Slack auth state', {
-        connectionId: this.connectionId,
-        error: String(err),
-      })
-      this.updateStatus('disconnected')
-      return
-    }
+    this.botToken = slackConfig.botToken
+    this.appToken = slackConfig.appToken
 
     await this.connect()
   }
@@ -359,10 +346,9 @@ export class SlackChannel implements MessagingChannel {
     this.botToken = null
     this.appToken = null
 
-    // Clear auth state in database
+    // Clear runtime state in database (credentials are in settings.json)
     db.update(messagingConnections)
       .set({
-        authState: null,
         displayName: null,
         status: 'disconnected',
         updatedAt: new Date().toISOString(),

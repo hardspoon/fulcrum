@@ -63,9 +63,31 @@ export interface EmailSettings {
   allowedSenders: string[]
 }
 
+// Slack messaging settings
+export interface SlackSettings {
+  enabled: boolean
+  botToken: string
+  appToken: string
+}
+
+// Discord messaging settings
+export interface DiscordSettings {
+  enabled: boolean
+  botToken: string
+}
+
+// Telegram messaging settings
+export interface TelegramSettings {
+  enabled: boolean
+  botToken: string
+}
+
 // Channels settings (renamed from MessagingSettings)
 export interface ChannelsSettings {
   email: EmailSettings
+  slack: SlackSettings
+  discord: DiscordSettings
+  telegram: TelegramSettings
 }
 
 // Nested settings interface
@@ -194,6 +216,19 @@ export const DEFAULT_SETTINGS: Settings = {
       sendAs: null,
       allowedSenders: [],
     },
+    slack: {
+      enabled: false,
+      botToken: '',
+      appToken: '',
+    },
+    discord: {
+      enabled: false,
+      botToken: '',
+    },
+    telegram: {
+      enabled: false,
+      botToken: '',
+    },
   },
 }
 
@@ -248,6 +283,13 @@ export const VALID_SETTING_PATHS = new Set([
   'channels.email.pollIntervalSeconds',
   'channels.email.sendAs',
   'channels.email.allowedSenders',
+  'channels.slack.enabled',
+  'channels.slack.botToken',
+  'channels.slack.appToken',
+  'channels.discord.enabled',
+  'channels.discord.botToken',
+  'channels.telegram.enabled',
+  'channels.telegram.botToken',
 ])
 
 // Legacy flat settings interface for backward compatibility

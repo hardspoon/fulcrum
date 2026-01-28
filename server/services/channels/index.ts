@@ -80,32 +80,64 @@ export async function startMessagingChannels(): Promise<void> {
     }
   }
 
-  // Start WhatsApp and other database-tracked channels
-  const connections = db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.enabled, true))
-    .all()
-
-  // Filter out email (now handled via settings)
-  const nonEmailConnections = connections.filter(c => c.channelType !== 'email')
-
-  log.messaging.info('Starting messaging channels', {
-    emailEnabled: settings.channels.email.enabled,
-    otherChannels: nonEmailConnections.length,
-  })
-
-  for (const conn of nonEmailConnections) {
+  // Start Slack if enabled in settings
+  if (settings.channels.slack.enabled) {
     try {
-      await startChannel(conn)
+      await startSlackChannel()
     } catch (err) {
-      log.messaging.error('Failed to start channel', {
-        connectionId: conn.id,
-        channelType: conn.channelType,
+      log.messaging.error('Failed to start Slack channel', {
         error: String(err),
       })
     }
   }
+
+  // Start Discord if enabled in settings
+  if (settings.channels.discord.enabled) {
+    try {
+      await startDiscordChannel()
+    } catch (err) {
+      log.messaging.error('Failed to start Discord channel', {
+        error: String(err),
+      })
+    }
+  }
+
+  // Start Telegram if enabled in settings
+  if (settings.channels.telegram.enabled) {
+    try {
+      await startTelegramChannel()
+    } catch (err) {
+      log.messaging.error('Failed to start Telegram channel', {
+        error: String(err),
+      })
+    }
+  }
+
+  // Start WhatsApp from database (still uses QR auth)
+  const whatsappConn = db
+    .select()
+    .from(messagingConnections)
+    .where(eq(messagingConnections.channelType, 'whatsapp'))
+    .get()
+
+  if (whatsappConn?.enabled) {
+    try {
+      await startChannel(whatsappConn)
+    } catch (err) {
+      log.messaging.error('Failed to start WhatsApp channel', {
+        connectionId: whatsappConn.id,
+        error: String(err),
+      })
+    }
+  }
+
+  log.messaging.info('Started messaging channels', {
+    emailEnabled: settings.channels.email.enabled,
+    slackEnabled: settings.channels.slack.enabled,
+    discordEnabled: settings.channels.discord.enabled,
+    telegramEnabled: settings.channels.telegram.enabled,
+    whatsappEnabled: whatsappConn?.enabled ?? false,
+  })
 }
 
 /**
@@ -194,6 +226,151 @@ async function stopChannel(connectionId: string): Promise<void> {
   activeChannels.delete(connectionId)
 
   log.messaging.info('Channel stopped', { connectionId })
+}
+
+// Connection IDs for settings-based channels (constant since there's only one per type)
+export const SLACK_CONNECTION_ID = 'slack-channel'
+export const DISCORD_CONNECTION_ID = 'discord-channel'
+export const TELEGRAM_CONNECTION_ID = 'telegram-channel'
+
+// Track active settings-based channels
+let activeSlackChannel: SlackChannel | null = null
+let activeDiscordChannel: DiscordChannel | null = null
+let activeTelegramChannel: TelegramChannel | null = null
+
+/**
+ * Start the Slack channel from settings.
+ */
+async function startSlackChannel(): Promise<void> {
+  const settings = getSettings()
+  const slackConfig = settings.channels.slack
+
+  if (!slackConfig.enabled) {
+    log.messaging.debug('Slack channel not enabled')
+    return
+  }
+
+  if (!slackConfig.botToken || !slackConfig.appToken) {
+    log.messaging.warn('Slack enabled but credentials incomplete')
+    return
+  }
+
+  // Create and initialize the Slack channel
+  const channel = channelFactory.createSlackChannel(SLACK_CONNECTION_ID) as SlackChannel
+
+  await channel.initialize({
+    onMessage: (msg) => handleIncomingMessage(msg),
+    onConnectionChange: (status) => handleConnectionChange(SLACK_CONNECTION_ID, status),
+    onAuthRequired: (data) => handleAuthRequired(SLACK_CONNECTION_ID, data),
+    onDisplayNameChange: (name) => handleDisplayNameChange(SLACK_CONNECTION_ID, name),
+  })
+
+  activeSlackChannel = channel
+  activeChannels.set(SLACK_CONNECTION_ID, channel)
+
+  log.messaging.info('Slack channel started from settings')
+}
+
+/**
+ * Stop the Slack channel.
+ */
+async function stopSlackChannel(): Promise<void> {
+  if (activeSlackChannel) {
+    await activeSlackChannel.shutdown()
+    activeSlackChannel = null
+    activeChannels.delete(SLACK_CONNECTION_ID)
+    log.messaging.info('Slack channel stopped')
+  }
+}
+
+/**
+ * Start the Discord channel from settings.
+ */
+async function startDiscordChannel(): Promise<void> {
+  const settings = getSettings()
+  const discordConfig = settings.channels.discord
+
+  if (!discordConfig.enabled) {
+    log.messaging.debug('Discord channel not enabled')
+    return
+  }
+
+  if (!discordConfig.botToken) {
+    log.messaging.warn('Discord enabled but bot token missing')
+    return
+  }
+
+  // Create and initialize the Discord channel
+  const channel = channelFactory.createDiscordChannel(DISCORD_CONNECTION_ID) as DiscordChannel
+
+  await channel.initialize({
+    onMessage: (msg) => handleIncomingMessage(msg),
+    onConnectionChange: (status) => handleConnectionChange(DISCORD_CONNECTION_ID, status),
+    onAuthRequired: (data) => handleAuthRequired(DISCORD_CONNECTION_ID, data),
+    onDisplayNameChange: (name) => handleDisplayNameChange(DISCORD_CONNECTION_ID, name),
+  })
+
+  activeDiscordChannel = channel
+  activeChannels.set(DISCORD_CONNECTION_ID, channel)
+
+  log.messaging.info('Discord channel started from settings')
+}
+
+/**
+ * Stop the Discord channel.
+ */
+async function stopDiscordChannel(): Promise<void> {
+  if (activeDiscordChannel) {
+    await activeDiscordChannel.shutdown()
+    activeDiscordChannel = null
+    activeChannels.delete(DISCORD_CONNECTION_ID)
+    log.messaging.info('Discord channel stopped')
+  }
+}
+
+/**
+ * Start the Telegram channel from settings.
+ */
+async function startTelegramChannel(): Promise<void> {
+  const settings = getSettings()
+  const telegramConfig = settings.channels.telegram
+
+  if (!telegramConfig.enabled) {
+    log.messaging.debug('Telegram channel not enabled')
+    return
+  }
+
+  if (!telegramConfig.botToken) {
+    log.messaging.warn('Telegram enabled but bot token missing')
+    return
+  }
+
+  // Create and initialize the Telegram channel
+  const channel = channelFactory.createTelegramChannel(TELEGRAM_CONNECTION_ID) as TelegramChannel
+
+  await channel.initialize({
+    onMessage: (msg) => handleIncomingMessage(msg),
+    onConnectionChange: (status) => handleConnectionChange(TELEGRAM_CONNECTION_ID, status),
+    onAuthRequired: (data) => handleAuthRequired(TELEGRAM_CONNECTION_ID, data),
+    onDisplayNameChange: (name) => handleDisplayNameChange(TELEGRAM_CONNECTION_ID, name),
+  })
+
+  activeTelegramChannel = channel
+  activeChannels.set(TELEGRAM_CONNECTION_ID, channel)
+
+  log.messaging.info('Telegram channel started from settings')
+}
+
+/**
+ * Stop the Telegram channel.
+ */
+async function stopTelegramChannel(): Promise<void> {
+  if (activeTelegramChannel) {
+    await activeTelegramChannel.shutdown()
+    activeTelegramChannel = null
+    activeChannels.delete(TELEGRAM_CONNECTION_ID)
+    log.messaging.info('Telegram channel stopped')
+  }
 }
 
 /**
@@ -683,382 +860,422 @@ export function getWhatsAppStatus(): MessagingConnection | null {
 // ==================== Discord API Functions ====================
 
 /**
- * Get or create a Discord connection.
+ * Configure Discord with a bot token and enable the channel.
+ * Saves configuration to settings.json and starts the channel.
  */
-export function getOrCreateDiscordConnection(): MessagingConnection {
-  const existing = db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.channelType, 'discord'))
-    .get()
+export async function configureDiscord(botToken: string): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  // Stop existing channel if running
+  await stopDiscordChannel()
 
-  if (existing) return existing
+  // Save to settings
+  updateSettingByPath('channels.discord.enabled', true)
+  updateSettingByPath('channels.discord.botToken', botToken)
 
-  const now = new Date().toISOString()
-  const id = nanoid()
+  // Start the channel
+  await startDiscordChannel()
 
-  const newConn = {
-    id,
-    channelType: 'discord' as const,
-    enabled: false,
-    status: 'disconnected' as const,
-    createdAt: now,
-    updatedAt: now,
+  return {
+    enabled: true,
+    status: activeDiscordChannel?.getStatus() || 'connecting',
   }
-
-  db.insert(messagingConnections).values(newConn).run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, id))
-    .get()!
 }
 
 /**
- * Enable Discord with a bot token and start the channel.
+ * Enable Discord using existing credentials from settings.
  */
-export async function enableDiscord(botToken: string): Promise<MessagingConnection> {
-  const conn = getOrCreateDiscordConnection()
+export async function enableDiscord(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+  error?: string
+}> {
+  const settings = getSettings()
+  const discordConfig = settings.channels.discord
 
-  const authState = JSON.stringify({ botToken })
+  if (!discordConfig.botToken) {
+    return {
+      enabled: false,
+      status: 'credentials_required',
+      error: 'Discord bot token not configured.',
+    }
+  }
 
-  db.update(messagingConnections)
-    .set({
-      enabled: true,
-      authState,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
+  // Stop existing channel if running
+  await stopDiscordChannel()
 
-  await startChannel({ ...conn, enabled: true, authState })
+  // Update settings to enable
+  updateSettingByPath('channels.discord.enabled', true)
 
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
+  // Start the channel
+  await startDiscordChannel()
+
+  return {
+    enabled: true,
+    status: activeDiscordChannel?.getStatus() || 'connecting',
+  }
 }
 
 /**
  * Disable Discord and stop the channel.
  */
-export async function disableDiscord(): Promise<MessagingConnection> {
-  const conn = getOrCreateDiscordConnection()
+export async function disableDiscord(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  await stopDiscordChannel()
 
-  await stopChannel(conn.id)
+  // Update settings to disable
+  updateSettingByPath('channels.discord.enabled', false)
 
-  db.update(messagingConnections)
-    .set({
-      enabled: false,
-      status: 'disconnected',
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
+  return {
+    enabled: false,
+    status: 'disconnected',
+  }
 }
 
 /**
- * Disconnect Discord (logout and clear auth).
+ * Disconnect Discord (clear credentials from settings).
  */
-export async function disconnectDiscord(): Promise<MessagingConnection> {
-  const conn = getOrCreateDiscordConnection()
-  const channel = activeChannels.get(conn.id)
+export async function disconnectDiscord(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  await stopDiscordChannel()
 
-  if (channel?.logout) {
-    await channel.logout()
+  // Clear settings
+  updateSettingByPath('channels.discord.enabled', false)
+  updateSettingByPath('channels.discord.botToken', '')
+
+  return {
+    enabled: false,
+    status: 'disconnected',
   }
-
-  await stopChannel(conn.id)
-
-  db.update(messagingConnections)
-    .set({
-      enabled: false,
-      status: 'disconnected',
-      displayName: null,
-      authState: null,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
 }
 
 /**
  * Get Discord connection status.
  */
-export function getDiscordStatus(): MessagingConnection | null {
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.channelType, 'discord'))
-    .get() ?? null
+export function getDiscordStatus(): {
+  enabled: boolean
+  status: ConnectionStatus
+} {
+  const settings = getSettings()
+  const discordConfig = settings.channels.discord
+
+  if (!discordConfig.enabled) {
+    return { enabled: false, status: 'disconnected' }
+  }
+
+  if (!discordConfig.botToken) {
+    return { enabled: true, status: 'credentials_required' }
+  }
+
+  return {
+    enabled: true,
+    status: activeDiscordChannel?.getStatus() || 'disconnected',
+  }
+}
+
+/**
+ * Get Discord configuration (token masked with ********).
+ */
+export function getDiscordConfig(): {
+  enabled: boolean
+  botToken: string
+} | null {
+  const settings = getSettings()
+  const discordConfig = settings.channels.discord
+
+  if (!discordConfig.botToken) return null
+
+  return {
+    enabled: discordConfig.enabled,
+    botToken: discordConfig.botToken ? '••••••••' : '',
+  }
 }
 
 // ==================== Telegram API Functions ====================
 
 /**
- * Get or create a Telegram connection.
+ * Configure Telegram with a bot token and enable the channel.
+ * Saves configuration to settings.json and starts the channel.
  */
-export function getOrCreateTelegramConnection(): MessagingConnection {
-  const existing = db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.channelType, 'telegram'))
-    .get()
+export async function configureTelegram(botToken: string): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  // Stop existing channel if running
+  await stopTelegramChannel()
 
-  if (existing) return existing
+  // Save to settings
+  updateSettingByPath('channels.telegram.enabled', true)
+  updateSettingByPath('channels.telegram.botToken', botToken)
 
-  const now = new Date().toISOString()
-  const id = nanoid()
+  // Start the channel
+  await startTelegramChannel()
 
-  const newConn = {
-    id,
-    channelType: 'telegram' as const,
-    enabled: false,
-    status: 'disconnected' as const,
-    createdAt: now,
-    updatedAt: now,
+  return {
+    enabled: true,
+    status: activeTelegramChannel?.getStatus() || 'connecting',
   }
-
-  db.insert(messagingConnections).values(newConn).run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, id))
-    .get()!
 }
 
 /**
- * Enable Telegram with a bot token and start the channel.
+ * Enable Telegram using existing credentials from settings.
  */
-export async function enableTelegram(botToken: string): Promise<MessagingConnection> {
-  const conn = getOrCreateTelegramConnection()
+export async function enableTelegram(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+  error?: string
+}> {
+  const settings = getSettings()
+  const telegramConfig = settings.channels.telegram
 
-  const authState = JSON.stringify({ botToken })
+  if (!telegramConfig.botToken) {
+    return {
+      enabled: false,
+      status: 'credentials_required',
+      error: 'Telegram bot token not configured.',
+    }
+  }
 
-  db.update(messagingConnections)
-    .set({
-      enabled: true,
-      authState,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
+  // Stop existing channel if running
+  await stopTelegramChannel()
 
-  await startChannel({ ...conn, enabled: true, authState })
+  // Update settings to enable
+  updateSettingByPath('channels.telegram.enabled', true)
 
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
+  // Start the channel
+  await startTelegramChannel()
+
+  return {
+    enabled: true,
+    status: activeTelegramChannel?.getStatus() || 'connecting',
+  }
 }
 
 /**
  * Disable Telegram and stop the channel.
  */
-export async function disableTelegram(): Promise<MessagingConnection> {
-  const conn = getOrCreateTelegramConnection()
+export async function disableTelegram(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  await stopTelegramChannel()
 
-  await stopChannel(conn.id)
+  // Update settings to disable
+  updateSettingByPath('channels.telegram.enabled', false)
 
-  db.update(messagingConnections)
-    .set({
-      enabled: false,
-      status: 'disconnected',
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
+  return {
+    enabled: false,
+    status: 'disconnected',
+  }
 }
 
 /**
- * Disconnect Telegram (logout and clear auth).
+ * Disconnect Telegram (clear credentials from settings).
  */
-export async function disconnectTelegram(): Promise<MessagingConnection> {
-  const conn = getOrCreateTelegramConnection()
-  const channel = activeChannels.get(conn.id)
+export async function disconnectTelegram(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  await stopTelegramChannel()
 
-  if (channel?.logout) {
-    await channel.logout()
+  // Clear settings
+  updateSettingByPath('channels.telegram.enabled', false)
+  updateSettingByPath('channels.telegram.botToken', '')
+
+  return {
+    enabled: false,
+    status: 'disconnected',
   }
-
-  await stopChannel(conn.id)
-
-  db.update(messagingConnections)
-    .set({
-      enabled: false,
-      status: 'disconnected',
-      displayName: null,
-      authState: null,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
 }
 
 /**
  * Get Telegram connection status.
  */
-export function getTelegramStatus(): MessagingConnection | null {
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.channelType, 'telegram'))
-    .get() ?? null
+export function getTelegramStatus(): {
+  enabled: boolean
+  status: ConnectionStatus
+} {
+  const settings = getSettings()
+  const telegramConfig = settings.channels.telegram
+
+  if (!telegramConfig.enabled) {
+    return { enabled: false, status: 'disconnected' }
+  }
+
+  if (!telegramConfig.botToken) {
+    return { enabled: true, status: 'credentials_required' }
+  }
+
+  return {
+    enabled: true,
+    status: activeTelegramChannel?.getStatus() || 'disconnected',
+  }
+}
+
+/**
+ * Get Telegram configuration (token masked with ********).
+ */
+export function getTelegramConfig(): {
+  enabled: boolean
+  botToken: string
+} | null {
+  const settings = getSettings()
+  const telegramConfig = settings.channels.telegram
+
+  if (!telegramConfig.botToken) return null
+
+  return {
+    enabled: telegramConfig.enabled,
+    botToken: telegramConfig.botToken ? '••••••••' : '',
+  }
 }
 
 // ==================== Slack API Functions ====================
 
 /**
- * Get or create a Slack connection.
+ * Configure Slack with tokens and enable the channel.
+ * Saves configuration to settings.json and starts the channel.
  */
-export function getOrCreateSlackConnection(): MessagingConnection {
-  const existing = db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.channelType, 'slack'))
-    .get()
+export async function configureSlack(botToken: string, appToken: string): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  // Stop existing channel if running
+  await stopSlackChannel()
 
-  if (existing) return existing
+  // Save to settings
+  updateSettingByPath('channels.slack.enabled', true)
+  updateSettingByPath('channels.slack.botToken', botToken)
+  updateSettingByPath('channels.slack.appToken', appToken)
 
-  const now = new Date().toISOString()
-  const id = nanoid()
+  // Start the channel
+  await startSlackChannel()
 
-  const newConn = {
-    id,
-    channelType: 'slack' as const,
-    enabled: false,
-    status: 'disconnected' as const,
-    createdAt: now,
-    updatedAt: now,
+  return {
+    enabled: true,
+    status: activeSlackChannel?.getStatus() || 'connecting',
   }
-
-  db.insert(messagingConnections).values(newConn).run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, id))
-    .get()!
 }
 
 /**
- * Enable Slack with bot and app tokens and start the channel.
+ * Enable Slack using existing credentials from settings.
  */
-export async function enableSlack(botToken: string, appToken: string): Promise<MessagingConnection> {
-  const conn = getOrCreateSlackConnection()
+export async function enableSlack(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+  error?: string
+}> {
+  const settings = getSettings()
+  const slackConfig = settings.channels.slack
 
-  const authState = JSON.stringify({ botToken, appToken })
+  if (!slackConfig.botToken || !slackConfig.appToken) {
+    return {
+      enabled: false,
+      status: 'credentials_required',
+      error: 'Slack tokens not configured.',
+    }
+  }
 
-  db.update(messagingConnections)
-    .set({
-      enabled: true,
-      authState,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
+  // Stop existing channel if running
+  await stopSlackChannel()
 
-  await startChannel({ ...conn, enabled: true, authState })
+  // Update settings to enable
+  updateSettingByPath('channels.slack.enabled', true)
 
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
+  // Start the channel
+  await startSlackChannel()
+
+  return {
+    enabled: true,
+    status: activeSlackChannel?.getStatus() || 'connecting',
+  }
 }
 
 /**
  * Disable Slack and stop the channel.
  */
-export async function disableSlack(): Promise<MessagingConnection> {
-  const conn = getOrCreateSlackConnection()
+export async function disableSlack(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  await stopSlackChannel()
 
-  await stopChannel(conn.id)
+  // Update settings to disable
+  updateSettingByPath('channels.slack.enabled', false)
 
-  db.update(messagingConnections)
-    .set({
-      enabled: false,
-      status: 'disconnected',
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
+  return {
+    enabled: false,
+    status: 'disconnected',
+  }
 }
 
 /**
- * Disconnect Slack (logout and clear auth).
+ * Disconnect Slack (clear credentials from settings).
  */
-export async function disconnectSlack(): Promise<MessagingConnection> {
-  const conn = getOrCreateSlackConnection()
-  const channel = activeChannels.get(conn.id)
+export async function disconnectSlack(): Promise<{
+  enabled: boolean
+  status: ConnectionStatus
+}> {
+  await stopSlackChannel()
 
-  if (channel?.logout) {
-    await channel.logout()
+  // Clear settings
+  updateSettingByPath('channels.slack.enabled', false)
+  updateSettingByPath('channels.slack.botToken', '')
+  updateSettingByPath('channels.slack.appToken', '')
+
+  return {
+    enabled: false,
+    status: 'disconnected',
   }
-
-  await stopChannel(conn.id)
-
-  db.update(messagingConnections)
-    .set({
-      enabled: false,
-      status: 'disconnected',
-      displayName: null,
-      authState: null,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(messagingConnections.id, conn.id))
-    .run()
-
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.id, conn.id))
-    .get()!
 }
 
 /**
  * Get Slack connection status.
  */
-export function getSlackStatus(): MessagingConnection | null {
-  return db
-    .select()
-    .from(messagingConnections)
-    .where(eq(messagingConnections.channelType, 'slack'))
-    .get() ?? null
+export function getSlackStatus(): {
+  enabled: boolean
+  status: ConnectionStatus
+} {
+  const settings = getSettings()
+  const slackConfig = settings.channels.slack
+
+  if (!slackConfig.enabled) {
+    return { enabled: false, status: 'disconnected' }
+  }
+
+  if (!slackConfig.botToken || !slackConfig.appToken) {
+    return { enabled: true, status: 'credentials_required' }
+  }
+
+  return {
+    enabled: true,
+    status: activeSlackChannel?.getStatus() || 'disconnected',
+  }
+}
+
+/**
+ * Get Slack configuration (tokens masked with ********).
+ */
+export function getSlackConfig(): {
+  enabled: boolean
+  botToken: string
+  appToken: string
+} | null {
+  const settings = getSettings()
+  const slackConfig = settings.channels.slack
+
+  if (!slackConfig.botToken) return null
+
+  return {
+    enabled: slackConfig.enabled,
+    botToken: slackConfig.botToken ? '••••••••' : '',
+    appToken: slackConfig.appToken ? '••••••••' : '',
+  }
 }
 
 /**

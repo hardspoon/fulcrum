@@ -8,8 +8,8 @@ import {
   enableWhatsApp,
   disableWhatsApp,
   getWhatsAppStatus,
-  enableDiscord,
-  enableSlack,
+  configureDiscord,
+  configureSlack,
   listConnections,
   stopMessagingChannels,
   setChannelFactory,
@@ -426,7 +426,7 @@ describe('sendMessageToChannel', () => {
   })
 
   test('discord sends message when connected', async () => {
-    await enableDiscord('fake-bot-token')
+    await configureDiscord('fake-bot-token')
 
     const result = await sendMessageToChannel('discord', '123456789', 'Hello from test')
 
@@ -441,7 +441,7 @@ describe('sendMessageToChannel', () => {
   })
 
   test('slack sends message when connected', async () => {
-    await enableSlack('xoxb-fake-bot-token', 'xapp-fake-app-token')
+    await configureSlack('xoxb-fake-bot-token', 'xapp-fake-app-token')
 
     const result = await sendMessageToChannel('slack', 'U123456', 'Hello from test')
 
