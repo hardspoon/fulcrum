@@ -47,6 +47,28 @@ export class EmailChannel implements MessagingChannel {
     this.credentials = credentials ?? null
   }
 
+  /** Create an ImapFlow client with an error event listener to prevent unhandled crashes */
+  private createImapClient(): ImapFlow {
+    if (!this.credentials) throw new Error('No credentials available')
+    const client = new ImapFlow({
+      host: this.credentials.imap.host,
+      port: this.credentials.imap.port,
+      secure: this.credentials.imap.secure,
+      auth: {
+        user: this.credentials.imap.user,
+        pass: this.credentials.imap.password,
+      },
+      logger: false,
+    })
+    client.on('error', (err: Error) => {
+      log.messaging.error('IMAP client error', {
+        connectionId: this.connectionId,
+        error: String(err),
+      })
+    })
+    return client
+  }
+
   async initialize(events: ChannelEvents): Promise<void> {
     this.events = events
     this.isShuttingDown = false
@@ -101,16 +123,7 @@ export class EmailChannel implements MessagingChannel {
       })
 
       // Setup IMAP client
-      this.imapClient = new ImapFlow({
-        host: this.credentials.imap.host,
-        port: this.credentials.imap.port,
-        secure: this.credentials.imap.secure,
-        auth: {
-          user: this.credentials.imap.user,
-          pass: this.credentials.imap.password,
-        },
-        logger: false, // Disable verbose logging
-      })
+      this.imapClient = this.createImapClient()
 
       // Connect to IMAP
       await this.imapClient.connect()
@@ -163,16 +176,7 @@ export class EmailChannel implements MessagingChannel {
 
     try {
       // Create new IMAP connection for polling
-      const client = new ImapFlow({
-        host: this.credentials.imap.host,
-        port: this.credentials.imap.port,
-        secure: this.credentials.imap.secure,
-        auth: {
-          user: this.credentials.imap.user,
-          pass: this.credentials.imap.password,
-        },
-        logger: false,
-      })
+      const client = this.createImapClient()
 
       await client.connect()
       const lock = await client.getMailboxLock('INBOX')
@@ -407,16 +411,7 @@ export class EmailChannel implements MessagingChannel {
       throw new Error('Not connected - no credentials available')
     }
 
-    const client = new ImapFlow({
-      host: this.credentials.imap.host,
-      port: this.credentials.imap.port,
-      secure: this.credentials.imap.secure,
-      auth: {
-        user: this.credentials.imap.user,
-        pass: this.credentials.imap.password,
-      },
-      logger: false,
-    })
+    const client = this.createImapClient()
 
     try {
       await client.connect()
@@ -461,16 +456,7 @@ export class EmailChannel implements MessagingChannel {
     const limit = options?.limit ?? 50
     const uidsToFetch = uids.slice(0, limit)
 
-    const client = new ImapFlow({
-      host: this.credentials.imap.host,
-      port: this.credentials.imap.port,
-      secure: this.credentials.imap.secure,
-      auth: {
-        user: this.credentials.imap.user,
-        pass: this.credentials.imap.password,
-      },
-      logger: false,
-    })
+    const client = this.createImapClient()
 
     const storedEmails: typeof emails.$inferSelect[] = []
 
@@ -593,6 +579,7 @@ export async function testEmailCredentials(credentials: EmailAuthState): Promise
       },
       logger: false,
     })
+    client.on('error', () => {}) // Prevent unhandled error event crash
 
     await client.connect()
     await client.logout()
