@@ -76,7 +76,8 @@ export function endSession(id: string): boolean {
  * Build the system prompt for the chat assistant with page context
  */
 async function buildSystemPrompt(context?: PageContext): Promise<string> {
-  const instanceContext = getInstanceContext()
+  const settings = getSettings()
+  const instanceContext = getInstanceContext(settings.assistant.documentsDir)
   let prompt = instanceContext + '\n\n' + getFullKnowledge() + `
 
 ## Guidelines

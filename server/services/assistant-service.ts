@@ -214,7 +214,8 @@ export function getMessages(sessionId: string): ChatMessage[] {
  * @param condensed - Use condensed knowledge (for channels) vs full knowledge (for UI)
  */
 function buildBaselinePrompt(condensed = false): string {
-  const instanceContext = getInstanceContext()
+  const settings = getSettings()
+  const instanceContext = getInstanceContext(settings.assistant.documentsDir)
   const knowledge = condensed ? getCondensedKnowledge() : getFullKnowledge()
 
   let baseline = `${instanceContext}
@@ -222,7 +223,6 @@ function buildBaselinePrompt(condensed = false): string {
 ${knowledge}`
 
   // Add custom instructions from settings if configured
-  const settings = getSettings()
   const customInstructions = settings.assistant.customInstructions
   if (customInstructions) {
     baseline += `
