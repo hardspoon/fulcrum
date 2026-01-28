@@ -35,6 +35,9 @@ export class WhatsAppChannel implements MessagingChannel {
   private authDir: string
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private isShuttingDown = false
+  // Self-chat identifiers - both phone number and LID (Linked ID) can be valid
+  private selfPhoneNumber: string | null = null
+  private selfLidNumber: string | null = null
 
   constructor(connectionId: string) {
     this.connectionId = connectionId
@@ -166,19 +169,23 @@ export class WhatsAppChannel implements MessagingChannel {
     const myNumber = myJid?.split(':')[0] || myJid?.split('@')[0]
     const myLidNumber = myLid?.split(':')[0] || myLid?.split('@')[0]
 
+    // Store both identifiers for sendMessage validation
+    if (myNumber) this.selfPhoneNumber = myNumber
+    if (myLidNumber) this.selfLidNumber = myLidNumber
+
     for (const msg of m.messages) {
       // Skip non-text messages
       if (!msg.message?.conversation && !msg.message?.extendedTextMessage?.text) continue
 
       const remoteJid = msg.key.remoteJid || ''
       const remoteNumber = remoteJid.split('@')[0]
+
+      // Check if this is a group chat
+      const isGroup = remoteJid.endsWith('@g.us')
+
       // Check if this is a self-chat by comparing both phone number and LID
       const isSelfChat =
         (myNumber && remoteNumber === myNumber) || (myLidNumber && remoteNumber === myLidNumber)
-
-      // Only respond to messages in self-chat (user messaging themselves via "Message yourself")
-      // Ignore: group chats, direct messages from other people
-      if (!isSelfChat) continue
 
       const content = msg.message.conversation || msg.message.extendedTextMessage?.text || ''
       // Keep full JID as senderId to preserve @lid vs @s.whatsapp.net for replies
@@ -194,6 +201,12 @@ export class WhatsAppChannel implements MessagingChannel {
         senderName,
         content,
         timestamp: new Date(msg.messageTimestamp as number * 1000),
+        metadata: {
+          isSelfChat,
+          isGroup,
+          // For non-self-chat messages, mark as observe-only (no response will be sent)
+          observeOnly: !isSelfChat,
+        },
       }
 
       log.messaging.info('WhatsApp message received', {
@@ -201,6 +214,7 @@ export class WhatsAppChannel implements MessagingChannel {
         from: senderId,
         contentLength: content.length,
         isSelfChat,
+        isGroup,
       })
 
       try {
@@ -242,10 +256,29 @@ export class WhatsAppChannel implements MessagingChannel {
       return false
     }
 
-    try {
-      // Format recipient as WhatsApp JID
-      const jid = recipientId.includes('@') ? recipientId : `${recipientId}@s.whatsapp.net`
+    // Format recipient as WhatsApp JID
+    const jid = recipientId.includes('@') ? recipientId : `${recipientId}@s.whatsapp.net`
 
+    // Only allow sending to self-chat (the user's "Message yourself" thread)
+    // This prevents the assistant from messaging other people or groups
+    // WhatsApp uses both phone JID and LID - check against both
+    const recipientNumber = jid.split('@')[0].split(':')[0]
+    const isSelfChat =
+      (this.selfPhoneNumber && recipientNumber === this.selfPhoneNumber) ||
+      (this.selfLidNumber && recipientNumber === this.selfLidNumber)
+
+    if (!isSelfChat) {
+      log.messaging.warn('WhatsApp send blocked - can only send to self-chat', {
+        connectionId: this.connectionId,
+        recipientId,
+        recipientNumber,
+        selfPhoneNumber: this.selfPhoneNumber,
+        selfLidNumber: this.selfLidNumber,
+      })
+      return false
+    }
+
+    try {
       await this.socket.sendMessage(jid, { text: content })
 
       log.messaging.info('WhatsApp message sent', {

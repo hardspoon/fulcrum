@@ -6,7 +6,7 @@
 import { log } from '../../lib/logger'
 import { activeChannels, setMessageHandler } from './channel-manager'
 import { getOrCreateSession, resetSession } from './session-mapper'
-import { getMessagingSystemPrompt, type MessagingContext } from './system-prompts'
+import { getMessagingSystemPrompt, getObserveOnlySystemPrompt, type MessagingContext } from './system-prompts'
 import * as assistantService from '../assistant-service'
 import type { IncomingMessage } from './types'
 
@@ -23,6 +23,19 @@ const COMMANDS = {
  */
 export async function handleIncomingMessage(msg: IncomingMessage): Promise<void> {
   const content = msg.content.trim()
+  const isObserveOnly = msg.metadata?.observeOnly === true
+
+  // For observe-only messages (e.g., WhatsApp messages not in self-chat),
+  // skip commands and just let the assistant observe for actionable events
+  if (isObserveOnly) {
+    log.messaging.info('Processing observe-only message', {
+      connectionId: msg.connectionId,
+      channelType: msg.channelType,
+      senderId: msg.senderId,
+    })
+    await processForActionableEvents(msg)
+    return
+  }
 
   // Check for special commands
   if (COMMANDS.RESET.some((cmd) => content.toLowerCase() === cmd)) {
@@ -317,6 +330,53 @@ function splitMessage(content: string, maxLength: number): string[] {
   }
 
   return parts
+}
+
+/**
+ * Process a message for actionable events only (no response).
+ * Used for messages the assistant can observe but shouldn't respond to,
+ * e.g., WhatsApp messages not in the user's self-chat.
+ */
+async function processForActionableEvents(msg: IncomingMessage): Promise<void> {
+  // Use a shared session for observe-only messages (they don't need individual tracking)
+  const observeSessionKey = `observe-${msg.connectionId}`
+  const { session } = getOrCreateSession(
+    msg.connectionId,
+    observeSessionKey,
+    'Observer'
+  )
+
+  const context: MessagingContext = {
+    channel: msg.channelType,
+    sender: msg.senderId,
+    senderName: msg.senderName,
+    content: msg.content,
+    metadata: {
+      subject: msg.metadata?.subject as string | undefined,
+      isGroup: msg.metadata?.isGroup as boolean | undefined,
+    },
+  }
+  const systemPrompt = getObserveOnlySystemPrompt(msg.channelType, context)
+
+  try {
+    // Stream the response - assistant can only create actionable events, not respond
+    const stream = assistantService.streamMessage(session.id, msg.content, {
+      systemPromptOverride: systemPrompt,
+    })
+
+    // Consume stream
+    for await (const event of stream) {
+      if (event.type === 'error') {
+        const errorMsg = (event.data as { message: string }).message
+        log.messaging.error('Assistant error processing observe-only message', { error: errorMsg })
+      }
+    }
+  } catch (err) {
+    log.messaging.error('Error processing observe-only message', {
+      connectionId: msg.connectionId,
+      error: String(err),
+    })
+  }
 }
 
 // Register message handler with channel manager
