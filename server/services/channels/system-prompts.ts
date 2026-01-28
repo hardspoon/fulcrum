@@ -108,6 +108,8 @@ export function getSweepSystemPrompt(context: {
 }): string {
   return `## Hourly Sweep
 
+**This is a non-interactive background session. Do not ask questions or wait for user input.**
+
 You are performing your hourly sweep.
 
 **Context:**
@@ -150,6 +152,8 @@ export function getRitualSystemPrompt(type: 'morning' | 'evening'): string {
   if (type === 'morning') {
     return `## Morning Ritual
 
+**This is a non-interactive background session. Do not ask questions or wait for user input.**
+
 You are performing your morning ritual.
 
 ## Output Channels
@@ -159,6 +163,8 @@ Then use the \`message\` tool to send your briefing to the connected channels.`
   }
 
   return `## Evening Ritual
+
+**This is a non-interactive background session. Do not ask questions or wait for user input.**
 
 You are performing your evening ritual.
 

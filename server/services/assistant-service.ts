@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { eq, desc, and, sql, like, isNotNull } from 'drizzle-orm'
+import { eq, desc, and, sql, like, isNotNull, isNull, or, not } from 'drizzle-orm'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { db, chatSessions, chatMessages, artifacts } from '../db'
 import type { ChatSession, NewChatSession, ChatMessage, NewChatMessage, Artifact, NewArtifact } from '../db/schema'
@@ -75,6 +75,14 @@ export function listSessions(options: {
   const { limit = 50, offset = 0, projectId, search, favorites } = options
 
   const conditions = []
+
+  // Exclude internal assistant sessions (sweeps, rituals)
+  conditions.push(
+    or(
+      isNull(chatSessions.connectionId),
+      not(like(chatSessions.connectionId, 'assistant-%'))
+    )
+  )
 
   if (projectId) {
     conditions.push(eq(chatSessions.projectId, projectId))
