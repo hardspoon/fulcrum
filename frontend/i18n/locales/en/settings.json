@@ -11,6 +11,7 @@
     "assistant": "AI Assistant",
     "tasks": "Task Defaults",
     "notifications": "Notifications",
+    "messaging": "Messaging",
     "appearance": "Appearance",
     "developer": "Developer"
   },
@@ -224,6 +225,16 @@
     "soundDeleted": "Custom sound removed",
     "soundDeleteFailed": "Failed to remove custom sound",
     "customSoundActive": "Custom sound active"
+  },
+  "concierge": {
+    "rituals": "Daily Rituals",
+    "ritualsDescription": "Schedule morning and evening briefings. The assistant will execute your prompts at the specified times.",
+    "morningRitual": "Morning Ritual",
+    "morningRitualDescription": "Morning briefing with today's priorities.",
+    "morningRitualPromptPlaceholder": "Review messages since yesterday evening, summarize what needs attention today, and send a prioritized action plan.",
+    "eveningRitual": "Evening Ritual",
+    "eveningRitualDescription": "Evening summary with accomplishments and pending items.",
+    "eveningRitualPromptPlaceholder": "Summarize what was accomplished today, note pending items, and suggest focus areas for tomorrow."
   },
   "developer": {
     "restartButton": "Restart Fulcrum",

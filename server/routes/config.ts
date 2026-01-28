@@ -49,6 +49,12 @@ export const CONFIG_KEYS = {
   ASSISTANT_PROVIDER: 'assistant.provider',
   ASSISTANT_MODEL: 'assistant.model',
   ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
+  ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
+  ASSISTANT_RITUALS_ENABLED: 'assistant.ritualsEnabled',
+  ASSISTANT_MORNING_RITUAL_TIME: 'assistant.morningRitual.time',
+  ASSISTANT_MORNING_RITUAL_PROMPT: 'assistant.morningRitual.prompt',
+  ASSISTANT_EVENING_RITUAL_TIME: 'assistant.eveningRitual.time',
+  ASSISTANT_EVENING_RITUAL_PROMPT: 'assistant.eveningRitual.prompt',
 } as const
 
 // Legacy key mapping to new nested paths (for backward compatibility)
@@ -331,7 +337,7 @@ app.put('/:key', async (c) => {
   }
 
   try {
-    const body = await c.req.json<{ value: string | number | null }>()
+    const body = await c.req.json<{ value: string | number | boolean | string[] | null }>()
     let { value } = body
 
     // Validate based on the setting type

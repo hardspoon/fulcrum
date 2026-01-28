@@ -691,8 +691,8 @@ export interface PageContext {
 }
 
 // Messaging channel types
-export type MessagingChannelType = 'whatsapp' | 'discord' | 'telegram'
-export type MessagingConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'qr_pending'
+export type MessagingChannelType = 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email'
+export type MessagingConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'qr_pending' | 'credentials_required'
 
 export interface MessagingConnection {
   id: string
@@ -712,4 +712,26 @@ export interface MessagingSessionMapping {
   sessionId: string
   createdAt: string
   lastMessageAt: string
+}
+
+// Email channel configuration (passwords masked with ******** in API responses)
+export interface EmailChannelConfig {
+  smtp: {
+    host: string
+    port: number
+    secure: boolean
+    user: string
+    password: string  // '••••••••' when set, '' when not set
+  }
+  imap: {
+    host: string
+    port: number
+    secure: boolean
+    user: string
+    password: string  // '••••••••' when set, '' when not set
+  }
+  pollIntervalSeconds: number
+  sendAs?: string
+  allowedSenders?: string[]
+  bcc?: string
 }

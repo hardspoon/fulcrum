@@ -11,6 +11,8 @@ import {
   type Settings,
   type AssistantProvider,
   type AssistantModel,
+  type ChannelsSettings,
+  type RitualConfig,
 } from './types'
 import type { AgentType } from '@shared/types'
 import { ensureFulcrumDir, expandPath, getSettingsPath } from './paths'
@@ -114,7 +116,20 @@ export function getSettings(): Settings {
       documentsDir: expandPath(
         ((parsed.assistant as Record<string, unknown>)?.documentsDir as string) ?? DEFAULT_SETTINGS.assistant.documentsDir
       ),
+      ritualsEnabled: ((parsed.assistant as Record<string, unknown>)?.ritualsEnabled as boolean) ?? DEFAULT_SETTINGS.assistant.ritualsEnabled,
+      morningRitual: deepMergeWithDefaults(
+        ((parsed.assistant as Record<string, unknown>)?.morningRitual as Record<string, unknown>) ?? {},
+        DEFAULT_SETTINGS.assistant.morningRitual as unknown as Record<string, unknown>
+      ) as RitualConfig,
+      eveningRitual: deepMergeWithDefaults(
+        ((parsed.assistant as Record<string, unknown>)?.eveningRitual as Record<string, unknown>) ?? {},
+        DEFAULT_SETTINGS.assistant.eveningRitual as unknown as Record<string, unknown>
+      ) as RitualConfig,
     },
+    channels: deepMergeWithDefaults(
+      (parsed.channels as Record<string, unknown>) ?? {},
+      DEFAULT_SETTINGS.channels as unknown as Record<string, unknown>
+    ) as ChannelsSettings,
   }
 
   // Apply environment variable overrides
@@ -145,6 +160,7 @@ export function getSettings(): Settings {
     tasks: fileSettings.tasks,
     appearance: fileSettings.appearance,
     assistant: fileSettings.assistant,
+    channels: fileSettings.channels,
   }
 }
 

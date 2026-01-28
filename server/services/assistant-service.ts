@@ -5,10 +5,12 @@ import { db, chatSessions, chatMessages, artifacts } from '../db'
 import type { ChatSession, NewChatSession, ChatMessage, NewChatMessage, Artifact, NewArtifact } from '../db/schema'
 import { getSettings } from '../lib/settings'
 import { getClaudeCodePathForSdk } from '../lib/claude-code-path'
+import { getInstanceContext } from '../lib/settings/paths'
 import { log } from '../lib/logger'
 import type { PageContext } from '../../shared/types'
 import { saveDocument, readDocument, deleteDocument, renameDocument, generateDocumentFilename } from './document-service'
-import { getFullKnowledge } from './assistant-knowledge'
+import { getFullKnowledge, getCondensedKnowledge } from './assistant-knowledge'
+import type { ImageData } from '../routes/chat'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
 
@@ -208,10 +210,36 @@ export function getMessages(sessionId: string): ChatMessage[] {
 }
 
 /**
- * Build system prompt for assistant
+ * Build the baseline system prompt that's always present.
+ * @param condensed - Use condensed knowledge (for channels) vs full knowledge (for UI)
+ */
+function buildBaselinePrompt(condensed = false): string {
+  const settings = getSettings()
+  const instanceContext = getInstanceContext(settings.assistant.documentsDir)
+  const knowledge = condensed ? getCondensedKnowledge() : getFullKnowledge()
+
+  let baseline = `${instanceContext}
+
+${knowledge}`
+
+  // Add custom instructions from settings if configured
+  const customInstructions = settings.assistant.customInstructions
+  if (customInstructions) {
+    baseline += `
+
+## Custom Instructions
+
+${customInstructions}`
+  }
+
+  return baseline
+}
+
+/**
+ * Build system prompt for UI assistant (baseline + UI features)
  */
 function buildSystemPrompt(): string {
-  const fulcrumKnowledge = getFullKnowledge()
+  const baseline = buildBaselinePrompt(false)
 
   const uiFeatures = `## UI Features
 
@@ -285,28 +313,19 @@ This will automatically update the editor. Always provide the COMPLETE document,
 - Adding new content
 - Any request that involves changing the document`
 
-  const basePrompt = `${fulcrumKnowledge}
+  return `${baseline}
 
 ${uiFeatures}`
-
-  // Add custom instructions from settings if configured
-  const settings = getSettings()
-  const customInstructions = settings.assistant.customInstructions
-  if (customInstructions) {
-    return basePrompt + `
-
-## Custom Instructions
-
-${customInstructions}`
-  }
-
-  return basePrompt
 }
 
 export interface StreamMessageOptions {
   modelId?: ModelId
   editorContent?: string
-  systemPromptOverride?: string
+  /** Context-specific additions appended to the baseline prompt (for channels, rituals, etc.) */
+  systemPromptAdditions?: string
+  /** Use condensed knowledge instead of full knowledge (for channels) */
+  condensedKnowledge?: boolean
+  images?: ImageData[]
 }
 
 /**
@@ -354,20 +373,63 @@ export async function* streamMessage(
       sessionId,
       hasResume: !!state.claudeSessionId,
       hasEditorContent: !!options.editorContent,
-      hasSystemPromptOverride: !!options.systemPromptOverride,
+      hasSystemPromptAdditions: !!options.systemPromptAdditions,
+      condensedKnowledge: !!options.condensedKnowledge,
     })
 
-    // Use override if provided, otherwise build default system prompt
-    const systemPrompt = options.systemPromptOverride ?? buildSystemPrompt()
+    // Build system prompt: baseline + optional additions
+    // For UI: full knowledge + UI features
+    // For channels: condensed knowledge + channel-specific additions
+    let systemPrompt: string
+    if (options.systemPromptAdditions) {
+      // Channel/ritual mode: baseline (condensed) + additions
+      const baseline = buildBaselinePrompt(options.condensedKnowledge ?? true)
+      systemPrompt = `${baseline}
+
+${options.systemPromptAdditions}`
+    } else {
+      // UI mode: full prompt with UI features
+      systemPrompt = buildSystemPrompt()
+    }
 
     // Build the full prompt, including editor content if present
-    let fullPrompt = userMessage
+    let textMessage = userMessage
     if (options.editorContent && options.editorContent.trim()) {
-      fullPrompt = `<editor_content>
+      textMessage = `<editor_content>
 ${options.editorContent}
 </editor_content>
 
 User message: ${userMessage}`
+    }
+
+    // Build the prompt - either simple string or content array with images
+    let fullPrompt: string | Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }>
+
+    if (options.images && options.images.length > 0) {
+      // Build content array with images first, then text
+      const content: Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }> = []
+
+      // Add images
+      for (const img of options.images) {
+        content.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: img.mediaType,
+            data: img.data,
+          },
+        })
+      }
+
+      // Add text (even if empty, to ensure the message has content)
+      content.push({
+        type: 'text',
+        text: textMessage || 'What is in this image?',
+      })
+
+      fullPrompt = content
+    } else {
+      fullPrompt = textMessage
     }
 
     const result = query({
@@ -395,6 +457,22 @@ User message: ${userMessage}`
     const tokensOut = 0
 
     for await (const message of result) {
+      // Log system init message to see MCP server status
+      if (message.type === 'system') {
+        const sysMsg = message as {
+          type: 'system'
+          subtype: string
+          tools?: string[]
+          mcp_servers?: { name: string; status: string }[]
+        }
+        log.assistant.info('SDK system message', {
+          sessionId,
+          subtype: sysMsg.subtype,
+          toolCount: sysMsg.tools?.length,
+          mcpServers: sysMsg.mcp_servers,
+        })
+      }
+
       if (message.type === 'stream_event') {
         const event = (message as { type: 'stream_event'; event: { type: string; delta?: { type: string; text?: string } } }).event
 
@@ -447,7 +525,13 @@ User message: ${userMessage}`
           yield { type: 'message:complete', data: { content: textContent } }
         }
       } else if (message.type === 'result') {
-        const resultMsg = message as { type: 'result'; subtype?: string; total_cost_usd?: number; is_error?: boolean; errors?: string[] }
+        const resultMsg = message as {
+          type: 'result'
+          subtype?: string
+          total_cost_usd?: number
+          is_error?: boolean
+          errors?: string[]
+        }
 
         if (resultMsg.subtype?.startsWith('error_')) {
           const errors = resultMsg.errors || ['Unknown error']

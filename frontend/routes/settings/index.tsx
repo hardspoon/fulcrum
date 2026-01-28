@@ -57,6 +57,11 @@ import {
   useAssistantModel,
   useAssistantCustomInstructions,
   useAssistantDocumentsDir,
+  useAssistantRitualsEnabled,
+  useAssistantMorningRitualTime,
+  useAssistantMorningRitualPrompt,
+  useAssistantEveningRitualTime,
+  useAssistantEveningRitualPrompt,
   NotificationSettingsConflictError,
   CONFIG_KEYS,
   CLAUDE_CODE_THEMES,
@@ -71,6 +76,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
 import { ModelPicker } from '@/components/opencode/model-picker'
 import { WhatsAppSetup } from '@/components/messaging/whatsapp-setup'
+import { DiscordSetup } from '@/components/messaging/discord-setup'
+import { TelegramSetup } from '@/components/messaging/telegram-setup'
+import { SlackSetup } from '@/components/messaging/slack-setup'
+import { EmailSetup } from '@/components/messaging/email-setup'
 import {
   useDeploymentSettings,
   useUpdateDeploymentSettings,
@@ -126,6 +135,11 @@ function SettingsPage() {
   const { data: assistantModel, isLoading: assistantModelLoading } = useAssistantModel()
   const { data: assistantCustomInstructions, isLoading: assistantInstructionsLoading } = useAssistantCustomInstructions()
   const { data: assistantDocumentsDir, isLoading: assistantDocumentsDirLoading } = useAssistantDocumentsDir()
+  const { data: ritualsEnabled, isLoading: ritualsEnabledLoading } = useAssistantRitualsEnabled()
+  const { data: morningRitualTime, isLoading: morningTimeLoading } = useAssistantMorningRitualTime()
+  const { data: morningRitualPrompt, isLoading: morningPromptLoading } = useAssistantMorningRitualPrompt()
+  const { data: eveningRitualTime, isLoading: eveningTimeLoading } = useAssistantEveningRitualTime()
+  const { data: eveningRitualPrompt, isLoading: eveningPromptLoading } = useAssistantEveningRitualPrompt()
   const { installed: opencodeInstalled } = useOpencodeModels()
   const { version } = useFulcrumVersion()
   const { data: versionCheck, isLoading: versionCheckLoading } = useVersionCheck()
@@ -194,6 +208,13 @@ function SettingsPage() {
   const [localAssistantModel, setLocalAssistantModel] = useState<AssistantModel>('sonnet')
   const [localAssistantCustomInstructions, setLocalAssistantCustomInstructions] = useState<string>('')
   const [localAssistantDocumentsDir, setLocalAssistantDocumentsDir] = useState<string>('~/.fulcrum/documents')
+
+  // Ritual settings local state (under assistant)
+  const [localRitualsEnabled, setLocalRitualsEnabled] = useState(false)
+  const [localMorningRitualTime, setLocalMorningRitualTime] = useState('09:00')
+  const [localMorningRitualPrompt, setLocalMorningRitualPrompt] = useState('')
+  const [localEveningRitualTime, setLocalEveningRitualTime] = useState('18:00')
+  const [localEveningRitualPrompt, setLocalEveningRitualPrompt] = useState('')
 
   // Developer mode restart state
   const [isRestarting, setIsRestarting] = useState(false)
@@ -286,8 +307,24 @@ function SettingsPage() {
     if (assistantDocumentsDir !== undefined) setLocalAssistantDocumentsDir(assistantDocumentsDir)
   }, [assistantProvider, assistantModel, assistantCustomInstructions, assistantDocumentsDir])
 
+  // Sync ritual settings
+  useEffect(() => {
+    if (ritualsEnabled !== undefined) setLocalRitualsEnabled(ritualsEnabled)
+    if (morningRitualTime !== undefined) setLocalMorningRitualTime(morningRitualTime)
+    if (morningRitualPrompt !== undefined) setLocalMorningRitualPrompt(morningRitualPrompt)
+    if (eveningRitualTime !== undefined) setLocalEveningRitualTime(eveningRitualTime)
+    if (eveningRitualPrompt !== undefined) setLocalEveningRitualPrompt(eveningRitualPrompt)
+  }, [
+    ritualsEnabled,
+    morningRitualTime,
+    morningRitualPrompt,
+    eveningRitualTime,
+    eveningRitualPrompt,
+  ])
+
   const isLoading =
-    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || autoScrollLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading || assistantProviderLoading || assistantModelLoading || assistantInstructionsLoading || assistantDocumentsDirLoading
+    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || autoScrollLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading || assistantProviderLoading || assistantModelLoading || assistantInstructionsLoading || assistantDocumentsDirLoading ||
+    ritualsEnabledLoading || morningTimeLoading || morningPromptLoading || eveningTimeLoading || eveningPromptLoading
 
   const hasZAiChanges = zAiSettings && (
     zAiEnabled !== zAiSettings.enabled ||
@@ -313,6 +350,13 @@ function SettingsPage() {
     localAssistantModel !== assistantModel ||
     localAssistantCustomInstructions !== (assistantCustomInstructions ?? '') ||
     localAssistantDocumentsDir !== assistantDocumentsDir
+
+  const hasRitualsChanges =
+    localRitualsEnabled !== ritualsEnabled ||
+    localMorningRitualTime !== morningRitualTime ||
+    localMorningRitualPrompt !== morningRitualPrompt ||
+    localEveningRitualTime !== eveningRitualTime ||
+    localEveningRitualPrompt !== eveningRitualPrompt
 
   // Check if deployment settings have changed
   // We compare local state against server values
@@ -365,7 +409,8 @@ function SettingsPage() {
     hasDeploymentChanges ||
     hasTaskDefaultsChanges ||
     hasTimezoneChanges ||
-    hasAssistantChanges
+    hasAssistantChanges ||
+    hasRitualsChanges
 
   const handleSaveAll = async () => {
     const promises: Promise<unknown>[] = []
@@ -662,6 +707,60 @@ function SettingsPage() {
           new Promise((resolve) => {
             updateConfig.mutate(
               { key: CONFIG_KEYS.ASSISTANT_DOCUMENTS_DIR, value: localAssistantDocumentsDir },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+    }
+
+    // Save ritual settings (under assistant)
+    if (hasRitualsChanges) {
+      if (localRitualsEnabled !== ritualsEnabled) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_RITUALS_ENABLED, value: localRitualsEnabled },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localMorningRitualTime !== morningRitualTime) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_MORNING_RITUAL_TIME, value: localMorningRitualTime },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localMorningRitualPrompt !== morningRitualPrompt) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_MORNING_RITUAL_PROMPT, value: localMorningRitualPrompt },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localEveningRitualTime !== eveningRitualTime) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_EVENING_RITUAL_TIME, value: localEveningRitualTime },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localEveningRitualPrompt !== eveningRitualPrompt) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_EVENING_RITUAL_PROMPT, value: localEveningRitualPrompt },
               { onSettled: resolve }
             )
           })
@@ -1636,6 +1735,87 @@ function SettingsPage() {
                       {t('fields.assistant.documentsDir.description')}
                     </p>
                   </div>
+
+                  {/* Daily Rituals */}
+                  <div className="border-t border-border pt-4 space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('concierge.rituals')}
+                      </label>
+                      <Switch
+                        checked={localRitualsEnabled}
+                        onCheckedChange={setLocalRitualsEnabled}
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('concierge.ritualsDescription')}
+                    </p>
+                  </div>
+
+                  {localRitualsEnabled && (
+                    <>
+                      {/* Morning Ritual */}
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                              {t('concierge.morningRitual')}
+                            </label>
+                            <Input
+                              type="time"
+                              value={localMorningRitualTime}
+                              onChange={(e) => setLocalMorningRitualTime(e.target.value)}
+                              disabled={isLoading}
+                              className="w-32"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('concierge.morningRitualDescription')}
+                          </p>
+                        </div>
+                        <div className="sm:ml-32 sm:pl-2">
+                          <Textarea
+                            value={localMorningRitualPrompt}
+                            onChange={(e) => setLocalMorningRitualPrompt(e.target.value)}
+                            placeholder={t('concierge.morningRitualPromptPlaceholder')}
+                            disabled={isLoading}
+                            className="min-h-[80px] text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Evening Ritual */}
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                              {t('concierge.eveningRitual')}
+                            </label>
+                            <Input
+                              type="time"
+                              value={localEveningRitualTime}
+                              onChange={(e) => setLocalEveningRitualTime(e.target.value)}
+                              disabled={isLoading}
+                              className="w-32"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('concierge.eveningRitualDescription')}
+                          </p>
+                        </div>
+                        <div className="sm:ml-32 sm:pl-2">
+                          <Textarea
+                            value={localEveningRitualPrompt}
+                            onChange={(e) => setLocalEveningRitualPrompt(e.target.value)}
+                            placeholder={t('concierge.eveningRitualPromptPlaceholder')}
+                            disabled={isLoading}
+                            className="min-h-[80px] text-sm"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </SettingsSection>
 
@@ -1948,8 +2128,14 @@ function SettingsPage() {
               </SettingsSection>
 
               {/* Messaging Channels */}
-              <SettingsSection title="Messaging">
-                <WhatsAppSetup isLoading={isLoading} />
+              <SettingsSection title="Channels">
+                <div className="space-y-8">
+                  <WhatsAppSetup isLoading={isLoading} />
+                  <DiscordSetup isLoading={isLoading} />
+                  <TelegramSetup isLoading={isLoading} />
+                  <SlackSetup isLoading={isLoading} />
+                  <EmailSetup isLoading={isLoading} />
+                </div>
               </SettingsSection>
 
               {/* Appearance */}

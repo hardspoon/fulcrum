@@ -11,6 +11,7 @@
     "assistant": "AI 助手",
     "tasks": "任务默认值",
     "notifications": "通知",
+    "messaging": "消息",
     "appearance": "外观",
     "developer": "开发者"
   },
@@ -224,6 +225,16 @@
     "soundDeleted": "自定义声音已删除",
     "soundDeleteFailed": "删除自定义声音失败",
     "customSoundActive": "使用自定义声音"
+  },
+  "concierge": {
+    "rituals": "每日仪式",
+    "ritualsDescription": "设置晨间和晚间简报的时间。助手将在指定时间执行您的提示词。",
+    "morningRitual": "晨间仪式",
+    "morningRitualDescription": "包含今日优先事项的晨间简报。",
+    "morningRitualPromptPlaceholder": "回顾昨晚以来的消息，总结今天需要关注的事项，并发送优先行动计划。",
+    "eveningRitual": "晚间仪式",
+    "eveningRitualDescription": "包含成就和待办事项的晚间总结。",
+    "eveningRitualPromptPlaceholder": "总结今天完成的工作，记录待办事项，并建议明天的重点领域。"
   },
   "developer": {
     "restartButton": "重启 Fulcrum",

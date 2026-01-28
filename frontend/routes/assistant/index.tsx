@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { AssistantLayout, type ClaudeModelId } from '@/components/assistant'
 import type { ChatSession, ChatMessage, Artifact, Document } from '@/components/assistant'
+import type { ImageAttachment } from '@/components/assistant/chat-panel'
 import type { AgentType } from '../../../shared/types'
 import { log } from '@/lib/logger'
 import { useOpencodeModels } from '@/hooks/use-opencode-models'
@@ -46,6 +47,8 @@ function AssistantView() {
   const [editorContent, setEditorContent] = useState('')
   const [canvasContent, setCanvasContent] = useState<string | null>(null)
   const editorSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
 
   // Set canvas active tab via URL
   const setCanvasActiveTab = useCallback((tab: 'viewer' | 'editor' | 'documents') => {
@@ -307,17 +310,27 @@ function AssistantView() {
 
   // Send message handler
   const handleSendMessage = useCallback(
-    async (message: string) => {
+    async (message: string, images?: ImageAttachment[]) => {
       if (!chatId || isStreaming) return
 
       setIsStreaming(true)
+
+      // Create abort controller for this request
+      abortControllerRef.current = new AbortController()
+
+      // Build display content (show [image] placeholders for attached images)
+      let displayContent = message
+      if (images && images.length > 0) {
+        const imageIndicator = images.length === 1 ? '[image]' : `[${images.length} images]`
+        displayContent = message ? `${imageIndicator} ${message}` : imageIndicator
+      }
 
       // Optimistically add user message
       const userMessage: ChatMessage = {
         id: `temp-${Date.now()}`,
         sessionId: chatId,
         role: 'user',
-        content: message,
+        content: displayContent,
         toolCalls: null,
         artifacts: null,
         model: null,
@@ -337,6 +350,12 @@ function AssistantView() {
       // Use current model from state
       const currentModel = model
 
+      // Prepare images for the API (extract base64 data without the data URL prefix)
+      const imageData = images?.map((img) => ({
+        mediaType: img.mediaType,
+        data: img.dataUrl.split(',')[1], // Remove "data:image/png;base64," prefix
+      }))
+
       try {
         const response = await fetch(`/api/assistant/sessions/${chatId}/messages`, {
           method: 'POST',
@@ -345,7 +364,9 @@ function AssistantView() {
             message,
             model: currentModel,
             editorContent: editorContent || undefined,
+            images: imageData,
           }),
+          signal: abortControllerRef.current?.signal,
         })
 
         if (!response.ok) throw new Error('Failed to send message')
@@ -353,6 +374,9 @@ function AssistantView() {
         // Create EventSource for SSE
         const reader = response.body?.getReader()
         if (!reader) throw new Error('No response body')
+
+        // Store reader for cancellation
+        streamReaderRef.current = reader
 
         const decoder = new TextDecoder()
         let assistantContent = ''
@@ -490,9 +514,16 @@ function AssistantView() {
           }
         }
       } catch (error) {
-        log.assistant.error('Error sending message', { error })
+        // Handle abort gracefully (user cancelled)
+        if (error instanceof Error && error.name === 'AbortError') {
+          log.assistant.debug('Stream aborted by user')
+        } else {
+          log.assistant.error('Error sending message', { error })
+        }
       } finally {
         setIsStreaming(false)
+        abortControllerRef.current = null
+        streamReaderRef.current = null
         // Refresh session data to get persisted messages
         queryClient.invalidateQueries({ queryKey: ['assistant-session', chatId] })
         queryClient.invalidateQueries({ queryKey: ['assistant-artifacts', chatId] })
@@ -501,6 +532,22 @@ function AssistantView() {
     },
     [chatId, model, isStreaming, queryClient, editorContent, saveEditorContentMutation]
   )
+
+  // Stop streaming handler
+  const handleStopStreaming = useCallback(() => {
+    if (streamReaderRef.current) {
+      streamReaderRef.current.cancel().catch(() => {
+        // Ignore cancellation errors
+      })
+      streamReaderRef.current = null
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setIsStreaming(false)
+    log.assistant.info('Cancelled streaming response')
+  }, [])
 
   // Auto-select first session if none selected
   useEffect(() => {
@@ -548,6 +595,7 @@ function AssistantView() {
         onSelectDocument={handleSelectDocument}
         onStarDocument={(sessionId, starred) => starDocumentMutation.mutate({ sessionId, starred })}
         onRenameDocument={(sessionId, filename) => renameDocumentMutation.mutate({ sessionId, filename })}
+        onStopStreaming={handleStopStreaming}
       />
     </div>
   )

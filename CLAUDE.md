@@ -75,7 +75,7 @@ fulcrum notify <title> <message>  # Send notification
 - **bun-pty** for PTY management
 
 ### Key Services (`server/services/`)
-- `messaging/` - Chat with AI via external channels (WhatsApp, future: Discord, Telegram)
+- `channels/` - Chat with AI via external channels (WhatsApp, Discord, Telegram, Slack, Email)
 - `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
 - `pr-monitor.ts` - GitHub PR status polling, auto-close tasks on merge
 - `metrics-collector.ts` - System metrics collection (CPU, memory, disk)
@@ -91,7 +91,7 @@ fulcrum notify <title> <message>  # Send notification
 - `/api/monitoring/*` - System and Claude instance monitoring
 - `/api/deployments/*` - Deployment history
 - `/api/repositories/*` - Repository management
-- `/api/messaging/*` - Messaging channel management (WhatsApp enable/disable, auth, sessions)
+- `/api/messaging/*` - Messaging channel management (WhatsApp, Discord, Telegram, Slack)
 - `/ws/terminal` - Terminal I/O multiplexing
 
 ### Frontend Pages
@@ -120,8 +120,8 @@ fulcrum notify <title> <message>  # Send notification
 | `deployments` | Deployment history with logs |
 | `tunnels` | Cloudflare Tunnels for app exposure |
 | `systemMetrics` | CPU/memory/disk metrics (24h rolling) |
-| `messagingConnections` | Messaging channel connections (WhatsApp, etc.) with auth state |
-| `messagingSessionMappings` | Maps channel users (phone numbers) to AI chat sessions |
+| `messagingConnections` | Messaging channel runtime state (connection status, display names) |
+| `messagingSessionMappings` | Maps channel users to AI chat sessions |
 
 Task statuses: `IN_PROGRESS`, `IN_REVIEW`, `DONE`, `CANCELED`
 
@@ -184,12 +184,18 @@ Multi-channel notification system:
 Chat with the AI assistant via external messaging platforms:
 
 - **WhatsApp**: Link via QR code, chat with Claude through "Message yourself"
-- **Architecture**: Channel abstraction layer supports future channels (Discord, Telegram)
+- **Discord**: Bot token auth, slash commands (`/reset`, `/help`, `/status`)
+- **Telegram**: Bot token from @BotFather, handles private chats
+- **Slack**: Socket Mode with bot + app tokens, Block Kit formatting, slash commands
+- **Email**: SMTP/IMAP with sender allowlist filtering
 - **Session persistence**: Conversations map to `chatSessions` table, one session per user
-- **Commands**: `/reset` (new conversation), `/help`, `/status`
-- **Auth storage**: `$FULCRUM_DIR/whatsapp-auth/<connectionId>/`
 
-Enable in Settings → Messaging, scan QR code with WhatsApp mobile app.
+**Configuration storage:**
+- **Credentials**: `settings.json` under `channels.*` (Slack, Discord, Telegram, Email)
+- **WhatsApp**: Database (QR auth generates credentials dynamically)
+- **Runtime state**: Database (connection status, bot display names)
+
+Enable in Settings → Messaging and follow the setup instructions for each platform.
 
 ## Desktop App
 
@@ -230,7 +236,7 @@ frontend/
 server/
   routes/          # REST API handlers
   services/        # Business logic
-    messaging/     # External chat channels (WhatsApp, etc.)
+    channels/      # External chat channels (WhatsApp, Discord, Telegram, Slack, Email)
   terminal/        # PTY management
   websocket/       # Terminal WebSocket protocol
   db/              # Drizzle schema

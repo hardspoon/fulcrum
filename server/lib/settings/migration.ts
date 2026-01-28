@@ -79,6 +79,49 @@ export function migrateSettings(parsed: Record<string, unknown>): MigrationResul
     delete parsed.remoteHost
     delete parsed.hostname
     delete parsed.remoteFulcrum
+
+    // Migrate messaging → channels
+    if (parsed.messaging && !parsed.channels) {
+      parsed.channels = parsed.messaging
+      delete parsed.messaging
+      result.migratedKeys.push('messaging → channels')
+      result.migrated = true
+    }
+
+    // Migrate rogue top-level email → channels.email
+    // (can happen if AI assistant wrote config to wrong location)
+    if (parsed.email && typeof parsed.email === 'object') {
+      const channels = (parsed.channels as Record<string, unknown>) ?? {}
+      if (!channels.email) {
+        channels.email = parsed.email
+        parsed.channels = channels
+        result.migratedKeys.push('email → channels.email')
+      }
+      delete parsed.email
+      result.migrated = true
+    }
+
+    // Migrate concierge → assistant (ritual settings now live under assistant)
+    if (parsed.concierge && typeof parsed.concierge === 'object') {
+      const concierge = parsed.concierge as Record<string, unknown>
+      const assistant = (parsed.assistant as Record<string, unknown>) ?? {}
+
+      // Move ritual settings to assistant if not already present
+      if (concierge.ritualsEnabled !== undefined && assistant.ritualsEnabled === undefined) {
+        assistant.ritualsEnabled = concierge.ritualsEnabled
+      }
+      if (concierge.morningRitual !== undefined && assistant.morningRitual === undefined) {
+        assistant.morningRitual = concierge.morningRitual
+      }
+      if (concierge.eveningRitual !== undefined && assistant.eveningRitual === undefined) {
+        assistant.eveningRitual = concierge.eveningRitual
+      }
+
+      parsed.assistant = assistant
+      delete parsed.concierge
+      result.migratedKeys.push('concierge → assistant')
+      result.migrated = true
+    }
   }
 
   // Set schema version

@@ -322,7 +322,7 @@ export const messagingConnections = sqliteTable('messaging_connections', {
   id: text('id').primaryKey(),
   channelType: text('channel_type').notNull(), // 'whatsapp' | 'discord' | 'telegram'
   enabled: integer('enabled', { mode: 'boolean' }).default(false),
-  authState: text('auth_state'), // JSON: Baileys auth credentials for WhatsApp
+  authState: text('auth_state', { mode: 'json' }), // JSON: Channel-specific auth credentials
   displayName: text('display_name'), // Connected account name (phone number, username, etc.)
   status: text('status').notNull().default('disconnected'), // 'disconnected' | 'connecting' | 'connected' | 'qr_pending'
   createdAt: text('created_at').notNull(),
@@ -338,6 +338,71 @@ export const messagingSessionMappings = sqliteTable('messaging_session_mappings'
   sessionId: text('session_id').notNull(), // FK to chatSessions
   createdAt: text('created_at').notNull(),
   lastMessageAt: text('last_message_at').notNull(),
+})
+
+// Email authorized threads - tracks email threads that have been authorized
+// by an allowlisted sender CCing the assistant
+export const emailAuthorizedThreads = sqliteTable('email_authorized_threads', {
+  id: text('id').primaryKey(),
+  connectionId: text('connection_id').notNull(), // FK to messagingConnections
+  threadId: text('thread_id').notNull(), // Email thread identifier (Message-ID or References chain root)
+  authorizedBy: text('authorized_by').notNull(), // Email address of the allowlisted sender who CC'd the assistant
+  subject: text('subject'), // Email subject for display
+  createdAt: text('created_at').notNull(),
+})
+
+// Stored emails - local copy of emails for AI agent access and search
+export const emails = sqliteTable('emails', {
+  id: text('id').primaryKey(),
+  connectionId: text('connection_id').notNull(), // FK to messagingConnections
+  messageId: text('message_id').notNull(), // Email Message-ID header (unique per email)
+  threadId: text('thread_id'), // Thread identifier for grouping conversations
+  inReplyTo: text('in_reply_to'), // In-Reply-To header
+  references: text('references', { mode: 'json' }).$type<string[]>(), // References header chain
+  direction: text('direction').notNull(), // 'incoming' | 'outgoing'
+  fromAddress: text('from_address').notNull(), // Sender email address
+  fromName: text('from_name'), // Sender display name
+  toAddresses: text('to_addresses', { mode: 'json' }).$type<string[]>(), // Recipient addresses
+  ccAddresses: text('cc_addresses', { mode: 'json' }).$type<string[]>(), // CC addresses
+  subject: text('subject'),
+  textContent: text('text_content'), // Plain text body
+  htmlContent: text('html_content'), // HTML body (if available)
+  snippet: text('snippet'), // Short preview for list views
+  emailDate: text('email_date'), // Date header from email
+  folder: text('folder').default('inbox'), // inbox, sent, drafts, etc.
+  isRead: integer('is_read', { mode: 'boolean' }).default(false),
+  isStarred: integer('is_starred', { mode: 'boolean' }).default(false),
+  labels: text('labels', { mode: 'json' }).$type<string[]>(), // Custom labels/tags
+  imapUid: integer('imap_uid'), // IMAP UID for sync purposes
+  createdAt: text('created_at').notNull(), // When we stored this email
+})
+
+// Actionable events - the concierge's memory of things it noticed and decided on
+export const actionableEvents = sqliteTable('actionable_events', {
+  id: text('id').primaryKey(),
+  sourceChannel: text('source_channel').notNull(), // 'email' | 'whatsapp' | 'telegram' | 'slack'
+  sourceId: text('source_id').notNull(), // message ID / email ID
+  sourceMetadata: text('source_metadata', { mode: 'json' }).$type<Record<string, unknown>>(), // JSON: sender, subject, thread, etc.
+  status: text('status').notNull().default('pending'), // 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+  linkedTaskId: text('linked_task_id'), // FK to tasks (nullable)
+  summary: text('summary'), // AI-generated description
+  actionLog: text('action_log', { mode: 'json' }).$type<Array<{ timestamp: string; action: string }>>(), // JSON array: timestamped decisions/actions
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  lastEvaluatedAt: text('last_evaluated_at'),
+})
+
+// Sweep runs - track when sweeps happened for reliability and context
+export const sweepRuns = sqliteTable('sweep_runs', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(), // 'hourly' | 'morning_ritual' | 'evening_ritual'
+  startedAt: text('started_at').notNull(),
+  completedAt: text('completed_at'),
+  eventsProcessed: integer('events_processed').default(0),
+  tasksUpdated: integer('tasks_updated').default(0),
+  messagesSent: integer('messages_sent').default(0),
+  summary: text('summary'), // AI's summary of what it did
+  status: text('status').notNull(), // 'running' | 'completed' | 'failed'
 })
 
 // Type inference helpers
@@ -394,3 +459,11 @@ export type MessagingConnection = typeof messagingConnections.$inferSelect
 export type NewMessagingConnection = typeof messagingConnections.$inferInsert
 export type MessagingSessionMapping = typeof messagingSessionMappings.$inferSelect
 export type NewMessagingSessionMapping = typeof messagingSessionMappings.$inferInsert
+export type EmailAuthorizedThread = typeof emailAuthorizedThreads.$inferSelect
+export type NewEmailAuthorizedThread = typeof emailAuthorizedThreads.$inferInsert
+export type Email = typeof emails.$inferSelect
+export type NewEmail = typeof emails.$inferInsert
+export type ActionableEvent = typeof actionableEvents.$inferSelect
+export type NewActionableEvent = typeof actionableEvents.$inferInsert
+export type SweepRun = typeof sweepRuns.$inferSelect
+export type NewSweepRun = typeof sweepRuns.$inferInsert

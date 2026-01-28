@@ -47,17 +47,23 @@ chatRoutes.get('/:sessionId', async (c) => {
   return c.json(info)
 })
 
+export interface ImageData {
+  mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+  data: string // base64
+}
+
 /**
  * POST /api/chat/:sessionId/messages
  * Send a message and stream the response via SSE
  */
 chatRoutes.post('/:sessionId/messages', async (c) => {
   const sessionId = c.req.param('sessionId')
-  const { message, model, context, provider = 'claude' } = await c.req.json<{
+  const { message, model, context, provider = 'claude', images } = await c.req.json<{
     message: string
     model?: string
     context?: PageContext
     provider?: ChatProvider
+    images?: ImageData[]
   }>()
 
   if (!message || typeof message !== 'string') {
@@ -72,7 +78,7 @@ chatRoutes.post('/:sessionId/messages', async (c) => {
     }
 
     return streamSSE(c, async (stream) => {
-      for await (const event of streamOpencodeMessage(sessionId, message, model, context)) {
+      for await (const event of streamOpencodeMessage(sessionId, message, model, context, images)) {
         await stream.writeSSE({
           event: event.type,
           data: JSON.stringify(event.data),
@@ -92,7 +98,8 @@ chatRoutes.post('/:sessionId/messages', async (c) => {
       sessionId,
       message,
       model as 'opus' | 'sonnet' | 'haiku' | undefined,
-      context
+      context,
+      images
     )) {
       await stream.writeSSE({
         event: event.type,

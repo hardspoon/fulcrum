@@ -81,6 +81,14 @@ export function expandPath(p: string): string {
   return p
 }
 
+/**
+ * Check if running with a non-default FULCRUM_DIR (dev/test mode).
+ * Used to isolate Claude settings to FULCRUM_DIR instead of ~/.claude
+ */
+export function isNonDefaultFulcrumDir(): boolean {
+  return !!process.env.FULCRUM_DIR
+}
+
 // Get the fulcrum directory path
 // Priority: FULCRUM_DIR env var → CWD .fulcrum → ~/.fulcrum
 export function getFulcrumDir(): string {
@@ -139,4 +147,37 @@ export function ensureWorktreesDir(): void {
 export function initializeFulcrumDirectories(): void {
   ensureFulcrumDir()
   ensureWorktreesDir()
+}
+
+/**
+ * Get instance context for system prompts.
+ * Helps AI agents understand which Fulcrum instance they're running in.
+ * @param documentsDir - Optional documents directory from settings. Pass settings.assistant.documentsDir.
+ */
+export function getInstanceContext(documentsDir?: string): string {
+  const fulcrumDir = getFulcrumDir()
+  const port = process.env.PORT || '7777'
+  const defaultFulcrumDir = path.join(getHomeDir(), '.fulcrum')
+  const isDevInstance = fulcrumDir !== defaultFulcrumDir
+
+  let context = `## Fulcrum Instance Context
+
+FULCRUM_DIR: ${fulcrumDir}
+Server port: ${port}
+Instance type: ${isDevInstance ? 'DEVELOPMENT' : 'PRODUCTION'}`
+
+  if (documentsDir) {
+    context += `\nDocuments directory: ${documentsDir}`
+  }
+
+  if (isDevInstance) {
+    context += `
+
+**IMPORTANT**: You are running in a DEVELOPMENT instance.
+- The production Fulcrum is at ${defaultFulcrumDir} (port 7777)
+- Do NOT interact with production data or services
+- All operations should stay within this instance's context`
+  }
+
+  return context
 }

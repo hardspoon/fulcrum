@@ -20,6 +20,81 @@ export type TaskType = 'worktree' | 'non-worktree'
 export type AssistantProvider = 'claude' | 'opencode'
 export type AssistantModel = 'opus' | 'sonnet' | 'haiku'
 
+// Ritual configuration (for assistant daily rituals)
+export interface RitualConfig {
+  time: string // "09:00" (24h format)
+  prompt: string
+}
+
+// Email SMTP configuration
+export interface SmtpConfig {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  password: string
+}
+
+// Email IMAP configuration
+export interface ImapConfig {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  password: string
+}
+
+// Email messaging settings
+export interface EmailSettings {
+  enabled: boolean
+  smtp: SmtpConfig
+  imap: ImapConfig
+  pollIntervalSeconds: number
+  /**
+   * The email address to send from (appears in From header).
+   * Required when SMTP user is not an email address (e.g., AWS SES access key).
+   * Defaults to smtp.user if not specified.
+   */
+  sendAs: string | null
+  /**
+   * List of email addresses or domain patterns that can always interact with the assistant.
+   * Supports exact matches (user@example.com) and wildcard domains (*@example.com).
+   */
+  allowedSenders: string[]
+  /**
+   * BCC address that will be copied on all outgoing emails from the assistant.
+   * Useful for compliance, archiving, or monitoring purposes.
+   */
+  bcc: string | null
+}
+
+// Slack messaging settings
+export interface SlackSettings {
+  enabled: boolean
+  botToken: string
+  appToken: string
+}
+
+// Discord messaging settings
+export interface DiscordSettings {
+  enabled: boolean
+  botToken: string
+}
+
+// Telegram messaging settings
+export interface TelegramSettings {
+  enabled: boolean
+  botToken: string
+}
+
+// Channels settings (renamed from MessagingSettings)
+export interface ChannelsSettings {
+  email: EmailSettings
+  slack: SlackSettings
+  discord: DiscordSettings
+  telegram: TelegramSettings
+}
+
 // Nested settings interface
 export interface Settings {
   _schemaVersion?: number
@@ -64,7 +139,11 @@ export interface Settings {
     model: AssistantModel
     customInstructions: string | null
     documentsDir: string
+    ritualsEnabled: boolean
+    morningRitual: RitualConfig
+    eveningRitual: RitualConfig
   }
+  channels: ChannelsSettings
 }
 
 // Default settings with new structure
@@ -111,6 +190,51 @@ export const DEFAULT_SETTINGS: Settings = {
     model: 'sonnet',
     customInstructions: null,
     documentsDir: '~/.fulcrum/documents',
+    ritualsEnabled: false,
+    morningRitual: {
+      time: '09:00',
+      prompt: 'Review messages since yesterday evening, summarize what needs attention today, and send a prioritized action plan.',
+    },
+    eveningRitual: {
+      time: '18:00',
+      prompt: 'Summarize what was accomplished today, note pending items, and suggest focus areas for tomorrow.',
+    },
+  },
+  channels: {
+    email: {
+      enabled: false,
+      smtp: {
+        host: '',
+        port: 587,
+        secure: false,
+        user: '',
+        password: '',
+      },
+      imap: {
+        host: '',
+        port: 993,
+        secure: true,
+        user: '',
+        password: '',
+      },
+      pollIntervalSeconds: 30,
+      sendAs: null,
+      allowedSenders: [],
+      bcc: null,
+    },
+    slack: {
+      enabled: false,
+      botToken: '',
+      appToken: '',
+    },
+    discord: {
+      enabled: false,
+      botToken: '',
+    },
+    telegram: {
+      enabled: false,
+      botToken: '',
+    },
   },
 }
 
@@ -146,6 +270,33 @@ export const VALID_SETTING_PATHS = new Set([
   'assistant.model',
   'assistant.customInstructions',
   'assistant.documentsDir',
+  'assistant.ritualsEnabled',
+  'assistant.morningRitual.time',
+  'assistant.morningRitual.prompt',
+  'assistant.eveningRitual.time',
+  'assistant.eveningRitual.prompt',
+  'channels.email.enabled',
+  'channels.email.smtp.host',
+  'channels.email.smtp.port',
+  'channels.email.smtp.secure',
+  'channels.email.smtp.user',
+  'channels.email.smtp.password',
+  'channels.email.imap.host',
+  'channels.email.imap.port',
+  'channels.email.imap.secure',
+  'channels.email.imap.user',
+  'channels.email.imap.password',
+  'channels.email.pollIntervalSeconds',
+  'channels.email.sendAs',
+  'channels.email.allowedSenders',
+  'channels.email.bcc',
+  'channels.slack.enabled',
+  'channels.slack.botToken',
+  'channels.slack.appToken',
+  'channels.discord.enabled',
+  'channels.discord.botToken',
+  'channels.telegram.enabled',
+  'channels.telegram.botToken',
 ])
 
 // Legacy flat settings interface for backward compatibility

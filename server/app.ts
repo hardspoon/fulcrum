@@ -32,6 +32,7 @@ import mcpRoutes from './routes/mcp'
 import chatRoutes from './routes/chat'
 import assistantRoutes from './routes/assistant'
 import messagingRoutes from './routes/messaging'
+import backupRoutes from './routes/backup'
 import { writeEntry } from './lib/logger'
 import type { LogEntry } from '../shared/logger'
 
@@ -96,6 +97,9 @@ export function createApp() {
 
   // Messaging channels (WhatsApp, etc.)
   app.route('/api/messaging', messagingRoutes)
+
+  // Backup and restore
+  app.route('/api/backup', backupRoutes)
 
   // Logging endpoint for frontend to send batched logs to server
   app.post('/api/logs', async (c) => {

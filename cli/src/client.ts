@@ -98,6 +98,59 @@ export interface UpdateProjectInput {
   status?: 'active' | 'archived'
 }
 
+// Concierge types
+export interface ActionableEvent {
+  id: string
+  sourceChannel: string
+  sourceId: string
+  sourceMetadata: Record<string, unknown> | null
+  status: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+  linkedTaskId: string | null
+  summary: string | null
+  actionLog: Array<{ timestamp: string; action: string }> | null
+  createdAt: string
+  updatedAt: string
+  lastEvaluatedAt: string | null
+}
+
+export interface SweepRun {
+  id: string
+  type: 'hourly' | 'morning_ritual' | 'evening_ritual'
+  startedAt: string
+  completedAt: string | null
+  eventsProcessed: number | null
+  tasksUpdated: number | null
+  messagesSent: number | null
+  summary: string | null
+  status: 'running' | 'completed' | 'failed'
+}
+
+// Email types
+export interface StoredEmail {
+  id: string
+  connectionId: string
+  messageId: string
+  threadId: string | null
+  inReplyTo: string | null
+  references: string[] | null
+  direction: 'incoming' | 'outgoing'
+  fromAddress: string
+  fromName: string | null
+  toAddresses: string[] | null
+  ccAddresses: string[] | null
+  subject: string | null
+  textContent: string | null
+  htmlContent: string | null
+  snippet: string | null
+  emailDate: string | null
+  folder: string | null
+  isRead: boolean | null
+  isStarred: boolean | null
+  labels: string[] | null
+  imapUid: number | null
+  createdAt: string
+}
+
 export interface DeleteProjectOptions {
   deleteDirectory?: boolean
   deleteApp?: boolean
@@ -191,6 +244,43 @@ export interface PathStatResponse {
   type: 'file' | 'directory' | 'other' | null
   isDirectory: boolean
   isFile: boolean
+}
+
+// Backup types
+export interface BackupManifest {
+  createdAt: string
+  version: string
+  files: {
+    database: boolean
+    settings: boolean
+  }
+  databaseSize?: number
+  settingsSize?: number
+  description?: string
+}
+
+export interface BackupInfo {
+  name: string
+  createdAt: string
+  path: string
+  manifest: BackupManifest
+}
+
+export interface BackupCreateResult {
+  success: boolean
+  name: string
+  path: string
+  manifest: BackupManifest
+}
+
+export interface BackupRestoreResult {
+  success: boolean
+  restored: {
+    database: boolean
+    settings: boolean
+  }
+  preRestoreBackup: string | null
+  warning?: string
 }
 
 export class FulcrumClient {
@@ -842,5 +932,197 @@ export class FulcrumClient {
 
   async isGitRepo(path: string): Promise<{ path: string; isGitRepo: boolean }> {
     return this.fetch(`/api/fs/is-git-repo?path=${encodeURIComponent(path)}`)
+  }
+
+  // Backup and restore
+  async listBackups(): Promise<{ backups: BackupInfo[]; backupsDir: string }> {
+    return this.fetch('/api/backup')
+  }
+
+  async createBackup(description?: string): Promise<BackupCreateResult> {
+    return this.fetch('/api/backup', {
+      method: 'POST',
+      body: JSON.stringify({ description }),
+    })
+  }
+
+  async getBackup(name: string): Promise<{ name: string; path: string; manifest: BackupManifest }> {
+    return this.fetch(`/api/backup/${encodeURIComponent(name)}`)
+  }
+
+  async restoreBackup(
+    name: string,
+    options?: { database?: boolean; settings?: boolean }
+  ): Promise<BackupRestoreResult> {
+    return this.fetch(`/api/backup/${encodeURIComponent(name)}/restore`, {
+      method: 'POST',
+      body: JSON.stringify(options ?? {}),
+    })
+  }
+
+  async deleteBackup(name: string): Promise<{ success: boolean; deleted: string }> {
+    return this.fetch(`/api/backup/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Email
+  async listEmails(options?: {
+    limit?: number
+    offset?: number
+    direction?: 'incoming' | 'outgoing'
+    threadId?: string
+    search?: string
+    folder?: string
+  }): Promise<{ emails: StoredEmail[]; count: number }> {
+    const params = new URLSearchParams()
+    if (options?.limit) params.set('limit', String(options.limit))
+    if (options?.offset) params.set('offset', String(options.offset))
+    if (options?.direction) params.set('direction', options.direction)
+    if (options?.threadId) params.set('threadId', options.threadId)
+    if (options?.search) params.set('search', options.search)
+    if (options?.folder) params.set('folder', options.folder)
+    const query = params.toString()
+    return this.fetch(`/api/messaging/email/emails${query ? `?${query}` : ''}`)
+  }
+
+  async getEmail(id: string): Promise<StoredEmail> {
+    return this.fetch(`/api/messaging/email/emails/${id}`)
+  }
+
+  async searchEmails(criteria: {
+    subject?: string
+    from?: string
+    to?: string
+    since?: string
+    before?: string
+    text?: string
+    seen?: boolean
+    flagged?: boolean
+    fetchLimit?: number
+  }): Promise<{
+    matchingUids: number[]
+    matchCount: number
+    fetched: number
+    emails: StoredEmail[]
+  }> {
+    return this.fetch('/api/messaging/email/search', {
+      method: 'POST',
+      body: JSON.stringify(criteria),
+    })
+  }
+
+  async fetchEmails(uids: number[], limit?: number): Promise<{
+    fetched: number
+    emails: StoredEmail[]
+  }> {
+    return this.fetch('/api/messaging/email/fetch', {
+      method: 'POST',
+      body: JSON.stringify({ uids, limit }),
+    })
+  }
+
+  // Assistant - Actionable Events
+  async listActionableEvents(options?: {
+    status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+    channel?: string
+    limit?: number
+    offset?: number
+  }): Promise<{ events: ActionableEvent[]; total: number }> {
+    const params = new URLSearchParams()
+    if (options?.status) params.set('status', options.status)
+    if (options?.channel) params.set('channel', options.channel)
+    if (options?.limit) params.set('limit', String(options.limit))
+    if (options?.offset) params.set('offset', String(options.offset))
+    const query = params.toString()
+    return this.fetch(`/api/assistant/events${query ? `?${query}` : ''}`)
+  }
+
+  async getActionableEvent(id: string): Promise<ActionableEvent & { linkedTask?: Task | null }> {
+    return this.fetch(`/api/assistant/events/${id}`)
+  }
+
+  async createActionableEvent(data: {
+    sourceChannel: string
+    sourceId: string
+    sourceMetadata?: Record<string, unknown>
+    summary?: string
+    status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+    linkedTaskId?: string
+  }): Promise<ActionableEvent> {
+    return this.fetch('/api/assistant/events', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateActionableEvent(
+    id: string,
+    updates: {
+      status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+      linkedTaskId?: string | null
+      actionLogEntry?: string
+    }
+  ): Promise<ActionableEvent> {
+    return this.fetch(`/api/assistant/events/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    })
+  }
+
+  async deleteActionableEvent(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/assistant/events/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Assistant - Sweep Runs
+  async listSweepRuns(options?: { type?: string; limit?: number }): Promise<{ runs: SweepRun[] }> {
+    const params = new URLSearchParams()
+    if (options?.type) params.set('type', options.type)
+    if (options?.limit) params.set('limit', String(options.limit))
+    const query = params.toString()
+    return this.fetch(`/api/assistant/sweeps${query ? `?${query}` : ''}`)
+  }
+
+  async getSweepRun(id: string): Promise<SweepRun> {
+    return this.fetch(`/api/assistant/sweeps/${id}`)
+  }
+
+  async getLastSweepRun(type: string): Promise<SweepRun | null> {
+    return this.fetch(`/api/assistant/sweeps/last/${type}`)
+  }
+
+  // Messaging - Send Message
+  async sendMessage(data: {
+    channel: 'email' | 'whatsapp' | 'discord' | 'telegram' | 'slack'
+    to: string
+    body: string
+    subject?: string
+    replyToMessageId?: string
+    slackBlocks?: Array<Record<string, unknown>>
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    return this.fetch('/api/messaging/send', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  // Assistant - Stats
+  async getAssistantStats(): Promise<{
+    events: {
+      pending: number
+      actedUpon: number
+      dismissed: number
+      monitoring: number
+      total: number
+    }
+    lastSweeps: {
+      hourly: string | null
+      morningRitual: string | null
+      eveningRitual: string | null
+    }
+  }> {
+    return this.fetch('/api/assistant/stats')
   }
 }

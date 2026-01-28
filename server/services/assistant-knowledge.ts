@@ -111,6 +111,36 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 **Notifications:**
 - \`send_notification\` - Send notifications (Slack, Discord, Pushover, desktop, sound)
 
+**Settings Management:**
+- \`list_settings\` - View all settings with current values
+- \`get_setting\` - Get a specific setting value
+- \`update_setting\` - Change a setting value
+- \`reset_setting\` - Reset a setting to default
+- \`get_notification_settings\` - View notification channel configuration
+- \`update_notification_settings\` - Configure notification channels
+
+**Backup & Restore:**
+- \`list_backups\` - List all available backups
+- \`create_backup\` - Create a backup of database and settings
+- \`get_backup\` - Get details of a specific backup
+- \`restore_backup\` - Restore from a backup (auto-creates pre-restore backup)
+- \`delete_backup\` - Delete a backup to free space
+
+**Email Tools:**
+- \`list_emails\` - List stored emails from local database
+- \`get_email\` - Get a specific email by ID
+- \`search_emails\` - Search emails via IMAP
+- \`fetch_emails\` - Fetch specific emails by IMAP UID
+
+**Assistant Tools (Proactive Agent):**
+- \`message\` - Send a message to a channel (email, whatsapp)
+- \`create_actionable_event\` - Track something noticed (message, request)
+- \`list_actionable_events\` - Review your event memory
+- \`get_actionable_event\` - Get event details
+- \`update_actionable_event\` - Update event status, link to task
+- \`get_assistant_stats\` - Get event counts and last sweep times
+- \`get_last_sweep\` - Check when last sweep ran
+
 **Utilities:**
 - \`list_tags\` - See all tags in use
 - \`get_task_dependency_graph\` - Visualize task dependencies
@@ -177,7 +207,8 @@ Fulcrum is a local orchestration tool. Some capabilities require external servic
 
 | User Need | What Fulcrum Does | What User Provides |
 |-----------|-------------------|--------------------|
-| Email automation | Task worktree + scheduling | IMAP/SMTP credentials or Gmail API keys |
+| Chat via email | Built-in Email messaging channel | SMTP/IMAP credentials (or Gmail app password) |
+| Email automation | Task worktree + scheduling | Same SMTP/IMAP credentials |
 | Cloud deployment | Docker Compose + execute_command | Cloud provider credentials (AWS, GCP, Azure) |
 | External APIs | Script execution | API keys (OpenAI, Stripe, etc.) |
 | Team notifications | send_notification to Slack/Discord | Webhook URLs (configured in settings) |
@@ -254,6 +285,138 @@ export function getProblemSolvingPatterns(): string {
 }
 
 /**
+ * Settings knowledge - all configurable options
+ */
+export function getSettingsKnowledge(): string {
+  return `## Fulcrum Settings Reference
+
+You can read and modify all Fulcrum settings using the settings MCP tools. Settings use dot notation (e.g., "appearance.theme").
+
+### Settings Categories
+
+**server** - Server configuration
+- \`server.port\` - HTTP server port (default: 7777, range: 1-65535)
+
+**paths** - Directory paths
+- \`paths.defaultGitReposDir\` - Default directory for new repositories
+
+**editor** - Editor integration
+- \`editor.app\` - Editor application: 'vscode', 'cursor', 'windsurf', 'zed', 'antigravity'
+- \`editor.host\` - Remote host URL for SSH editing (empty for local)
+- \`editor.sshPort\` - SSH port for remote editing (default: 22)
+
+**integrations** - Third-party service credentials
+- \`integrations.githubPat\` - GitHub Personal Access Token (for PR status, auto-close) [SENSITIVE]
+- \`integrations.cloudflareApiToken\` - Cloudflare API token (for DNS/tunnels) [SENSITIVE]
+- \`integrations.cloudflareAccountId\` - Cloudflare account ID
+
+**agent** - AI agent configuration
+- \`agent.defaultAgent\` - Default agent: 'claude' or 'opencode'
+- \`agent.opencodeModel\` - OpenCode model override (null for default)
+- \`agent.opencodeDefaultAgent\` - OpenCode default agent profile (default: 'build')
+- \`agent.opencodePlanAgent\` - OpenCode planning agent profile (default: 'plan')
+- \`agent.autoScrollToBottom\` - Auto-scroll terminal output (default: true)
+- \`agent.claudeCodePath\` - Custom path to Claude Code binary
+
+**tasks** - Task defaults
+- \`tasks.defaultTaskType\` - Default task type: 'worktree' or 'non-worktree'
+- \`tasks.startWorktreeTasksImmediately\` - Auto-start worktree tasks (default: true)
+
+**appearance** - UI customization
+- \`appearance.language\` - UI language: 'en', 'zh', or null (system default)
+- \`appearance.theme\` - Color theme: 'system', 'light', 'dark', or null
+- \`appearance.timezone\` - IANA timezone (e.g., 'America/New_York'), null for system
+- \`appearance.syncClaudeCodeTheme\` - Sync theme to Claude Code (default: false)
+- \`appearance.claudeCodeLightTheme\` - Light theme for Claude Code: 'light', 'light-ansi', 'light-daltonized', 'dark', 'dark-ansi', 'dark-daltonized'
+- \`appearance.claudeCodeDarkTheme\` - Dark theme for Claude Code (same options)
+
+**assistant** - Built-in assistant settings
+- \`assistant.provider\` - AI provider: 'claude' or 'opencode'
+- \`assistant.model\` - Model tier: 'opus', 'sonnet', 'haiku'
+- \`assistant.customInstructions\` - Custom system prompt additions
+- \`assistant.documentsDir\` - Directory for assistant documents
+- \`assistant.ritualsEnabled\` - Enable/disable daily rituals (morning/evening briefings)
+- \`assistant.morningRitual.time\` - Time for morning ritual (24h format, e.g., "09:00")
+- \`assistant.morningRitual.prompt\` - Custom prompt for morning ritual
+- \`assistant.eveningRitual.time\` - Time for evening ritual (24h format, e.g., "18:00")
+- \`assistant.eveningRitual.prompt\` - Custom prompt for evening ritual
+
+**channels** - Messaging channel configuration
+- \`channels.email.enabled\` - Enable/disable email channel
+- \`channels.email.smtp.*\` - SMTP server settings (host, port, secure, user, password)
+- \`channels.email.imap.*\` - IMAP server settings (host, port, secure, user, password)
+- \`channels.email.sendAs\` - Email address to send from
+- \`channels.email.allowedSenders\` - Sender allowlist patterns
+- \`channels.slack.enabled\` - Enable/disable Slack channel
+- \`channels.slack.botToken\` - Slack bot token (xoxb-...) [SENSITIVE]
+- \`channels.slack.appToken\` - Slack app token (xapp-...) [SENSITIVE]
+- \`channels.discord.enabled\` - Enable/disable Discord channel
+- \`channels.discord.botToken\` - Discord bot token [SENSITIVE]
+- \`channels.telegram.enabled\` - Enable/disable Telegram channel
+- \`channels.telegram.botToken\` - Telegram bot token [SENSITIVE]
+
+### Notification Settings
+
+Notification settings are managed separately via \`get_notification_settings\` and \`update_notification_settings\`.
+
+**Global:**
+- \`enabled\` - Master toggle for all notifications
+
+**Channels:**
+- \`toast\` - In-app toast notifications
+  - \`enabled\` - Enable/disable toasts
+- \`desktop\` - OS desktop notifications
+  - \`enabled\` - Enable/disable desktop notifications
+- \`sound\` - Audio alerts
+  - \`enabled\` - Enable/disable sounds
+  - \`customSoundFile\` - Path to custom sound file
+- \`slack\` - Slack integration
+  - \`enabled\` - Enable/disable Slack
+  - \`webhookUrl\` - Slack incoming webhook URL [SENSITIVE]
+- \`discord\` - Discord integration
+  - \`enabled\` - Enable/disable Discord
+  - \`webhookUrl\` - Discord webhook URL [SENSITIVE]
+- \`pushover\` - Pushover notifications
+  - \`enabled\` - Enable/disable Pushover
+  - \`appToken\` - Pushover application token [SENSITIVE]
+  - \`userKey\` - Pushover user key [SENSITIVE]
+
+### Common Configuration Tasks
+
+**Change the UI theme:**
+\`\`\`
+update_setting key="appearance.theme" value="dark"
+\`\`\`
+
+**Set up GitHub integration:**
+\`\`\`
+update_setting key="integrations.githubPat" value="ghp_xxxx"
+\`\`\`
+
+**Enable Slack notifications:**
+\`\`\`
+update_notification_settings slack={enabled: true, webhookUrl: "https://hooks.slack.com/..."}
+\`\`\`
+
+**Change default editor:**
+\`\`\`
+update_setting key="editor.app" value="cursor"
+\`\`\`
+
+**View all current settings:**
+\`\`\`
+list_settings
+\`\`\`
+
+### Important Notes
+
+- Sensitive values (API tokens, webhooks) are masked when displayed
+- Use \`reset_setting\` to restore any setting to its default
+- Changes take effect immediately
+- Some settings (like server.port) require a server restart to take effect`
+}
+
+/**
  * Get the complete Fulcrum knowledge for the main assistant prompt
  */
 export function getFullKnowledge(): string {
@@ -262,6 +425,8 @@ export function getFullKnowledge(): string {
 ${getDataModel()}
 
 ${getMcpToolCapabilities()}
+
+${getSettingsKnowledge()}
 
 ${getOrchestrationCapabilities()}
 
@@ -291,6 +456,8 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - list_projects, create_project
 - execute_command (run any CLI command)
 - send_notification
+- message (send to email/WhatsApp - concierge mode)
+- create_actionable_event, list_actionable_events (track decisions - concierge mode)
 
 **Remember:** When users need external services (email, cloud, APIs), guide them on what credentials to provide - don't say "Fulcrum can't do that."`
 }

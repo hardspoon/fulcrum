@@ -6,7 +6,7 @@ const API_BASE = ''
 
 interface ConfigResponse {
   key: string
-  value: string | number | null
+  value: string | number | boolean | string[] | null
   isDefault?: boolean
 }
 
@@ -38,6 +38,12 @@ export const CONFIG_KEYS = {
   ASSISTANT_MODEL: 'assistant.model',
   ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
   ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
+  // Ritual settings (under assistant)
+  ASSISTANT_RITUALS_ENABLED: 'assistant.ritualsEnabled',
+  ASSISTANT_MORNING_RITUAL_TIME: 'assistant.morningRitual.time',
+  ASSISTANT_MORNING_RITUAL_PROMPT: 'assistant.morningRitual.prompt',
+  ASSISTANT_EVENING_RITUAL_TIME: 'assistant.eveningRitual.time',
+  ASSISTANT_EVENING_RITUAL_PROMPT: 'assistant.eveningRitual.prompt',
 } as const
 
 // Default values (client-side fallbacks)
@@ -338,11 +344,62 @@ export function useAssistantDocumentsDir() {
   }
 }
 
+// Ritual settings (under assistant)
+export function useAssistantRitualsEnabled() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_RITUALS_ENABLED)
+
+  return {
+    ...query,
+    data: Boolean(query.data?.value),
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantMorningRitualTime() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_MORNING_RITUAL_TIME)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '09:00',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantMorningRitualPrompt() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_MORNING_RITUAL_PROMPT)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantEveningRitualTime() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_EVENING_RITUAL_TIME)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '18:00',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantEveningRitualPrompt() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_EVENING_RITUAL_PROMPT)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
 export function useUpdateConfig() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string | number | boolean | null }) =>
+    mutationFn: ({ key, value }: { key: string; value: string | number | boolean | string[] | null }) =>
       fetchJSON<ConfigResponse>(`${API_BASE}/api/config/${key}`, {
         method: 'PUT',
         body: JSON.stringify({ value }),

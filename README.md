@@ -1,21 +1,25 @@
 # Project Fulcrum
 
-**Harness Attention. Orchestrate Agents. Leverage Your Time Wisely.**
+**Your AI-Powered Digital Concierge. Orchestrate Agents. Never Miss What Matters.**
 
 ![Fulcrum Kanban Board with AI Assistant](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/kanban-with-assistant-dark.png)
 
 ## What It Does
 
-Run multiple AI coding agents in parallel across isolated git worktrees. Manage projects with tasks, dependencies, and scheduling. Deploy to production when ready. Work from anywhere—your agents keep running when you close the laptop. Self-hosted and open source.
+Fulcrum is your AI-powered command center for shipping software. Built for technical solopreneurs and CTOs who need to multiply their leverage—not just chase the latest coding trend.
+
+Run Claude Code across multiple tasks in parallel. Stay connected to your agents via WhatsApp, Email, Discord, Telegram, or Slack. Let your AI assistant monitor messages, filter signal from noise, and send daily briefings—all while you focus on what matters.
+
+Fulcrum doesn't replace your tools—it gives you leverage over them. You configure Claude Code with the integrations you need (Notion, Linear, Asana, whatever). Fulcrum is your window into Claude Code and a literal fulcrum: a small input that moves mountains.
 
 **Six pillars:**
 
-- **Terminal-First Orchestration** — Run Claude Code, OpenCode, or other agents in real terminals. No abstraction layer, no wrapper APIs.
-- **Work From Anywhere** — Run Fulcrum on a remote server. Kick off tasks, close your laptop, check progress from your phone. Agents keep working in the background.
-- **Project Management** — Tasks with dependencies, due dates, labels, and attachments. Visual kanban boards and dependency graphs.
+- **Claude Code Ecosystem** — Deep integration with Claude Code. Connect via messaging channels, manage tasks, deploy from one dashboard.
+- **Proactive AI Concierge** — Your assistant monitors messages, tracks actionable events, creates daily plans, and sends morning/evening briefings automatically.
+- **Work From Anywhere** — Run Fulcrum on a remote server. Close your laptop, agents keep working.
+- **Project Management** — Tasks with dependencies, due dates, labels, and attachments. Visual kanban boards.
 - **Production Deployment** — Docker Compose with automatic Traefik routing and Cloudflare DNS/tunnels.
 - **MCP-First Architecture** — 60+ tools exposed via Model Context Protocol. Agents discover what they need.
-- **Chat From Anywhere** — Talk to the AI assistant via WhatsApp. Link with QR code, chat from your phone.
 
 ## MCP-First Architecture
 
@@ -28,6 +32,44 @@ Everything in Fulcrum is exposed through MCP (Model Context Protocol):
 - **No context bloat** — Agents discover and use only the tools they need
 
 Whether you use Fulcrum's built-in assistant or an external agent like Claude Desktop, AI has seamless access to your entire workflow.
+
+## Proactive Digital Concierge
+
+Fulcrum's AI assistant doesn't just respond—it actively monitors and manages your workflow.
+
+### Intelligent Message Handling
+
+When messages arrive via Email, WhatsApp, Discord, Telegram, or Slack:
+
+- **Actionable requests** (deadlines, meetings, tasks) → Tracked as events, optionally creates tasks
+- **Casual conversations** → Responded to naturally, no tracking overhead
+- **Spam/newsletters** → Silently ignored
+
+### Actionable Events
+
+Every important message becomes an **actionable event**—searchable, linkable to tasks, with a full decision audit trail. Your assistant remembers what it noticed and what it decided.
+
+### Daily Planning
+
+Your assistant creates and reviews daily plans automatically:
+
+- **Evening** — Creates tomorrow's plan based on pending tasks and events, saves to your documents folder
+- **Morning** — Reviews the plan, compares against current state, sends prioritized briefing
+
+Plans persist as markdown files you can edit or review anytime.
+
+### Scheduled Briefings
+
+Configure morning and evening rituals in Settings:
+
+- **Morning briefing** — Reviews yesterday's plan, prioritizes today's tasks and events
+- **Evening recap** — What got done, what's blocked, creates tomorrow's plan
+
+Briefings are sent to your preferred messaging channel automatically.
+
+### Hourly Sweeps
+
+Every hour, your assistant reviews pending events, checks on blocked or overdue tasks, and catches patterns across messages. Nothing slips through the cracks.
 
 ## Quick Start
 
@@ -111,15 +153,24 @@ Create documents with live preview. Generate charts and visualizations. The assi
 
 ![AI Assistant Editor](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/assistant-editor-dark.png)
 
-### WhatsApp Integration
+### Messaging Integrations
 
-Chat with the AI assistant from your phone via WhatsApp. Link your account with a QR code, then use WhatsApp's "Message yourself" feature to talk to Claude from anywhere.
+Chat with the AI assistant from anywhere via your favorite messaging platform.
+
+| Platform | Auth Method |
+|----------|-------------|
+| **Email** | SMTP/IMAP credentials with sender allowlist |
+| **WhatsApp** | QR code scan, monitors all messages, replies only to "Message yourself" |
+| **Discord** | Bot token from Developer Portal |
+| **Telegram** | Bot token from @BotFather |
+| **Slack** | Bot + App tokens with Socket Mode |
 
 - **Persistent sessions** — Conversation context maintained across messages
+- **Email threading** — Each email thread is a separate conversation
+- **Privacy-respecting** — WhatsApp sees all messages but only replies to you
 - **Commands** — `/reset` (new conversation), `/help`, `/status`
-- **Channel abstraction** — Architecture supports future channels (Discord, Telegram)
 
-Enable in Settings → Messaging, then scan the QR code with WhatsApp mobile.
+Enable in Settings → Messaging and follow the setup instructions for each platform.
 
 ### System Monitoring
 
@@ -171,6 +222,9 @@ Both plugins include an MCP server with 60+ tools:
 | **Filesystem** | Browse directories, read/write files on the Fulcrum server |
 | **Execution** | Run shell commands with persistent session support |
 | **Notifications** | Send notifications to enabled channels |
+| **Backup & Restore** | Snapshot database and settings; auto-safety-backup on restore |
+| **Settings** | View and update configuration; manage notification channels |
+| **Assistant Events** | Track actionable events; query decision history |
 
 Use `search_tools` to discover available tools by keyword or category.
 

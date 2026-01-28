@@ -1,57 +1,43 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { eq } from 'drizzle-orm'
 import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
 import { db, messagingConnections } from '../../db'
+import type { MessagingChannel, ChannelEvents, ConnectionStatus, ChannelFactory } from './types'
+import {
+  getOrCreateWhatsAppConnection,
+  enableWhatsApp,
+  disableWhatsApp,
+  getWhatsAppStatus,
+  configureDiscord,
+  configureTelegram,
+  configureSlack,
+  listConnections,
+  stopMessagingChannels,
+  setChannelFactory,
+  resetChannelFactory,
+  sendMessageToChannel,
+} from './index'
 
-// Mock the WebSocket broadcast
-mock.module('../../websocket/terminal-ws', () => ({
-  broadcast: () => {},
-}))
-
-// Mock the assistant service
-const mockStreamMessage = function* () {
-  yield { type: 'content:delta', data: { text: 'Hello ' } }
-  yield { type: 'content:delta', data: { text: 'from ' } }
-  yield { type: 'content:delta', data: { text: 'Claude!' } }
-}
-
-mock.module('../assistant-service', () => ({
-  streamMessage: mockStreamMessage,
-}))
-
-// Mock WhatsApp channel to avoid Baileys dependency
-interface MockChannelEvents {
-  onMessage?: (msg: {
-    channelType: string
-    connectionId: string
-    senderId: string
-    senderName?: string
-    content: string
-    timestamp: Date
-  }) => Promise<void>
-  onConnectionChange: (status: string) => void
-  onAuthRequired?: (data: { qrDataUrl: string }) => void
-  onDisplayNameChange?: (name: string) => void
-}
-
-class MockWhatsAppChannel {
-  readonly type = 'whatsapp' as const
+// Base mock channel class (no mock.module needed - uses dependency injection)
+class BaseMockChannel implements MessagingChannel {
   readonly connectionId: string
-  private events: MockChannelEvents | null = null
-  private status: 'disconnected' | 'connecting' | 'connected' | 'qr_pending' = 'disconnected'
+  readonly type: 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email'
+  protected events: ChannelEvents | null = null
+  protected status: ConnectionStatus = 'disconnected'
   sentMessages: Array<{ recipientId: string; content: string }> = []
 
-  constructor(connectionId: string) {
+  constructor(connectionId: string, type: 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email') {
     this.connectionId = connectionId
+    this.type = type
   }
 
-  async initialize(events: MockChannelEvents): Promise<void> {
+  async initialize(events: ChannelEvents): Promise<void> {
     this.events = events
-    this.status = 'connected'
-    events.onConnectionChange('connected')
+    this.updateStatus('connected')
   }
 
   async shutdown(): Promise<void> {
-    this.status = 'disconnected'
+    this.updateStatus('disconnected')
   }
 
   async sendMessage(recipientId: string, content: string): Promise<boolean> {
@@ -59,46 +45,48 @@ class MockWhatsAppChannel {
     return true
   }
 
-  getStatus() {
+  getStatus(): ConnectionStatus {
     return this.status
   }
 
-  // Test helper to simulate incoming message
-  async simulateMessage(senderId: string, content: string, senderName?: string): Promise<void> {
-    if (this.events?.onMessage) {
-      await this.events.onMessage({
-        channelType: 'whatsapp',
-        connectionId: this.connectionId,
-        senderId,
-        senderName,
-        content,
-        timestamp: new Date(),
+  async logout(): Promise<void> {
+    this.updateStatus('disconnected')
+  }
+
+  // Update status in database like real channels do
+  private updateStatus(status: ConnectionStatus): void {
+    this.status = status
+    db.update(messagingConnections)
+      .set({
+        status,
+        updatedAt: new Date().toISOString(),
       })
-    }
+      .where(eq(messagingConnections.id, this.connectionId))
+      .run()
+    this.events?.onConnectionChange(status)
   }
 }
 
-mock.module('./whatsapp-channel', () => ({
-  WhatsAppChannel: MockWhatsAppChannel,
-}))
-
-// Import after mocks are set up
-import {
-  getOrCreateWhatsAppConnection,
-  enableWhatsApp,
-  disableWhatsApp,
-  getWhatsAppStatus,
-  listConnections,
-} from './index'
+// Mock factory that creates mock channels
+const mockChannelFactory: ChannelFactory = {
+  createWhatsAppChannel: (id) => new BaseMockChannel(id, 'whatsapp'),
+  createDiscordChannel: (id) => new BaseMockChannel(id, 'discord'),
+  createTelegramChannel: (id) => new BaseMockChannel(id, 'telegram'),
+  createSlackChannel: (id) => new BaseMockChannel(id, 'slack'),
+  createEmailChannel: (id) => new BaseMockChannel(id, 'email'),
+}
 
 describe('Messaging Channel Manager', () => {
   let testEnv: TestEnv
 
   beforeEach(() => {
     testEnv = setupTestEnv()
+    setChannelFactory(mockChannelFactory)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await stopMessagingChannels()
+    resetChannelFactory()
     testEnv.cleanup()
   })
 
@@ -153,9 +141,7 @@ describe('Messaging Channel Manager', () => {
 
   describe('getWhatsAppStatus', () => {
     test('returns null when no connection exists', () => {
-      // Reset to clean state
-      db.delete(messagingConnections).run()
-
+      // Database is fresh from beforeEach - no need to delete
       const status = getWhatsAppStatus()
       expect(status).toBeNull()
     })
@@ -172,8 +158,7 @@ describe('Messaging Channel Manager', () => {
 
   describe('listConnections', () => {
     test('returns empty array when no connections', () => {
-      // Reset to clean state
-      db.delete(messagingConnections).run()
+      // Database is fresh from beforeEach - no need to delete
 
       const connections = listConnections()
       expect(connections).toEqual([])
@@ -387,3 +372,80 @@ function cleanResponse(response: string): string {
     .replace(/<editor>[\s\S]*?<\/editor>/g, '')
     .trim()
 }
+
+describe('sendMessageToChannel', () => {
+  let testEnv: TestEnv
+
+  beforeEach(() => {
+    testEnv = setupTestEnv()
+    setChannelFactory(mockChannelFactory)
+  })
+
+  afterEach(async () => {
+    await stopMessagingChannels()
+    resetChannelFactory()
+    testEnv.cleanup()
+  })
+
+  // All channels that should be supported by sendMessageToChannel
+  // This list should match the type union in the function signature
+  const ALL_CHANNELS = ['email', 'whatsapp', 'discord', 'telegram', 'slack'] as const
+
+  test('all channels are recognized (no "Unknown channel" error)', async () => {
+    // This test ensures that adding a new channel to the type union
+    // also requires adding a case to the switch statement
+    for (const channel of ALL_CHANNELS) {
+      const result = await sendMessageToChannel(channel, 'test-recipient', 'test message')
+
+      // Should not get "Unknown channel" error - each channel should be handled
+      expect(result.error).not.toBe(`Unknown channel: ${channel}`)
+    }
+  })
+
+  test('disconnected channels return appropriate errors', async () => {
+    // When channels are not connected, they should return descriptive errors
+    for (const channel of ALL_CHANNELS) {
+      const result = await sendMessageToChannel(channel, 'test-recipient', 'test message')
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBeDefined()
+      // Error should mention the channel or "not connected"
+      expect(
+        result.error?.includes('not connected') ||
+        result.error?.includes('not active')
+      ).toBe(true)
+    }
+  })
+
+  test('whatsapp sends message when connected', async () => {
+    await enableWhatsApp()
+
+    const result = await sendMessageToChannel('whatsapp', '+1234567890', 'Hello from test')
+
+    expect(result.success).toBe(true)
+  })
+
+  test('discord sends message when connected', async () => {
+    await configureDiscord('fake-bot-token')
+
+    const result = await sendMessageToChannel('discord', '123456789', 'Hello from test')
+
+    expect(result.success).toBe(true)
+  })
+
+  test('telegram sends message when connected', async () => {
+    await configureTelegram('fake-bot-token')
+
+    const result = await sendMessageToChannel('telegram', '123456789', 'Hello from test')
+
+    expect(result.success).toBe(true)
+  })
+
+  test('slack sends message when connected', async () => {
+    await configureSlack('xoxb-fake-bot-token', 'xapp-fake-app-token')
+
+    const result = await sendMessageToChannel('slack', 'U123456', 'Hello from test')
+
+    expect(result.success).toBe(true)
+  })
+})
