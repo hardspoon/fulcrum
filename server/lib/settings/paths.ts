@@ -154,6 +154,10 @@ export function initializeFulcrumDirectories(): void {
  * Helps AI agents understand which Fulcrum instance they're running in.
  */
 export function getInstanceContext(): string {
+  // Import inline to avoid circular dependency
+  const { getSettings } = require('./core')
+  const settings = getSettings()
+
   const fulcrumDir = getFulcrumDir()
   const port = process.env.PORT || '7777'
   const defaultFulcrumDir = path.join(getHomeDir(), '.fulcrum')
@@ -163,7 +167,8 @@ export function getInstanceContext(): string {
 
 FULCRUM_DIR: ${fulcrumDir}
 Server port: ${port}
-Instance type: ${isDevInstance ? 'DEVELOPMENT' : 'PRODUCTION'}`
+Instance type: ${isDevInstance ? 'DEVELOPMENT' : 'PRODUCTION'}
+Documents directory: ${settings.assistant.documentsDir}`
 
   if (isDevInstance) {
     context += `

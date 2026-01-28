@@ -94,7 +94,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
 
     // Stream the response - assistant handles everything via MCP tools
     const stream = assistantService.streamMessage(session.id, content, {
-      systemPromptOverride: systemPrompt,
+      systemPromptAdditions: systemPrompt,
     })
 
     // Consume stream - responses are sent via the message MCP tool
@@ -361,7 +361,7 @@ async function processForActionableEvents(msg: IncomingMessage): Promise<void> {
   try {
     // Stream the response - assistant can only create actionable events, not respond
     const stream = assistantService.streamMessage(session.id, msg.content, {
-      systemPromptOverride: systemPrompt,
+      systemPromptAdditions: systemPrompt,
     })
 
     // Consume stream

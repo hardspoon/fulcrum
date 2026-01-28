@@ -9,7 +9,7 @@ import { getInstanceContext } from '../lib/settings/paths'
 import { log } from '../lib/logger'
 import type { PageContext } from '../../shared/types'
 import { saveDocument, readDocument, deleteDocument, renameDocument, generateDocumentFilename } from './document-service'
-import { getFullKnowledge } from './assistant-knowledge'
+import { getFullKnowledge, getCondensedKnowledge } from './assistant-knowledge'
 import type { ImageData } from '../routes/chat'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
@@ -210,11 +210,36 @@ export function getMessages(sessionId: string): ChatMessage[] {
 }
 
 /**
- * Build system prompt for assistant
+ * Build the baseline system prompt that's always present.
+ * @param condensed - Use condensed knowledge (for channels) vs full knowledge (for UI)
+ */
+function buildBaselinePrompt(condensed = false): string {
+  const instanceContext = getInstanceContext()
+  const knowledge = condensed ? getCondensedKnowledge() : getFullKnowledge()
+
+  let baseline = `${instanceContext}
+
+${knowledge}`
+
+  // Add custom instructions from settings if configured
+  const settings = getSettings()
+  const customInstructions = settings.assistant.customInstructions
+  if (customInstructions) {
+    baseline += `
+
+## Custom Instructions
+
+${customInstructions}`
+  }
+
+  return baseline
+}
+
+/**
+ * Build system prompt for UI assistant (baseline + UI features)
  */
 function buildSystemPrompt(): string {
-  const instanceContext = getInstanceContext()
-  const fulcrumKnowledge = getFullKnowledge()
+  const baseline = buildBaselinePrompt(false)
 
   const uiFeatures = `## UI Features
 
@@ -288,30 +313,18 @@ This will automatically update the editor. Always provide the COMPLETE document,
 - Adding new content
 - Any request that involves changing the document`
 
-  const basePrompt = `${instanceContext}
-
-${fulcrumKnowledge}
+  return `${baseline}
 
 ${uiFeatures}`
-
-  // Add custom instructions from settings if configured
-  const settings = getSettings()
-  const customInstructions = settings.assistant.customInstructions
-  if (customInstructions) {
-    return basePrompt + `
-
-## Custom Instructions
-
-${customInstructions}`
-  }
-
-  return basePrompt
 }
 
 export interface StreamMessageOptions {
   modelId?: ModelId
   editorContent?: string
-  systemPromptOverride?: string
+  /** Context-specific additions appended to the baseline prompt (for channels, rituals, etc.) */
+  systemPromptAdditions?: string
+  /** Use condensed knowledge instead of full knowledge (for channels) */
+  condensedKnowledge?: boolean
   images?: ImageData[]
 }
 
@@ -360,11 +373,24 @@ export async function* streamMessage(
       sessionId,
       hasResume: !!state.claudeSessionId,
       hasEditorContent: !!options.editorContent,
-      hasSystemPromptOverride: !!options.systemPromptOverride,
+      hasSystemPromptAdditions: !!options.systemPromptAdditions,
+      condensedKnowledge: !!options.condensedKnowledge,
     })
 
-    // Use override if provided, otherwise build default system prompt
-    const systemPrompt = options.systemPromptOverride ?? buildSystemPrompt()
+    // Build system prompt: baseline + optional additions
+    // For UI: full knowledge + UI features
+    // For channels: condensed knowledge + channel-specific additions
+    let systemPrompt: string
+    if (options.systemPromptAdditions) {
+      // Channel/ritual mode: baseline (condensed) + additions
+      const baseline = buildBaselinePrompt(options.condensedKnowledge ?? true)
+      systemPrompt = `${baseline}
+
+${options.systemPromptAdditions}`
+    } else {
+      // UI mode: full prompt with UI features
+      systemPrompt = buildSystemPrompt()
+    }
 
     // Build the full prompt, including editor content if present
     let textMessage = userMessage

@@ -1,10 +1,9 @@
 /**
- * Platform-specific system prompts for messaging channels.
+ * Context-specific system prompt additions for messaging channels.
+ * These are appended to the baseline prompt (instance context + knowledge).
  */
 
 import type { ChannelType } from './types'
-import { getCondensedKnowledge } from '../assistant-knowledge'
-import { getInstanceContext } from '../../lib/settings/paths'
 
 // ==================== Messaging Prompts ====================
 
@@ -24,25 +23,21 @@ export interface MessagingContext {
 }
 
 /**
- * Get the system prompt for real-time message handling with agency.
+ * Get context-specific additions for real-time message handling.
  * The assistant decides whether to respond, create events, tasks, etc.
  */
 export function getMessagingSystemPrompt(channelType: ChannelType, context: MessagingContext): string {
-  const instanceContext = getInstanceContext()
-  const baseKnowledge = getCondensedKnowledge()
   const formattingGuide = getFormattingGuide(channelType)
 
-  return `${instanceContext}
+  return `## Incoming Message
 
-You are Fulcrum's proactive digital concierge. A message has arrived:
+A message has arrived:
 
 **Channel**: ${context.channel}
 **From**: ${context.sender}${context.senderName ? ` (${context.senderName})` : ''}
 **Content**: ${context.content}
 ${context.metadata?.subject ? `**Subject**: ${context.metadata.subject}` : ''}
 ${context.metadata?.threadId ? `**Thread ID**: ${context.metadata.threadId}` : ''}
-
-${baseKnowledge}
 
 ## Your Task
 
@@ -65,36 +60,24 @@ ${baseKnowledge}
 - Only create actionable_events for requests, reminders, or things you need to remember
 - Spam, newsletters, and automated notifications should be ignored (no response)
 
-${formattingGuide}
-
-## Available Tools
-
-- \`message\`: Send a reply to the sender
-- \`create_actionable_event\`: Track this message in your memory
-- \`update_actionable_event\`: Update an existing event
-- \`list_actionable_events\`: Check recent events for context
-- \`create_task\`: Create a Fulcrum task
-- \`list_tasks\`: Check existing tasks
-- \`move_task\`: Update task status`
+${formattingGuide}`
 }
 
 /**
- * Get the system prompt for observe-only message processing.
+ * Get context-specific additions for observe-only message processing.
  * Used for messages the assistant can see but should not respond to
  * (e.g., WhatsApp messages not in self-chat).
  */
 export function getObserveOnlySystemPrompt(channelType: ChannelType, context: MessagingContext): string {
-  const instanceContext = getInstanceContext()
+  return `## Observe-Only Mode
 
-  return `${instanceContext}
-
-You are Fulcrum's proactive digital concierge. You are OBSERVING a message (read-only mode):
+You are OBSERVING a message (read-only mode):
 
 **Channel**: ${context.channel}
 **From**: ${context.sender}${context.senderName ? ` (${context.senderName})` : ''}
 **Content**: ${context.content}
 ${context.metadata?.subject ? `**Subject**: ${context.metadata.subject}` : ''}
-${context.metadata?.isGroup ? `**Group Chat**: yes` : ''}
+${(context.metadata as { isGroup?: boolean })?.isGroup ? `**Group Chat**: yes` : ''}
 
 ## Important Constraints
 
@@ -112,31 +95,22 @@ If you create an actionable_event, set an appropriate status:
 - \`pending\` - Needs attention/action
 - \`monitoring\` - Worth tracking but no immediate action needed
 
-## Available Tools
-
-- \`create_actionable_event\`: Track this message for later review
-- \`update_actionable_event\`: Update an existing event
-- \`list_actionable_events\`: Check recent events for context
-
 **Remember: NO responses. Observe only.**`
 }
 
 /**
- * Get the system prompt for hourly sweeps.
+ * Get context-specific additions for hourly sweeps.
  */
 export function getSweepSystemPrompt(context: {
   lastSweepTime: string | null
   pendingCount: number
   openTaskCount: number
 }): string {
-  const instanceContext = getInstanceContext()
+  return `## Hourly Sweep
 
-  return `${instanceContext}
+You are performing your hourly sweep.
 
-You are Fulcrum's proactive digital concierge performing your hourly sweep.
-
-## Context
-
+**Context:**
 - Last sweep completed: ${context.lastSweepTime ?? 'never'}
 - Pending actionable events: ${context.pendingCount}
 - Open Fulcrum tasks (TO_DO + IN_PROGRESS + IN_REVIEW): ${context.openTaskCount}
@@ -166,91 +140,32 @@ After completing your sweep, provide a brief summary of:
 - Events reviewed and actions taken
 - Tasks updated or created
 - Any patterns noticed
-- Items requiring user attention
-
-## Available Tools
-
-- \`list_actionable_events\`: Review your event memory
-- \`get_actionable_event\`: Get event details
-- \`update_actionable_event\`: Update event status, link to task
-- \`list_tasks\`: Review open tasks
-- \`get_task\`: Get task details
-- \`create_task\`: Create a new task
-- \`move_task\`: Update task status
-- \`message\`: Send a message if needed`
+- Items requiring user attention`
 }
 
 /**
- * Get the system prompt for daily rituals (morning/evening).
+ * Get context-specific additions for daily rituals (morning/evening).
  */
 export function getRitualSystemPrompt(type: 'morning' | 'evening'): string {
-  const instanceContext = getInstanceContext()
-
   if (type === 'morning') {
-    return `${instanceContext}
+    return `## Morning Ritual
 
-You are Fulcrum's proactive digital concierge performing your morning ritual.
-
-## Your Task
-
-Review the current state and prepare a morning briefing:
-
-1. **Check actionable events** - use \`list_actionable_events\` to see what's pending
-2. **Check tasks** - use \`list_tasks\` to see open tasks, especially any that are overdue
-3. **Review yesterday** - use \`get_last_sweep\` with type="evening_ritual" to see what was noted yesterday
-4. **Create a prioritized summary** of what needs attention today
+You are performing your morning ritual.
 
 ## Output Channels
 
 Use the \`list_messaging_channels\` tool to discover which messaging channels are available and connected.
-Then use the \`message\` tool to send your briefing to the connected channels.
-
-Make your briefing:
-- Concise but complete
-- Prioritized (most important items first)
-- Actionable (clear next steps)
-
-## Available Tools
-
-- \`list_actionable_events\`: Review pending events
-- \`list_tasks\`: Review open tasks
-- \`get_last_sweep\`: Check yesterday's evening summary
-- \`get_concierge_stats\`: Get overall statistics
-- \`list_messaging_channels\`: Discover available messaging channels
-- \`message\`: Send the briefing`
+Then use the \`message\` tool to send your briefing to the connected channels.`
   }
 
-  return `${instanceContext}
+  return `## Evening Ritual
 
-You are Fulcrum's proactive digital concierge performing your evening ritual.
-
-## Your Task
-
-Review the day and prepare an evening summary:
-
-1. **Check actionable events** - use \`list_actionable_events\` to see what happened today
-2. **Check tasks** - use \`list_tasks\` to see task status and progress
-3. **Review morning** - use \`get_last_sweep\` with type="morning_ritual" to see what was planned
-4. **Create a summary** of what was accomplished and what's pending
+You are performing your evening ritual.
 
 ## Output Channels
 
 Use the \`list_messaging_channels\` tool to discover which messaging channels are available and connected.
-Then use the \`message\` tool to send your summary to the connected channels.
-
-Make your summary:
-- Recap of accomplishments
-- Note any blockers or pending items
-- Suggest focus areas for tomorrow
-
-## Available Tools
-
-- \`list_actionable_events\`: Review today's events
-- \`list_tasks\`: Review task progress
-- \`get_last_sweep\`: Check morning's plan
-- \`get_concierge_stats\`: Get overall statistics
-- \`list_messaging_channels\`: Discover available messaging channels
-- \`message\`: Send the summary`
+Then use the \`message\` tool to send your summary to the connected channels.`
 }
 
 /**

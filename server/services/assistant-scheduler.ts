@@ -116,7 +116,7 @@ async function runHourlySweep(): Promise<void> {
     let summary = ''
 
     const stream = assistantService.streamMessage(session.id, prompt, {
-      systemPromptOverride: systemPrompt,
+      systemPromptAdditions: systemPrompt,
     })
 
     for await (const event of stream) {
@@ -195,7 +195,7 @@ async function runDailyRitual(type: 'morning' | 'evening'): Promise<void> {
     let summary = ''
 
     const stream = assistantService.streamMessage(session.id, prompt, {
-      systemPromptOverride: systemPrompt,
+      systemPromptAdditions: systemPrompt,
     })
 
     for await (const event of stream) {
