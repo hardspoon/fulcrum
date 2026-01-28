@@ -1441,8 +1441,35 @@ export async function sendMessageToChannel(
     }
 
     case 'telegram':
-    case 'slack':
       return { success: false, error: `${channel} channel not implemented` }
+
+    case 'slack': {
+      const slackStatus = getSlackStatus()
+      if (!slackStatus?.enabled || slackStatus.status !== 'connected') {
+        return { success: false, error: 'Slack channel not connected' }
+      }
+
+      // Find the active Slack channel
+      const slackChannel = Array.from(activeChannels.values()).find(
+        (ch) => ch.type === 'slack'
+      )
+      if (!slackChannel) {
+        return { success: false, error: 'Slack channel not active' }
+      }
+
+      try {
+        const success = await slackChannel.sendMessage(to, body)
+        if (success) {
+          log.messaging.info('Sent Slack message', { to })
+          return { success: true }
+        } else {
+          return { success: false, error: 'Failed to send Slack message' }
+        }
+      } catch (err) {
+        log.messaging.error('Failed to send Slack message', { to, error: String(err) })
+        return { success: false, error: String(err) }
+      }
+    }
 
     default:
       return { success: false, error: `Unknown channel: ${channel}` }

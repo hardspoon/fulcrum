@@ -9,6 +9,7 @@ import {
   disableWhatsApp,
   getWhatsAppStatus,
   enableDiscord,
+  enableSlack,
   listConnections,
   stopMessagingChannels,
   setChannelFactory,
@@ -439,10 +440,11 @@ describe('sendMessageToChannel', () => {
     expect(result.error).toContain('not implemented')
   })
 
-  test('slack returns not implemented error', async () => {
-    const result = await sendMessageToChannel('slack', 'U123456', 'Hello')
+  test('slack sends message when connected', async () => {
+    await enableSlack('xoxb-fake-bot-token', 'xapp-fake-app-token')
 
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('not implemented')
+    const result = await sendMessageToChannel('slack', 'U123456', 'Hello from test')
+
+    expect(result.success).toBe(true)
   })
 })
