@@ -174,7 +174,7 @@ Enable in Settings → Messaging and follow the setup instructions for each plat
 
 ### System Monitoring
 
-Track CPU, memory, and disk usage while your agents work. The Jobs tab manages systemd (Linux) or launchd (macOS) timers.
+Track CPU, memory, and disk usage while your agents work. The Jobs tab manages systemd (Linux) or launchd (macOS) timers. The Messages tab shows all channel messages (WhatsApp, Discord, Telegram, Slack, Email) with filtering by channel and direction.
 
 ![System Monitoring](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/system-monitoring-dark.png)
 

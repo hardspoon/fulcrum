@@ -88,7 +88,7 @@ fulcrum notify <title> <message>  # Send notification
 ### Key Routes (`server/routes/`)
 - `/api/tasks/*` - Task CRUD
 - `/api/apps/*` - App deployment management
-- `/api/monitoring/*` - System and Claude instance monitoring
+- `/api/monitoring/*` - System and Claude instance monitoring, channel messages
 - `/api/deployments/*` - Deployment history
 - `/api/repositories/*` - Repository management
 - `/api/messaging/*` - Messaging channel management (WhatsApp, Discord, Telegram, Slack)
@@ -122,6 +122,7 @@ fulcrum notify <title> <message>  # Send notification
 | `systemMetrics` | CPU/memory/disk metrics (24h rolling) |
 | `messagingConnections` | Messaging channel runtime state (connection status, display names) |
 | `messagingSessionMappings` | Maps channel users to AI chat sessions |
+| `channelMessages` | Unified storage for all channel messages (WhatsApp, Discord, Telegram, Slack, Email) |
 
 Task statuses: `IN_PROGRESS`, `IN_REVIEW`, `DONE`, `CANCELED`
 

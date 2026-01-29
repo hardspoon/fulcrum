@@ -8,6 +8,8 @@ import { getPTYManager } from '../terminal/pty-instance'
 import { getDtachService } from '../terminal/dtach-service'
 import { getMetrics, getCurrentMetrics } from '../services/metrics-collector'
 import { getZAiSettings } from '../lib/settings'
+import { getChannelMessages, getChannelMessageCounts } from '../services/channels/message-storage'
+import type { ChannelType } from '../services/channels/types'
 import type { AgentType } from '@shared/types'
 
 const isMacOS = process.platform === 'darwin'
@@ -1194,4 +1196,40 @@ monitoringRoutes.get('/claude-usage', async (c) => {
   usageCacheTimestamp = now
 
   return c.json(usage)
+})
+
+// GET /api/monitoring/channel-messages
+// Returns channel messages with filtering options
+monitoringRoutes.get('/channel-messages', (c) => {
+  const channelParam = c.req.query('channel') || 'all'
+  const direction = c.req.query('direction') as 'incoming' | 'outgoing' | undefined
+  const search = c.req.query('search')
+  const limit = parseInt(c.req.query('limit') || '50', 10)
+  const offset = parseInt(c.req.query('offset') || '0', 10)
+
+  // Validate channel type
+  const validChannels = ['all', 'whatsapp', 'discord', 'telegram', 'slack', 'email']
+  const channelType = validChannels.includes(channelParam)
+    ? (channelParam as ChannelType | 'all')
+    : 'all'
+
+  const messages = getChannelMessages({
+    channelType,
+    direction,
+    search: search || undefined,
+    limit,
+    offset,
+  })
+
+  return c.json({
+    messages,
+    count: messages.length,
+  })
+})
+
+// GET /api/monitoring/channel-message-counts
+// Returns message counts grouped by channel type
+monitoringRoutes.get('/channel-message-counts', (_c) => {
+  const counts = getChannelMessageCounts()
+  return _c.json(counts)
 })

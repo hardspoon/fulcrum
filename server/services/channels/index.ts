@@ -10,7 +10,8 @@
  */
 
 import { log } from '../../lib/logger'
-import { activeChannels } from './channel-manager'
+import { activeChannels, DISCORD_CONNECTION_ID, TELEGRAM_CONNECTION_ID, SLACK_CONNECTION_ID } from './channel-manager'
+import { storeChannelMessage } from './message-storage'
 import {
   getWhatsAppStatus,
   sendWhatsAppMessage,
@@ -150,6 +151,18 @@ export async function sendMessageToChannel(
       try {
         await sendWhatsAppMessage(to, body)
         log.messaging.info('Sent WhatsApp message', { to })
+
+        // Store outgoing message
+        storeChannelMessage({
+          channelType: 'whatsapp',
+          connectionId: waStatus.id,
+          direction: 'outgoing',
+          senderId: waStatus.displayName || 'self',
+          recipientId: to,
+          content: body,
+          messageTimestamp: new Date(),
+        })
+
         return { success: true }
       } catch (err) {
         log.messaging.error('Failed to send WhatsApp message', { to, error: String(err) })
@@ -175,6 +188,18 @@ export async function sendMessageToChannel(
         const success = await discordChannel.sendMessage(to, body)
         if (success) {
           log.messaging.info('Sent Discord message', { to })
+
+          // Store outgoing message
+          storeChannelMessage({
+            channelType: 'discord',
+            connectionId: DISCORD_CONNECTION_ID,
+            direction: 'outgoing',
+            senderId: discordStatus.displayName || 'bot',
+            recipientId: to,
+            content: body,
+            messageTimestamp: new Date(),
+          })
+
           return { success: true }
         } else {
           return { success: false, error: 'Failed to send Discord message' }
@@ -203,6 +228,18 @@ export async function sendMessageToChannel(
         const success = await telegramChannel.sendMessage(to, body)
         if (success) {
           log.messaging.info('Sent Telegram message', { to })
+
+          // Store outgoing message
+          storeChannelMessage({
+            channelType: 'telegram',
+            connectionId: TELEGRAM_CONNECTION_ID,
+            direction: 'outgoing',
+            senderId: telegramStatus.displayName || 'bot',
+            recipientId: to,
+            content: body,
+            messageTimestamp: new Date(),
+          })
+
           return { success: true }
         } else {
           return { success: false, error: 'Failed to send Telegram message' }
@@ -229,10 +266,23 @@ export async function sendMessageToChannel(
 
       try {
         // Pass blocks metadata for Block Kit formatting
-        const metadata = options?.slackBlocks ? { blocks: options.slackBlocks } : undefined
-        const success = await slackChannel.sendMessage(to, body, metadata)
+        const msgMetadata = options?.slackBlocks ? { blocks: options.slackBlocks } : undefined
+        const success = await slackChannel.sendMessage(to, body, msgMetadata)
         if (success) {
           log.messaging.info('Sent Slack message', { to, hasBlocks: !!options?.slackBlocks })
+
+          // Store outgoing message
+          storeChannelMessage({
+            channelType: 'slack',
+            connectionId: SLACK_CONNECTION_ID,
+            direction: 'outgoing',
+            senderId: slackStatus.displayName || 'bot',
+            recipientId: to,
+            content: body,
+            metadata: msgMetadata,
+            messageTimestamp: new Date(),
+          })
+
           return { success: true }
         } else {
           return { success: false, error: 'Failed to send Slack message' }

@@ -11,8 +11,6 @@
 
 import { createTransport, type Transporter } from 'nodemailer'
 import { ImapFlow } from 'imapflow'
-import { eq } from 'drizzle-orm'
-import { db, emails } from '../../db'
 import { log } from '../../lib/logger'
 import { getSettings } from '../../lib/settings'
 import type {
@@ -26,7 +24,7 @@ import type {
 // Import from new modules
 import { parseEmailHeaders, parseEmailContent } from './email-parser'
 import { checkAuthorization } from './email-auth'
-import { storeEmail, getStoredEmails as getStoredEmailsFromDb } from './email-storage'
+import { storeEmail, getStoredEmails as getStoredEmailsFromDb, getStoredEmailByMessageId, type StoredEmail } from './email-storage'
 import { sendEmail, sendUnauthorizedResponse } from './email-sender'
 import { isAutomatedEmail } from './email-types'
 
@@ -461,7 +459,7 @@ export class EmailChannel implements MessagingChannel {
    * Fetch emails by UID from IMAP and store them locally.
    * Returns the stored email records.
    */
-  async fetchAndStoreEmails(uids: number[], options?: { limit?: number }): Promise<typeof emails.$inferSelect[]> {
+  async fetchAndStoreEmails(uids: number[], options?: { limit?: number }): Promise<StoredEmail[]> {
     if (!this.credentials || uids.length === 0) {
       return []
     }
@@ -471,7 +469,7 @@ export class EmailChannel implements MessagingChannel {
 
     const client = this.createImapClient()
 
-    const storedEmails: typeof emails.$inferSelect[] = []
+    const storedEmails: StoredEmail[] = []
 
     try {
       await client.connect()
@@ -509,11 +507,7 @@ export class EmailChannel implements MessagingChannel {
           })
 
           // Retrieve the stored email
-          const stored = db
-            .select()
-            .from(emails)
-            .where(eq(emails.messageId, headers.messageId))
-            .get()
+          const stored = getStoredEmailByMessageId(this.connectionId, headers.messageId)
 
           if (stored) {
             storedEmails.push(stored)
@@ -539,7 +533,7 @@ export class EmailChannel implements MessagingChannel {
     threadId?: string
     search?: string
     folder?: string
-  }): typeof emails.$inferSelect[] {
+  }): StoredEmail[] {
     return getStoredEmailsFromDb({
       connectionId: this.connectionId,
       ...options,

@@ -8,7 +8,8 @@
     "worktrees": "Worktrees",
     "jobs": "Jobs",
     "usage": "Usage Limits",
-    "assistant": "Assistant"
+    "assistant": "Assistant",
+    "messages": "Messages"
   },
   "claude": {
     "showAllInstances": "Show all instances",

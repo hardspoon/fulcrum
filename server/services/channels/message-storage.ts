@@ -1,0 +1,156 @@
+/**
+ * Unified message storage for all messaging channels.
+ * Stores ALL channel messages (WhatsApp, Discord, Telegram, Slack, Email) in a single table.
+ */
+
+import { eq, desc, like, or, and, sql } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
+import { db, channelMessages } from '../../db'
+import type { ChannelMessageMetadata } from '../../db/schema'
+import type { ChannelType } from './types'
+import { log } from '../../lib/logger'
+
+/**
+ * Parameters for storing a channel message.
+ */
+export interface StoreChannelMessageParams {
+  channelType: ChannelType
+  connectionId: string
+  direction: 'incoming' | 'outgoing'
+  senderId: string
+  senderName?: string
+  recipientId?: string
+  content: string
+  metadata?: ChannelMessageMetadata
+  messageTimestamp: Date | string
+}
+
+/**
+ * Store a channel message in the local database.
+ */
+export function storeChannelMessage(params: StoreChannelMessageParams): string {
+  const now = new Date().toISOString()
+  const id = nanoid()
+
+  // Convert timestamp to ISO string if it's a Date
+  const messageTimestamp =
+    params.messageTimestamp instanceof Date
+      ? params.messageTimestamp.toISOString()
+      : params.messageTimestamp
+
+  db.insert(channelMessages)
+    .values({
+      id,
+      channelType: params.channelType,
+      connectionId: params.connectionId,
+      direction: params.direction,
+      senderId: params.senderId,
+      senderName: params.senderName,
+      recipientId: params.recipientId,
+      content: params.content,
+      metadata: params.metadata,
+      messageTimestamp,
+      createdAt: now,
+    })
+    .run()
+
+  log.messaging.debug('Channel message stored', {
+    id,
+    channelType: params.channelType,
+    connectionId: params.connectionId,
+    direction: params.direction,
+    senderId: params.senderId,
+  })
+
+  return id
+}
+
+/**
+ * Options for querying channel messages.
+ */
+export interface GetChannelMessagesOptions {
+  channelType?: ChannelType | 'all'
+  connectionId?: string
+  direction?: 'incoming' | 'outgoing'
+  search?: string
+  limit?: number
+  offset?: number
+}
+
+/**
+ * Get channel messages with optional filters.
+ */
+export function getChannelMessages(
+  options: GetChannelMessagesOptions = {}
+): typeof channelMessages.$inferSelect[] {
+  const conditions = []
+
+  if (options.channelType && options.channelType !== 'all') {
+    conditions.push(eq(channelMessages.channelType, options.channelType))
+  }
+
+  if (options.connectionId) {
+    conditions.push(eq(channelMessages.connectionId, options.connectionId))
+  }
+
+  if (options.direction) {
+    conditions.push(eq(channelMessages.direction, options.direction))
+  }
+
+  if (options.search) {
+    const searchTerm = `%${options.search}%`
+    conditions.push(
+      or(
+        like(channelMessages.content, searchTerm),
+        like(channelMessages.senderId, searchTerm),
+        like(channelMessages.senderName, searchTerm)
+      )!
+    )
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+
+  const results = db
+    .select()
+    .from(channelMessages)
+    .where(whereClause)
+    .orderBy(desc(channelMessages.messageTimestamp))
+    .limit(options.limit ?? 50)
+    .offset(options.offset ?? 0)
+    .all()
+
+  return results
+}
+
+/**
+ * Get a single channel message by ID.
+ */
+export function getChannelMessageById(
+  id: string
+): typeof channelMessages.$inferSelect | undefined {
+  return db
+    .select()
+    .from(channelMessages)
+    .where(eq(channelMessages.id, id))
+    .get()
+}
+
+/**
+ * Get channel message counts grouped by channel type.
+ */
+export function getChannelMessageCounts(): Record<string, number> {
+  const results = db
+    .select({
+      channelType: channelMessages.channelType,
+      count: sql<number>`count(*)`,
+    })
+    .from(channelMessages)
+    .groupBy(channelMessages.channelType)
+    .all()
+
+  const counts: Record<string, number> = {}
+  for (const row of results) {
+    counts[row.channelType] = row.count
+  }
+  return counts
+}

@@ -1,10 +1,12 @@
 /**
  * Email storage utilities for local database operations.
+ * Uses the unified channelMessages table with email-specific metadata.
  */
 
-import { eq, desc, like, or } from 'drizzle-orm'
+import { eq, desc, like, or, and, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { db, emails } from '../../db'
+import { db, channelMessages } from '../../db'
+import type { ChannelMessageMetadata, ChannelMessage } from '../../db/schema'
 import { log } from '../../lib/logger'
 
 /**
@@ -30,16 +32,80 @@ export interface StoreEmailParams {
 }
 
 /**
+ * Email data returned from storage (backward-compatible shape).
+ */
+export interface StoredEmail {
+  id: string
+  connectionId: string
+  messageId: string
+  threadId?: string | null
+  inReplyTo?: string | null
+  references?: string[] | null
+  direction: string
+  fromAddress: string
+  fromName?: string | null
+  toAddresses?: string[] | null
+  ccAddresses?: string[] | null
+  subject?: string | null
+  textContent?: string | null
+  htmlContent?: string | null
+  snippet?: string | null
+  emailDate?: string | null
+  folder?: string | null
+  isRead?: boolean | null
+  isStarred?: boolean | null
+  labels?: string[] | null
+  imapUid?: number | null
+  createdAt: string
+}
+
+/**
+ * Convert a ChannelMessage to StoredEmail format for backward compatibility.
+ */
+function toStoredEmail(msg: ChannelMessage): StoredEmail {
+  const metadata = (msg.metadata || {}) as ChannelMessageMetadata
+  return {
+    id: msg.id,
+    connectionId: msg.connectionId,
+    messageId: metadata.messageId || msg.id,
+    threadId: metadata.threadId,
+    inReplyTo: metadata.inReplyTo,
+    references: metadata.references,
+    direction: msg.direction,
+    fromAddress: msg.senderId,
+    fromName: msg.senderName,
+    toAddresses: metadata.toAddresses,
+    ccAddresses: metadata.ccAddresses,
+    subject: metadata.subject,
+    textContent: msg.content,
+    htmlContent: metadata.htmlContent,
+    snippet: metadata.snippet,
+    emailDate: msg.messageTimestamp,
+    folder: metadata.folder,
+    isRead: metadata.isRead,
+    isStarred: metadata.isStarred,
+    labels: metadata.labels,
+    imapUid: metadata.imapUid,
+    createdAt: msg.createdAt,
+  }
+}
+
+/**
  * Store an email in the local database.
  */
 export function storeEmail(params: StoreEmailParams): void {
   const now = new Date().toISOString()
 
-  // Check if email already exists (by messageId)
+  // Check if email already exists (by messageId in metadata)
   const existing = db
     .select()
-    .from(emails)
-    .where(eq(emails.messageId, params.messageId))
+    .from(channelMessages)
+    .where(
+      and(
+        eq(channelMessages.channelType, 'email'),
+        sql`json_extract(${channelMessages.metadata}, '$.messageId') = ${params.messageId}`
+      )
+    )
     .get()
 
   if (existing) {
@@ -55,27 +121,38 @@ export function storeEmail(params: StoreEmailParams): void {
     ? params.textContent.slice(0, 200).replace(/\s+/g, ' ').trim()
     : undefined
 
-  db.insert(emails)
+  // Build metadata object with email-specific fields
+  const metadata: ChannelMessageMetadata = {
+    messageId: params.messageId,
+    threadId: params.threadId,
+    inReplyTo: params.inReplyTo,
+    references: params.references,
+    subject: params.subject,
+    toAddresses: params.toAddresses,
+    ccAddresses: params.ccAddresses,
+    htmlContent: params.htmlContent,
+    snippet,
+    imapUid: params.imapUid,
+    folder: params.folder ?? (params.direction === 'outgoing' ? 'sent' : 'inbox'),
+    isRead: params.direction === 'outgoing', // Outgoing are automatically "read"
+    isStarred: false,
+  }
+
+  // Get recipient for outgoing emails
+  const recipientId = params.toAddresses?.[0] ?? undefined
+
+  db.insert(channelMessages)
     .values({
       id: nanoid(),
+      channelType: 'email',
       connectionId: params.connectionId,
-      messageId: params.messageId,
-      threadId: params.threadId,
-      inReplyTo: params.inReplyTo,
-      references: params.references,
       direction: params.direction,
-      fromAddress: params.fromAddress,
-      fromName: params.fromName,
-      toAddresses: params.toAddresses,
-      ccAddresses: params.ccAddresses,
-      subject: params.subject,
-      textContent: params.textContent,
-      htmlContent: params.htmlContent,
-      snippet,
-      emailDate: params.emailDate?.toISOString(),
-      folder: params.folder ?? (params.direction === 'outgoing' ? 'sent' : 'inbox'),
-      isRead: params.direction === 'outgoing', // Outgoing are automatically "read"
-      imapUid: params.imapUid,
+      senderId: params.fromAddress,
+      senderName: params.fromName,
+      recipientId,
+      content: params.textContent || '',
+      metadata,
+      messageTimestamp: params.emailDate?.toISOString() ?? now,
       createdAt: now,
     })
     .run()
@@ -103,37 +180,87 @@ export interface GetStoredEmailsOptions {
 /**
  * Get locally stored emails with optional filters.
  */
-export function getStoredEmails(options: GetStoredEmailsOptions): typeof emails.$inferSelect[] {
-  let query = db.select().from(emails).where(eq(emails.connectionId, options.connectionId))
+export function getStoredEmails(options: GetStoredEmailsOptions): StoredEmail[] {
+  const conditions = [
+    eq(channelMessages.channelType, 'email'),
+    eq(channelMessages.connectionId, options.connectionId),
+  ]
 
   if (options.direction) {
-    query = query.where(eq(emails.direction, options.direction)) as typeof query
+    conditions.push(eq(channelMessages.direction, options.direction))
   }
 
   if (options.threadId) {
-    query = query.where(eq(emails.threadId, options.threadId)) as typeof query
+    conditions.push(
+      sql`json_extract(${channelMessages.metadata}, '$.threadId') = ${options.threadId}`
+    )
   }
 
   if (options.folder) {
-    query = query.where(eq(emails.folder, options.folder)) as typeof query
+    conditions.push(
+      sql`json_extract(${channelMessages.metadata}, '$.folder') = ${options.folder}`
+    )
   }
 
   if (options.search) {
     const searchTerm = `%${options.search}%`
-    query = query.where(
+    conditions.push(
       or(
-        like(emails.subject, searchTerm),
-        like(emails.textContent, searchTerm),
-        like(emails.fromAddress, searchTerm)
-      )
-    ) as typeof query
+        sql`json_extract(${channelMessages.metadata}, '$.subject') LIKE ${searchTerm}`,
+        like(channelMessages.content, searchTerm),
+        like(channelMessages.senderId, searchTerm)
+      )!
+    )
   }
 
-  const results = query
-    .orderBy(desc(emails.createdAt))
+  const results = db
+    .select()
+    .from(channelMessages)
+    .where(and(...conditions))
+    .orderBy(desc(channelMessages.messageTimestamp))
     .limit(options.limit ?? 50)
     .offset(options.offset ?? 0)
     .all()
 
-  return results
+  return results.map(toStoredEmail)
+}
+
+/**
+ * Get a single email by ID.
+ */
+export function getStoredEmailById(id: string): StoredEmail | undefined {
+  const result = db
+    .select()
+    .from(channelMessages)
+    .where(
+      and(
+        eq(channelMessages.channelType, 'email'),
+        eq(channelMessages.id, id)
+      )
+    )
+    .get()
+
+  return result ? toStoredEmail(result) : undefined
+}
+
+/**
+ * Get a single email by its message ID (Email Message-ID header).
+ */
+export function getStoredEmailByMessageId(
+  connectionId: string,
+  messageId: string
+): StoredEmail | undefined {
+  const result = db
+    .select()
+    .from(channelMessages)
+    .where(
+      and(
+        eq(channelMessages.channelType, 'email'),
+        eq(channelMessages.connectionId, connectionId),
+        sql`json_extract(${channelMessages.metadata}, '$.messageId') = ${messageId}`
+      )
+    )
+    .get()
+
+  return result ? toStoredEmail(result) : undefined
 }

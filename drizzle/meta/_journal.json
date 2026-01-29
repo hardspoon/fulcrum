@@ -351,6 +351,13 @@
       "when": 1770375200000,
       "tag": "0049_concierge_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1770461600000,
+      "tag": "0050_channel_messages",
+      "breakpoints": true
     }
   ]
 }

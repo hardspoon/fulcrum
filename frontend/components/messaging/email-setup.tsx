@@ -22,7 +22,6 @@ import {
   useTestEmailCredentials,
   useEnableEmail,
   useDisableEmail,
-  useEmailSessions,
 } from '@/hooks/use-messaging'
 
 interface EmailSetupProps {
@@ -84,7 +83,6 @@ function getProviderSettings(email: string) {
 
 export function EmailSetup({ isLoading = false }: EmailSetupProps) {
   const { data: status, refetch: refetchStatus } = useEmailStatus()
-  const { data: sessions } = useEmailSessions()
   const configureEmail = useConfigureEmail()
   const testCredentials = useTestEmailCredentials()
   const enableEmailMutation = useEnableEmail()
@@ -691,30 +689,6 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
             </div>
           )}
 
-          {/* Active sessions */}
-          {sessions && sessions.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                Active Conversations
-              </h4>
-              <div className="space-y-1">
-                {sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="text-xs text-muted-foreground flex items-center gap-2"
-                  >
-                    <span className="font-mono">{session.channelUserId}</span>
-                    {session.channelUserName && (
-                      <span>({session.channelUserName})</span>
-                    )}
-                    <span className="text-muted-foreground/60">
-                      Last: {new Date(session.lastMessageAt).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 

@@ -351,30 +351,45 @@ export const emailAuthorizedThreads = sqliteTable('email_authorized_threads', {
   createdAt: text('created_at').notNull(),
 })
 
-// Stored emails - local copy of emails for AI agent access and search
-export const emails = sqliteTable('emails', {
+// Channel message metadata - covers all channel-specific fields in JSON
+export type ChannelMessageMetadata = {
+  // Email-specific
+  messageId?: string // Email Message-ID header
+  threadId?: string // Thread identifier
+  inReplyTo?: string // In-Reply-To header
+  references?: string[] // References header chain
+  subject?: string
+  toAddresses?: string[]
+  ccAddresses?: string[]
+  htmlContent?: string
+  snippet?: string
+  imapUid?: number
+  folder?: string
+  isRead?: boolean
+  isStarred?: boolean
+  labels?: string[]
+  // Slack-specific
+  blocks?: unknown[]
+  // WhatsApp-specific
+  isGroup?: boolean
+  isSelfChat?: boolean
+  // Generic
+  [key: string]: unknown
+}
+
+// Unified channel messages - stores ALL channel messages (WhatsApp, Discord, Telegram, Slack, Email)
+export const channelMessages = sqliteTable('channel_messages', {
   id: text('id').primaryKey(),
+  channelType: text('channel_type').notNull(), // 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email'
   connectionId: text('connection_id').notNull(), // FK to messagingConnections
-  messageId: text('message_id').notNull(), // Email Message-ID header (unique per email)
-  threadId: text('thread_id'), // Thread identifier for grouping conversations
-  inReplyTo: text('in_reply_to'), // In-Reply-To header
-  references: text('references', { mode: 'json' }).$type<string[]>(), // References header chain
   direction: text('direction').notNull(), // 'incoming' | 'outgoing'
-  fromAddress: text('from_address').notNull(), // Sender email address
-  fromName: text('from_name'), // Sender display name
-  toAddresses: text('to_addresses', { mode: 'json' }).$type<string[]>(), // Recipient addresses
-  ccAddresses: text('cc_addresses', { mode: 'json' }).$type<string[]>(), // CC addresses
-  subject: text('subject'),
-  textContent: text('text_content'), // Plain text body
-  htmlContent: text('html_content'), // HTML body (if available)
-  snippet: text('snippet'), // Short preview for list views
-  emailDate: text('email_date'), // Date header from email
-  folder: text('folder').default('inbox'), // inbox, sent, drafts, etc.
-  isRead: integer('is_read', { mode: 'boolean' }).default(false),
-  isStarred: integer('is_starred', { mode: 'boolean' }).default(false),
-  labels: text('labels', { mode: 'json' }).$type<string[]>(), // Custom labels/tags
-  imapUid: integer('imap_uid'), // IMAP UID for sync purposes
-  createdAt: text('created_at').notNull(), // When we stored this email
+  senderId: text('sender_id').notNull(), // Phone number, user ID, email address
+  senderName: text('sender_name'), // Display name
+  recipientId: text('recipient_id'), // For outgoing messages
+  content: text('content').notNull(), // Message text / email body
+  metadata: text('metadata', { mode: 'json' }).$type<ChannelMessageMetadata>(),
+  messageTimestamp: text('message_timestamp').notNull(), // When the message was sent/received
+  createdAt: text('created_at').notNull(), // When we stored this message
 })
 
 // Actionable events - the concierge's memory of things it noticed and decided on
@@ -461,8 +476,8 @@ export type MessagingSessionMapping = typeof messagingSessionMappings.$inferSele
 export type NewMessagingSessionMapping = typeof messagingSessionMappings.$inferInsert
 export type EmailAuthorizedThread = typeof emailAuthorizedThreads.$inferSelect
 export type NewEmailAuthorizedThread = typeof emailAuthorizedThreads.$inferInsert
-export type Email = typeof emails.$inferSelect
-export type NewEmail = typeof emails.$inferInsert
+export type ChannelMessage = typeof channelMessages.$inferSelect
+export type NewChannelMessage = typeof channelMessages.$inferInsert
 export type ActionableEvent = typeof actionableEvents.$inferSelect
 export type NewActionableEvent = typeof actionableEvents.$inferInsert
 export type SweepRun = typeof sweepRuns.$inferSelect

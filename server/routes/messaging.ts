@@ -49,8 +49,7 @@ import {
   DISCORD_CONNECTION_ID,
   TELEGRAM_CONNECTION_ID,
 } from '../services/channels'
-import { db, emails } from '../db'
-import { eq } from 'drizzle-orm'
+import { getStoredEmailById, type StoredEmail } from '../services/channels/email-storage'
 import { log } from '../lib/logger'
 
 const app = new Hono()
@@ -496,11 +495,7 @@ app.get('/email/emails', (c) => {
 app.get('/email/emails/:id', (c) => {
   try {
     const id = c.req.param('id')
-    const email = db
-      .select()
-      .from(emails)
-      .where(eq(emails.id, id))
-      .get()
+    const email = getStoredEmailById(id)
 
     if (!email) {
       return c.json({ error: 'Email not found' }, 404)
@@ -541,7 +536,7 @@ app.post('/email/search', async (c) => {
     })
 
     // Optionally fetch and store the results
-    let fetchedEmails: typeof emails.$inferSelect[] = []
+    let fetchedEmails: StoredEmail[] = []
     if (uids.length > 0 && body.fetchLimit !== 0) {
       fetchedEmails = await fetchAndStoreEmails(uids, { limit: body.fetchLimit || 20 })
     }

@@ -21,6 +21,8 @@ import type {
   EmailAuthState,
   ChannelFactory,
 } from './types'
+import { storeChannelMessage } from './message-storage'
+import type { ChannelMessageMetadata } from '../../db/schema'
 
 // Active channel instances
 export const activeChannels = new Map<string, MessagingChannel>()
@@ -93,9 +95,36 @@ let messageHandler: ((msg: IncomingMessage) => Promise<void>) | null = null
 /**
  * Set the message handler function.
  * Called by message-handler.ts during initialization.
+ * Wraps the handler to capture all incoming messages to the unified storage.
  */
 export function setMessageHandler(handler: (msg: IncomingMessage) => Promise<void>): void {
-  messageHandler = handler
+  messageHandler = async (msg: IncomingMessage) => {
+    // Store all incoming messages (except email - email channel handles its own storage)
+    // Email messages are already stored via storeEmail() in email-channel.ts
+    if (msg.channelType !== 'email') {
+      try {
+        storeChannelMessage({
+          channelType: msg.channelType,
+          connectionId: msg.connectionId,
+          direction: 'incoming',
+          senderId: msg.senderId,
+          senderName: msg.senderName,
+          content: msg.content,
+          metadata: msg.metadata as ChannelMessageMetadata | undefined,
+          messageTimestamp: msg.timestamp,
+        })
+      } catch (err) {
+        log.messaging.error('Failed to store incoming message', {
+          channelType: msg.channelType,
+          senderId: msg.senderId,
+          error: String(err),
+        })
+      }
+    }
+
+    // Call the actual message handler
+    return handler(msg)
+  }
 }
 
 /**

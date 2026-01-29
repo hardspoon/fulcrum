@@ -59,7 +59,12 @@ export function getDataModel(): string {
 **Terminals** - Persistent shell sessions
 - Organized in tabs
 - dtach-backed for persistence
-- Full shell access`
+- Full shell access
+
+**Channel Messages** - Unified message storage
+- Captures all incoming/outgoing messages across channels
+- Channels: WhatsApp, Discord, Telegram, Slack, Email
+- Used for message history, monitoring, and audit trails`
 }
 
 /**
@@ -127,7 +132,7 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`delete_backup\` - Delete a backup to free space
 
 **Email Tools:**
-- \`list_emails\` - List stored emails from local database
+- \`list_emails\` - List stored emails from local database (queries unified channel_messages table)
 - \`get_email\` - Get a specific email by ID
 - \`search_emails\` - Search emails via IMAP
 - \`fetch_emails\` - Fetch specific emails by IMAP UID
