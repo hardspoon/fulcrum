@@ -4,6 +4,9 @@
  */
 
 import { eq } from 'drizzle-orm'
+import { REST, Routes, type RESTGetAPICurrentUserResult } from 'discord.js'
+import TelegramBot from 'node-telegram-bot-api'
+import { WebClient } from '@slack/web-api'
 import { db, messagingConnections } from '../../db'
 import type { MessagingConnection } from '../../db/schema'
 import { log } from '../../lib/logger'
@@ -27,6 +30,37 @@ import type { ChannelMessageMetadata } from '../../db/schema'
 // Active channel instances
 export const activeChannels = new Map<string, MessagingChannel>()
 
+// Default token validators that make real API calls
+async function validateDiscordTokenDefault(token: string): Promise<void> {
+  const rest = new REST({ version: '10' }).setToken(token)
+  const me = (await rest.get(Routes.user('@me'))) as RESTGetAPICurrentUserResult
+  if (!me.id || !me.username) {
+    throw new Error('Invalid bot token - could not get bot info')
+  }
+}
+
+async function validateTelegramTokenDefault(token: string): Promise<void> {
+  const testBot = new TelegramBot(token, { polling: false })
+  const me = await testBot.getMe()
+  if (!me.username) {
+    throw new Error('Invalid bot token - could not get bot info')
+  }
+}
+
+async function validateSlackTokensDefault(
+  botToken: string,
+  appToken: string
+): Promise<void> {
+  const client = new WebClient(botToken)
+  const authResult = await client.auth.test()
+  if (!authResult.ok || !authResult.user_id) {
+    throw new Error('Invalid bot token - auth test failed')
+  }
+  if (!appToken.startsWith('xapp-')) {
+    throw new Error('Invalid Slack app token: must start with xapp-')
+  }
+}
+
 // Default channel factory using real implementations
 const defaultChannelFactory: ChannelFactory = {
   createWhatsAppChannel: (id) => new WhatsAppChannel(id),
@@ -34,6 +68,9 @@ const defaultChannelFactory: ChannelFactory = {
   createTelegramChannel: (id) => new TelegramChannel(id),
   createSlackChannel: (id) => new SlackChannel(id),
   createEmailChannel: (id, authState) => new EmailChannel(id, authState),
+  validateDiscordToken: validateDiscordTokenDefault,
+  validateTelegramToken: validateTelegramTokenDefault,
+  validateSlackTokens: validateSlackTokensDefault,
 }
 
 // Current factory (can be overridden for testing)

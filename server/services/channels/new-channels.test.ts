@@ -67,13 +67,17 @@ class BaseMockChannel implements MessagingChannel {
   }
 }
 
-// Mock factory that creates mock channels
+// Mock factory that creates mock channels and skips token validation
 const mockChannelFactory: ChannelFactory = {
   createWhatsAppChannel: (id) => new BaseMockChannel(id, 'whatsapp'),
   createDiscordChannel: (id) => new BaseMockChannel(id, 'discord'),
   createTelegramChannel: (id) => new BaseMockChannel(id, 'telegram'),
   createSlackChannel: (id) => new BaseMockChannel(id, 'slack'),
   createEmailChannel: (id) => new BaseMockChannel(id, 'email'),
+  // Mock validators that always pass
+  validateDiscordToken: async () => {},
+  validateTelegramToken: async () => {},
+  validateSlackTokens: async () => {},
 }
 
 describe('Discord Channel Manager (settings-based)', () => {

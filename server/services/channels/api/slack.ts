@@ -3,13 +3,13 @@
  * Configuration stored in settings.json under channels.slack.
  */
 
-import { WebClient } from '@slack/web-api'
 import { getSettings, updateSettingByPath } from '../../../lib/settings'
 import {
   activeChannels,
   SLACK_CONNECTION_ID,
   startSlackChannel,
   stopSlackChannel,
+  getChannelFactory,
 } from '../channel-manager'
 import type { ConnectionStatus } from '../types'
 
@@ -24,21 +24,15 @@ export async function configureSlack(botToken: string, appToken: string): Promis
   enabled: boolean
   status: ConnectionStatus
 }> {
-  // Validate bot token by making a test API call
-  try {
-    const client = new WebClient(botToken)
-    const authResult = await client.auth.test()
-    if (!authResult.ok || !authResult.user_id) {
-      throw new Error('Invalid bot token - auth test failed')
+  // Validate tokens using the factory's validator (allows mocking in tests)
+  const factory = getChannelFactory()
+  if (factory.validateSlackTokens) {
+    try {
+      await factory.validateSlackTokens(botToken, appToken)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(`Invalid Slack tokens: ${message}`)
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    throw new Error(`Invalid Slack bot token: ${message}`)
-  }
-
-  // Validate app token format (should start with xapp-)
-  if (!appToken.startsWith('xapp-')) {
-    throw new Error('Invalid Slack app token: must start with xapp-')
   }
 
   // Stop existing channel if running

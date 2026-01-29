@@ -3,13 +3,13 @@
  * Configuration stored in settings.json under channels.discord.
  */
 
-import { REST, Routes } from 'discord.js'
 import { getSettings, updateSettingByPath } from '../../../lib/settings'
 import {
   activeChannels,
   DISCORD_CONNECTION_ID,
   startDiscordChannel,
   stopDiscordChannel,
+  getChannelFactory,
 } from '../channel-manager'
 import type { ConnectionStatus } from '../types'
 
@@ -24,16 +24,15 @@ export async function configureDiscord(botToken: string): Promise<{
   enabled: boolean
   status: ConnectionStatus
 }> {
-  // Validate token by making a test API call
-  try {
-    const rest = new REST({ version: '10' }).setToken(botToken)
-    const me = await rest.get(Routes.user('@me')) as { id: string; username: string }
-    if (!me.id || !me.username) {
-      throw new Error('Invalid bot token - could not get bot info')
+  // Validate token using the factory's validator (allows mocking in tests)
+  const factory = getChannelFactory()
+  if (factory.validateDiscordToken) {
+    try {
+      await factory.validateDiscordToken(botToken)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(`Invalid Discord bot token: ${message}`)
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    throw new Error(`Invalid Discord bot token: ${message}`)
   }
 
   // Stop existing channel if running
