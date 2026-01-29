@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
+import { nanoid } from 'nanoid'
 import { db } from '../db'
 import { actionableEvents, sweepRuns, tasks } from '../db/schema'
 import { eq, desc, sql, and, count } from 'drizzle-orm'
@@ -429,6 +430,114 @@ assistantRoutes.get('/events/:id', async (c) => {
 })
 
 /**
+ * POST /api/assistant/events
+ * Create a new actionable event
+ */
+assistantRoutes.post('/events', async (c) => {
+  const body = await c.req.json<{
+    sourceChannel: string
+    sourceId: string
+    sourceMetadata?: Record<string, unknown>
+    summary?: string
+    status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+    linkedTaskId?: string
+  }>()
+
+  if (!body.sourceChannel || !body.sourceId) {
+    return c.json({ error: 'sourceChannel and sourceId are required' }, 400)
+  }
+
+  try {
+    const now = new Date().toISOString()
+    const event = {
+      id: nanoid(),
+      sourceChannel: body.sourceChannel,
+      sourceId: body.sourceId,
+      sourceMetadata: body.sourceMetadata,
+      summary: body.summary,
+      status: body.status || 'pending',
+      linkedTaskId: body.linkedTaskId,
+      actionLog: [],
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    db.insert(actionableEvents).values(event).run()
+    return c.json(event, 201)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return c.json({ error: message }, 500)
+  }
+})
+
+/**
+ * PATCH /api/assistant/events/:id
+ * Update an actionable event
+ */
+assistantRoutes.patch('/events/:id', async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json<{
+    status?: 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
+    linkedTaskId?: string | null
+    actionLogEntry?: string
+  }>()
+
+  try {
+    const existing = db.select().from(actionableEvents).where(eq(actionableEvents.id, id)).get()
+
+    if (!existing) {
+      return c.json({ error: 'Event not found' }, 404)
+    }
+
+    const now = new Date().toISOString()
+    const updates: Record<string, unknown> = { updatedAt: now }
+
+    if (body.status !== undefined) {
+      updates.status = body.status
+    }
+
+    if (body.linkedTaskId !== undefined) {
+      updates.linkedTaskId = body.linkedTaskId
+    }
+
+    if (body.actionLogEntry) {
+      const existingLog = existing.actionLog || []
+      updates.actionLog = [...existingLog, { timestamp: now, action: body.actionLogEntry }]
+    }
+
+    db.update(actionableEvents).set(updates).where(eq(actionableEvents.id, id)).run()
+
+    const updated = db.select().from(actionableEvents).where(eq(actionableEvents.id, id)).get()
+    return c.json(updated)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return c.json({ error: message }, 500)
+  }
+})
+
+/**
+ * DELETE /api/assistant/events/:id
+ * Delete an actionable event
+ */
+assistantRoutes.delete('/events/:id', async (c) => {
+  const id = c.req.param('id')
+
+  try {
+    const existing = db.select().from(actionableEvents).where(eq(actionableEvents.id, id)).get()
+
+    if (!existing) {
+      return c.json({ error: 'Event not found' }, 404)
+    }
+
+    db.delete(actionableEvents).where(eq(actionableEvents.id, id)).run()
+    return c.json({ success: true })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return c.json({ error: message }, 500)
+  }
+})
+
+/**
  * GET /api/assistant/sweeps
  * List sweep runs with optional filtering
  */
@@ -448,6 +557,29 @@ assistantRoutes.get('/sweeps', async (c) => {
       .all()
 
     return c.json({ runs })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return c.json({ error: message }, 500)
+  }
+})
+
+/**
+ * GET /api/assistant/sweeps/last/:type
+ * Get the most recent sweep run of a specific type
+ */
+assistantRoutes.get('/sweeps/last/:type', async (c) => {
+  const type = c.req.param('type')
+
+  try {
+    const sweep = db
+      .select()
+      .from(sweepRuns)
+      .where(eq(sweepRuns.type, type))
+      .orderBy(desc(sweepRuns.completedAt))
+      .limit(1)
+      .get()
+
+    return c.json(sweep || null)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return c.json({ error: message }, 500)
