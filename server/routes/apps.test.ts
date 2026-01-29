@@ -275,6 +275,23 @@ services:
       expect(res.status).toBe(201)
       expect(body.autoDeployEnabled).toBe(true)
     })
+
+    test('auto-creates services from compose file when services array is empty', async () => {
+      const { post } = createTestApp()
+
+      const res = await post('/api/apps', {
+        name: 'Auto Services App',
+        repositoryId: repoId,
+        services: [],
+      })
+      const body = await res.json()
+
+      expect(res.status).toBe(201)
+      expect(body.services).toHaveLength(2) // web + api from test compose.yml
+      expect(body.services.map((s: { serviceName: string }) => s.serviceName).sort()).toEqual(['api', 'web'])
+      expect(body.services.find((s: { serviceName: string }) => s.serviceName === 'web').containerPort).toBe(80)
+      expect(body.services.find((s: { serviceName: string }) => s.serviceName === 'api').containerPort).toBe(3000)
+    })
   })
 
   describe('PATCH /api/apps/:id', () => {

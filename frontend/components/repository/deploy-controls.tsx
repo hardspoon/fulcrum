@@ -63,7 +63,7 @@ export function DeployControls({
   }
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="rounded-lg border bg-background/80 backdrop-blur-sm p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {t('detailView.tabs.deploy')}

@@ -119,7 +119,8 @@ const RepositoryDetailView = observer(function RepositoryDetailView() {
   const actionConsumedRef = useRef(false)
 
   const isBuilding = deployStore.isDeploying || app?.status === 'building'
-  const isRunning = app?.status === 'running'
+  // Allow stop when running, failed (containers may still be running), or building (deployment may hang)
+  const isRunning = app?.status === 'running' || app?.status === 'failed' || app?.status === 'building'
   const hasApp = !!app
   const showDnsWarning = prereqs && !prereqs.settings.cloudflareConfigured
 
@@ -338,7 +339,8 @@ const RepositoryDetailView = observer(function RepositoryDetailView() {
         className="flex h-full flex-col"
       >
         {/* Header bar - tabs on left, repo info + actions on right */}
-        <div className="film-grain relative flex shrink-0 items-center justify-between gap-4 border-b border-border px-4 py-2" style={{ background: 'var(--gradient-header)' }}>
+        <div className="film-grain relative shrink-0 border-b border-border" style={{ background: 'var(--gradient-header)' }}>
+          <div className="flex items-center justify-between gap-4 px-4 py-2">
           {/* Mobile: hamburger menu */}
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-2 sm:hidden">
@@ -491,63 +493,64 @@ const RepositoryDetailView = observer(function RepositoryDetailView() {
               <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={2} />
             </Button>
           </div>
-        </div>
-
-        {/* Deploy sub-tabs (shown when Deploy is active and app exists) */}
-        {activeTab === 'deploy' && hasApp && (
-          <div className="shrink-0 border-b border-border bg-muted/50 px-4 hidden sm:flex items-center">
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={() => setActiveSubtab('general')}
-                className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                  activeSubtab === 'general'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {tProjects('detailView.tabs.deployGeneral')}
-              </button>
-              {hasApp && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSubtab('deployments')}
-                    className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                      activeSubtab === 'deployments'
-                        ? 'border-primary text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {tProjects('detailView.tabs.deployments')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSubtab('logs')}
-                    className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                      activeSubtab === 'logs'
-                        ? 'border-primary text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {tProjects('detailView.tabs.logs')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSubtab('monitoring')}
-                    className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                      activeSubtab === 'monitoring'
-                        ? 'border-primary text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {tProjects('detailView.tabs.monitoring')}
-                  </button>
-                </>
-              )}
-            </div>
           </div>
-        )}
+
+          {/* Deploy sub-tabs (shown when Deploy is active and app exists) */}
+          {activeTab === 'deploy' && hasApp && (
+            <div className="bg-background/80 backdrop-blur-sm px-4 hidden sm:flex items-center border-t border-border">
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveSubtab('general')}
+                  className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    activeSubtab === 'general'
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tProjects('detailView.tabs.deployGeneral')}
+                </button>
+                {hasApp && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSubtab('deployments')}
+                      className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                        activeSubtab === 'deployments'
+                          ? 'border-primary text-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {tProjects('detailView.tabs.deployments')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSubtab('logs')}
+                      className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                        activeSubtab === 'logs'
+                          ? 'border-primary text-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {tProjects('detailView.tabs.logs')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSubtab('monitoring')}
+                      className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                        activeSubtab === 'monitoring'
+                          ? 'border-primary text-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {tProjects('detailView.tabs.monitoring')}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Content */}
         <div className={`flex-1 overflow-auto ${activeTab === 'workspace' ? '' : ''}`}>

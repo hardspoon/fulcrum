@@ -73,7 +73,7 @@ export function ComposeEditor({ app, repoPath }: ComposeEditorProps) {
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border p-4">
+      <div className="rounded-lg border bg-background/80 backdrop-blur-sm p-4">
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
           {t('apps.compose.title')}
         </h4>
@@ -87,7 +87,7 @@ export function ComposeEditor({ app, repoPath }: ComposeEditorProps) {
 
   if (error) {
     return (
-      <div className="rounded-lg border p-4">
+      <div className="rounded-lg border bg-background/80 backdrop-blur-sm p-4">
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
           {t('apps.compose.title')}
         </h4>
@@ -100,7 +100,7 @@ export function ComposeEditor({ app, repoPath }: ComposeEditorProps) {
   }
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="rounded-lg border bg-background/80 backdrop-blur-sm p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">

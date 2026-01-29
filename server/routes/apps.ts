@@ -194,8 +194,9 @@ app.post('/', async (c) => {
       updatedAt: now,
     })
 
-    // Create services
+    // Create services - either from explicit list or auto-detect from compose file
     if (body.services && body.services.length > 0) {
+      // Use explicitly provided services
       const serviceRecords = body.services.map((s) => ({
         id: nanoid(),
         appId,
@@ -210,6 +211,29 @@ app.post('/', async (c) => {
       }))
 
       await db.insert(appServices).values(serviceRecords)
+    } else {
+      // Auto-detect services from compose file
+      try {
+        const parsed = await parseComposeFile(repo.path, composeFile)
+        if (parsed.services.length > 0) {
+          const serviceRecords = parsed.services.map((s) => ({
+            id: nanoid(),
+            appId,
+            serviceName: s.name,
+            containerPort: s.ports?.[0]?.container ?? null,
+            exposed: false,
+            domain: null,
+            exposureMethod: 'dns',
+            status: 'stopped',
+            createdAt: now,
+            updatedAt: now,
+          }))
+          await db.insert(appServices).values(serviceRecords)
+        }
+      } catch (err) {
+        log.deploy.warn('Failed to auto-detect services from compose file', { appId, error: err })
+        // Continue without services - user can sync later
+      }
     }
 
     // Fetch created app with services

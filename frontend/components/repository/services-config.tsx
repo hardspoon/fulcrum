@@ -6,11 +6,12 @@ import {
   CheckmarkCircle02Icon,
   Cancel01Icon,
   PencilEdit02Icon,
+  RefreshIcon,
 } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { useUpdateApp, useAppStatus, useDeploymentSettings } from '@/hooks/use-apps'
+import { useUpdateApp, useAppStatus, useDeploymentSettings, useSyncServices } from '@/hooks/use-apps'
 import type { App, ExposureMethod } from '@/types'
 import { toast } from 'sonner'
 
@@ -25,6 +26,7 @@ export function ServicesConfig({ app, onDeploy }: ServicesConfigProps) {
   const { data: status } = useAppStatus(app.id)
   const { data: deploymentSettings } = useDeploymentSettings()
   const updateApp = useUpdateApp()
+  const syncServices = useSyncServices()
   const tunnelsAvailable = deploymentSettings?.tunnelsAvailable ?? false
 
   const [services, setServices] = useState(
@@ -106,7 +108,7 @@ export function ServicesConfig({ app, onDeploy }: ServicesConfigProps) {
   }
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="rounded-lg border bg-background/80 backdrop-blur-sm p-4 space-y-3">
       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
         {t('detailView.app.services')}
       </h4>
@@ -237,7 +239,23 @@ export function ServicesConfig({ app, onDeploy }: ServicesConfigProps) {
           })}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">{tCommon('apps.general.noServicesConfigured')}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted-foreground">{tCommon('apps.general.noServicesConfigured')}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncServices.mutate(app.id)}
+            disabled={syncServices.isPending}
+            className="shrink-0"
+          >
+            {syncServices.isPending ? (
+              <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" data-slot="icon" />
+            ) : (
+              <HugeiconsIcon icon={RefreshIcon} size={14} strokeWidth={2} data-slot="icon" />
+            )}
+            Sync
+          </Button>
+        </div>
       )}
     </div>
   )
