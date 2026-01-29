@@ -3,6 +3,7 @@
  * Configuration stored in settings.json under channels.telegram.
  */
 
+import TelegramBot from 'node-telegram-bot-api'
 import { getSettings, updateSettingByPath } from '../../../lib/settings'
 import {
   activeChannels,
@@ -17,12 +18,24 @@ export { TELEGRAM_CONNECTION_ID } from '../channel-manager'
 
 /**
  * Configure Telegram with a bot token and enable the channel.
- * Saves configuration to settings.json and starts the channel.
+ * Validates the token first, then saves configuration to settings.json and starts the channel.
  */
 export async function configureTelegram(botToken: string): Promise<{
   enabled: boolean
   status: ConnectionStatus
 }> {
+  // Validate token by making a test API call
+  try {
+    const testBot = new TelegramBot(botToken, { polling: false })
+    const me = await testBot.getMe()
+    if (!me.username) {
+      throw new Error('Invalid bot token - could not get bot info')
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`Invalid Telegram bot token: ${message}`)
+  }
+
   // Stop existing channel if running
   await stopTelegramChannel()
 

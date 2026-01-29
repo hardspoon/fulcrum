@@ -117,6 +117,7 @@ export function useWhatsAppSessions() {
 export interface DiscordStatus extends Partial<MessagingConnection> {
   enabled: boolean
   status: MessagingConnectionStatus
+  config?: { enabled: boolean; botToken: string } | null
 }
 
 // Get Discord status
@@ -220,6 +221,7 @@ export function useDiscordSessions() {
 export interface TelegramStatus extends Partial<MessagingConnection> {
   enabled: boolean
   status: MessagingConnectionStatus
+  config?: { enabled: boolean; botToken: string } | null
 }
 
 // Get Telegram status
@@ -323,6 +325,7 @@ export function useTelegramSessions() {
 export interface SlackStatus extends Partial<MessagingConnection> {
   enabled: boolean
   status: MessagingConnectionStatus
+  config?: { enabled: boolean; botToken: string; appToken: string } | null
 }
 
 // Get Slack status

@@ -12,6 +12,7 @@ import { Loading03Icon, Logout01Icon, Tick02Icon, Cancel01Icon } from '@hugeicon
 import {
   useDiscordStatus,
   useConfigureDiscord,
+  useEnableDiscord,
   useDisableDiscord,
   useDisconnectDiscord,
   useDiscordSessions,
@@ -25,20 +26,29 @@ export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
   const { data: status, refetch: refetchStatus } = useDiscordStatus()
   const { data: sessions } = useDiscordSessions()
   const configureDiscord = useConfigureDiscord()
+  const enableDiscord = useEnableDiscord()
   const disableDiscord = useDisableDiscord()
   const disconnect = useDisconnectDiscord()
+
+  // Check if credentials are already configured
+  const hasCredentials = !!status?.config?.botToken
 
   const [botToken, setBotToken] = useState('')
   const [showTokenInput, setShowTokenInput] = useState(false)
 
   const isConnected = status?.status === 'connected'
   const isConnecting = status?.status === 'connecting'
-  const isEnabled = status?.enabled ?? false
 
   const handleToggle = async (enabled: boolean) => {
     try {
       if (enabled) {
-        setShowTokenInput(true)
+        if (hasCredentials) {
+          // Re-enable with existing credentials
+          await enableDiscord.mutateAsync()
+          refetchStatus()
+        } else {
+          setShowTokenInput(true)
+        }
       } else {
         await disableDiscord.mutateAsync()
         setShowTokenInput(false)
@@ -46,7 +56,7 @@ export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
         refetchStatus()
       }
     } catch {
-      toast.error('Failed to disable Discord')
+      toast.error('Failed to toggle Discord')
     }
   }
 
@@ -60,7 +70,7 @@ export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
       await configureDiscord.mutateAsync(botToken.trim())
       setShowTokenInput(false)
       setBotToken('')
-      toast.success('Discord connected')
+      toast.success('Discord configuration saved')
       refetchStatus()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to connect Discord')
@@ -94,7 +104,7 @@ export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
     return 'Disconnected'
   }
 
-  const isPending = configureDiscord.isPending || disableDiscord.isPending || disconnect.isPending
+  const isPending = configureDiscord.isPending || enableDiscord.isPending || disableDiscord.isPending || disconnect.isPending
 
   return (
     <div className="space-y-4">
@@ -105,7 +115,7 @@ export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
         </label>
         <div className="flex items-center gap-3">
           <Switch
-            checked={isEnabled || showTokenInput}
+            checked={isConnected || isConnecting || showTokenInput}
             onCheckedChange={handleToggle}
             disabled={isLoading || isPending}
           />
@@ -156,7 +166,7 @@ export function DiscordSetup({ isLoading = false }: DiscordSetupProps) {
       )}
 
       {/* Connected state actions */}
-      {isEnabled && isConnected && (
+      {isConnected && (
         <div className="ml-4 sm:ml-44 space-y-3">
           <Button
             variant="outline"

@@ -12,6 +12,7 @@ import { Loading03Icon, Logout01Icon, Tick02Icon, Cancel01Icon } from '@hugeicon
 import {
   useTelegramStatus,
   useConfigureTelegram,
+  useEnableTelegram,
   useDisableTelegram,
   useDisconnectTelegram,
   useTelegramSessions,
@@ -25,20 +26,29 @@ export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
   const { data: status, refetch: refetchStatus } = useTelegramStatus()
   const { data: sessions } = useTelegramSessions()
   const configureTelegram = useConfigureTelegram()
+  const enableTelegram = useEnableTelegram()
   const disableTelegram = useDisableTelegram()
   const disconnect = useDisconnectTelegram()
+
+  // Check if credentials are already configured
+  const hasCredentials = !!status?.config?.botToken
 
   const [botToken, setBotToken] = useState('')
   const [showTokenInput, setShowTokenInput] = useState(false)
 
   const isConnected = status?.status === 'connected'
   const isConnecting = status?.status === 'connecting'
-  const isEnabled = status?.enabled ?? false
 
   const handleToggle = async (enabled: boolean) => {
     try {
       if (enabled) {
-        setShowTokenInput(true)
+        if (hasCredentials) {
+          // Re-enable with existing credentials
+          await enableTelegram.mutateAsync()
+          refetchStatus()
+        } else {
+          setShowTokenInput(true)
+        }
       } else {
         await disableTelegram.mutateAsync()
         setShowTokenInput(false)
@@ -46,7 +56,7 @@ export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
         refetchStatus()
       }
     } catch {
-      toast.error('Failed to disable Telegram')
+      toast.error('Failed to toggle Telegram')
     }
   }
 
@@ -60,7 +70,7 @@ export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
       await configureTelegram.mutateAsync(botToken.trim())
       setShowTokenInput(false)
       setBotToken('')
-      toast.success('Telegram connected')
+      toast.success('Telegram configuration saved')
       refetchStatus()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to connect Telegram')
@@ -94,7 +104,7 @@ export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
     return 'Disconnected'
   }
 
-  const isPending = configureTelegram.isPending || disableTelegram.isPending || disconnect.isPending
+  const isPending = configureTelegram.isPending || enableTelegram.isPending || disableTelegram.isPending || disconnect.isPending
 
   return (
     <div className="space-y-4">
@@ -105,7 +115,7 @@ export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
         </label>
         <div className="flex items-center gap-3">
           <Switch
-            checked={isEnabled || showTokenInput}
+            checked={isConnected || isConnecting || showTokenInput}
             onCheckedChange={handleToggle}
             disabled={isLoading || isPending}
           />
@@ -156,7 +166,7 @@ export function TelegramSetup({ isLoading = false }: TelegramSetupProps) {
       )}
 
       {/* Connected state actions */}
-      {isEnabled && isConnected && (
+      {isConnected && (
         <div className="ml-4 sm:ml-44 space-y-3">
           <Button
             variant="outline"

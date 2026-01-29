@@ -3,6 +3,7 @@
  * Configuration stored in settings.json under channels.slack.
  */
 
+import { WebClient } from '@slack/web-api'
 import { getSettings, updateSettingByPath } from '../../../lib/settings'
 import {
   activeChannels,
@@ -17,12 +18,29 @@ export { SLACK_CONNECTION_ID } from '../channel-manager'
 
 /**
  * Configure Slack with tokens and enable the channel.
- * Saves configuration to settings.json and starts the channel.
+ * Validates the tokens first, then saves configuration to settings.json and starts the channel.
  */
 export async function configureSlack(botToken: string, appToken: string): Promise<{
   enabled: boolean
   status: ConnectionStatus
 }> {
+  // Validate bot token by making a test API call
+  try {
+    const client = new WebClient(botToken)
+    const authResult = await client.auth.test()
+    if (!authResult.ok || !authResult.user_id) {
+      throw new Error('Invalid bot token - auth test failed')
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`Invalid Slack bot token: ${message}`)
+  }
+
+  // Validate app token format (should start with xapp-)
+  if (!appToken.startsWith('xapp-')) {
+    throw new Error('Invalid Slack app token: must start with xapp-')
+  }
+
   // Stop existing channel if running
   await stopSlackChannel()
 

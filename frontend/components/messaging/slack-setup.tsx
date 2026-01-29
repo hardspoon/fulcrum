@@ -12,6 +12,7 @@ import { Loading03Icon, Logout01Icon, Tick02Icon, Cancel01Icon } from '@hugeicon
 import {
   useSlackStatus,
   useConfigureSlack,
+  useEnableSlack,
   useDisableSlack,
   useDisconnectSlack,
   useSlackSessions,
@@ -25,8 +26,12 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
   const { data: status, refetch: refetchStatus } = useSlackStatus()
   const { data: sessions } = useSlackSessions()
   const configureSlack = useConfigureSlack()
+  const enableSlack = useEnableSlack()
   const disableSlack = useDisableSlack()
   const disconnect = useDisconnectSlack()
+
+  // Check if credentials are already configured (need both tokens)
+  const hasCredentials = !!(status?.config?.botToken && status?.config?.appToken)
 
   const [botToken, setBotToken] = useState('')
   const [appToken, setAppToken] = useState('')
@@ -34,12 +39,17 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
 
   const isConnected = status?.status === 'connected'
   const isConnecting = status?.status === 'connecting'
-  const isEnabled = status?.enabled ?? false
 
   const handleToggle = async (enabled: boolean) => {
     try {
       if (enabled) {
-        setShowTokenInput(true)
+        if (hasCredentials) {
+          // Re-enable with existing credentials
+          await enableSlack.mutateAsync()
+          refetchStatus()
+        } else {
+          setShowTokenInput(true)
+        }
       } else {
         await disableSlack.mutateAsync()
         setShowTokenInput(false)
@@ -48,7 +58,7 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
         refetchStatus()
       }
     } catch {
-      toast.error('Failed to disable Slack')
+      toast.error('Failed to toggle Slack')
     }
   }
 
@@ -70,7 +80,7 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
       setShowTokenInput(false)
       setBotToken('')
       setAppToken('')
-      toast.success('Slack connected')
+      toast.success('Slack configuration saved')
       refetchStatus()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to connect Slack')
@@ -104,7 +114,7 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
     return 'Disconnected'
   }
 
-  const isPending = configureSlack.isPending || disableSlack.isPending || disconnect.isPending
+  const isPending = configureSlack.isPending || enableSlack.isPending || disableSlack.isPending || disconnect.isPending
 
   return (
     <div className="space-y-4">
@@ -115,7 +125,7 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
         </label>
         <div className="flex items-center gap-3">
           <Switch
-            checked={isEnabled || showTokenInput}
+            checked={isConnected || isConnecting || showTokenInput}
             onCheckedChange={handleToggle}
             disabled={isLoading || isPending}
           />
@@ -177,7 +187,7 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
       )}
 
       {/* Connected state actions */}
-      {isEnabled && isConnected && (
+      {isConnected && (
         <div className="ml-4 sm:ml-44 space-y-3">
           <Button
             variant="outline"

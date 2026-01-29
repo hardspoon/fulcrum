@@ -3,6 +3,7 @@
  * Configuration stored in settings.json under channels.discord.
  */
 
+import { REST, Routes } from 'discord.js'
 import { getSettings, updateSettingByPath } from '../../../lib/settings'
 import {
   activeChannels,
@@ -17,12 +18,24 @@ export { DISCORD_CONNECTION_ID } from '../channel-manager'
 
 /**
  * Configure Discord with a bot token and enable the channel.
- * Saves configuration to settings.json and starts the channel.
+ * Validates the token first, then saves configuration to settings.json and starts the channel.
  */
 export async function configureDiscord(botToken: string): Promise<{
   enabled: boolean
   status: ConnectionStatus
 }> {
+  // Validate token by making a test API call
+  try {
+    const rest = new REST({ version: '10' }).setToken(botToken)
+    const me = await rest.get(Routes.user('@me')) as { id: string; username: string }
+    if (!me.id || !me.username) {
+      throw new Error('Invalid bot token - could not get bot info')
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`Invalid Discord bot token: ${message}`)
+  }
+
   // Stop existing channel if running
   await stopDiscordChannel()
 
