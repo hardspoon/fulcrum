@@ -30,7 +30,6 @@ export {
 export {
   enableTestMode,
   isTestMode,
-  isNonDefaultFulcrumDir,
   expandPath,
   getFulcrumDir,
   getDatabasePath,

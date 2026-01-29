@@ -1,19 +1,16 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { log } from '../logger'
-import { getHomeDir, assertNotProductionPath, isNonDefaultFulcrumDir, getFulcrumDir } from './paths'
+import { getHomeDir, assertNotProductionPath } from './paths'
 import { getSettings } from './core'
 
 // ==================== Claude Code Settings ====================
 // These functions manage ~/.claude/settings.json for configuring Claude Code
-// When FULCRUM_DIR is set (dev/test mode), uses $FULCRUM_DIR/.claude instead
+// Claude settings always live under $HOME - test isolation overrides HOME itself
 
-// Get Claude settings file path
-// In dev mode: $FULCRUM_DIR/.claude/settings.json
-// In prod mode: ~/.claude/settings.json
+// Get Claude settings file path (~/.claude/settings.json)
 export function getClaudeSettingsPath(): string {
-  const baseDir = isNonDefaultFulcrumDir() ? getFulcrumDir() : getHomeDir()
-  const p = path.join(baseDir, '.claude', 'settings.json')
+  const p = path.join(getHomeDir(), '.claude', 'settings.json')
   assertNotProductionPath(p, 'getClaudeSettingsPath')
   return p
 }
@@ -42,14 +39,11 @@ export function updateClaudeSettings(updates: Record<string, unknown>): void {
 
 // ==================== Claude Code Config ====================
 // These functions manage ~/.claude.json for Claude Code preferences (theme, etc.)
-// When FULCRUM_DIR is set (dev/test mode), uses $FULCRUM_DIR/.claude.json instead
+// Claude config always lives under $HOME - test isolation overrides HOME itself
 
-// Get Claude config file path
-// In dev mode: $FULCRUM_DIR/.claude.json
-// In prod mode: ~/.claude.json
+// Get Claude config file path (~/.claude.json)
 export function getClaudeConfigPath(): string {
-  const baseDir = isNonDefaultFulcrumDir() ? getFulcrumDir() : getHomeDir()
-  const p = path.join(baseDir, '.claude.json')
+  const p = path.join(getHomeDir(), '.claude.json')
   assertNotProductionPath(p, 'getClaudeConfigPath')
   return p
 }

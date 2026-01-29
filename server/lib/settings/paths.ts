@@ -81,14 +81,6 @@ export function expandPath(p: string): string {
   return p
 }
 
-/**
- * Check if running with a non-default FULCRUM_DIR (dev/test mode).
- * Used to isolate Claude settings to FULCRUM_DIR instead of ~/.claude
- */
-export function isNonDefaultFulcrumDir(): boolean {
-  return !!process.env.FULCRUM_DIR
-}
-
 // Get the fulcrum directory path
 // Priority: FULCRUM_DIR env var → CWD .fulcrum → ~/.fulcrum
 export function getFulcrumDir(): string {
