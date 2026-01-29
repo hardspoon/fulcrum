@@ -9,6 +9,45 @@ Fulcrum is the Vibe Engineer's Cockpit. A terminal-first tool for orchestrating 
 - App deployment via Docker Compose with automatic DNS/tunnel routing.
 - System monitoring for Claude instances and resource usage.
 
+## Quick Navigation
+
+| Topic | Section |
+|-------|---------|
+| Running dev server, building | [Development](#development) |
+| Running tests | [Testing](#testing) |
+| CLI commands | [CLI](#cli) |
+| Tech stack, folder structure | [Architecture](#architecture) |
+| Database schema, migrations | [Database](#database) |
+| Settings, config files | [Configuration](#configuration) |
+| Docker Compose apps | [App Deployment](#app-deployment) |
+| Slack/Discord/Pushover | [Notifications](#notifications) |
+| WhatsApp/Discord/Telegram/Slack/Email | [Messaging](#messaging) |
+| Desktop app packaging | [Desktop App](#desktop-app) |
+| dtach, PTY management | [Terminal Architecture](#terminal-architecture) |
+| Log format, locations | [Logging](#logging) |
+| Directory structure | [File Organization](#file-organization) |
+
+## Where to Find Things
+
+**Adding a new feature:**
+- Frontend page → `frontend/routes/` (file-based routing)
+- API endpoint → `server/routes/` (Hono handlers)
+- Business logic → `server/services/`
+- Database table → `server/db/schema.ts`
+
+**Modifying existing features:**
+- Tasks/worktrees → `server/routes/tasks.ts`, `server/services/task-service.ts`
+- Messaging channels → `server/services/channels/`, `server/routes/messaging.ts`
+- App deployment → `server/routes/apps.ts`, `server/services/` (docker/cloudflare/traefik)
+- Settings → `server/lib/settings/`, `frontend/routes/settings/`
+
+**UI components:**
+- Shared components → `frontend/components/ui/` (shadcn)
+- Feature components → `frontend/components/{feature}/`
+
+**Testing:**
+- Test files live next to source: `*.test.ts`
+
 ## Development
 
 All commands are mise tasks. Run `mise tasks` to list available commands.
