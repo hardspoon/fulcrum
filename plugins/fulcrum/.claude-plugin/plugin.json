@@ -1,7 +1,7 @@
 {
   "name": "fulcrum",
   "description": "Fulcrum task orchestration for Claude Code",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "author": {
     "name": "Fulcrum"
   },
