@@ -64,10 +64,11 @@ export function findClaudeCodePath(): { path: string | null; source: string | nu
 
 /**
  * Get the Claude Code path for the SDK's pathToClaudeCodeExecutable option.
- * Returns undefined if not found or if using default PATH lookup.
+ * Returns undefined only if not found.
  *
- * This function is optimized for the SDK - it only returns a path when
- * we need to override the default behavior (when Claude isn't in PATH).
+ * Always returns the explicit path when found, even if found via PATH lookup.
+ * This is necessary because the SDK may run in a different environment (e.g., npx)
+ * where PATH doesn't include the user's local bin directories.
  */
 export function getClaudeCodePathForSdk(): string | undefined {
   const result = findClaudeCodePath()
@@ -77,13 +78,7 @@ export function getClaudeCodePathForSdk(): string | undefined {
     return undefined
   }
 
-  // If found in PATH, SDK will find it automatically - no need to specify
-  if (result.source === 'PATH') {
-    log.claude.debug('Claude Code found in PATH, using default resolution')
-    return undefined
-  }
-
-  // For all other sources, we need to tell the SDK where to find it
-  log.claude.debug('Claude Code found via custom path', { path: result.path, source: result.source })
+  // Always return the explicit path - SDK might have different PATH
+  log.claude.debug('Claude Code found', { path: result.path, source: result.source })
   return result.path
 }
