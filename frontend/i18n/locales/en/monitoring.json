@@ -126,7 +126,38 @@
       "eveningRitual": "Evening Ritual",
       "eventsProcessed": "{{count}} events",
       "tasksUpdated": "{{count}} tasks",
-      "messagesSent": "{{count}} messages"
+      "messagesSent": "{{count}} messages",
+      "stale": "stale"
+    },
+    "filter": {
+      "all": "All",
+      "pending": "Pending",
+      "actedUpon": "Acted Upon",
+      "monitoring": "Monitoring",
+      "dismissed": "Dismissed"
+    }
+  },
+  "messages": {
+    "title": "Channel Messages",
+    "search": "Search...",
+    "empty": "No messages found",
+    "channels": {
+      "all": "All Channels",
+      "total": "Total",
+      "email": "Email",
+      "whatsapp": "WhatsApp",
+      "discord": "Discord",
+      "telegram": "Telegram",
+      "slack": "Slack"
+    },
+    "direction": {
+      "all": "All",
+      "incoming": "Incoming",
+      "outgoing": "Outgoing"
+    },
+    "labels": {
+      "from": "From:",
+      "to": "To:"
     }
   }
 }

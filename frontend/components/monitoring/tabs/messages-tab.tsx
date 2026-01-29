@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Loading03Icon,
@@ -88,7 +89,7 @@ function StatCard({ label, value, icon, className }: { label: string; value: num
   )
 }
 
-function MessageRow({ message }: { message: ChannelMessage }) {
+function MessageRow({ message, t }: { message: ChannelMessage; t: (key: string) => string }) {
   const [isOpen, setIsOpen] = useState(false)
   const ChannelIcon = getChannelIcon(message.channelType)
   const channelColor = getChannelColor(message.channelType)
@@ -135,8 +136,8 @@ function MessageRow({ message }: { message: ChannelMessage }) {
               <span className="capitalize">{message.channelType}</span>
               <span className="truncate max-w-[200px]">
                 {message.direction === 'incoming'
-                  ? `From: ${message.senderName || message.senderId}`
-                  : `To: ${message.recipientId || 'unknown'}`}
+                  ? `${t('messages.labels.from')} ${message.senderName || message.senderId}`
+                  : `${t('messages.labels.to')} ${message.recipientId || 'unknown'}`}
               </span>
               <span>{formatRelativeTime(message.messageTimestamp)}</span>
             </div>
@@ -163,6 +164,7 @@ function MessageRow({ message }: { message: ChannelMessage }) {
 }
 
 export default function MessagesTab() {
+  const { t } = useTranslation('monitoring')
   const [channelFilter, setChannelFilter] = useState<ChannelType | 'all'>('all')
   const [directionFilter, setDirectionFilter] = useState<'all' | 'incoming' | 'outgoing'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -183,12 +185,12 @@ export default function MessagesTab() {
       {/* Stats Summary */}
       {counts && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          <StatCard label="Total" value={totalCount} icon={MessageMultiple01Icon} />
-          <StatCard label="Email" value={counts.email || 0} icon={Mail01Icon} />
-          <StatCard label="WhatsApp" value={counts.whatsapp || 0} icon={WhatsappIcon} />
-          <StatCard label="Discord" value={counts.discord || 0} icon={DiscordIcon} />
-          <StatCard label="Telegram" value={counts.telegram || 0} icon={TelegramIcon} />
-          <StatCard label="Slack" value={counts.slack || 0} icon={SlackIcon} />
+          <StatCard label={t('messages.channels.total')} value={totalCount} icon={MessageMultiple01Icon} />
+          <StatCard label={t('messages.channels.email')} value={counts.email || 0} icon={Mail01Icon} />
+          <StatCard label={t('messages.channels.whatsapp')} value={counts.whatsapp || 0} icon={WhatsappIcon} />
+          <StatCard label={t('messages.channels.discord')} value={counts.discord || 0} icon={DiscordIcon} />
+          <StatCard label={t('messages.channels.telegram')} value={counts.telegram || 0} icon={TelegramIcon} />
+          <StatCard label={t('messages.channels.slack')} value={counts.slack || 0} icon={SlackIcon} />
         </div>
       )}
 
@@ -198,7 +200,7 @@ export default function MessagesTab() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base font-medium flex items-center gap-2">
               <HugeiconsIcon icon={SentIcon} size={16} strokeWidth={2} />
-              Channel Messages
+              {t('messages.title')}
             </CardTitle>
             <div className="flex flex-wrap items-center gap-2">
               {/* Search */}
@@ -211,7 +213,7 @@ export default function MessagesTab() {
                 />
                 <Input
                   type="text"
-                  placeholder="Search..."
+                  placeholder={t('messages.search')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 h-8 w-[140px] sm:w-[180px]"
@@ -220,19 +222,19 @@ export default function MessagesTab() {
 
               {/* Channel Filter */}
               <Select value={channelFilter} onValueChange={(v) => v && setChannelFilter(v as ChannelType | 'all')}>
-                <SelectTrigger size="sm" className="w-[110px] shrink-0 gap-1.5">
+                <SelectTrigger size="sm" className="w-[130px] shrink-0 gap-1.5">
                   <HugeiconsIcon icon={FilterIcon} size={12} strokeWidth={2} className="text-muted-foreground" />
                   <SelectValue>
-                    {channelFilter === 'all' ? 'All' : channelFilter}
+                    {channelFilter === 'all' ? t('messages.direction.all') : t(`messages.channels.${channelFilter}`)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Channels</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="discord">Discord</SelectItem>
-                  <SelectItem value="telegram">Telegram</SelectItem>
-                  <SelectItem value="slack">Slack</SelectItem>
+                  <SelectItem value="all">{t('messages.channels.all')}</SelectItem>
+                  <SelectItem value="email">{t('messages.channels.email')}</SelectItem>
+                  <SelectItem value="whatsapp">{t('messages.channels.whatsapp')}</SelectItem>
+                  <SelectItem value="discord">{t('messages.channels.discord')}</SelectItem>
+                  <SelectItem value="telegram">{t('messages.channels.telegram')}</SelectItem>
+                  <SelectItem value="slack">{t('messages.channels.slack')}</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -240,13 +242,13 @@ export default function MessagesTab() {
               <Select value={directionFilter} onValueChange={(v) => v && setDirectionFilter(v as 'all' | 'incoming' | 'outgoing')}>
                 <SelectTrigger size="sm" className="w-[110px] shrink-0 gap-1.5">
                   <SelectValue>
-                    {directionFilter === 'all' ? 'All' : directionFilter}
+                    {t(`messages.direction.${directionFilter}`)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="incoming">Incoming</SelectItem>
-                  <SelectItem value="outgoing">Outgoing</SelectItem>
+                  <SelectItem value="all">{t('messages.direction.all')}</SelectItem>
+                  <SelectItem value="incoming">{t('messages.direction.incoming')}</SelectItem>
+                  <SelectItem value="outgoing">{t('messages.direction.outgoing')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -272,12 +274,12 @@ export default function MessagesTab() {
           {messagesData?.messages && messagesData.messages.length > 0 ? (
             <div className="divide-y">
               {messagesData.messages.map((message) => (
-                <MessageRow key={message.id} message={message} />
+                <MessageRow key={message.id} message={message} t={t} />
               ))}
             </div>
           ) : !isLoading && (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              No messages found
+              {t('messages.empty')}
             </div>
           )}
         </CardContent>

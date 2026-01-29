@@ -188,7 +188,7 @@ function SweepRow({ sweep }: { sweep: SweepRun }) {
                 {formatRelativeTime(sweep.startedAt)}
               </span>
               {stale && (
-                <Badge variant="secondary" className="text-xs">stale</Badge>
+                <Badge variant="secondary" className="text-xs">{t('assistant.sweeps.stale')}</Badge>
               )}
             </div>
             {sweep.status === 'completed' && (
@@ -281,15 +281,19 @@ export default function AssistantTab() {
               <SelectTrigger size="sm" className="w-[140px] shrink-0 gap-1.5">
                 <HugeiconsIcon icon={FilterIcon} size={12} strokeWidth={2} className="text-muted-foreground" />
                 <SelectValue>
-                  {statusFilter === 'all' ? 'All' : statusFilter.replace('_', ' ')}
+                  {statusFilter === 'all'
+                    ? t('assistant.filter.all')
+                    : statusFilter === 'acted_upon'
+                    ? t('assistant.filter.actedUpon')
+                    : t(`assistant.filter.${statusFilter}`)}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="acted_upon">Acted Upon</SelectItem>
-                <SelectItem value="monitoring">Monitoring</SelectItem>
-                <SelectItem value="dismissed">Dismissed</SelectItem>
+                <SelectItem value="all">{t('assistant.filter.all')}</SelectItem>
+                <SelectItem value="pending">{t('assistant.filter.pending')}</SelectItem>
+                <SelectItem value="acted_upon">{t('assistant.filter.actedUpon')}</SelectItem>
+                <SelectItem value="monitoring">{t('assistant.filter.monitoring')}</SelectItem>
+                <SelectItem value="dismissed">{t('assistant.filter.dismissed')}</SelectItem>
               </SelectContent>
             </Select>
           </div>

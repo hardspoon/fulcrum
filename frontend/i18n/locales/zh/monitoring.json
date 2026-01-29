@@ -7,7 +7,9 @@
     "fulcrum": "Fulcrum 服务器",
     "worktrees": "工作树",
     "jobs": "作业",
-    "usage": "使用限额"
+    "usage": "使用限额",
+    "assistant": "助手",
+    "messages": "消息"
   },
   "claude": {
     "showAllInstances": "显示所有实例",
@@ -102,5 +104,60 @@
     "weekProgress": "本周已过 {{percent}}%",
     "unavailable": "Claude Code 使用数据不可用。请确保已登录 Claude Code。",
     "error": "加载使用数据失败：{{message}}"
+  },
+  "assistant": {
+    "stats": {
+      "pending": "待处理",
+      "actedUpon": "已处理",
+      "dismissed": "已忽略",
+      "monitoring": "监控中"
+    },
+    "events": {
+      "title": "可操作事件",
+      "empty": "暂无事件记录",
+      "source": "来源",
+      "linkedTask": "查看任务"
+    },
+    "sweeps": {
+      "title": "最近扫描",
+      "empty": "暂无扫描记录",
+      "hourly": "每小时",
+      "morningRitual": "早间例行",
+      "eveningRitual": "晚间例行",
+      "eventsProcessed": "{{count}} 个事件",
+      "tasksUpdated": "{{count}} 个任务",
+      "messagesSent": "{{count}} 条消息",
+      "stale": "过期"
+    },
+    "filter": {
+      "all": "全部",
+      "pending": "待处理",
+      "actedUpon": "已处理",
+      "monitoring": "监控中",
+      "dismissed": "已忽略"
+    }
+  },
+  "messages": {
+    "title": "频道消息",
+    "search": "搜索...",
+    "empty": "未找到消息",
+    "channels": {
+      "all": "所有频道",
+      "total": "总计",
+      "email": "邮件",
+      "whatsapp": "WhatsApp",
+      "discord": "Discord",
+      "telegram": "Telegram",
+      "slack": "Slack"
+    },
+    "direction": {
+      "all": "全部",
+      "incoming": "收到",
+      "outgoing": "发出"
+    },
+    "labels": {
+      "from": "发件人：",
+      "to": "收件人："
+    }
   }
 }
