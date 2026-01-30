@@ -5,6 +5,7 @@ export interface Memory {
   id: string
   content: string
   tags: string[] | null
+  source: string | null
   createdAt: string
   updatedAt: string
   rank?: number

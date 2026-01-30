@@ -463,6 +463,7 @@ export const memories = sqliteTable('memories', {
   id: text('id').primaryKey(),
   content: text('content').notNull(),
   tags: text('tags'), // JSON array of strings
+  source: text('source'), // Origin of memory (e.g., 'channel:whatsapp', 'conversation:assistant')
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

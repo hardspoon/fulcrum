@@ -4,6 +4,7 @@
 import { z } from 'zod'
 import type { ToolRegistrar } from './types'
 import { formatSuccess, handleToolError } from '../utils'
+import { MEMORY_SOURCES } from '@shared/types'
 
 export const registerMemoryTools: ToolRegistrar = (server, client) => {
   // memory_store - Store a memory
@@ -13,10 +14,11 @@ export const registerMemoryTools: ToolRegistrar = (server, client) => {
     {
       content: z.string().describe('The memory content to store. Be specific and self-contained.'),
       tags: z.optional(z.array(z.string())).describe('Optional tags for categorization (e.g., ["preference", "architecture", "decision"])'),
+      source: z.optional(z.enum(MEMORY_SOURCES)).describe('Where this memory originated (e.g., "channel:whatsapp", "conversation:assistant")'),
     },
-    async ({ content, tags }) => {
+    async ({ content, tags, source }) => {
       try {
-        const result = await client.storeMemory({ content, tags })
+        const result = await client.storeMemory({ content, tags, source })
         return formatSuccess(result)
       } catch (err) {
         return handleToolError(err)

@@ -5,7 +5,7 @@ const app = new Hono()
 
 // POST / - Store a new memory
 app.post('/', async (c) => {
-  const body = await c.req.json<{ content: string; tags?: string[] }>()
+  const body = await c.req.json<{ content: string; tags?: string[]; source?: string }>()
 
   if (!body.content?.trim()) {
     return c.json({ error: 'content is required' }, 400)
@@ -14,6 +14,7 @@ app.post('/', async (c) => {
   const memory = await storeMemory({
     content: body.content.trim(),
     tags: body.tags,
+    source: body.source,
   })
 
   return c.json(memory, 201)
@@ -56,7 +57,7 @@ app.get('/', async (c) => {
 // PATCH /:id - Update a memory
 app.patch('/:id', async (c) => {
   const id = c.req.param('id')
-  const body = await c.req.json<{ content?: string; tags?: string[] | null }>()
+  const body = await c.req.json<{ content?: string; tags?: string[] | null; source?: string | null }>()
 
   if (body.content !== undefined && !body.content.trim()) {
     return c.json({ error: 'content cannot be empty' }, 400)
@@ -65,6 +66,7 @@ app.patch('/:id', async (c) => {
   const updated = await updateMemory(id, {
     content: body.content?.trim(),
     tags: body.tags,
+    source: body.source,
   })
 
   if (!updated) {

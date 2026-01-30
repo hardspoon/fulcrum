@@ -1,5 +1,17 @@
 // Shared types between server, frontend, and CLI
 
+// Memory source tracking - single source of truth for valid memory origins
+export const MEMORY_SOURCES = [
+  'channel:whatsapp',
+  'channel:slack',
+  'channel:discord',
+  'channel:telegram',
+  'channel:email',
+  'conversation:assistant',
+] as const
+
+export type MemorySource = (typeof MEMORY_SOURCES)[number]
+
 // Supported AI coding agents
 export type AgentType = 'claude' | 'opencode'
 

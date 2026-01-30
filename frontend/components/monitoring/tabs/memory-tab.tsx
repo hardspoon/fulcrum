@@ -18,6 +18,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { useMemories, useSearchMemories, useDeleteMemory, useUpdateMemory } from '@/hooks/use-memories'
 import type { Memory } from '@/hooks/use-memories'
 
+function formatSource(source: string): string {
+  const parts = source.split(':')
+  if (parts.length === 2) {
+    return parts[1].charAt(0).toUpperCase() + parts[1].slice(1)
+  }
+  return source
+}
+
 function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()
@@ -133,6 +141,9 @@ function MemoryRow({
               {tag}
             </Badge>
           ))}
+          {memory.source && (
+            <span className="text-xs text-muted-foreground">{formatSource(memory.source)}</span>
+          )}
           <span className="text-xs text-muted-foreground">{formatRelativeTime(memory.createdAt)}</span>
         </div>
       </div>

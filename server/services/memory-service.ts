@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid'
 export interface StoreMemoryInput {
   content: string
   tags?: string[]
+  source?: string
 }
 
 export interface SearchMemoriesInput {
@@ -24,6 +25,7 @@ export interface MemoryResult {
   id: string
   content: string
   tags: string[] | null
+  source: string | null
   createdAt: string
   updatedAt: string
   rank?: number
@@ -43,6 +45,7 @@ function toResult(row: typeof memories.$inferSelect, rank?: number): MemoryResul
     id: row.id,
     content: row.content,
     tags: parseTags(row.tags),
+    source: row.source,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     ...(rank !== undefined ? { rank } : {}),
@@ -60,6 +63,7 @@ export async function storeMemory(input: StoreMemoryInput): Promise<MemoryResult
       id,
       content: input.content,
       tags: tagsJson,
+      source: input.source ?? null,
       createdAt: now,
       updatedAt: now,
     })
@@ -78,7 +82,7 @@ export async function searchMemories(input: SearchMemoriesInput): Promise<Memory
   if (input.tags?.length) {
     // Use raw SQL via the underlying database
     const results = db.all(
-      sql`SELECT m.id, m.content, m.tags, m.created_at as "createdAt", m.updated_at as "updatedAt", bm25(memories_fts) as rank
+      sql`SELECT m.id, m.content, m.tags, m.source, m.created_at as "createdAt", m.updated_at as "updatedAt", bm25(memories_fts) as rank
           FROM memories_fts fts
           JOIN memories m ON m.rowid = fts.rowid
           WHERE memories_fts MATCH ${ftsQuery}
@@ -98,7 +102,7 @@ export async function searchMemories(input: SearchMemoriesInput): Promise<Memory
 
   // Simple FTS5 search without tag filtering
   const results = db.all(
-    sql`SELECT m.id, m.content, m.tags, m.created_at as "createdAt", m.updated_at as "updatedAt", bm25(memories_fts) as rank
+    sql`SELECT m.id, m.content, m.tags, m.source, m.created_at as "createdAt", m.updated_at as "updatedAt", bm25(memories_fts) as rank
         FROM memories_fts fts
         JOIN memories m ON m.rowid = fts.rowid
         WHERE memories_fts MATCH ${ftsQuery}
@@ -115,6 +119,7 @@ export async function searchMemories(input: SearchMemoriesInput): Promise<Memory
 export interface UpdateMemoryInput {
   content?: string
   tags?: string[] | null
+  source?: string | null
 }
 
 export async function updateMemory(id: string, input: UpdateMemoryInput): Promise<MemoryResult | null> {
@@ -129,6 +134,7 @@ export async function updateMemory(id: string, input: UpdateMemoryInput): Promis
     .set({
       ...(input.content !== undefined ? { content: input.content } : {}),
       ...(input.tags !== undefined ? { tags: input.tags?.length ? JSON.stringify(input.tags) : null } : {}),
+      ...(input.source !== undefined ? { source: input.source } : {}),
       updatedAt: now,
     })
     .where(eq(memories.id, id))
@@ -150,7 +156,7 @@ export async function listMemories(input: ListMemoriesInput = {}): Promise<{ mem
   if (input.tags?.length) {
     // Filter by tags using json_each
     const rows = db.all(
-      sql`SELECT m.id, m.content, m.tags, m.created_at as "createdAt", m.updated_at as "updatedAt"
+      sql`SELECT m.id, m.content, m.tags, m.source, m.created_at as "createdAt", m.updated_at as "updatedAt"
           FROM memories m
           WHERE EXISTS (
             SELECT 1 FROM json_each(m.tags) je

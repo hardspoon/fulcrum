@@ -1224,10 +1224,11 @@ export class FulcrumClient {
   }
 
   // Memory
-  async storeMemory(input: { content: string; tags?: string[] }): Promise<{
+  async storeMemory(input: { content: string; tags?: string[]; source?: string }): Promise<{
     id: string
     content: string
     tags: string[] | null
+    source: string | null
     createdAt: string
     updatedAt: string
   }> {
@@ -1245,6 +1246,7 @@ export class FulcrumClient {
     id: string
     content: string
     tags: string[] | null
+    source: string | null
     createdAt: string
     updatedAt: string
     rank?: number
@@ -1264,6 +1266,7 @@ export class FulcrumClient {
       id: string
       content: string
       tags: string[] | null
+      source: string | null
       createdAt: string
       updatedAt: string
     }>
