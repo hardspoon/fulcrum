@@ -245,6 +245,12 @@ export function CaldavSetup({ isLoading = false }: CaldavSetupProps) {
             onCheckedChange={handleToggle}
             disabled={isLoading || isPending}
           />
+          {enable.isPending && !isConnected && (
+            <span className="flex items-center gap-2 text-sm">
+              <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin text-yellow-500" />
+              <span className="text-muted-foreground">{t('caldav.statusConnecting')}</span>
+            </span>
+          )}
           {isConnected && (
             <span className="flex items-center gap-2 text-sm">
               {isSyncing ? (

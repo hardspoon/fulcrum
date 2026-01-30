@@ -246,6 +246,7 @@
   },
   "caldav": {
     "label": "CalDAV",
+    "statusConnecting": "Connecting...",
     "statusConnected": "Connected ({{count}} calendars)",
     "statusSyncing": "Syncing...",
     "statusError": "Connection error",

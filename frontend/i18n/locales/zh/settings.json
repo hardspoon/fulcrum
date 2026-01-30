@@ -246,6 +246,7 @@
   },
   "caldav": {
     "label": "CalDAV",
+    "statusConnecting": "连接中...",
     "statusConnected": "已连接（{{count}} 个日历）",
     "statusSyncing": "同步中...",
     "statusError": "连接错误",

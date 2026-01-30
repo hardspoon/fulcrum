@@ -500,6 +500,29 @@ function buildPageContextString(context: PageContext): string {
     }
   }
 
+  // Add any search params not already represented in typed context
+  if (context.searchParams) {
+    const coveredKeys = new Set<string>()
+    if (context.filters?.project) coveredKeys.add('project')
+    if (context.filters?.tags) coveredKeys.add('tags')
+    if (context.filters?.view) coveredKeys.add('view')
+    if (context.activeTab) coveredKeys.add('tab')
+
+    for (const [key, value] of Object.entries(context.searchParams)) {
+      if (!coveredKeys.has(key)) {
+        // Enrich task param with title lookup
+        if (key === 'task' && context.pageType === 'tasks') {
+          const task = db.select().from(tasks).where(eq(tasks.id, value)).get()
+          if (task) {
+            contextParts.push(`Selected task: "${task.title}" (${value})`)
+            continue
+          }
+        }
+        contextParts.push(`URL parameter "${key}": ${value}`)
+      }
+    }
+  }
+
   if (contextParts.length > 0) {
     return `\n\nCurrent Context:\n${contextParts.map((p) => `- ${p}`).join('\n')}`
   }

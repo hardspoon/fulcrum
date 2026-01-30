@@ -688,6 +688,7 @@ export interface PageContext {
     view?: string
   }
   activeTab?: string
+  searchParams?: Record<string, string>
 }
 
 // Messaging channel types

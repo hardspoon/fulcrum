@@ -107,6 +107,17 @@ export function usePageContext(): PageContext {
       context.activeTab = searchParams.tab
     }
 
+    // Capture all search params for full URL context
+    const allParams: Record<string, string> = {}
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (value != null && value !== '') {
+        allParams[key] = String(value)
+      }
+    }
+    if (Object.keys(allParams).length > 0) {
+      context.searchParams = allParams
+    }
+
     return context
   }, [location])
 }
