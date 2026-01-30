@@ -87,6 +87,26 @@ export interface TelegramSettings {
   botToken: string
 }
 
+// CalDAV OAuth tokens (for Google Calendar)
+export interface CalDavOAuthTokens {
+  accessToken: string
+  refreshToken: string
+  expiration: number // Unix timestamp in seconds
+}
+
+// CalDAV calendar integration settings
+export interface CalDavSettings {
+  enabled: boolean
+  serverUrl: string
+  username: string
+  password: string
+  syncIntervalMinutes: number
+  authType: 'basic' | 'google-oauth'
+  googleClientId: string
+  googleClientSecret: string
+  oauthTokens: CalDavOAuthTokens | null
+}
+
 // Channels settings (renamed from MessagingSettings)
 export interface ChannelsSettings {
   email: EmailSettings
@@ -144,6 +164,7 @@ export interface Settings {
     eveningRitual: RitualConfig
   }
   channels: ChannelsSettings
+  caldav: CalDavSettings
 }
 
 // Default settings with new structure
@@ -236,6 +257,17 @@ export const DEFAULT_SETTINGS: Settings = {
       botToken: '',
     },
   },
+  caldav: {
+    enabled: false,
+    serverUrl: 'https://apidata.googleusercontent.com/caldav/v2/',
+    username: '',
+    password: '',
+    syncIntervalMinutes: 15,
+    authType: 'google-oauth',
+    googleClientId: '',
+    googleClientSecret: '',
+    oauthTokens: null,
+  },
 }
 
 // Old default port for migration detection
@@ -297,6 +329,15 @@ export const VALID_SETTING_PATHS = new Set([
   'channels.discord.botToken',
   'channels.telegram.enabled',
   'channels.telegram.botToken',
+  'caldav.enabled',
+  'caldav.serverUrl',
+  'caldav.username',
+  'caldav.password',
+  'caldav.syncIntervalMinutes',
+  'caldav.authType',
+  'caldav.googleClientId',
+  'caldav.googleClientSecret',
+  'caldav.oauthTokens',
 ])
 
 // Legacy flat settings interface for backward compatibility
