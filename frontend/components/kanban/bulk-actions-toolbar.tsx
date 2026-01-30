@@ -54,11 +54,11 @@ export function BulkActionsToolbar() {
   return (
     <div
       className={cn(
-        'fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur-sm',
+        'fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-lg border bg-background/95 shadow-lg backdrop-blur-sm',
         'animate-in slide-in-from-bottom-2 duration-200'
       )}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
+      <div className="flex items-center gap-4 px-4 py-2.5">
         <span className="text-sm text-muted-foreground">
           {count} task{count !== 1 ? 's' : ''} selected
         </span>
