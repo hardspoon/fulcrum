@@ -3,12 +3,20 @@ import { useNavigate } from '@tanstack/react-router'
 import { useTasks } from '@/hooks/use-tasks'
 import { useProjects } from '@/hooks/use-projects'
 import { useToday } from '@/hooks/use-date-utils'
+import { useCaldavEvents, useCaldavCalendars } from '@/hooks/use-caldav'
+import type { CaldavEvent } from '@/hooks/use-caldav'
 import type { Task, TaskStatus } from '@/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons'
+import { ArrowLeft01Icon, ArrowRight01Icon, Calendar03Icon, Location01Icon, Clock01Icon, TextIcon } from '@hugeicons/core-free-icons'
 import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const STATUS_COLORS: Record<TaskStatus, { bg: string; border: string; text: string }> = {
   TO_DO: { bg: 'bg-gray-100', border: 'border-gray-400', text: 'text-gray-700' },
@@ -33,6 +41,8 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState<CaldavEvent | null>(null)
+  const [eventModalOpen, setEventModalOpen] = useState(false)
 
   // Build sets of repository IDs and paths that belong to projects
   const { projectRepoIds, projectRepoPaths } = useMemo(() => {
@@ -126,6 +136,61 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
     return days
   }, [currentDate])
 
+  // CalDAV events for the visible date range
+  const dateRange = useMemo(() => {
+    if (calendarDays.length === 0) return { from: undefined, to: undefined }
+    const first = calendarDays[0]
+    const last = calendarDays[calendarDays.length - 1]
+    return {
+      from: first.toISOString().split('T')[0],
+      to: last.toISOString().split('T')[0],
+    }
+  }, [calendarDays])
+
+  const { data: caldavEvents = [] } = useCaldavEvents(dateRange.from, dateRange.to)
+  const { data: caldavCalendars = [] } = useCaldavCalendars()
+
+  const calendarColorMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const cal of caldavCalendars) {
+      if (cal.color) map.set(cal.id, cal.color)
+    }
+    return map
+  }, [caldavCalendars])
+
+  const calendarNameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const cal of caldavCalendars) {
+      if (cal.displayName) map.set(cal.id, cal.displayName)
+    }
+    return map
+  }, [caldavCalendars])
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, CaldavEvent[]>()
+    const addEvent = (dateKey: string, event: CaldavEvent) => {
+      if (!map.has(dateKey)) map.set(dateKey, [])
+      map.get(dateKey)!.push(event)
+    }
+    for (const event of caldavEvents) {
+      if (!event.dtstart) continue
+      const startDate = event.dtstart.split('T')[0]
+      if (event.allDay && event.dtend) {
+        // Multi-day all-day events: add to each day in range (dtend is exclusive)
+        const endDate = event.dtend.split('T')[0]
+        const cur = new Date(startDate + 'T00:00:00')
+        const end = new Date(endDate + 'T00:00:00')
+        while (cur < end) {
+          addEvent(cur.toISOString().split('T')[0], event)
+          cur.setDate(cur.getDate() + 1)
+        }
+      } else {
+        addEvent(startDate, event)
+      }
+    }
+    return map
+  }, [caldavEvents])
+
   const goToPrevMonth = () => {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
   }
@@ -187,6 +252,7 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
         <h2 className="text-lg font-semibold">{monthYear}</h2>
         <div className="hidden sm:block text-sm text-muted-foreground">
           {tasksWithDueDates} tasks with due dates
+          {caldavEvents.length > 0 && ` · ${caldavEvents.length} events`}
         </div>
       </div>
 
@@ -207,8 +273,16 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
           {calendarDays.map((date, index) => {
             const dateKey = date.toISOString().split('T')[0]
             const dayTasks = tasksByDate.get(dateKey) || []
+            const dayEvents = eventsByDate.get(dateKey) || []
             const isCurrentMonth = date.getMonth() === currentDate.getMonth()
             const isToday = date.getTime() === today.getTime()
+            const totalItems = dayTasks.length + dayEvents.length
+            const maxVisible = 3
+            // Show tasks first, then events, up to maxVisible
+            const visibleTasks = dayTasks.slice(0, maxVisible)
+            const remainingSlots = maxVisible - visibleTasks.length
+            const visibleEvents = remainingSlots > 0 ? dayEvents.slice(0, remainingSlots) : []
+            const overflowCount = totalItems - visibleTasks.length - visibleEvents.length
 
             return (
               <div
@@ -228,9 +302,8 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
                   {date.getDate()}
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  {dayTasks.slice(0, 3).map((task) => {
+                  {visibleTasks.map((task) => {
                     const colors = STATUS_COLORS[task.status]
-                    // Compare date strings for timezone-aware overdue check
                     const isOverdue =
                       dateKey < todayString && task.status !== 'DONE' && task.status !== 'CANCELED'
 
@@ -250,9 +323,34 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
                       </button>
                     )
                   })}
-                  {dayTasks.length > 3 && (
+                  {visibleEvents.map((event) => {
+                    const calColor = calendarColorMap.get(event.calendarId) || '#6b7280'
+                    const timeStr =
+                      !event.allDay && event.dtstart?.includes('T')
+                        ? event.dtstart.split('T')[1].slice(0, 5)
+                        : null
+
+                    return (
+                      <button
+                        key={event.id}
+                        onClick={() => {
+                          setSelectedEvent(event)
+                          setEventModalOpen(true)
+                        }}
+                        className="w-full truncate rounded px-1 py-0.5 text-left text-[10px] bg-muted/60 text-muted-foreground transition-opacity hover:opacity-80 cursor-pointer"
+                        style={{ borderLeft: `2px solid ${calColor}` }}
+                        title={[event.summary, event.location].filter(Boolean).join(' · ')}
+                      >
+                        {timeStr && (
+                          <span className="font-medium mr-0.5">{timeStr}</span>
+                        )}
+                        {event.summary || 'Untitled'}
+                      </button>
+                    )
+                  })}
+                  {overflowCount > 0 && (
                     <div className="px-1 text-[10px] text-muted-foreground">
-                      +{dayTasks.length - 3} more
+                      +{overflowCount} more
                     </div>
                   )}
                 </div>
@@ -273,6 +371,108 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
           }}
         />
       )}
+
+      {/* CalDAV event detail dialog */}
+      {selectedEvent && (
+        <CaldavEventDialog
+          event={selectedEvent}
+          open={eventModalOpen}
+          onOpenChange={(open) => {
+            setEventModalOpen(open)
+            if (!open) setSelectedEvent(null)
+          }}
+          calendarName={calendarNameMap.get(selectedEvent.calendarId)}
+          calendarColor={calendarColorMap.get(selectedEvent.calendarId) || '#6b7280'}
+        />
+      )}
     </div>
+  )
+}
+
+function formatEventDateTime(dtstart: string | null, dtend: string | null, allDay: boolean | null): string {
+  if (!dtstart) return ''
+  const startDate = dtstart.split('T')[0]
+  const dateStr = new Date(startDate + 'T00:00:00').toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  if (allDay) {
+    if (dtend) {
+      const endDate = dtend.split('T')[0]
+      // dtend is exclusive for all-day events, so subtract one day for display
+      const endDisplay = new Date(endDate + 'T00:00:00')
+      endDisplay.setDate(endDisplay.getDate() - 1)
+      if (endDisplay.toISOString().split('T')[0] !== startDate) {
+        const endStr = endDisplay.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        })
+        return `${dateStr} – ${endStr} (all day)`
+      }
+    }
+    return `${dateStr} (all day)`
+  }
+  const startTime = dtstart.includes('T') ? dtstart.split('T')[1].slice(0, 5) : ''
+  const endTime = dtend?.includes('T') ? dtend.split('T')[1].slice(0, 5) : ''
+  if (startTime && endTime) return `${dateStr}, ${startTime} – ${endTime}`
+  if (startTime) return `${dateStr}, ${startTime}`
+  return dateStr
+}
+
+interface CaldavEventDialogProps {
+  event: CaldavEvent
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  calendarName?: string
+  calendarColor: string
+}
+
+function CaldavEventDialog({ event, open, onOpenChange, calendarName, calendarColor }: CaldavEventDialogProps) {
+  const dateTimeStr = formatEventDateTime(event.dtstart, event.dtend, event.allDay)
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{event.summary || 'Untitled Event'}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 text-sm">
+          {dateTimeStr && (
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <HugeiconsIcon icon={Clock01Icon} size={16} className="mt-0.5 shrink-0" />
+              <span>{dateTimeStr}</span>
+            </div>
+          )}
+          {event.location && (
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <HugeiconsIcon icon={Location01Icon} size={16} className="mt-0.5 shrink-0" />
+              <span>{event.location}</span>
+            </div>
+          )}
+          {calendarName && (
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <HugeiconsIcon icon={Calendar03Icon} size={16} className="mt-0.5 shrink-0" />
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: calendarColor }}
+                />
+                <span>{calendarName}</span>
+              </div>
+            </div>
+          )}
+          {event.description && (
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <HugeiconsIcon icon={TextIcon} size={16} className="mt-0.5 shrink-0" />
+              <p className="whitespace-pre-wrap">{event.description}</p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

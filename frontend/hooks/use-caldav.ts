@@ -152,6 +152,18 @@ export function useGetGoogleAuthUrl() {
   })
 }
 
+// Events for a date range
+export function useCaldavEvents(from?: string, to?: string) {
+  return useQuery({
+    queryKey: ['caldav', 'events', from, to],
+    queryFn: () =>
+      fetchJSON<CaldavEvent[]>(
+        `${API_BASE}/api/caldav/events?from=${from}&to=${to}`
+      ),
+    enabled: !!from && !!to,
+  })
+}
+
 // Manual sync
 export function useSyncCaldav() {
   const queryClient = useQueryClient()
