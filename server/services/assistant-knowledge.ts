@@ -72,7 +72,13 @@ export function getDataModel(): string {
 - Calendars with display name, color, sync state
 - Events with summary, start/end times, location, all-day flag
 - Timezone-aware storage and display
-- Used to give the assistant schedule awareness for planning`
+- Used to give the assistant schedule awareness for planning
+
+**Memories** - Persistent agent knowledge store
+- Content with optional tags for categorization
+- SQLite FTS5 full-text search (boolean operators, phrase matching, prefix queries)
+- Used to remember facts, preferences, decisions, and patterns across conversations
+- Browsable via Monitoring > Memory tab in the UI`
 }
 
 /**
@@ -153,6 +159,10 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`update_actionable_event\` - Update event status, link to task
 - \`get_assistant_stats\` - Get event counts and last sweep times
 - \`get_last_sweep\` - Check when last sweep ran
+
+**Memory Tools:**
+- \`memory_store\` - Store a piece of knowledge in persistent memory with optional tags
+- \`memory_search\` - Search memories using FTS5 full-text search (supports AND, OR, NOT, "phrases", prefix*)
 
 **Utilities:**
 - \`list_tags\` - See all tags in use
@@ -354,6 +364,7 @@ You can read and modify all Fulcrum settings using the settings MCP tools. Setti
 - \`assistant.model\` - Model tier: 'opus', 'sonnet', 'haiku'
 - \`assistant.customInstructions\` - Custom system prompt additions
 - \`assistant.documentsDir\` - Directory for assistant documents
+- \`assistant.observerModel\` - Model for observe-only messages (non-self WhatsApp, unauthorized emails), e.g., 'haiku' for cost savings
 - \`assistant.ritualsEnabled\` - Enable/disable daily rituals (morning/evening briefings)
 - \`assistant.morningRitual.time\` - Time for morning ritual (24h format, e.g., "09:00")
 - \`assistant.morningRitual.prompt\` - Custom prompt for morning ritual
@@ -479,12 +490,14 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - Deploying apps with Docker Compose
 - Sending notifications to Slack, Discord, Pushover
 - Calendar awareness via CalDAV sync (Google Calendar, etc.)
+- Persistent memory across conversations (store and search knowledge)
 
 **Key tools available:**
 - list_tasks, create_task, update_task, move_task
 - list_projects, create_project
 - execute_command (run any CLI command)
 - send_notification
+- memory_store, memory_search (persistent knowledge across sessions)
 - message (send to email/WhatsApp - concierge mode)
 - create_actionable_event, list_actionable_events (track decisions - concierge mode)
 

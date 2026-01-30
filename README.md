@@ -19,6 +19,7 @@ Fulcrum doesn't replace your tools—it gives you leverage over them. You config
 - **Work From Anywhere** — Run Fulcrum on a remote server. Close your laptop, agents keep working.
 - **Project Management** — Tasks with dependencies, due dates, labels, and attachments. Visual kanban boards.
 - **Production Deployment** — Docker Compose with automatic Traefik routing and Cloudflare DNS/tunnels.
+- **Agent Memory** — Persistent knowledge store with full-text search. Agents remember across sessions.
 - **MCP-First Architecture** — 60+ tools exposed via Model Context Protocol. Agents discover what they need.
 
 ## MCP-First Architecture
@@ -183,6 +184,16 @@ Chat with the AI assistant from anywhere via your favorite messaging platform.
 
 Enable in Settings → Messaging and follow the setup instructions for each platform.
 
+### Agent Memory
+
+Agents can store and recall knowledge across conversations using a persistent memory system backed by SQLite FTS5 full-text search.
+
+- **Persistent** — Memories survive across sessions and agent restarts
+- **Searchable** — Full-text search with boolean operators, phrase matching, and prefix queries
+- **Tagged** — Categorize memories with tags (preferences, decisions, architecture, etc.)
+- **Browsable** — View, search, edit, and delete memories from the Monitoring > Memory tab
+- **MCP tools** — `memory_store` and `memory_search` available to all connected agents
+
 ### System Monitoring
 
 Track CPU, memory, and disk usage while your agents work. The Jobs tab manages systemd (Linux) or launchd (macOS) timers. The Messages tab shows all channel messages (WhatsApp, Discord, Telegram, Slack, Email) with filtering by channel and direction.
@@ -235,6 +246,7 @@ Both plugins include an MCP server with 60+ tools:
 | **Notifications** | Send notifications to enabled channels |
 | **Backup & Restore** | Snapshot database and settings; auto-safety-backup on restore |
 | **Settings** | View and update configuration; manage notification channels |
+| **Memory** | Store and search persistent knowledge with FTS5 full-text search |
 | **Assistant Events** | Track actionable events; query decision history |
 
 Use `search_tools` to discover available tools by keyword or category.

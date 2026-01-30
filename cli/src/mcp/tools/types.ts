@@ -26,5 +26,6 @@ export const ToolCategorySchema = z.enum([
   'messaging',
   'assistant',
   'caldav',
+  'memory',
 ])
 export const AgentTypeSchema = z.enum(['claude', 'opencode'])

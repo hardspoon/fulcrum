@@ -9,7 +9,8 @@
     "jobs": "Jobs",
     "usage": "Usage Limits",
     "assistant": "Assistant",
-    "messages": "Messages"
+    "messages": "Messages",
+    "memory": "Memory"
   },
   "claude": {
     "showAllInstances": "Show all instances",
@@ -136,6 +137,16 @@
       "monitoring": "Monitoring",
       "dismissed": "Dismissed"
     }
+  },
+  "memory": {
+    "title": "Agent Memories",
+    "search": "Search memories...",
+    "empty": "No memories stored yet",
+    "noResults": "No memories match your search",
+    "total": "{{count}} memories",
+    "deleteConfirm": "Delete this memory?",
+    "deleted": "Memory deleted",
+    "tagsPlaceholder": "Tags (comma-separated)"
   },
   "messages": {
     "title": "Channel Messages",

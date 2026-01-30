@@ -5,7 +5,7 @@
  * Core tools are always loaded; deferred tools are loaded on-demand after search.
  */
 
-export type ToolCategory = 'core' | 'tasks' | 'projects' | 'repositories' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec' | 'settings' | 'backup' | 'email' | 'messaging' | 'assistant' | 'caldav'
+export type ToolCategory = 'core' | 'tasks' | 'projects' | 'repositories' | 'apps' | 'filesystem' | 'git' | 'notifications' | 'exec' | 'settings' | 'backup' | 'email' | 'messaging' | 'assistant' | 'caldav' | 'memory'
 
 export interface ToolMetadata {
   name: string
@@ -713,6 +713,21 @@ export const toolRegistry: ToolMetadata[] = [
     category: 'caldav',
     keywords: ['calendar', 'event', 'delete', 'remove', 'cancel'],
     defer_loading: true,
+  },
+  // Memory tools - always loaded
+  {
+    name: 'memory_store',
+    description: 'Store a piece of knowledge in persistent memory',
+    category: 'memory',
+    keywords: ['memory', 'store', 'save', 'remember', 'knowledge', 'persist', 'fact'],
+    defer_loading: false,
+  },
+  {
+    name: 'memory_search',
+    description: 'Search persistent memory using full-text search',
+    category: 'memory',
+    keywords: ['memory', 'search', 'find', 'recall', 'knowledge', 'retrieve', 'remember'],
+    defer_loading: false,
   },
 ]
 

@@ -1223,6 +1223,64 @@ export class FulcrumClient {
     })
   }
 
+  // Memory
+  async storeMemory(input: { content: string; tags?: string[] }): Promise<{
+    id: string
+    content: string
+    tags: string[] | null
+    createdAt: string
+    updatedAt: string
+  }> {
+    return this.fetch('/api/memory', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+  }
+
+  async searchMemories(input: {
+    query: string
+    tags?: string[]
+    limit?: number
+  }): Promise<Array<{
+    id: string
+    content: string
+    tags: string[] | null
+    createdAt: string
+    updatedAt: string
+    rank?: number
+  }>> {
+    const params = new URLSearchParams({ q: input.query })
+    if (input.tags?.length) params.set('tags', input.tags.join(','))
+    if (input.limit) params.set('limit', String(input.limit))
+    return this.fetch(`/api/memory/search?${params.toString()}`)
+  }
+
+  async listMemories(input?: {
+    tags?: string[]
+    limit?: number
+    offset?: number
+  }): Promise<{
+    memories: Array<{
+      id: string
+      content: string
+      tags: string[] | null
+      createdAt: string
+      updatedAt: string
+    }>
+    total: number
+  }> {
+    const params = new URLSearchParams()
+    if (input?.tags?.length) params.set('tags', input.tags.join(','))
+    if (input?.limit) params.set('limit', String(input.limit))
+    if (input?.offset) params.set('offset', String(input.offset))
+    const query = params.toString()
+    return this.fetch(`/api/memory${query ? `?${query}` : ''}`)
+  }
+
+  async deleteMemory(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/memory/${id}`, { method: 'DELETE' })
+  }
+
   // Assistant - Stats
   async getAssistantStats(): Promise<{
     events: {

@@ -12,6 +12,7 @@ import {
   GridIcon,
   AiInnovation01Icon,
   MessageMultiple01Icon,
+  Database01Icon,
 } from '@hugeicons/core-free-icons'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
@@ -24,12 +25,13 @@ import {
   JobsTab,
   AssistantTab,
   MessagesTab,
+  MemoryTab,
 } from '@/components/monitoring/tabs'
 import { useJobsAvailable } from '@/hooks/use-jobs'
 
-type MonitoringTab = 'system' | 'processes' | 'claude' | 'fulcrum' | 'worktrees' | 'usage' | 'jobs' | 'assistant' | 'messages'
+type MonitoringTab = 'system' | 'processes' | 'claude' | 'fulcrum' | 'worktrees' | 'usage' | 'jobs' | 'assistant' | 'messages' | 'memory'
 
-const VALID_TABS: MonitoringTab[] = ['system', 'processes', 'claude', 'fulcrum', 'worktrees', 'usage', 'jobs', 'assistant', 'messages']
+const VALID_TABS: MonitoringTab[] = ['system', 'processes', 'claude', 'fulcrum', 'worktrees', 'usage', 'jobs', 'assistant', 'messages', 'memory']
 
 type JobScope = 'all' | 'user' | 'system'
 
@@ -113,6 +115,10 @@ function MonitoringPage() {
               <HugeiconsIcon icon={MessageMultiple01Icon} size={14} strokeWidth={2} />
               <span className="max-sm:hidden">{t('tabs.messages')}</span>
             </TabsTrigger>
+            <TabsTrigger value="memory" className="gap-1.5 data-[state=active]:bg-muted">
+              <HugeiconsIcon icon={Database01Icon} size={14} strokeWidth={2} />
+              <span className="max-sm:hidden">{t('tabs.memory')}</span>
+            </TabsTrigger>
           </TabsList>
           </div>
 
@@ -153,6 +159,10 @@ function MonitoringPage() {
 
             <TabsContent value="messages" className="m-0">
               <MessagesTab />
+            </TabsContent>
+
+            <TabsContent value="memory" className="m-0">
+              <MemoryTab />
             </TabsContent>
           </div>
         </Tabs>

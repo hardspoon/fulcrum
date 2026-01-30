@@ -458,6 +458,15 @@ export const caldavEvents = sqliteTable('caldav_events', {
   updatedAt: text('updated_at').notNull(),
 })
 
+// Agent memories - persistent knowledge store with FTS5 full-text search
+export const memories = sqliteTable('memories', {
+  id: text('id').primaryKey(),
+  content: text('content').notNull(),
+  tags: text('tags'), // JSON array of strings
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 // Type inference helpers
 export type Repository = typeof repositories.$inferSelect
 export type NewRepository = typeof repositories.$inferInsert
@@ -524,3 +533,5 @@ export type CaldavCalendar = typeof caldavCalendars.$inferSelect
 export type NewCaldavCalendar = typeof caldavCalendars.$inferInsert
 export type CaldavEvent = typeof caldavEvents.$inferSelect
 export type NewCaldavEvent = typeof caldavEvents.$inferInsert
+export type Memory = typeof memories.$inferSelect
+export type NewMemory = typeof memories.$inferInsert

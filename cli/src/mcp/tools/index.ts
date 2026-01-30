@@ -19,6 +19,7 @@ import { registerBackupTools } from './backup'
 import { registerEmailTools } from './email'
 import { registerAssistantEventTools } from './assistant-events'
 import { registerCaldavTools } from './caldav'
+import { registerMemoryTools } from './memory'
 
 export function registerTools(server: McpServer, client: FulcrumClient) {
   registerCoreTools(server, client)
@@ -34,6 +35,7 @@ export function registerTools(server: McpServer, client: FulcrumClient) {
   registerEmailTools(server, client)
   registerAssistantEventTools(server, client)
   registerCaldavTools(server, client)
+  registerMemoryTools(server, client)
 }
 
 // Re-export types and schemas for external use

@@ -8,7 +8,7 @@
       "name": "fulcrum",
       "source": "./",
       "description": "Task orchestration for Claude Code",
-      "version": "2.7.1",
+      "version": "2.8.0",
       "skills": [
         "./skills/fulcrum"
       ],

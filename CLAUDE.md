@@ -40,6 +40,7 @@ Fulcrum is the Vibe Engineer's Cockpit. A terminal-first tool for orchestrating 
 - Messaging channels → `server/services/channels/`, `server/routes/messaging.ts`
 - App deployment → `server/routes/apps.ts`, `server/services/` (docker/cloudflare/traefik)
 - Calendar integration → `server/services/caldav/`, `server/routes/caldav.ts`, `frontend/components/caldav/`
+- Agent memory → `server/routes/memory.ts`, `server/services/memory-service.ts`
 - Settings → `server/lib/settings/`, `frontend/routes/settings/`
 
 **UI components:**
@@ -117,6 +118,7 @@ fulcrum notify <title> <message>  # Send notification
 ### Key Services (`server/services/`)
 - `caldav/` - CalDAV calendar sync (Google Calendar OAuth2, generic CalDAV)
 - `channels/` - Chat with AI via external channels (WhatsApp, Discord, Telegram, Slack, Email)
+- `memory-service.ts` - Persistent agent memory with SQLite FTS5 full-text search
 - `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
 - `pr-monitor.ts` - GitHub PR status polling, auto-close tasks on merge
 - `metrics-collector.ts` - System metrics collection (CPU, memory, disk)
@@ -132,6 +134,7 @@ fulcrum notify <title> <message>  # Send notification
 - `/api/monitoring/*` - System and Claude instance monitoring, channel messages
 - `/api/deployments/*` - Deployment history
 - `/api/repositories/*` - Repository management
+- `/api/memory/*` - Agent memory CRUD and FTS5 search
 - `/api/messaging/*` - Messaging channel management (WhatsApp, Discord, Telegram, Slack)
 - `/api/caldav/*` - CalDAV calendar integration (config, sync, OAuth)
 - `/ws/terminal` - Terminal I/O multiplexing
@@ -167,6 +170,7 @@ fulcrum notify <title> <message>  # Send notification
 | `channelMessages` | Unified storage for all channel messages (WhatsApp, Discord, Telegram, Slack, Email) |
 | `caldavCalendars` | Synced CalDAV calendars (URL, display name, color, sync state) |
 | `caldavEvents` | Calendar events (summary, start/end, location, all-day flag) |
+| `memories` | Persistent agent knowledge store with FTS5 full-text search |
 
 Task statuses: `IN_PROGRESS`, `IN_REVIEW`, `DONE`, `CANCELED`
 
@@ -200,7 +204,7 @@ Settings stored in `~/.fulcrum/settings.json`. See `server/lib/settings/types.ts
 - `agent` - AI agent defaults (Claude Code, OpenCode)
 - `tasks` - Task creation defaults
 - `appearance` - UI theme and language
-- `assistant` - Built-in assistant settings
+- `assistant` - Built-in assistant settings (model, observerModel for cost-effective observe-only processing)
 - `caldav` - CalDAV calendar integration (server URL, auth type, OAuth tokens, sync interval)
 
 **Separate config files:**
