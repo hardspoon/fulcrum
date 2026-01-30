@@ -36,6 +36,7 @@ export const CONFIG_KEYS = {
   START_WORKTREE_TASKS_IMMEDIATELY: 'tasks.startWorktreeTasksImmediately',
   ASSISTANT_PROVIDER: 'assistant.provider',
   ASSISTANT_MODEL: 'assistant.model',
+  ASSISTANT_OBSERVER_MODEL: 'assistant.observerModel',
   ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
   ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
   // Ritual settings (under assistant)
@@ -320,6 +321,16 @@ export function useAssistantModel() {
   return {
     ...query,
     data: (query.data?.value as AssistantModel) ?? 'sonnet',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantObserverModel() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_OBSERVER_MODEL)
+
+  return {
+    ...query,
+    data: (query.data?.value as AssistantModel) ?? 'haiku',
     isDefault: query.data?.isDefault ?? true,
   }
 }

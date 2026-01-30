@@ -133,6 +133,15 @@
           "haiku": "Haiku (Fastest)"
         }
       },
+      "observerModel": {
+        "label": "Observer Model",
+        "description": "Model used for observe-only message processing (e.g., non-self WhatsApp chats, unauthorized emails). Use a cheaper model to reduce costs.",
+        "options": {
+          "opus": "Opus (Most capable)",
+          "sonnet": "Sonnet (Balanced)",
+          "haiku": "Haiku (Fastest)"
+        }
+      },
       "opencodeModel": {
         "label": "OpenCode Model",
         "description": "The model to use when OpenCode is selected as the provider",

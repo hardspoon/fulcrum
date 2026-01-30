@@ -157,6 +157,7 @@ export interface Settings {
   assistant: {
     provider: AssistantProvider
     model: AssistantModel
+    observerModel: AssistantModel
     customInstructions: string | null
     documentsDir: string
     ritualsEnabled: boolean
@@ -209,6 +210,7 @@ export const DEFAULT_SETTINGS: Settings = {
   assistant: {
     provider: 'claude',
     model: 'sonnet',
+    observerModel: 'haiku',
     customInstructions: null,
     documentsDir: '~/.fulcrum/documents',
     ritualsEnabled: false,
@@ -300,6 +302,7 @@ export const VALID_SETTING_PATHS = new Set([
   'appearance.claudeCodeDarkTheme',
   'assistant.provider',
   'assistant.model',
+  'assistant.observerModel',
   'assistant.customInstructions',
   'assistant.documentsDir',
   'assistant.ritualsEnabled',

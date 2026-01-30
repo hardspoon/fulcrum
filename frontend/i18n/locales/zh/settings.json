@@ -133,6 +133,15 @@
           "haiku": "Haiku（最快）"
         }
       },
+      "observerModel": {
+        "label": "观察者模型",
+        "description": "用于仅观察消息处理的模型（例如非自聊 WhatsApp 消息、未授权邮件）。使用更便宜的模型可降低成本。",
+        "options": {
+          "opus": "Opus（最强大）",
+          "sonnet": "Sonnet（平衡）",
+          "haiku": "Haiku（最快）"
+        }
+      },
       "opencodeModel": {
         "label": "OpenCode 模型",
         "description": "选择 OpenCode 作为提供商时使用的模型",

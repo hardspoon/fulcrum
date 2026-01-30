@@ -8,6 +8,7 @@ import { activeChannels, setMessageHandler } from './channel-manager'
 import { getOrCreateSession, resetSession } from './session-mapper'
 import { getMessagingSystemPrompt, getObserveOnlySystemPrompt, type MessagingContext } from './system-prompts'
 import * as assistantService from '../assistant-service'
+import { getSettings } from '../../lib/settings/core'
 import type { IncomingMessage } from './types'
 
 // Special commands that don't go to the AI
@@ -359,9 +360,14 @@ async function processForActionableEvents(msg: IncomingMessage): Promise<void> {
   const systemPrompt = getObserveOnlySystemPrompt(msg.channelType, context)
 
   try {
+    // Use the configured observer model (defaults to haiku for cost efficiency)
+    const settings = getSettings()
+    const observerModelId = settings.assistant.observerModel
+
     // Stream the response - assistant can only create actionable events, not respond
     const stream = assistantService.streamMessage(session.id, msg.content, {
       systemPromptAdditions: systemPrompt,
+      modelId: observerModelId,
     })
 
     // Consume stream

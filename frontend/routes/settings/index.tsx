@@ -55,6 +55,7 @@ import {
   useTimezone,
   useAssistantProvider,
   useAssistantModel,
+  useAssistantObserverModel,
   useAssistantCustomInstructions,
   useAssistantDocumentsDir,
   useAssistantRitualsEnabled,
@@ -134,6 +135,7 @@ function SettingsPage() {
   const { data: timezone, isLoading: timezoneLoading } = useTimezone()
   const { data: assistantProvider, isLoading: assistantProviderLoading } = useAssistantProvider()
   const { data: assistantModel, isLoading: assistantModelLoading } = useAssistantModel()
+  const { data: assistantObserverModel, isLoading: assistantObserverModelLoading } = useAssistantObserverModel()
   const { data: assistantCustomInstructions, isLoading: assistantInstructionsLoading } = useAssistantCustomInstructions()
   const { data: assistantDocumentsDir, isLoading: assistantDocumentsDirLoading } = useAssistantDocumentsDir()
   const { data: ritualsEnabled, isLoading: ritualsEnabledLoading } = useAssistantRitualsEnabled()
@@ -207,6 +209,7 @@ function SettingsPage() {
   // Assistant settings local state
   const [localAssistantProvider, setLocalAssistantProvider] = useState<AssistantProvider>('claude')
   const [localAssistantModel, setLocalAssistantModel] = useState<AssistantModel>('sonnet')
+  const [localAssistantObserverModel, setLocalAssistantObserverModel] = useState<AssistantModel>('haiku')
   const [localAssistantCustomInstructions, setLocalAssistantCustomInstructions] = useState<string>('')
   const [localAssistantDocumentsDir, setLocalAssistantDocumentsDir] = useState<string>('~/.fulcrum/documents')
 
@@ -304,9 +307,10 @@ function SettingsPage() {
   useEffect(() => {
     if (assistantProvider !== undefined) setLocalAssistantProvider(assistantProvider)
     if (assistantModel !== undefined) setLocalAssistantModel(assistantModel)
+    if (assistantObserverModel !== undefined) setLocalAssistantObserverModel(assistantObserverModel)
     if (assistantCustomInstructions !== undefined) setLocalAssistantCustomInstructions(assistantCustomInstructions ?? '')
     if (assistantDocumentsDir !== undefined) setLocalAssistantDocumentsDir(assistantDocumentsDir)
-  }, [assistantProvider, assistantModel, assistantCustomInstructions, assistantDocumentsDir])
+  }, [assistantProvider, assistantModel, assistantObserverModel, assistantCustomInstructions, assistantDocumentsDir])
 
   // Sync ritual settings
   useEffect(() => {
@@ -324,7 +328,7 @@ function SettingsPage() {
   ])
 
   const isLoading =
-    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || autoScrollLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading || assistantProviderLoading || assistantModelLoading || assistantInstructionsLoading || assistantDocumentsDirLoading ||
+    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || autoScrollLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading || assistantProviderLoading || assistantModelLoading || assistantObserverModelLoading || assistantInstructionsLoading || assistantDocumentsDirLoading ||
     ritualsEnabledLoading || morningTimeLoading || morningPromptLoading || eveningTimeLoading || eveningPromptLoading
 
   const hasZAiChanges = zAiSettings && (
@@ -349,6 +353,7 @@ function SettingsPage() {
   const hasAssistantChanges =
     localAssistantProvider !== assistantProvider ||
     localAssistantModel !== assistantModel ||
+    localAssistantObserverModel !== assistantObserverModel ||
     localAssistantCustomInstructions !== (assistantCustomInstructions ?? '') ||
     localAssistantDocumentsDir !== assistantDocumentsDir
 
@@ -688,6 +693,16 @@ function SettingsPage() {
           new Promise((resolve) => {
             updateConfig.mutate(
               { key: CONFIG_KEYS.ASSISTANT_MODEL, value: localAssistantModel },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localAssistantObserverModel !== assistantObserverModel) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_OBSERVER_MODEL, value: localAssistantObserverModel },
               { onSettled: resolve }
             )
           })
@@ -1672,6 +1687,35 @@ function SettingsPage() {
                       </div>
                       <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
                         {t('fields.assistant.model.description')}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Observer model (shown when provider is Claude) */}
+                  {localAssistantProvider === 'claude' && (
+                    <div className="space-y-1">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                          {t('fields.assistant.observerModel.label')}
+                        </label>
+                        <Select
+                          value={localAssistantObserverModel}
+                          onValueChange={(v) => setLocalAssistantObserverModel(v as AssistantModel)}
+                        >
+                          <SelectTrigger className="w-48">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ASSISTANT_MODELS.map((model) => (
+                              <SelectItem key={model} value={model}>
+                                {t(`fields.assistant.observerModel.options.${model}`)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                        {t('fields.assistant.observerModel.description')}
                       </p>
                     </div>
                   )}
