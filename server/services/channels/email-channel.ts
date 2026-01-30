@@ -2,11 +2,15 @@
  * Email channel implementation using nodemailer (SMTP) and imapflow (IMAP).
  * Handles sending via SMTP and receiving via IMAP polling.
  *
- * Authorization model:
- * 1. Allowlisted sender -> always respond
+ * Collection model: Collect everything, respond selectively.
+ * All non-automated emails are stored in the DB and shown in the UI.
+ * The allowedSenders list controls who gets AI responses, not who gets collected.
+ *
+ * Authorization (controls AI responses only):
+ * 1. Allowlisted sender -> respond
  * 2. CC'd by allowlisted person -> authorize the thread, respond
  * 3. Reply in an authorized thread -> respond (even from non-allowlisted senders)
- * 4. Otherwise -> ignore
+ * 4. Otherwise -> observe only (stored, shown in UI, no AI response)
  */
 
 import { createTransport, type Transporter } from 'nodemailer'
@@ -25,7 +29,7 @@ import type {
 import { parseEmailHeaders, parseEmailContent } from './email-parser'
 import { checkAuthorization } from './email-auth'
 import { storeEmail, getStoredEmails as getStoredEmailsFromDb, getStoredEmailByMessageId, type StoredEmail } from './email-storage'
-import { sendEmail, sendUnauthorizedResponse } from './email-sender'
+import { sendEmail } from './email-sender'
 import { isAutomatedEmail } from './email-types'
 
 export class EmailChannel implements MessagingChannel {
@@ -58,6 +62,8 @@ export class EmailChannel implements MessagingChannel {
         pass: this.credentials.imap.password,
       },
       logger: false,
+      socketTimeout: 30_000,
+      greetingTimeout: 15_000,
     })
     client.on('error', (err: Error) => {
       log.messaging.error('IMAP client error', {
@@ -173,9 +179,11 @@ export class EmailChannel implements MessagingChannel {
   private async pollForNewEmails(): Promise<void> {
     if (this.isShuttingDown || !this.credentials) return
 
+    let client: ImapFlow | null = null
+
     try {
       // Create new IMAP connection for polling
-      const client = this.createImapClient()
+      client = this.createImapClient()
 
       await client.connect()
       const lock = await client.getMailboxLock('INBOX')
@@ -207,47 +215,15 @@ export class EmailChannel implements MessagingChannel {
             continue
           }
 
-          // Check authorization
-          const authResult = await checkAuthorization(
-            this.connectionId,
-            headers,
-            this.credentials?.allowedSenders || [],
-            this.credentials?.smtp.user.toLowerCase()
-          )
-
-          if (!authResult.authorized) {
-            // Check if this is an automated email before sending a response
-            const automatedCheck = isAutomatedEmail(headers)
-
-            if (automatedCheck.isAutomated) {
-              log.messaging.info('Email skipped - automated sender', {
-                connectionId: this.connectionId,
-                from: headers.from,
-                subject: headers.subject,
-                reason: automatedCheck.reason,
-              })
-            } else {
-              log.messaging.info('Email rejected - not authorized', {
-                connectionId: this.connectionId,
-                from: headers.from,
-                subject: headers.subject,
-                reason: authResult.reason,
-              })
-
-              // Send canned response to unauthorized human sender
-              if (this.transporter) {
-                await sendUnauthorizedResponse(
-                  this.transporter,
-                  this.connectionId,
-                  this.getFromAddress(),
-                  headers,
-                  this.credentials?.bcc
-                )
-              }
-            }
-
-            // Mark as read to avoid reprocessing
-            await client.messageFlagsAdd({ uid: message.uid }, ['\\Seen'])
+          // Skip automated emails entirely (newsletters, notifications, etc.)
+          const automatedCheck = isAutomatedEmail(headers)
+          if (automatedCheck.isAutomated) {
+            log.messaging.info('Email skipped - automated sender', {
+              connectionId: this.connectionId,
+              from: headers.from,
+              subject: headers.subject,
+              reason: automatedCheck.reason,
+            })
             continue
           }
 
@@ -255,33 +231,15 @@ export class EmailChannel implements MessagingChannel {
           const content = await parseEmailContent(message.source, this.connectionId)
           if (!content) continue
 
-          const incomingMessage: IncomingMessage = {
-            channelType: 'email',
-            connectionId: this.connectionId,
-            senderId: headers.from,
-            senderName: headers.fromName || undefined,
-            content,
-            timestamp: headers.date || new Date(),
-            // Include thread info for reply threading
-            metadata: {
-              messageId: headers.messageId,
-              inReplyTo: headers.inReplyTo,
-              references: headers.references,
-              subject: headers.subject,
-              threadId: authResult.threadId,
-            },
-          }
+          // Check authorization (controls AI responses, not collection)
+          const authResult = await checkAuthorization(
+            this.connectionId,
+            headers,
+            this.credentials?.allowedSenders || [],
+            this.credentials?.smtp.user.toLowerCase()
+          )
 
-          log.messaging.info('Email received', {
-            connectionId: this.connectionId,
-            from: headers.from,
-            subject: headers.subject,
-            contentLength: content.length,
-            threadId: authResult.threadId,
-            authorizedBy: authResult.authorizedBy,
-          })
-
-          // Store the incoming email locally
+          // Store ALL non-automated emails locally
           if (headers.messageId) {
             storeEmail({
               connectionId: this.connectionId,
@@ -301,7 +259,35 @@ export class EmailChannel implements MessagingChannel {
             })
           }
 
-          // Process message
+          const incomingMessage: IncomingMessage = {
+            channelType: 'email',
+            connectionId: this.connectionId,
+            senderId: headers.from,
+            senderName: headers.fromName || undefined,
+            content,
+            timestamp: headers.date || new Date(),
+            metadata: {
+              messageId: headers.messageId,
+              inReplyTo: headers.inReplyTo,
+              references: headers.references,
+              subject: headers.subject,
+              threadId: authResult.threadId,
+              // Unauthorized emails are observe-only (stored + shown, no AI response)
+              observeOnly: !authResult.authorized,
+            },
+          }
+
+          log.messaging.info('Email received', {
+            connectionId: this.connectionId,
+            from: headers.from,
+            subject: headers.subject,
+            contentLength: content.length,
+            threadId: authResult.threadId,
+            authorized: authResult.authorized,
+            authorizedBy: authResult.authorizedBy,
+          })
+
+          // Route through message handler (observe-only messages won't get AI responses)
           try {
             await this.events?.onMessage(incomingMessage)
           } catch (err) {
@@ -329,6 +315,15 @@ export class EmailChannel implements MessagingChannel {
       // Don't change status for transient errors, but log them
       if (String(err).includes('AUTHENTICATIONFAILED') || String(err).includes('LOGIN')) {
         this.updateStatus('credentials_required')
+      }
+
+      // Ensure client is cleaned up on error
+      if (client) {
+        try {
+          await client.logout()
+        } catch {
+          // Ignore cleanup errors
+        }
       }
     }
   }

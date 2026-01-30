@@ -233,7 +233,7 @@ Chat with the AI assistant via external messaging platforms:
 - **Discord**: Bot token auth, slash commands (`/reset`, `/help`, `/status`)
 - **Telegram**: Bot token from @BotFather, handles private chats
 - **Slack**: Socket Mode with bot + app tokens, Block Kit formatting, slash commands
-- **Email**: SMTP/IMAP with sender allowlist filtering
+- **Email**: SMTP/IMAP, collects all non-automated emails (allowlist controls AI responses only)
 - **Session persistence**: Conversations map to `chatSessions` table, one session per user
 
 **Configuration storage:**

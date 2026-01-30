@@ -170,7 +170,7 @@ Chat with the AI assistant from anywhere via your favorite messaging platform.
 
 | Platform | Auth Method |
 |----------|-------------|
-| **Email** | SMTP/IMAP credentials with sender allowlist |
+| **Email** | SMTP/IMAP credentials, collects all emails, allowlist controls AI responses |
 | **WhatsApp** | QR code scan, monitors all messages, replies only to "Message yourself" |
 | **Discord** | Bot token from Developer Portal |
 | **Telegram** | Bot token from @BotFather |
@@ -178,7 +178,7 @@ Chat with the AI assistant from anywhere via your favorite messaging platform.
 
 - **Persistent sessions** — Conversation context maintained across messages
 - **Email threading** — Each email thread is a separate conversation
-- **Privacy-respecting** — WhatsApp sees all messages but only replies to you
+- **Observe-first** — Email and WhatsApp collect all messages but only respond to authorized senders
 - **Commands** — `/reset` (new conversation), `/help`, `/status`
 
 Enable in Settings → Messaging and follow the setup instructions for each platform.

@@ -6,7 +6,6 @@ import type { Transporter } from 'nodemailer'
 import { nanoid } from 'nanoid'
 import { log } from '../../lib/logger'
 import { storeEmail } from './email-storage'
-import type { EmailHeaders } from './email-types'
 
 /**
  * Convert markdown-like formatting to HTML.
@@ -124,57 +123,5 @@ export async function sendEmail(
       error: String(err),
     })
     return false
-  }
-}
-
-/**
- * Send a canned response to unauthorized senders.
- */
-export async function sendUnauthorizedResponse(
-  transporter: Transporter,
-  connectionId: string,
-  fromAddress: string,
-  headers: EmailHeaders,
-  bcc?: string | null
-): Promise<void> {
-  if (!headers.from) return
-
-  const response = `Sorry, I'm not able to respond to messages from your email address.
-
-If you believe this is an error, please contact the owner of this email address.`
-
-  try {
-    // Build threading headers
-    const emailHeaders: Record<string, string> = {}
-    if (headers.messageId) {
-      emailHeaders['In-Reply-To'] = headers.messageId
-      emailHeaders['References'] = headers.messageId
-    }
-
-    let subject = 'Unable to Process Your Request'
-    if (headers.subject) {
-      subject = headers.subject.startsWith('Re:') ? headers.subject : `Re: ${headers.subject}`
-    }
-
-    await transporter.sendMail({
-      from: fromAddress,
-      to: headers.from,
-      bcc: bcc || undefined,
-      subject,
-      text: response,
-      html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6;"><p>${response.replace(/\n/g, '<br>')}</p></div>`,
-      headers: emailHeaders,
-    })
-
-    log.messaging.info('Sent unauthorized response', {
-      connectionId,
-      to: headers.from,
-    })
-  } catch (err) {
-    log.messaging.error('Failed to send unauthorized response', {
-      connectionId,
-      to: headers.from,
-      error: String(err),
-    })
   }
 }
