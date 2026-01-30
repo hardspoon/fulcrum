@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { observer } from 'mobx-react-lite'
 import { useQueryClient } from '@tanstack/react-query'
@@ -233,10 +234,36 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
   // Check if OpenCode is available (installed and has models)
   const isOpencodeAvailable = opencodeInstalled && sortedOpencodeProviders.length > 0
 
-  return (
+  // Create a dedicated portal container so the assistant renders above dialog backdrops
+  const portalRef = useRef<HTMLDivElement | null>(null)
+  const [portalReady, setPortalReady] = useState(false)
+
+  useEffect(() => {
+    let el = document.getElementById('ai-assistant-portal') as HTMLDivElement | null
+    if (!el) {
+      el = document.createElement('div')
+      el.id = 'ai-assistant-portal'
+      document.body.appendChild(el)
+    }
+    portalRef.current = el
+    setPortalReady(true)
+
+    // Prevent BaseUI from marking the portal container as inert/aria-hidden
+    const observer = new MutationObserver(() => {
+      if (el!.hasAttribute('inert')) el!.removeAttribute('inert')
+      if (el!.getAttribute('aria-hidden') === 'true') el!.removeAttribute('aria-hidden')
+    })
+    observer.observe(el, { attributes: true, attributeFilter: ['inert', 'aria-hidden'] })
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  const content = (
     <>
       {/* Floating 3D Glowing AI Logo - hidden on mobile, shown in header instead */}
-      <div className="fixed bottom-6 right-6 z-50 hidden sm:block">
+      <div className="fixed bottom-6 right-6 z-[60] hidden sm:block">
         <button
           className={`floating-ai-button relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-500 transform ${
             isOpen ? 'rotate-90' : 'rotate-0'
@@ -274,7 +301,7 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
       {isOpen && (
         <div
           ref={chatRef}
-          className="fixed bottom-6 right-6 sm:bottom-24 z-50 w-[420px] max-w-[calc(100vw-48px)] transition-all duration-300 origin-bottom-right"
+          className="fixed bottom-6 right-6 sm:bottom-24 z-[60] w-[420px] max-w-[calc(100vw-48px)] transition-all duration-300 origin-bottom-right"
           style={{
             animation: 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
           }}
@@ -576,4 +603,7 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
       </Dialog>
     </>
   )
+
+  if (!portalReady || !portalRef.current) return null
+  return createPortal(content, portalRef.current)
 })
