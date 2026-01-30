@@ -76,19 +76,6 @@ export async function searchMemories(input: SearchMemoriesInput): Promise<Memory
 
   // If tag filtering is requested, we need to join and filter
   if (input.tags?.length) {
-    const tagPlaceholders = input.tags.map(() => '?').join(', ')
-    const rawSql = sql.raw(`
-      SELECT m.*, bm25(memories_fts) as rank
-      FROM memories_fts fts
-      JOIN memories m ON m.rowid = fts.rowid
-      WHERE memories_fts MATCH ${sql.placeholder('query')}
-        AND EXISTS (
-          SELECT 1 FROM json_each(m.tags) je
-          WHERE je.value IN (${tagPlaceholders})
-        )
-      ORDER BY bm25(memories_fts)
-      LIMIT ${sql.placeholder('limit')}
-    `)
     // Use raw SQL via the underlying database
     const results = db.all(
       sql`SELECT m.id, m.content, m.tags, m.created_at as "createdAt", m.updated_at as "updatedAt", bm25(memories_fts) as rank
