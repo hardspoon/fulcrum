@@ -9,12 +9,16 @@ import {
   PencilEdit01Icon,
   CheckmarkCircle02Icon,
   Cancel01Icon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
 } from '@hugeicons/core-free-icons'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
+import { ContentRenderer } from '@/components/assistant/content-renderer'
 import { useMemories, useSearchMemories, useDeleteMemory, useUpdateMemory } from '@/hooks/use-memories'
 import type { Memory } from '@/hooks/use-memories'
 
@@ -42,6 +46,12 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString()
 }
 
+function getFirstLine(content: string): string {
+  const line = content.split('\n').find((l) => l.trim().length > 0) ?? content
+  // Strip leading markdown heading markers for the preview
+  return line.replace(/^#+\s+/, '')
+}
+
 function MemoryRow({
   memory,
   onDelete,
@@ -52,6 +62,7 @@ function MemoryRow({
   onUpdate: (id: string, content: string, tags: string[] | null) => void
 }) {
   const { t } = useTranslation('monitoring')
+  const [isOpen, setIsOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editContent, setEditContent] = useState(memory.content)
@@ -65,7 +76,8 @@ function MemoryRow({
     }
   }, [editing])
 
-  const handleDelete = () => {
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
     if (confirmDelete) {
       onDelete(memory.id)
       setConfirmDelete(false)
@@ -75,10 +87,12 @@ function MemoryRow({
     }
   }
 
-  const handleEdit = () => {
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
     setEditContent(memory.content)
     setEditTags(memory.tags?.join(', ') ?? '')
     setEditing(true)
+    setIsOpen(true)
   }
 
   const handleSave = () => {
@@ -101,67 +115,84 @@ function MemoryRow({
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSave()
   }
 
-  if (editing) {
-    return (
-      <div className="p-3 border-b last:border-b-0 space-y-2 bg-muted/30">
-        <Textarea
-          ref={textareaRef}
-          value={editContent}
-          onChange={(e) => setEditContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="min-h-[60px] text-sm"
-          rows={3}
-        />
-        <div className="flex items-center gap-2">
-          <Input
-            value={editTags}
-            onChange={(e) => setEditTags(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t('memory.tagsPlaceholder')}
-            className="h-7 text-xs flex-1"
-          />
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCancel}>
-            <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={handleSave}>
-            <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} strokeWidth={2} />
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  const preview = getFirstLine(memory.content)
 
   return (
-    <div className="flex items-start gap-3 p-3 border-b last:border-b-0 hover:bg-muted/50 transition-colors">
-      <div className="flex-1 min-w-0">
-        <div className="text-sm whitespace-pre-wrap break-words">{memory.content}</div>
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          {memory.tags?.map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-xs">
-              {tag}
-            </Badge>
-          ))}
-          {memory.source && (
-            <span className="text-xs text-muted-foreground">{formatSource(memory.source)}</span>
-          )}
-          <span className="text-xs text-muted-foreground">{formatRelativeTime(memory.createdAt)}</span>
+    <Collapsible open={isOpen} onOpenChange={editing ? undefined : setIsOpen}>
+      <CollapsibleTrigger asChild>
+        <div className="flex items-center gap-3 p-3 border-b last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              {memory.tags?.map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+              {memory.source && (
+                <span className="text-xs text-muted-foreground">{formatSource(memory.source)}</span>
+              )}
+              <span className="text-xs text-muted-foreground">{formatRelativeTime(memory.createdAt)}</span>
+            </div>
+            {!isOpen && (
+              <div className="mt-1 text-sm text-muted-foreground truncate">{preview}</div>
+            )}
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleEdit}>
+              <HugeiconsIcon icon={PencilEdit01Icon} size={14} strokeWidth={2} />
+            </Button>
+            <Button
+              variant={confirmDelete ? 'destructive' : 'ghost'}
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleDelete}
+              title={confirmDelete ? t('memory.deleteConfirm') : undefined}
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={2} />
+            </Button>
+            <HugeiconsIcon
+              icon={isOpen ? ArrowUp01Icon : ArrowDown01Icon}
+              size={14}
+              strokeWidth={2}
+              className="text-muted-foreground ml-1"
+            />
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-0.5 shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleEdit}>
-          <HugeiconsIcon icon={PencilEdit01Icon} size={14} strokeWidth={2} />
-        </Button>
-        <Button
-          variant={confirmDelete ? 'destructive' : 'ghost'}
-          size="icon"
-          className="h-7 w-7"
-          onClick={handleDelete}
-          title={confirmDelete ? t('memory.deleteConfirm') : undefined}
-        >
-          <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={2} />
-        </Button>
-      </div>
-    </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="px-3 pb-3 pt-1 border-b last:border-b-0 bg-muted/30">
+          {editing ? (
+            <div className="space-y-2">
+              <Textarea
+                ref={textareaRef}
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="min-h-[60px] text-sm"
+                rows={3}
+              />
+              <div className="flex items-center gap-2">
+                <Input
+                  value={editTags}
+                  onChange={(e) => setEditTags(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={t('memory.tagsPlaceholder')}
+                  className="h-7 text-xs flex-1"
+                />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCancel}>
+                  <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={handleSave}>
+                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} strokeWidth={2} />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <ContentRenderer content={memory.content} className="text-sm" />
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 

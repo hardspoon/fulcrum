@@ -15,7 +15,7 @@ Fulcrum doesn't replace your tools—it gives you leverage over them. You config
 **Six pillars:**
 
 - **Claude Code Ecosystem** — Deep integration with Claude Code. Connect via messaging channels, manage tasks, deploy from one dashboard.
-- **Proactive AI Concierge** — Your assistant monitors messages, tracks actionable events, creates daily plans, and sends morning/evening briefings automatically.
+- **Proactive AI Concierge** — Your assistant monitors messages, stores important observations as memories, creates daily plans, and sends morning/evening briefings automatically.
 - **Work From Anywhere** — Run Fulcrum on a remote server. Close your laptop, agents keep working.
 - **Project Management** — Tasks with dependencies, due dates, labels, and attachments. Visual kanban boards.
 - **Production Deployment** — Docker Compose with automatic Traefik routing and Cloudflare DNS/tunnels.
@@ -42,13 +42,13 @@ Fulcrum's AI assistant doesn't just respond—it actively monitors and manages y
 
 When messages arrive via Email, WhatsApp, Discord, Telegram, or Slack:
 
-- **Actionable requests** (deadlines, meetings, tasks) → Tracked as events, optionally creates tasks
+- **Actionable requests** (deadlines, meetings, tasks) → Stored as memories with `actionable` tag, optionally creates tasks
 - **Casual conversations** → Responded to naturally, no tracking overhead
 - **Spam/newsletters** → Silently ignored
 
-### Actionable Events
+### Persistent Memory
 
-Every important message becomes an **actionable event**—searchable, linkable to tasks, with a full decision audit trail. Your assistant remembers what it noticed and what it decided.
+Important observations are stored as **memories** with tags like `actionable` or `monitoring`—searchable via full-text search, with recency-weighted results so recent items surface first.
 
 ### Daily Planning
 
@@ -247,7 +247,7 @@ Both plugins include an MCP server with 60+ tools:
 | **Backup & Restore** | Snapshot database and settings; auto-safety-backup on restore |
 | **Settings** | View and update configuration; manage notification channels |
 | **Memory** | Store and search persistent knowledge with FTS5 full-text search |
-| **Assistant Events** | Track actionable events; query decision history |
+| **Assistant** | Send messages via channels; query sweep history |
 
 Use `search_tools` to discover available tools by keyword or category.
 

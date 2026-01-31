@@ -5,7 +5,7 @@
 
 import { nanoid } from 'nanoid'
 import { eq, desc, sql, notInArray } from 'drizzle-orm'
-import { db, actionableEvents, sweepRuns, tasks } from '../db'
+import { db, sweepRuns, tasks } from '../db'
 import type { SweepRun, NewSweepRun } from '../db/schema'
 import { log } from '../lib/logger'
 import { getSettings } from '../lib/settings'
@@ -83,12 +83,12 @@ async function runHourlySweep(): Promise<void> {
 
   try {
     const lastSweep = getLastSweepRun('hourly')
-    const pendingCount = countEventsByStatus('pending')
+    const actionableMemoryCount = countActionableMemories()
     const openTaskCount = countOpenTasks()
 
     log.assistant.info('Running hourly sweep', {
       runId: run.id,
-      pendingEvents: pendingCount,
+      actionableMemories: actionableMemoryCount,
       openTasks: openTaskCount,
     })
 
@@ -105,7 +105,7 @@ async function runHourlySweep(): Promise<void> {
     // Get the system prompt
     const systemPrompt = getSweepSystemPrompt({
       lastSweepTime: lastSweep?.completedAt ?? null,
-      pendingCount,
+      actionableMemoryCount,
       openTaskCount,
     })
 
@@ -129,7 +129,7 @@ async function runHourlySweep(): Promise<void> {
         summary = content
 
         // Parse basic metrics from the response
-        const processedMatch = content.match(/(\d+)\s*events?\s*(reviewed|processed)/i)
+        const processedMatch = content.match(/(\d+)\s*memories?\s*(reviewed|processed)/i)
         if (processedMatch) eventsProcessed = parseInt(processedMatch[1])
 
         const tasksMatch = content.match(/(\d+)\s*tasks?\s*(updated|created)/i)
@@ -332,12 +332,14 @@ function getLastSweepRun(type: string): SweepRun | null {
     .get() ?? null
 }
 
-function countEventsByStatus(status: string): number {
-  const result = db
-    .select({ count: sql<number>`count(*)` })
-    .from(actionableEvents)
-    .where(eq(actionableEvents.status, status))
-    .get()
+function countActionableMemories(): number {
+  const [result] = db.all(
+    sql`SELECT COUNT(*) as count FROM memories m
+        WHERE EXISTS (
+          SELECT 1 FROM json_each(m.tags) je
+          WHERE je.value = 'actionable'
+        )`
+  ) as [{ count: number }]
   return result?.count ?? 0
 }
 

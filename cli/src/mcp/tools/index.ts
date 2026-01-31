@@ -17,7 +17,7 @@ import { registerFilesystemTools } from './filesystem'
 import { registerSettingsTools } from './settings'
 import { registerBackupTools } from './backup'
 import { registerEmailTools } from './email'
-import { registerAssistantEventTools } from './assistant-events'
+import { registerAssistantTools } from './assistant'
 import { registerCaldavTools } from './caldav'
 import { registerMemoryTools } from './memory'
 
@@ -33,7 +33,7 @@ export function registerTools(server: McpServer, client: FulcrumClient) {
   registerSettingsTools(server, client)
   registerBackupTools(server, client)
   registerEmailTools(server, client)
-  registerAssistantEventTools(server, client)
+  registerAssistantTools(server, client)
   registerCaldavTools(server, client)
   registerMemoryTools(server, client)
 }

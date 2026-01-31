@@ -392,21 +392,6 @@ export const channelMessages = sqliteTable('channel_messages', {
   createdAt: text('created_at').notNull(), // When we stored this message
 })
 
-// Actionable events - the concierge's memory of things it noticed and decided on
-export const actionableEvents = sqliteTable('actionable_events', {
-  id: text('id').primaryKey(),
-  sourceChannel: text('source_channel').notNull(), // 'email' | 'whatsapp' | 'telegram' | 'slack'
-  sourceId: text('source_id').notNull(), // message ID / email ID
-  sourceMetadata: text('source_metadata', { mode: 'json' }).$type<Record<string, unknown>>(), // JSON: sender, subject, thread, etc.
-  status: text('status').notNull().default('pending'), // 'pending' | 'acted_upon' | 'dismissed' | 'monitoring'
-  linkedTaskId: text('linked_task_id'), // FK to tasks (nullable)
-  summary: text('summary'), // AI-generated description
-  actionLog: text('action_log', { mode: 'json' }).$type<Array<{ timestamp: string; action: string }>>(), // JSON array: timestamped decisions/actions
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
-  lastEvaluatedAt: text('last_evaluated_at'),
-})
-
 // Sweep runs - track when sweeps happened for reliability and context
 export const sweepRuns = sqliteTable('sweep_runs', {
   id: text('id').primaryKey(),
@@ -526,8 +511,6 @@ export type EmailAuthorizedThread = typeof emailAuthorizedThreads.$inferSelect
 export type NewEmailAuthorizedThread = typeof emailAuthorizedThreads.$inferInsert
 export type ChannelMessage = typeof channelMessages.$inferSelect
 export type NewChannelMessage = typeof channelMessages.$inferInsert
-export type ActionableEvent = typeof actionableEvents.$inferSelect
-export type NewActionableEvent = typeof actionableEvents.$inferInsert
 export type SweepRun = typeof sweepRuns.$inferSelect
 export type NewSweepRun = typeof sweepRuns.$inferInsert
 export type CaldavCalendar = typeof caldavCalendars.$inferSelect

@@ -379,6 +379,13 @@
       "when": 1770720800000,
       "tag": "0053_add_memory_source",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1770807200000,
+      "tag": "0054_remove_actionable_events",
+      "breakpoints": true
     }
   ]
 }

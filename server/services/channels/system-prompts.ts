@@ -49,15 +49,15 @@ ${context.metadata?.threadId ? `**Thread ID**: ${context.metadata.threadId}` : '
 
 2. **Take appropriate action(s)**:
    - **Simple conversations**: Just use \`message\` to reply - no tracking needed for "hi", "thanks", general questions
-   - **Actionable requests**: Create an actionable_event to track it, optionally create a Fulcrum task
-   - **Spam/newsletters**: Silently ignore (no response, optionally log as dismissed)
+   - **Actionable requests**: Store a memory (via \`memory_store\`) with tag \`actionable\`, optionally create a Fulcrum task
+   - **Spam/newsletters**: Silently ignore (no response)
 
 ## Important
 
-- **You don't need to create actionable_events for every message** - only for things that need tracking/follow-up
-- Simple greetings, questions, and conversations can be answered directly without any event tracking
+- **You don't need to store a memory for every message** - only for things that need tracking/follow-up
+- Simple greetings, questions, and conversations can be answered directly without any memory tracking
 - For replies, use the \`message\` tool with: channel="${context.channel}", to="${context.sender}"${context.metadata?.messageId ? `, replyToMessageId="${context.metadata.messageId}"` : ''}
-- Only create actionable_events for requests, reminders, or things you need to remember
+- Only store memories with tag \`actionable\` for requests, reminders, or things you need to remember
 - Spam, newsletters, and automated notifications should be ignored (no response)
 
 ${formattingGuide}`
@@ -87,13 +87,11 @@ ${(context.metadata as { isGroup?: boolean })?.isGroup ? `**Group Chat**: yes` :
 
 Silently analyze this message and decide if it needs to be tracked:
 
-1. **Actionable requests directed at the user** (deadlines, meetings, tasks) → Create an actionable_event
-2. **Important information** (confirmations, updates about ongoing matters) → Create an actionable_event
+1. **Actionable requests directed at the user** (deadlines, meetings, tasks) → Store a memory with tag \`actionable\`
+2. **Important information** (confirmations, updates about ongoing matters) → Store a memory with tag \`monitoring\`
 3. **Casual messages, spam, or irrelevant content** → Do nothing
 
-If you create an actionable_event, set an appropriate status:
-- \`pending\` - Needs attention/action
-- \`monitoring\` - Worth tracking but no immediate action needed
+Use \`memory_store\` to persist important observations. Include the source channel as the \`source\` field (e.g., "channel:${context.channel}").
 
 **Remember: NO responses. Observe only.**`
 }
@@ -103,7 +101,7 @@ If you create an actionable_event, set an appropriate status:
  */
 export function getSweepSystemPrompt(context: {
   lastSweepTime: string | null
-  pendingCount: number
+  actionableMemoryCount: number
   openTaskCount: number
 }): string {
   return `## Hourly Sweep
@@ -114,32 +112,31 @@ You are performing your hourly sweep.
 
 **Context:**
 - Last sweep completed: ${context.lastSweepTime ?? 'never'}
-- Pending actionable events: ${context.pendingCount}
+- Memories tagged 'actionable': ${context.actionableMemoryCount}
 - Open Fulcrum tasks (TO_DO + IN_PROGRESS + IN_REVIEW): ${context.openTaskCount}
 
 ## Your Task
 
-1. **Review actionable events** - use \`list_actionable_events\` to list recent events (limit 50) and check for:
-   - Events that should be updated (e.g., acted upon externally)
-   - Events that can be dismissed (no longer relevant)
-   - Patterns or connections between events
-   - Events that should be linked to tasks
+1. **Review actionable memories** - use \`memory_search\` to find memories tagged \`actionable\` or \`monitoring\` and check for:
+   - Items that have been resolved (delete the memory or remove the tag)
+   - Patterns or connections between tracked items
+   - Items that should be linked to tasks
 
 2. **Review Fulcrum tasks** - use \`list_tasks\` to get tasks that are TO_DO, IN_PROGRESS, or IN_REVIEW:
    - Any that need attention or follow-up?
-   - Any related to recent events?
+   - Any related to tracked memories?
    - Any blocked or overdue?
 
 3. **Catch up** - if you find messages that weren't properly handled:
-   - Create actionable events for missed items
+   - Store memories with tag \`actionable\` for missed items
    - Take action if still relevant
 
-4. **Update your records** - use \`update_actionable_event\` to log what you've done
+4. **Update your records** - delete resolved memories or update their tags
 
 ## Output
 
 After completing your sweep, provide a brief summary of:
-- Events reviewed and actions taken
+- Memories reviewed and actions taken
 - Tasks updated or created
 - Any patterns noticed
 - Items requiring user attention`

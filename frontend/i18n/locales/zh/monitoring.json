@@ -106,18 +106,6 @@
     "error": "加载使用数据失败：{{message}}"
   },
   "assistant": {
-    "stats": {
-      "pending": "待处理",
-      "actedUpon": "已处理",
-      "dismissed": "已忽略",
-      "monitoring": "监控中"
-    },
-    "events": {
-      "title": "可操作事件",
-      "empty": "暂无事件记录",
-      "source": "来源",
-      "linkedTask": "查看任务"
-    },
     "sweeps": {
       "title": "最近扫描",
       "empty": "暂无扫描记录",
@@ -128,13 +116,6 @@
       "tasksUpdated": "{{count}} 个任务",
       "messagesSent": "{{count}} 条消息",
       "stale": "过期"
-    },
-    "filter": {
-      "all": "全部",
-      "pending": "待处理",
-      "actedUpon": "已处理",
-      "monitoring": "监控中",
-      "dismissed": "已忽略"
     }
   },
   "messages": {

@@ -27,14 +27,14 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
   const isObserveOnly = msg.metadata?.observeOnly === true
 
   // For observe-only messages (e.g., WhatsApp messages not in self-chat),
-  // skip commands and just let the assistant observe for actionable events
+  // skip commands and just let the assistant observe for important information
   if (isObserveOnly) {
     log.messaging.info('Processing observe-only message', {
       connectionId: msg.connectionId,
       channelType: msg.channelType,
       senderId: msg.senderId,
     })
-    await processForActionableEvents(msg)
+    await processObserveOnlyMessage(msg)
     return
   }
 
@@ -334,11 +334,12 @@ function splitMessage(content: string, maxLength: number): string[] {
 }
 
 /**
- * Process a message for actionable events only (no response).
+ * Process an observe-only message (no response).
  * Used for messages the assistant can observe but shouldn't respond to,
  * e.g., WhatsApp messages not in the user's self-chat.
+ * Important information is stored as memories with appropriate tags.
  */
-async function processForActionableEvents(msg: IncomingMessage): Promise<void> {
+async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
   // Use a shared session for observe-only messages (they don't need individual tracking)
   const observeSessionKey = `observe-${msg.connectionId}`
   const { session } = getOrCreateSession(
@@ -364,7 +365,7 @@ async function processForActionableEvents(msg: IncomingMessage): Promise<void> {
     const settings = getSettings()
     const observerModelId = settings.assistant.observerModel
 
-    // Stream the response - assistant can only create actionable events, not respond
+    // Stream the response - assistant can only store memories, not respond
     const stream = assistantService.streamMessage(session.id, msg.content, {
       systemPromptAdditions: systemPrompt,
       modelId: observerModelId,
@@ -374,7 +375,7 @@ async function processForActionableEvents(msg: IncomingMessage): Promise<void> {
     for await (const event of stream) {
       if (event.type === 'error') {
         const errorMsg = (event.data as { message: string }).message
-        log.messaging.error('Assistant error processing observe-only message', { error: errorMsg })
+        log.messaging.error('Error in observe-only message processing', { error: errorMsg })
       }
     }
   } catch (err) {

@@ -90,7 +90,7 @@ export async function searchMemories(input: SearchMemoriesInput): Promise<Memory
               SELECT 1 FROM json_each(m.tags) je
               WHERE je.value IN ${input.tags}
             )
-          ORDER BY bm25(memories_fts)
+          ORDER BY bm25(memories_fts) * (1.0 / (1.0 + (julianday('now') - julianday(m.created_at))))
           LIMIT ${limit}`
     ) as MemoryResult[]
 
@@ -106,7 +106,7 @@ export async function searchMemories(input: SearchMemoriesInput): Promise<Memory
         FROM memories_fts fts
         JOIN memories m ON m.rowid = fts.rowid
         WHERE memories_fts MATCH ${ftsQuery}
-        ORDER BY bm25(memories_fts)
+        ORDER BY bm25(memories_fts) * (1.0 / (1.0 + (julianday('now') - julianday(m.created_at))))
         LIMIT ${limit}`
   ) as MemoryResult[]
 

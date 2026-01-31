@@ -153,12 +153,9 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 
 **Assistant Tools (Proactive Agent):**
 - \`message\` - Send a message to a channel (email, whatsapp)
-- \`create_actionable_event\` - Track something noticed (message, request)
-- \`list_actionable_events\` - Review your event memory
-- \`get_actionable_event\` - Get event details
-- \`update_actionable_event\` - Update event status, link to task
-- \`get_assistant_stats\` - Get event counts and last sweep times
 - \`get_last_sweep\` - Check when last sweep ran
+- Use \`memory_store\` with tag \`actionable\` to track things that need attention
+- Use \`memory_search\` to review tracked items (search for tags \`actionable\` or \`monitoring\`)
 
 **Memory Tools:**
 - \`memory_store\` - Store a piece of knowledge in persistent memory with optional tags
@@ -499,7 +496,7 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - send_notification
 - memory_store, memory_search (persistent knowledge across sessions)
 - message (send to email/WhatsApp - concierge mode)
-- create_actionable_event, list_actionable_events (track decisions - concierge mode)
+- memory_store with tag \`actionable\` (track things needing attention - concierge mode)
 
 **Remember:** When users need external services (email, cloud, APIs), guide them on what credentials to provide - don't say "Fulcrum can't do that."`
 }

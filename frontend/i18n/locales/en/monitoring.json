@@ -107,18 +107,6 @@
     "error": "Failed to load usage data: {{message}}"
   },
   "assistant": {
-    "stats": {
-      "pending": "Pending",
-      "actedUpon": "Acted Upon",
-      "dismissed": "Dismissed",
-      "monitoring": "Monitoring"
-    },
-    "events": {
-      "title": "Actionable Events",
-      "empty": "No events recorded",
-      "source": "Source",
-      "linkedTask": "View task"
-    },
     "sweeps": {
       "title": "Recent Sweeps",
       "empty": "No sweeps recorded",
@@ -129,13 +117,6 @@
       "tasksUpdated": "{{count}} tasks",
       "messagesSent": "{{count}} messages",
       "stale": "stale"
-    },
-    "filter": {
-      "all": "All",
-      "pending": "Pending",
-      "actedUpon": "Acted Upon",
-      "monitoring": "Monitoring",
-      "dismissed": "Dismissed"
     }
   },
   "memory": {
