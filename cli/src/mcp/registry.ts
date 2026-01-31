@@ -452,6 +452,13 @@ export const toolRegistry: ToolMetadata[] = [
     defer_loading: false,
   },
   {
+    name: 'delete_tag',
+    description: 'Delete a tag from the database and all its associations',
+    category: 'tasks',
+    keywords: ['tag', 'delete', 'remove', 'cleanup'],
+    defer_loading: false,
+  },
+  {
     name: 'list_task_attachments',
     description: 'List all file attachments for a task',
     category: 'tasks',

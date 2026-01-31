@@ -10,6 +10,7 @@ import type {
   ProjectAttachment,
   ProjectLink,
   Tag,
+  TagWithUsage,
   Repository,
   ProjectWithDetails,
   App,
@@ -639,6 +640,14 @@ export class FulcrumClient {
     return this.fetch(`/api/tasks/${taskId}/tags/${encodeURIComponent(tag)}`, {
       method: 'DELETE',
     })
+  }
+
+  // Tags (global)
+  async deleteTag(tagName: string): Promise<{ success: boolean }> {
+    const allTags: TagWithUsage[] = await this.fetch('/api/tags')
+    const tag = allTags.find((t) => t.name === tagName)
+    if (!tag) throw new ApiError(404, 'Tag not found')
+    return this.fetch(`/api/tags/${tag.id}`, { method: 'DELETE' })
   }
 
   // Task due date

@@ -632,6 +632,23 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
     }
   )
 
+  // delete_tag
+  server.tool(
+    'delete_tag',
+    'Delete a tag from the database. This removes the tag and all its associations with tasks and projects.',
+    {
+      tag: z.string().describe('The exact name of the tag to delete'),
+    },
+    async ({ tag }) => {
+      try {
+        await client.deleteTag(tag)
+        return formatSuccess({ deleted: tag })
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+
   // list_tasks_by_due_date
   server.tool(
     'list_tasks_by_due_date',
