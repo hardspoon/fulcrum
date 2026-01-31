@@ -25,7 +25,7 @@ Fulcrum isn't just a task manager or an AI wrapper. It's the hub where you organ
 - Deploy Docker apps with automatic tunnels for public access
 - Execute any command on the system - scheduling, automation, integrations
 - Get notified via Slack, Discord, Pushover, or desktop alerts
-- Calendar integration via CalDAV (Google Calendar, Nextcloud, etc.) for schedule awareness`
+- Calendar integration via CalDAV with multiple accounts and event copy rules`
 }
 
 /**
@@ -67,12 +67,23 @@ export function getDataModel(): string {
 - Channels: WhatsApp, Discord, Telegram, Slack, Email
 - Used for message history, monitoring, and audit trails
 
+**CalDAV Accounts** - Multiple calendar account support
+- Each account has its own credentials and sync state
+- Supports Google OAuth2 and basic CalDAV auth
+- Accounts sync independently on configurable intervals
+
 **Calendars & Events** - CalDAV calendar sync
 - Synced from CalDAV servers (Google Calendar, Nextcloud, Radicale, etc.)
-- Calendars with display name, color, sync state
+- Calendars with display name, color, sync state, linked to their account
 - Events with summary, start/end times, location, all-day flag
 - Timezone-aware storage and display
 - Used to give the assistant schedule awareness for planning
+
+**Copy Rules** - One-way event copying between calendars
+- Copy events from a source calendar to a destination calendar (across accounts)
+- Runs automatically after each sync cycle
+- Tracks copied events to avoid duplicates and detect changes
+- No delete propagation (copied events persist even if source is deleted)
 
 **Memories** - Persistent agent knowledge store
 - Content with optional tags for categorization
@@ -161,8 +172,19 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`memory_store\` - Store a piece of knowledge in persistent memory with optional tags
 - \`memory_search\` - Search memories using FTS5 full-text search (supports AND, OR, NOT, "phrases", prefix*)
 
+**Calendar Management:**
+- \`list_caldav_accounts\` - List all CalDAV accounts
+- \`create_caldav_account\` - Add a new CalDAV account (basic or Google OAuth)
+- \`delete_caldav_account\` - Remove an account and its calendars
+- \`sync_caldav_account\` - Trigger sync for a specific account
+- \`list_caldav_copy_rules\` - List event copy rules
+- \`create_caldav_copy_rule\` - Create a rule to copy events between calendars
+- \`delete_caldav_copy_rule\` - Remove a copy rule
+- \`execute_caldav_copy_rule\` - Manually run a copy rule
+
 **Utilities:**
 - \`list_tags\` - See all tags in use
+- \`delete_tag\` - Delete a tag and all its associations
 - \`get_task_dependency_graph\` - Visualize task dependencies
 - \`is_git_repo\` - Check if a path is a git repository`
 }
@@ -227,7 +249,7 @@ Fulcrum is a local orchestration tool. Some capabilities require external servic
 
 | User Need | What Fulcrum Does | What User Provides |
 |-----------|-------------------|--------------------|
-| Calendar sync | Built-in CalDAV integration | Google OAuth credentials (Client ID/Secret) or CalDAV server credentials |
+| Calendar sync | Built-in multi-account CalDAV integration | Google OAuth credentials (Client ID/Secret) or CalDAV server credentials per account |
 | Chat via email | Built-in Email messaging channel | SMTP/IMAP credentials (or Gmail app password) |
 | Email automation | Task worktree + scheduling | Same SMTP/IMAP credentials |
 | Cloud deployment | Docker Compose + execute_command | Cloud provider credentials (AWS, GCP, Azure) |
@@ -369,13 +391,9 @@ You can read and modify all Fulcrum settings using the settings MCP tools. Setti
 - \`assistant.eveningRitual.prompt\` - Custom prompt for evening ritual
 
 **caldav** - Calendar integration
-- \`caldav.enabled\` - Enable/disable CalDAV sync
-- \`caldav.serverUrl\` - CalDAV server URL (default: Google Calendar endpoint)
-- \`caldav.authType\` - Auth method: 'google-oauth' or 'basic'
-- \`caldav.username\` / \`caldav.password\` - Basic auth credentials
-- \`caldav.googleClientId\` / \`caldav.googleClientSecret\` - Google OAuth2 credentials [SENSITIVE]
-- \`caldav.oauthTokens\` - OAuth tokens (managed automatically)
-- \`caldav.syncIntervalMinutes\` - Sync interval (default: 15)
+- \`caldav.enabled\` - Enable/disable CalDAV sync globally
+- \`caldav.syncIntervalMinutes\` - Default sync interval for new accounts (default: 15)
+- Account credentials are stored in the database (caldavAccounts table), not in settings
 
 **channels** - Messaging channel configuration
 - \`channels.email.enabled\` - Enable/disable email channel
@@ -486,7 +504,7 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - Scheduling and automation via system commands
 - Deploying apps with Docker Compose
 - Sending notifications to Slack, Discord, Pushover
-- Calendar awareness via CalDAV sync (Google Calendar, etc.)
+- Calendar awareness via multi-account CalDAV sync with event copy rules
 - Persistent memory across conversations (store and search knowledge)
 
 **Key tools available:**

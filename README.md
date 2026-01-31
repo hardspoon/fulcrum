@@ -156,11 +156,13 @@ Create documents with live preview. Generate charts and visualizations. The assi
 
 ### Calendar Integration
 
-Connect your calendars via CalDAV so the AI assistant knows your schedule. Google Calendar is supported out of the box with OAuth2.
+Connect multiple calendar accounts via CalDAV so the AI assistant knows your schedule. Copy events between calendars across accounts.
 
+- **Multiple accounts** — Add as many CalDAV accounts as you need
 - **Google Calendar** — OAuth2 flow, no password needed
 - **Any CalDAV server** — Nextcloud, Radicale, Baikal, iCloud
-- **Automatic sync** — Calendars sync on a configurable interval
+- **Automatic sync** — Each account syncs independently on a configurable interval
+- **One-way event copying** — Copy events between calendars across accounts via configurable rules
 - **Assistant awareness** — The AI assistant uses your calendar context for planning and scheduling
 
 Enable in Settings → Calendar Integration.
@@ -247,6 +249,7 @@ Both plugins include an MCP server with 60+ tools:
 | **Backup & Restore** | Snapshot database and settings; auto-safety-backup on restore |
 | **Settings** | View and update configuration; manage notification channels |
 | **Memory** | Store and search persistent knowledge with FTS5 full-text search |
+| **Calendar** | Manage CalDAV accounts, sync calendars, configure event copy rules |
 | **Assistant** | Send messages via channels; query sweep history |
 
 Use `search_tools` to discover available tools by keyword or category.

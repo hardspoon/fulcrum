@@ -18,9 +18,10 @@ if input_data.get("tool_name") != "Bash":
 command = input_data.get("tool_input", {}).get("command", "")
 
 # Block direct bun test commands
-# Matches: bun test, bun test somefile.ts, bun test --watch, etc.
+# Matches: bun test, bun test somefile.ts, bun test --watch,
+#          HOME=/tmp/x bun test (env var prefixed), etc.
 # Does NOT match: mise run test, echo "bun test", etc.
-if re.search(r"(?:^|&&|\|\||;)\s*bun\s+test\b", command):
+if re.search(r"(?:^|&&|\|\||;)\s*(?:\S+=\S*\s+)*bun\s+test\b", command):
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

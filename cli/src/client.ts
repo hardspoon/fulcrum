@@ -138,8 +138,21 @@ export interface StoredEmail {
 }
 
 // CalDAV types
+export interface CaldavAccount {
+  id: string
+  name: string
+  serverUrl: string
+  authType: 'basic' | 'google-oauth'
+  enabled: boolean | null
+  lastSyncedAt: string | null
+  lastSyncError: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface CaldavCalendar {
   id: string
+  accountId: string | null
   remoteUrl: string
   displayName: string | null
   color: string | null
@@ -148,6 +161,17 @@ export interface CaldavCalendar {
   timezone: string | null
   enabled: boolean | null
   lastSyncedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CaldavCopyRule {
+  id: string
+  name: string | null
+  sourceCalendarId: string
+  destCalendarId: string
+  enabled: boolean | null
+  lastExecutedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -1095,8 +1119,59 @@ export class FulcrumClient {
     return this.fetch('/api/caldav/status')
   }
 
-  async listCalendars(): Promise<CaldavCalendar[]> {
-    return this.fetch('/api/caldav/calendars')
+  async listCalendars(accountId?: string): Promise<CaldavCalendar[]> {
+    const params = accountId ? `?accountId=${accountId}` : ''
+    return this.fetch(`/api/caldav/calendars${params}`)
+  }
+
+  // CalDAV Accounts
+  async listCaldavAccounts(): Promise<CaldavAccount[]> {
+    return this.fetch('/api/caldav/accounts')
+  }
+
+  async createCaldavAccount(input: {
+    name: string
+    serverUrl: string
+    username: string
+    password: string
+    syncIntervalMinutes?: number
+  }): Promise<CaldavAccount> {
+    return this.fetch('/api/caldav/accounts', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+  }
+
+  async deleteCaldavAccount(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/caldav/accounts/${id}`, { method: 'DELETE' })
+  }
+
+  async syncCaldavAccount(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/caldav/accounts/${id}/sync`, { method: 'POST' })
+  }
+
+  // CalDAV Copy Rules
+  async listCaldavCopyRules(): Promise<CaldavCopyRule[]> {
+    return this.fetch('/api/caldav/copy-rules')
+  }
+
+  async createCaldavCopyRule(input: {
+    name?: string
+    sourceCalendarId: string
+    destCalendarId: string
+  }): Promise<CaldavCopyRule> {
+    return this.fetch('/api/caldav/copy-rules', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+  }
+
+  async deleteCaldavCopyRule(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/caldav/copy-rules/${id}`, { method: 'DELETE' })
+  }
+
+  async executeCaldavCopyRule(id: string): Promise<{ created: number; updated: number }> {
+    return this.fetch(`/api/caldav/copy-rules/${id}/execute`, { method: 'POST' })
   }
 
   async syncCalendars(): Promise<{ success: boolean }> {

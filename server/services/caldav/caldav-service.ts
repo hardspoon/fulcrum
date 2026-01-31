@@ -1,31 +1,102 @@
 /**
  * CalDAV Service
  *
- * Provides native CalDAV calendar integration with:
- * - Calendar discovery and sync
+ * Multi-account CalDAV integration with:
+ * - Account CRUD and lifecycle management
+ * - Calendar discovery and sync per account
  * - Event CRUD with lossless round-tripping via rawIcal
- * - Periodic background sync
- * - Connection testing and lifecycle management
+ * - Copy rules for one-way event replication
+ * - Data migration from single-account settings.json
  */
 
-import { DAVClient, getOauthHeaders } from 'tsdav'
-import { eq, and, gte, lte, desc } from 'drizzle-orm'
-import { db, caldavCalendars, caldavEvents } from '../../db'
-import type { CaldavCalendar, CaldavEvent } from '../../db'
-import type { CalDavSettings, CalDavOAuthTokens } from '../../lib/settings/types'
+import { eq, and, gte, lte, desc, isNull } from 'drizzle-orm'
+import { db, caldavAccounts, caldavCalendars, caldavEvents, caldavCopyRules, caldavCopiedEvents } from '../../db'
+import type { CaldavAccount, CaldavCalendar, CaldavEvent, CaldavCopyRule } from '../../db'
+import type { CalDavOAuthTokens } from '../../lib/settings/types'
 import { getSettings } from '../../lib/settings'
 import { createLogger } from '../../lib/logger'
-import { parseIcalEvent, generateIcalEvent, updateIcalEvent } from './ical-helpers'
+import { generateIcalEvent, updateIcalEvent } from './ical-helpers'
+import { accountManager, type AccountStatus } from './caldav-account-manager'
 
 const logger = createLogger('CalDAV')
 
-// Service state
-let davClient: DAVClient | null = null
-let syncInterval: ReturnType<typeof setInterval> | null = null
-let isSyncing = false
-let lastSyncError: string | null = null
-let retryCount = 0
-const MAX_RETRY_DELAY = 5 * 60 * 1000 // 5 minutes
+// --- Data Migration ---
+
+/**
+ * Migrate single-account credentials from settings.json to caldavAccounts table.
+ * Runs once on startup. Idempotent.
+ */
+function migrateFromSettings(): void {
+  const settings = getSettings()
+  const caldavSettings = settings.caldav
+
+  // Only migrate if there are credentials in settings and calendars with no accountId
+  if (!caldavSettings?.serverUrl) return
+
+  const hasCredentials =
+    caldavSettings.authType === 'google-oauth'
+      ? !!caldavSettings.oauthTokens
+      : !!(caldavSettings.username && caldavSettings.password)
+
+  if (!hasCredentials) return
+
+  // Check if we have orphaned calendars (no accountId)
+  const orphanedCalendars = db
+    .select()
+    .from(caldavCalendars)
+    .where(isNull(caldavCalendars.accountId))
+    .all()
+
+  if (orphanedCalendars.length === 0) {
+    // Check if any accounts exist already - if so, migration was already done
+    const existingAccounts = db.select().from(caldavAccounts).all()
+    if (existingAccounts.length > 0) return
+
+    // No orphaned calendars and no accounts - nothing to migrate
+    return
+  }
+
+  logger.info('Migrating CalDAV credentials from settings.json to database', {
+    authType: caldavSettings.authType,
+    orphanedCalendars: orphanedCalendars.length,
+  })
+
+  // Create account from settings
+  const now = new Date().toISOString()
+  const accountId = crypto.randomUUID()
+  const name =
+    caldavSettings.authType === 'google-oauth'
+      ? 'Google Calendar'
+      : new URL(caldavSettings.serverUrl).hostname
+
+  db.insert(caldavAccounts)
+    .values({
+      id: accountId,
+      name,
+      serverUrl: caldavSettings.serverUrl,
+      authType: caldavSettings.authType,
+      username: caldavSettings.username || null,
+      password: caldavSettings.password || null,
+      googleClientId: caldavSettings.googleClientId || null,
+      googleClientSecret: caldavSettings.googleClientSecret || null,
+      oauthTokens: caldavSettings.oauthTokens ?? null,
+      syncIntervalMinutes: caldavSettings.syncIntervalMinutes ?? 15,
+      enabled: caldavSettings.enabled ?? true,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run()
+
+  // Backfill accountId on orphaned calendars
+  for (const cal of orphanedCalendars) {
+    db.update(caldavCalendars)
+      .set({ accountId, updatedAt: now })
+      .where(eq(caldavCalendars.id, cal.id))
+      .run()
+  }
+
+  logger.info('Migration complete', { accountId, migratedCalendars: orphanedCalendars.length })
+}
 
 // --- Lifecycle ---
 
@@ -36,26 +107,27 @@ export async function startCaldavSync(): Promise<void> {
     return
   }
 
-  try {
-    await connect(settings.caldav)
-    scheduleSync(settings.caldav.syncIntervalMinutes)
-    // Initial sync
-    await syncAllCalendars()
-    retryCount = 0
-  } catch (err) {
-    lastSyncError = err instanceof Error ? err.message : String(err)
-    logger.error('Failed to start CalDAV sync', { error: lastSyncError })
-    scheduleRetry(settings.caldav)
-  }
+  // Run migration from settings.json if needed
+  migrateFromSettings()
+
+  // Start all enabled accounts
+  await accountManager.startAll()
+
+  // Initial sync
+  await accountManager.syncAll().catch((err) => {
+    logger.error('Initial sync failed', { error: err instanceof Error ? err.message : String(err) })
+  })
+
+  // Run copy rules after sync
+  await executeCopyRules().catch((err) => {
+    logger.error('Copy rules execution failed after sync', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
 }
 
 export function stopCaldavSync(): void {
-  if (syncInterval) {
-    clearInterval(syncInterval)
-    syncInterval = null
-  }
-  davClient = null
-  isSyncing = false
+  accountManager.stopAll()
   logger.info('CalDAV sync stopped')
 }
 
@@ -64,24 +136,162 @@ export function getCaldavStatus(): {
   syncing: boolean
   lastError: string | null
   calendarCount: number
+  accounts: AccountStatus[]
 } {
+  const accounts = accountManager.getStatus()
   const calendars = db.select().from(caldavCalendars).all()
+  const connected = accounts.some((a) => a.connected)
+  const syncing = accounts.some((a) => a.syncing)
+  const lastError = accounts.find((a) => a.lastError)?.lastError ?? null
+
   return {
-    connected: davClient !== null,
-    syncing: isSyncing,
-    lastError: lastSyncError,
+    connected,
+    syncing,
+    lastError,
     calendarCount: calendars.length,
+    accounts,
   }
 }
 
-// --- Configuration ---
+// --- Account CRUD ---
 
-export async function testCaldavConnection(config: {
+export function listAccounts(): CaldavAccount[] {
+  return db.select().from(caldavAccounts).all()
+}
+
+export function getAccount(id: string): CaldavAccount | undefined {
+  return db.select().from(caldavAccounts).where(eq(caldavAccounts.id, id)).get()
+}
+
+export async function createAccount(input: {
+  name: string
+  serverUrl: string
+  authType: 'basic' | 'google-oauth'
+  username?: string
+  password?: string
+  googleClientId?: string
+  googleClientSecret?: string
+  oauthTokens?: CalDavOAuthTokens | null
+  syncIntervalMinutes?: number
+}): Promise<CaldavAccount> {
+  const now = new Date().toISOString()
+  const id = crypto.randomUUID()
+
+  const account: CaldavAccount = {
+    id,
+    name: input.name,
+    serverUrl: input.serverUrl,
+    authType: input.authType,
+    username: input.username ?? null,
+    password: input.password ?? null,
+    googleClientId: input.googleClientId ?? null,
+    googleClientSecret: input.googleClientSecret ?? null,
+    oauthTokens: input.oauthTokens ?? null,
+    syncIntervalMinutes: input.syncIntervalMinutes ?? 15,
+    enabled: true,
+    lastSyncedAt: null,
+    lastSyncError: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  db.insert(caldavAccounts).values(account).run()
+  logger.info('Created CalDAV account', { id, name: input.name })
+
+  return account
+}
+
+export async function updateAccount(
+  id: string,
+  updates: {
+    name?: string
+    serverUrl?: string
+    username?: string
+    password?: string
+    googleClientId?: string
+    googleClientSecret?: string
+    oauthTokens?: CalDavOAuthTokens | null
+    syncIntervalMinutes?: number
+  }
+): Promise<CaldavAccount> {
+  const existing = db.select().from(caldavAccounts).where(eq(caldavAccounts.id, id)).get()
+  if (!existing) throw new Error(`Account not found: ${id}`)
+
+  db.update(caldavAccounts)
+    .set({ ...updates, updatedAt: new Date().toISOString() })
+    .where(eq(caldavAccounts.id, id))
+    .run()
+
+  // Restart account if connected (new credentials)
+  if (updates.serverUrl || updates.username || updates.password || updates.oauthTokens) {
+    await accountManager.startAccount(id).catch(() => {})
+  }
+
+  return db.select().from(caldavAccounts).where(eq(caldavAccounts.id, id)).get()!
+}
+
+export async function deleteAccount(id: string): Promise<void> {
+  accountManager.stopAccount(id)
+
+  // Delete calendars and events for this account
+  const calendars = db
+    .select()
+    .from(caldavCalendars)
+    .where(eq(caldavCalendars.accountId, id))
+    .all()
+
+  for (const cal of calendars) {
+    // Delete copy rules involving this calendar
+    db.delete(caldavCopyRules)
+      .where(eq(caldavCopyRules.sourceCalendarId, cal.id))
+      .run()
+    db.delete(caldavCopyRules)
+      .where(eq(caldavCopyRules.destCalendarId, cal.id))
+      .run()
+
+    // Delete copied events for rules referencing events from this calendar's events
+    const events = db.select().from(caldavEvents).where(eq(caldavEvents.calendarId, cal.id)).all()
+    for (const event of events) {
+      db.delete(caldavCopiedEvents)
+        .where(eq(caldavCopiedEvents.sourceEventId, event.id))
+        .run()
+      db.delete(caldavCopiedEvents)
+        .where(eq(caldavCopiedEvents.destEventId, event.id))
+        .run()
+    }
+
+    db.delete(caldavEvents).where(eq(caldavEvents.calendarId, cal.id)).run()
+  }
+
+  db.delete(caldavCalendars).where(eq(caldavCalendars.accountId, id)).run()
+  db.delete(caldavAccounts).where(eq(caldavAccounts.id, id)).run()
+  logger.info('Deleted CalDAV account', { id })
+}
+
+export async function enableAccount(id: string): Promise<void> {
+  db.update(caldavAccounts)
+    .set({ enabled: true, updatedAt: new Date().toISOString() })
+    .where(eq(caldavAccounts.id, id))
+    .run()
+  await accountManager.startAccount(id)
+  await accountManager.syncAccount(id).catch(() => {})
+}
+
+export async function disableAccount(id: string): Promise<void> {
+  db.update(caldavAccounts)
+    .set({ enabled: false, updatedAt: new Date().toISOString() })
+    .where(eq(caldavAccounts.id, id))
+    .run()
+  accountManager.stopAccount(id)
+}
+
+export async function testAccountConnection(config: {
   serverUrl: string
   username: string
   password: string
 }): Promise<{ success: boolean; calendars?: number; error?: string }> {
   try {
+    const { DAVClient } = await import('tsdav')
     const client = new DAVClient({
       serverUrl: config.serverUrl,
       credentials: {
@@ -102,85 +312,181 @@ export async function testCaldavConnection(config: {
   }
 }
 
-export async function configureCaldav(config: {
-  serverUrl: string
-  username: string
-  password: string
-  syncIntervalMinutes?: number
-}): Promise<void> {
-  // Import dynamically to avoid circular dependency
-  const { updateSettingByPath } = await import('../../lib/settings')
-
-  await updateSettingByPath('caldav.serverUrl', config.serverUrl)
-  await updateSettingByPath('caldav.username', config.username)
-  await updateSettingByPath('caldav.password', config.password)
-  if (config.syncIntervalMinutes !== undefined) {
-    await updateSettingByPath('caldav.syncIntervalMinutes', config.syncIntervalMinutes)
-  }
-  await updateSettingByPath('caldav.enabled', true)
-
-  // Restart sync with new config
-  stopCaldavSync()
-  await startCaldavSync()
+export async function syncAccount(id: string): Promise<void> {
+  await accountManager.syncAccount(id)
+  // Run copy rules after sync
+  await executeCopyRules().catch((err) => {
+    logger.error('Copy rules failed after account sync', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
 }
 
-export async function configureGoogleOAuth(config: {
-  googleClientId: string
-  googleClientSecret: string
-  syncIntervalMinutes?: number
-}): Promise<void> {
-  const { updateSettingByPath } = await import('../../lib/settings')
-
-  await updateSettingByPath('caldav.googleClientId', config.googleClientId)
-  await updateSettingByPath('caldav.googleClientSecret', config.googleClientSecret)
-  if (config.syncIntervalMinutes !== undefined) {
-    await updateSettingByPath('caldav.syncIntervalMinutes', config.syncIntervalMinutes)
-  }
-}
-
-export async function completeGoogleOAuth(tokens: {
-  accessToken: string
-  refreshToken: string
-  expiresIn: number
-}): Promise<void> {
-  const { updateSettingByPath } = await import('../../lib/settings')
-
+export async function completeAccountGoogleOAuth(
+  accountId: string,
+  tokens: { accessToken: string; refreshToken: string; expiresIn: number }
+): Promise<void> {
   const oauthTokens: CalDavOAuthTokens = {
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
     expiration: Math.floor(Date.now() / 1000) + tokens.expiresIn,
   }
 
-  await updateSettingByPath('caldav.oauthTokens', oauthTokens)
-  await updateSettingByPath('caldav.authType', 'google-oauth')
-  await updateSettingByPath('caldav.serverUrl', 'https://apidata.googleusercontent.com/caldav/v2/')
-  await updateSettingByPath('caldav.enabled', true)
+  db.update(caldavAccounts)
+    .set({
+      oauthTokens,
+      authType: 'google-oauth',
+      serverUrl: 'https://apidata.googleusercontent.com/caldav/v2/',
+      enabled: true,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(caldavAccounts.id, accountId))
+    .run()
 
-  // Restart sync with new config
-  stopCaldavSync()
-  await startCaldavSync()
+  await accountManager.startAccount(accountId)
+  await accountManager.syncAccount(accountId).catch(() => {})
+}
+
+// --- Backward-compatible Configuration ---
+// These delegate to the new account-based system
+
+export async function testCaldavConnection(config: {
+  serverUrl: string
+  username: string
+  password: string
+}): Promise<{ success: boolean; calendars?: number; error?: string }> {
+  return testAccountConnection(config)
+}
+
+export async function configureCaldav(config: {
+  serverUrl: string
+  username: string
+  password: string
+  syncIntervalMinutes?: number
+}): Promise<void> {
+  // Create or update the "default" basic account
+  const existingAccounts = db.select().from(caldavAccounts).all()
+  const basicAccount = existingAccounts.find((a) => a.authType === 'basic')
+
+  if (basicAccount) {
+    await updateAccount(basicAccount.id, {
+      serverUrl: config.serverUrl,
+      username: config.username,
+      password: config.password,
+      syncIntervalMinutes: config.syncIntervalMinutes,
+    })
+    await enableAccount(basicAccount.id)
+  } else {
+    const name = new URL(config.serverUrl).hostname
+    const account = await createAccount({
+      name,
+      serverUrl: config.serverUrl,
+      authType: 'basic',
+      username: config.username,
+      password: config.password,
+      syncIntervalMinutes: config.syncIntervalMinutes,
+    })
+    await accountManager.startAccount(account.id)
+    await accountManager.syncAccount(account.id).catch(() => {})
+  }
+
+  // Ensure global caldav enabled
+  const { updateSettingByPath } = await import('../../lib/settings')
+  await updateSettingByPath('caldav.enabled', true)
+}
+
+export async function configureGoogleOAuth(config: {
+  googleClientId: string
+  googleClientSecret: string
+  syncIntervalMinutes?: number
+  accountId?: string
+}): Promise<string> {
+  let accountId = config.accountId
+
+  if (accountId) {
+    // Update existing account
+    await updateAccount(accountId, {
+      googleClientId: config.googleClientId,
+      googleClientSecret: config.googleClientSecret,
+      syncIntervalMinutes: config.syncIntervalMinutes,
+    })
+  } else {
+    // Create new Google account
+    const account = await createAccount({
+      name: 'Google Calendar',
+      serverUrl: 'https://apidata.googleusercontent.com/caldav/v2/',
+      authType: 'google-oauth',
+      googleClientId: config.googleClientId,
+      googleClientSecret: config.googleClientSecret,
+      syncIntervalMinutes: config.syncIntervalMinutes,
+    })
+    accountId = account.id
+  }
+
+  return accountId
+}
+
+export async function completeGoogleOAuth(tokens: {
+  accessToken: string
+  refreshToken: string
+  expiresIn: number
+  accountId?: string
+}): Promise<void> {
+  let accountId = tokens.accountId
+
+  if (!accountId) {
+    // Find the most recently created Google OAuth account without tokens
+    const accounts = db.select().from(caldavAccounts).all()
+    const pending = accounts
+      .filter((a) => a.authType === 'google-oauth' && !a.oauthTokens)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    accountId = pending[0]?.id
+  }
+
+  if (!accountId) {
+    throw new Error('No pending Google OAuth account found')
+  }
+
+  await completeAccountGoogleOAuth(accountId, tokens)
+
+  // Ensure global caldav enabled
+  const { updateSettingByPath } = await import('../../lib/settings')
+  await updateSettingByPath('caldav.enabled', true)
 }
 
 export async function enableCaldav(): Promise<void> {
   const { updateSettingByPath } = await import('../../lib/settings')
   await updateSettingByPath('caldav.enabled', true)
-  await startCaldavSync()
+  await accountManager.startAll()
+  await accountManager.syncAll().catch(() => {})
 }
 
 export async function disableCaldav(): Promise<void> {
   const { updateSettingByPath } = await import('../../lib/settings')
   await updateSettingByPath('caldav.enabled', false)
-  stopCaldavSync()
+  accountManager.stopAll()
 }
 
 // --- Calendar Operations ---
 
-export function listCalendars(): CaldavCalendar[] {
+export function listCalendars(accountId?: string): CaldavCalendar[] {
+  if (accountId) {
+    return db
+      .select()
+      .from(caldavCalendars)
+      .where(eq(caldavCalendars.accountId, accountId))
+      .all()
+  }
   return db.select().from(caldavCalendars).all()
 }
 
 export async function syncCalendars(): Promise<void> {
-  await syncAllCalendars()
+  await accountManager.syncAll()
+  await executeCopyRules().catch((err) => {
+    logger.error('Copy rules failed after sync', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
 }
 
 // --- Event Operations ---
@@ -232,9 +538,6 @@ export async function createEvent(input: {
   recurrenceRule?: string
   status?: string
 }): Promise<CaldavEvent> {
-  ensureConnected()
-
-  // Find the calendar
   const calendar = db
     .select()
     .from(caldavCalendars)
@@ -243,6 +546,11 @@ export async function createEvent(input: {
 
   if (!calendar) {
     throw new Error(`Calendar not found: ${input.calendarId}`)
+  }
+
+  const client = calendar.accountId ? accountManager.getClient(calendar.accountId) : null
+  if (!client) {
+    throw new Error('CalDAV account not connected for this calendar')
   }
 
   const uid = `${crypto.randomUUID()}@fulcrum`
@@ -259,15 +567,13 @@ export async function createEvent(input: {
     status: input.status,
   })
 
-  // Create on CalDAV server
   const eventUrl = `${calendar.remoteUrl}${uid}.ics`
-  await davClient!.createCalendarObject({
+  await client.createCalendarObject({
     calendar: { url: calendar.remoteUrl },
     filename: `${uid}.ics`,
     iCalString: ical,
   })
 
-  // Insert locally
   const now = new Date().toISOString()
   const id = crypto.randomUUID()
   const event: CaldavEvent = {
@@ -312,14 +618,22 @@ export async function updateEvent(
     status?: string
   }
 ): Promise<CaldavEvent> {
-  ensureConnected()
-
   const event = db.select().from(caldavEvents).where(eq(caldavEvents.id, id)).get()
   if (!event) {
     throw new Error(`Event not found: ${id}`)
   }
 
-  // Update the iCal using the raw source for lossless round-tripping
+  const calendar = db
+    .select()
+    .from(caldavCalendars)
+    .where(eq(caldavCalendars.id, event.calendarId))
+    .get()
+
+  const client = calendar?.accountId ? accountManager.getClient(calendar.accountId) : null
+  if (!client) {
+    throw new Error('CalDAV account not connected for this calendar')
+  }
+
   const updatedIcal = event.rawIcal
     ? updateIcalEvent(event.rawIcal, updates)
     : generateIcalEvent({
@@ -335,8 +649,7 @@ export async function updateEvent(
         status: updates.status ?? event.status ?? undefined,
       })
 
-  // Update on CalDAV server
-  await davClient!.updateCalendarObject({
+  await client.updateCalendarObject({
     calendarObject: {
       url: event.remoteUrl,
       etag: event.etag ?? undefined,
@@ -344,7 +657,6 @@ export async function updateEvent(
     iCalString: updatedIcal,
   })
 
-  // Update locally
   const now = new Date().toISOString()
   db.update(caldavEvents)
     .set({
@@ -369,319 +681,94 @@ export async function updateEvent(
 }
 
 export async function deleteEvent(id: string): Promise<void> {
-  ensureConnected()
-
   const event = db.select().from(caldavEvents).where(eq(caldavEvents.id, id)).get()
   if (!event) {
     throw new Error(`Event not found: ${id}`)
   }
 
-  // Delete from CalDAV server
-  await davClient!.deleteCalendarObject({
+  const calendar = db
+    .select()
+    .from(caldavCalendars)
+    .where(eq(caldavCalendars.id, event.calendarId))
+    .get()
+
+  const client = calendar?.accountId ? accountManager.getClient(calendar.accountId) : null
+  if (!client) {
+    throw new Error('CalDAV account not connected for this calendar')
+  }
+
+  await client.deleteCalendarObject({
     calendarObject: {
       url: event.remoteUrl,
       etag: event.etag ?? undefined,
     },
   })
 
-  // Delete locally
   db.delete(caldavEvents).where(eq(caldavEvents.id, id)).run()
   logger.info('Deleted CalDAV event', { id, summary: event.summary })
 }
 
-// --- Internal ---
+// --- Copy Rules ---
 
-async function connect(config: CalDavSettings): Promise<void> {
-  if (config.authType === 'google-oauth') {
-    await connectOAuth(config)
-  } else {
-    await connectBasic(config)
-  }
+export function listCopyRules(): CaldavCopyRule[] {
+  return db.select().from(caldavCopyRules).all()
 }
 
-async function connectBasic(config: CalDavSettings): Promise<void> {
-  davClient = new DAVClient({
-    serverUrl: config.serverUrl,
-    credentials: {
-      username: config.username,
-      password: config.password,
-    },
-    authMethod: 'Basic',
-    defaultAccountType: 'caldav',
-  })
-  await davClient.login()
-  logger.info('Connected to CalDAV server (Basic)', { serverUrl: config.serverUrl })
+export function getCopyRule(id: string): CaldavCopyRule | undefined {
+  return db.select().from(caldavCopyRules).where(eq(caldavCopyRules.id, id)).get()
 }
 
-async function connectOAuth(config: CalDavSettings): Promise<void> {
-  if (!config.oauthTokens || !config.googleClientId || !config.googleClientSecret) {
-    throw new Error('Google OAuth not configured. Complete the OAuth flow first.')
-  }
-
-  // Track current tokens so we can detect refreshes
-  let currentTokens: CalDavOAuthTokens = { ...config.oauthTokens }
-
-  davClient = new DAVClient({
-    serverUrl: config.serverUrl,
-    credentials: {
-      clientId: config.googleClientId,
-      clientSecret: config.googleClientSecret,
-      accessToken: currentTokens.accessToken,
-      refreshToken: currentTokens.refreshToken,
-      expiration: currentTokens.expiration,
-      tokenUrl: GOOGLE_TOKEN_URL,
-    },
-    authMethod: 'Custom',
-    authFunction: async (credentials) => {
-      const result = await getOauthHeaders(credentials)
-      // Persist refreshed tokens back to settings
-      if (result.tokens.access_token && result.tokens.access_token !== currentTokens.accessToken) {
-        const newTokens: CalDavOAuthTokens = {
-          accessToken: result.tokens.access_token,
-          refreshToken: result.tokens.refresh_token ?? currentTokens.refreshToken,
-          expiration: result.tokens.expires_in
-            ? Math.floor(Date.now() / 1000) + result.tokens.expires_in
-            : currentTokens.expiration,
-        }
-        currentTokens = newTokens
-        // Update credentials on the client for next call
-        credentials.accessToken = newTokens.accessToken
-        credentials.refreshToken = newTokens.refreshToken
-        credentials.expiration = newTokens.expiration
-        // Persist to settings
-        try {
-          const { updateSettingByPath } = await import('../../lib/settings')
-          await updateSettingByPath('caldav.oauthTokens', newTokens)
-          logger.info('Persisted refreshed OAuth tokens')
-        } catch (err) {
-          logger.error('Failed to persist refreshed OAuth tokens', {
-            error: err instanceof Error ? err.message : String(err),
-          })
-        }
-      }
-      return result.headers
-    },
-    defaultAccountType: 'caldav',
-  })
-  await davClient.login()
-  logger.info('Connected to CalDAV server (Google OAuth)', { serverUrl: config.serverUrl })
-}
-
-// Google OAuth constants
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
-
-function ensureConnected(): void {
-  if (!davClient) {
-    throw new Error('CalDAV not connected. Enable CalDAV in settings first.')
-  }
-}
-
-function scheduleSync(intervalMinutes: number): void {
-  if (syncInterval) {
-    clearInterval(syncInterval)
-  }
-  syncInterval = setInterval(
-    () => {
-      syncAllCalendars().catch((err) => {
-        lastSyncError = err instanceof Error ? err.message : String(err)
-        logger.error('CalDAV sync failed', { error: lastSyncError })
-      })
-    },
-    intervalMinutes * 60 * 1000
-  )
-}
-
-function scheduleRetry(config: CalDavSettings): void {
-  retryCount++
-  const delay = Math.min(1000 * Math.pow(2, retryCount), MAX_RETRY_DELAY)
-  logger.info('Scheduling CalDAV retry', { retryCount, delayMs: delay })
-
-  setTimeout(async () => {
-    try {
-      await connect(config)
-      scheduleSync(config.syncIntervalMinutes)
-      await syncAllCalendars()
-      retryCount = 0
-      lastSyncError = null
-    } catch (err) {
-      lastSyncError = err instanceof Error ? err.message : String(err)
-      logger.error('CalDAV retry failed', { error: lastSyncError })
-      scheduleRetry(config)
-    }
-  }, delay)
-}
-
-async function syncAllCalendars(): Promise<void> {
-  if (isSyncing || !davClient) return
-
-  isSyncing = true
-  try {
-    // Fetch all calendars from server
-    const remoteCalendars = await davClient.fetchCalendars()
-    const now = new Date().toISOString()
-
-    // Track which remote URLs we've seen
-    const seenUrls = new Set<string>()
-
-    for (const remoteCal of remoteCalendars) {
-      const url = remoteCal.url
-      seenUrls.add(url)
-
-      // Check if we already have this calendar
-      const existing = db
-        .select()
-        .from(caldavCalendars)
-        .where(eq(caldavCalendars.remoteUrl, url))
-        .get()
-
-      const ctag = remoteCal.ctag ?? remoteCal.syncToken ?? null
-
-      if (existing) {
-        db.update(caldavCalendars)
-          .set({
-            displayName: remoteCal.displayName ?? existing.displayName,
-            ctag,
-            syncToken: remoteCal.syncToken ?? existing.syncToken,
-            updatedAt: now,
-            lastSyncedAt: now,
-          })
-          .where(eq(caldavCalendars.id, existing.id))
-          .run()
-
-        if (existing.enabled) {
-          await syncCalendarEvents(existing.id, remoteCal)
-        }
-      } else {
-        // New calendar
-        const id = crypto.randomUUID()
-        db.insert(caldavCalendars)
-          .values({
-            id,
-            remoteUrl: url,
-            displayName: remoteCal.displayName ?? 'Unnamed Calendar',
-            ctag,
-            syncToken: remoteCal.syncToken ?? null,
-            color: null,
-            timezone: null,
-            enabled: true,
-            lastSyncedAt: now,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .run()
-
-        await syncCalendarEvents(id, remoteCal)
-      }
-    }
-
-    // Remove calendars that no longer exist on server
-    const localCalendars = db.select().from(caldavCalendars).all()
-    for (const local of localCalendars) {
-      if (!seenUrls.has(local.remoteUrl)) {
-        db.delete(caldavEvents)
-          .where(eq(caldavEvents.calendarId, local.id))
-          .run()
-        db.delete(caldavCalendars)
-          .where(eq(caldavCalendars.id, local.id))
-          .run()
-        logger.info('Removed deleted calendar', { displayName: local.displayName })
-      }
-    }
-
-    lastSyncError = null
-    logger.info('CalDAV sync complete', { calendars: remoteCalendars.length })
-  } finally {
-    isSyncing = false
-  }
-}
-
-async function syncCalendarEvents(
-  calendarId: string,
-  remoteCal: { url: string }
-): Promise<void> {
-  if (!davClient) return
-
-  const calendarObjects = await davClient.fetchCalendarObjects({
-    calendar: { url: remoteCal.url },
-  })
-
+export function createCopyRule(input: {
+  name?: string
+  sourceCalendarId: string
+  destCalendarId: string
+}): CaldavCopyRule {
   const now = new Date().toISOString()
-  const seenUrls = new Set<string>()
+  const id = crypto.randomUUID()
 
-  for (const obj of calendarObjects) {
-    if (!obj.data) continue
-
-    const url = obj.url
-    seenUrls.add(url)
-    const parsed = parseIcalEvent(obj.data)
-
-    const existing = db
-      .select()
-      .from(caldavEvents)
-      .where(eq(caldavEvents.remoteUrl, url))
-      .get()
-
-    if (existing) {
-      // Always re-parse from raw iCal data to pick up parser improvements.
-      // Use etag to detect content changes on the server side.
-      db.update(caldavEvents)
-        .set({
-          uid: parsed.uid ?? existing.uid,
-          etag: obj.etag ?? existing.etag,
-          summary: parsed.summary ?? existing.summary,
-          description: parsed.description ?? existing.description,
-          location: parsed.location ?? existing.location,
-          dtstart: parsed.dtstart ?? existing.dtstart,
-          dtend: parsed.dtend ?? existing.dtend,
-          duration: parsed.duration ?? existing.duration,
-          allDay: parsed.allDay,
-          recurrenceRule: parsed.recurrenceRule ?? null,
-          status: parsed.status ?? existing.status,
-          organizer: parsed.organizer ?? existing.organizer,
-          attendees: parsed.attendees ?? existing.attendees,
-          rawIcal: obj.data,
-          updatedAt: now,
-        })
-        .where(eq(caldavEvents.id, existing.id))
-        .run()
-    } else {
-      // New event
-      db.insert(caldavEvents)
-        .values({
-          id: crypto.randomUUID(),
-          calendarId,
-          remoteUrl: url,
-          uid: parsed.uid ?? null,
-          etag: obj.etag ?? null,
-          summary: parsed.summary ?? null,
-          description: parsed.description ?? null,
-          location: parsed.location ?? null,
-          dtstart: parsed.dtstart ?? null,
-          dtend: parsed.dtend ?? null,
-          duration: parsed.duration ?? null,
-          allDay: parsed.allDay,
-          recurrenceRule: parsed.recurrenceRule ?? null,
-          status: parsed.status ?? null,
-          organizer: parsed.organizer ?? null,
-          attendees: parsed.attendees ?? null,
-          rawIcal: obj.data,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .run()
-    }
+  const rule: CaldavCopyRule = {
+    id,
+    name: input.name ?? null,
+    sourceCalendarId: input.sourceCalendarId,
+    destCalendarId: input.destCalendarId,
+    enabled: true,
+    lastExecutedAt: null,
+    createdAt: now,
+    updatedAt: now,
   }
 
-  // Remove events no longer on server
-  const localEvents = db
-    .select()
-    .from(caldavEvents)
-    .where(eq(caldavEvents.calendarId, calendarId))
-    .all()
+  db.insert(caldavCopyRules).values(rule).run()
+  logger.info('Created copy rule', { id, source: input.sourceCalendarId, dest: input.destCalendarId })
+  return rule
+}
 
-  for (const local of localEvents) {
-    if (!seenUrls.has(local.remoteUrl)) {
-      db.delete(caldavEvents).where(eq(caldavEvents.id, local.id)).run()
-    }
-  }
+export function updateCopyRule(
+  id: string,
+  updates: { name?: string; enabled?: boolean }
+): CaldavCopyRule {
+  const existing = db.select().from(caldavCopyRules).where(eq(caldavCopyRules.id, id)).get()
+  if (!existing) throw new Error(`Copy rule not found: ${id}`)
+
+  db.update(caldavCopyRules)
+    .set({ ...updates, updatedAt: new Date().toISOString() })
+    .where(eq(caldavCopyRules.id, id))
+    .run()
+
+  return db.select().from(caldavCopyRules).where(eq(caldavCopyRules.id, id)).get()!
+}
+
+export function deleteCopyRule(id: string): void {
+  db.delete(caldavCopiedEvents).where(eq(caldavCopiedEvents.ruleId, id)).run()
+  db.delete(caldavCopyRules).where(eq(caldavCopyRules.id, id)).run()
+  logger.info('Deleted copy rule', { id })
+}
+
+export async function executeCopyRule(ruleId: string): Promise<{ created: number; updated: number }> {
+  const { executeSingleRule } = await import('./copy-engine')
+  return executeSingleRule(ruleId)
+}
+
+async function executeCopyRules(): Promise<void> {
+  const { executeAllRules } = await import('./copy-engine')
+  await executeAllRules()
 }

@@ -405,9 +405,29 @@ export const sweepRuns = sqliteTable('sweep_runs', {
   status: text('status').notNull(), // 'running' | 'completed' | 'failed'
 })
 
+// CalDAV accounts - per-account CalDAV credentials and configuration
+export const caldavAccounts = sqliteTable('caldav_accounts', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(), // User-visible label
+  serverUrl: text('server_url').notNull(),
+  authType: text('auth_type').notNull().default('basic'), // 'basic' | 'google-oauth'
+  username: text('username'), // Basic auth
+  password: text('password'), // Basic auth
+  googleClientId: text('google_client_id'), // OAuth
+  googleClientSecret: text('google_client_secret'), // OAuth
+  oauthTokens: text('oauth_tokens', { mode: 'json' }).$type<import('../lib/settings/types').CalDavOAuthTokens | null>(),
+  syncIntervalMinutes: integer('sync_interval_minutes').default(15),
+  enabled: integer('enabled', { mode: 'boolean' }).default(true),
+  lastSyncedAt: text('last_synced_at'),
+  lastSyncError: text('last_sync_error'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 // CalDAV calendars - cached calendar metadata from CalDAV server
 export const caldavCalendars = sqliteTable('caldav_calendars', {
   id: text('id').primaryKey(),
+  accountId: text('account_id'), // FK to caldavAccounts (nullable for migration)
   remoteUrl: text('remote_url').notNull().unique(),
   displayName: text('display_name'),
   color: text('color'),
@@ -439,6 +459,29 @@ export const caldavEvents = sqliteTable('caldav_events', {
   organizer: text('organizer'),
   attendees: text('attendees', { mode: 'json' }).$type<string[]>(),
   rawIcal: text('raw_ical'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// CalDAV copy rules - one-way event copying between calendars
+export const caldavCopyRules = sqliteTable('caldav_copy_rules', {
+  id: text('id').primaryKey(),
+  name: text('name'), // Optional label
+  sourceCalendarId: text('source_calendar_id').notNull(), // FK to caldavCalendars
+  destCalendarId: text('dest_calendar_id').notNull(), // FK to caldavCalendars
+  enabled: integer('enabled', { mode: 'boolean' }).default(true),
+  lastExecutedAt: text('last_executed_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// CalDAV copied events - tracks copied events to avoid duplicates
+export const caldavCopiedEvents = sqliteTable('caldav_copied_events', {
+  id: text('id').primaryKey(),
+  ruleId: text('rule_id').notNull(), // FK to caldavCopyRules
+  sourceEventId: text('source_event_id').notNull(), // FK to caldavEvents
+  destEventId: text('dest_event_id').notNull(), // FK to caldavEvents
+  sourceEtag: text('source_etag'), // Detect source changes
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })
@@ -513,9 +556,15 @@ export type ChannelMessage = typeof channelMessages.$inferSelect
 export type NewChannelMessage = typeof channelMessages.$inferInsert
 export type SweepRun = typeof sweepRuns.$inferSelect
 export type NewSweepRun = typeof sweepRuns.$inferInsert
+export type CaldavAccount = typeof caldavAccounts.$inferSelect
+export type NewCaldavAccount = typeof caldavAccounts.$inferInsert
 export type CaldavCalendar = typeof caldavCalendars.$inferSelect
 export type NewCaldavCalendar = typeof caldavCalendars.$inferInsert
 export type CaldavEvent = typeof caldavEvents.$inferSelect
 export type NewCaldavEvent = typeof caldavEvents.$inferInsert
+export type CaldavCopyRule = typeof caldavCopyRules.$inferSelect
+export type NewCaldavCopyRule = typeof caldavCopyRules.$inferInsert
+export type CaldavCopiedEvent = typeof caldavCopiedEvents.$inferSelect
+export type NewCaldavCopiedEvent = typeof caldavCopiedEvents.$inferInsert
 export type Memory = typeof memories.$inferSelect
 export type NewMemory = typeof memories.$inferInsert

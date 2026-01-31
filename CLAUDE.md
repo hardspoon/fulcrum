@@ -116,7 +116,7 @@ fulcrum notify <title> <message>  # Send notification
 - **bun-pty** for PTY management
 
 ### Key Services (`server/services/`)
-- `caldav/` - CalDAV calendar sync (Google Calendar OAuth2, generic CalDAV)
+- `caldav/` - Multi-account CalDAV calendar sync with event copy rules (Google Calendar OAuth2, generic CalDAV)
 - `channels/` - Chat with AI via external channels (WhatsApp, Discord, Telegram, Slack, Email)
 - `memory-service.ts` - Persistent agent memory with SQLite FTS5 full-text search
 - `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
@@ -136,7 +136,7 @@ fulcrum notify <title> <message>  # Send notification
 - `/api/repositories/*` - Repository management
 - `/api/memory/*` - Agent memory CRUD and FTS5 search
 - `/api/messaging/*` - Messaging channel management (WhatsApp, Discord, Telegram, Slack)
-- `/api/caldav/*` - CalDAV calendar integration (config, sync, OAuth)
+- `/api/caldav/*` - CalDAV calendar integration (accounts, sync, OAuth, copy rules)
 - `/ws/terminal` - Terminal I/O multiplexing
 
 ### Frontend Pages
@@ -168,8 +168,11 @@ fulcrum notify <title> <message>  # Send notification
 | `messagingConnections` | Messaging channel runtime state (connection status, display names) |
 | `messagingSessionMappings` | Maps channel users to AI chat sessions |
 | `channelMessages` | Unified storage for all channel messages (WhatsApp, Discord, Telegram, Slack, Email) |
-| `caldavCalendars` | Synced CalDAV calendars (URL, display name, color, sync state) |
+| `caldavAccounts` | CalDAV account credentials and sync state (supports multiple accounts) |
+| `caldavCalendars` | Synced CalDAV calendars with account association |
 | `caldavEvents` | Calendar events (summary, start/end, location, all-day flag) |
+| `caldavCopyRules` | One-way event copy rules between calendars across accounts |
+| `caldavCopiedEvents` | Tracks copied events to avoid duplicates and detect changes |
 | `memories` | Persistent agent knowledge store with FTS5 full-text search |
 
 Task statuses: `IN_PROGRESS`, `IN_REVIEW`, `DONE`, `CANCELED`
@@ -205,7 +208,7 @@ Settings stored in `~/.fulcrum/settings.json`. See `server/lib/settings/types.ts
 - `tasks` - Task creation defaults
 - `appearance` - UI theme and language
 - `assistant` - Built-in assistant settings (model, observerModel for cost-effective observe-only processing)
-- `caldav` - CalDAV calendar integration (server URL, auth type, OAuth tokens, sync interval)
+- `caldav` - CalDAV calendar integration (global enable/sync interval; account credentials stored in DB)
 
 **Separate config files:**
 - `notifications.json` - Multi-channel notification settings

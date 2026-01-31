@@ -2,7 +2,7 @@
  * CalDAV API Routes
  *
  * Provides REST endpoints for CalDAV calendar integration:
- * connection management, calendar listing, and event CRUD.
+ * multi-account management, calendar listing, event CRUD, and copy rules.
  */
 
 import { Hono } from 'hono'
@@ -22,6 +22,23 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
+  // Account CRUD
+  listAccounts,
+  getAccount,
+  createAccount,
+  updateAccount,
+  deleteAccount,
+  enableAccount,
+  disableAccount,
+  testAccountConnection,
+  syncAccount,
+  completeAccountGoogleOAuth,
+  // Copy rules
+  listCopyRules,
+  createCopyRule,
+  updateCopyRule,
+  deleteCopyRule,
+  executeCopyRule,
 } from '../services/caldav'
 import { getSettings } from '../lib/settings'
 import { getUserTimezone, toUserTimezone, fromUserTimezone } from '../services/caldav/timezone'
@@ -43,6 +60,265 @@ function localizeEvent(event: CaldavEvent, tz: string): CaldavEvent & { timezone
     timezone: tz,
   }
 }
+
+// ==========================================
+// Account endpoints
+// ==========================================
+
+// GET /api/caldav/accounts
+caldavRoutes.get('/accounts', (c) => {
+  const accounts = listAccounts()
+  // Don't expose sensitive fields
+  return c.json(
+    accounts.map((a) => ({
+      ...a,
+      password: a.password ? '***' : null,
+      googleClientSecret: a.googleClientSecret ? '***' : null,
+      oauthTokens: a.oauthTokens ? { hasTokens: true } : null,
+    }))
+  )
+})
+
+// POST /api/caldav/accounts - Create basic auth account
+caldavRoutes.post('/accounts', async (c) => {
+  const body = await c.req.json<{
+    name: string
+    serverUrl: string
+    username: string
+    password: string
+    syncIntervalMinutes?: number
+  }>()
+
+  if (!body.name || !body.serverUrl || !body.username || !body.password) {
+    return c.json({ error: 'name, serverUrl, username, and password are required' }, 400)
+  }
+
+  try {
+    const account = await createAccount({
+      name: body.name,
+      serverUrl: body.serverUrl,
+      authType: 'basic',
+      username: body.username,
+      password: body.password,
+      syncIntervalMinutes: body.syncIntervalMinutes,
+    })
+    return c.json(account, 201)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to create account' }, 500)
+  }
+})
+
+// POST /api/caldav/accounts/google - Create Google OAuth account
+caldavRoutes.post('/accounts/google', async (c) => {
+  const body = await c.req.json<{
+    name?: string
+    googleClientId: string
+    googleClientSecret: string
+    syncIntervalMinutes?: number
+  }>()
+
+  if (!body.googleClientId || !body.googleClientSecret) {
+    return c.json({ error: 'googleClientId and googleClientSecret are required' }, 400)
+  }
+
+  try {
+    const accountId = await configureGoogleOAuth({
+      googleClientId: body.googleClientId,
+      googleClientSecret: body.googleClientSecret,
+      syncIntervalMinutes: body.syncIntervalMinutes,
+    })
+    const account = getAccount(accountId)
+    return c.json(account, 201)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to create account' }, 500)
+  }
+})
+
+// PATCH /api/caldav/accounts/:id
+caldavRoutes.patch('/accounts/:id', async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json<{
+    name?: string
+    serverUrl?: string
+    username?: string
+    password?: string
+    googleClientId?: string
+    googleClientSecret?: string
+    syncIntervalMinutes?: number
+  }>()
+
+  try {
+    const account = await updateAccount(id, body)
+    return c.json(account)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed to update account'
+    return c.json({ error: msg }, msg.includes('not found') ? 404 : 500)
+  }
+})
+
+// DELETE /api/caldav/accounts/:id
+caldavRoutes.delete('/accounts/:id', async (c) => {
+  const id = c.req.param('id')
+  try {
+    await deleteAccount(id)
+    return c.json({ success: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to delete account' }, 500)
+  }
+})
+
+// POST /api/caldav/accounts/:id/test
+caldavRoutes.post('/accounts/:id/test', async (c) => {
+  const id = c.req.param('id')
+  const account = getAccount(id)
+  if (!account) return c.json({ error: 'Account not found' }, 404)
+
+  if (account.authType !== 'basic' || !account.username || !account.password) {
+    return c.json({ error: 'Test connection only supported for basic auth accounts' }, 400)
+  }
+
+  const result = await testAccountConnection({
+    serverUrl: account.serverUrl,
+    username: account.username,
+    password: account.password,
+  })
+  return c.json(result)
+})
+
+// POST /api/caldav/accounts/:id/sync
+caldavRoutes.post('/accounts/:id/sync', async (c) => {
+  const id = c.req.param('id')
+  try {
+    await syncAccount(id)
+    return c.json({ success: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Sync failed' }, 500)
+  }
+})
+
+// POST /api/caldav/accounts/:id/enable
+caldavRoutes.post('/accounts/:id/enable', async (c) => {
+  const id = c.req.param('id')
+  try {
+    await enableAccount(id)
+    return c.json({ success: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to enable account' }, 500)
+  }
+})
+
+// POST /api/caldav/accounts/:id/disable
+caldavRoutes.post('/accounts/:id/disable', async (c) => {
+  const id = c.req.param('id')
+  try {
+    await disableAccount(id)
+    return c.json({ success: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to disable account' }, 500)
+  }
+})
+
+// GET /api/caldav/accounts/:id/oauth/authorize
+caldavRoutes.get('/accounts/:id/oauth/authorize', (c) => {
+  const id = c.req.param('id')
+  const account = getAccount(id)
+  if (!account) return c.json({ error: 'Account not found' }, 404)
+
+  if (!account.googleClientId) {
+    return c.json({ error: 'Google Client ID not configured for this account' }, 400)
+  }
+
+  const settings = getSettings()
+  const host = c.req.header('host') ?? `localhost:${settings.server.port}`
+  const redirectUri = `http://${host}/api/caldav/oauth/callback`
+
+  const params = new URLSearchParams({
+    client_id: account.googleClientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: GOOGLE_CALDAV_SCOPE,
+    access_type: 'offline',
+    prompt: 'consent',
+    state: id, // Encode accountId in state param
+  })
+
+  const authUrl = `${GOOGLE_AUTH_URL}?${params.toString()}`
+  return c.json({ authUrl })
+})
+
+// ==========================================
+// Copy rule endpoints
+// ==========================================
+
+// GET /api/caldav/copy-rules
+caldavRoutes.get('/copy-rules', (c) => {
+  const rules = listCopyRules()
+  return c.json(rules)
+})
+
+// POST /api/caldav/copy-rules
+caldavRoutes.post('/copy-rules', async (c) => {
+  const body = await c.req.json<{
+    name?: string
+    sourceCalendarId: string
+    destCalendarId: string
+  }>()
+
+  if (!body.sourceCalendarId || !body.destCalendarId) {
+    return c.json({ error: 'sourceCalendarId and destCalendarId are required' }, 400)
+  }
+
+  if (body.sourceCalendarId === body.destCalendarId) {
+    return c.json({ error: 'Source and destination calendars must be different' }, 400)
+  }
+
+  try {
+    const rule = createCopyRule(body)
+    return c.json(rule, 201)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to create copy rule' }, 500)
+  }
+})
+
+// PATCH /api/caldav/copy-rules/:id
+caldavRoutes.patch('/copy-rules/:id', async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json<{ name?: string; enabled?: boolean }>()
+
+  try {
+    const rule = updateCopyRule(id, body)
+    return c.json(rule)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed to update copy rule'
+    return c.json({ error: msg }, msg.includes('not found') ? 404 : 500)
+  }
+})
+
+// DELETE /api/caldav/copy-rules/:id
+caldavRoutes.delete('/copy-rules/:id', async (c) => {
+  const id = c.req.param('id')
+  try {
+    deleteCopyRule(id)
+    return c.json({ success: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to delete copy rule' }, 500)
+  }
+})
+
+// POST /api/caldav/copy-rules/:id/execute
+caldavRoutes.post('/copy-rules/:id/execute', async (c) => {
+  const id = c.req.param('id')
+  try {
+    const result = await executeCopyRule(id)
+    return c.json(result)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to execute copy rule' }, 500)
+  }
+})
+
+// ==========================================
+// Backward-compatible endpoints
+// ==========================================
 
 // GET /api/caldav/status
 caldavRoutes.get('/status', (c) => {
@@ -129,8 +405,8 @@ caldavRoutes.post('/configure-google', async (c) => {
   }
 
   try {
-    await configureGoogleOAuth({ googleClientId, googleClientSecret, syncIntervalMinutes })
-    return c.json({ success: true })
+    const accountId = await configureGoogleOAuth({ googleClientId, googleClientSecret, syncIntervalMinutes })
+    return c.json({ success: true, accountId })
   } catch (err) {
     return c.json(
       { error: err instanceof Error ? err.message : 'Configuration failed' },
@@ -144,22 +420,30 @@ caldavRoutes.get('/oauth/authorize', (c) => {
   const settings = getSettings()
   const { googleClientId } = settings.caldav
 
-  if (!googleClientId) {
+  // Check if we have an account with Google credentials
+  const accounts = listAccounts()
+  const googleAccount = accounts.find(
+    (a) => a.authType === 'google-oauth' && a.googleClientId
+  )
+
+  const clientId = googleAccount?.googleClientId ?? googleClientId
+  const accountId = googleAccount?.id
+
+  if (!clientId) {
     return c.json({ error: 'Google Client ID not configured. Call /configure-google first.' }, 400)
   }
 
-  // Derive redirect URI from the request's Host header so it works in both
-  // production (port from settings) and dev mode (arbitrary PORT env var).
   const host = c.req.header('host') ?? `localhost:${settings.server.port}`
   const redirectUri = `http://${host}/api/caldav/oauth/callback`
 
   const params = new URLSearchParams({
-    client_id: googleClientId,
+    client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: GOOGLE_CALDAV_SCOPE,
     access_type: 'offline',
     prompt: 'consent',
+    ...(accountId ? { state: accountId } : {}),
   })
 
   const authUrl = `${GOOGLE_AUTH_URL}?${params.toString()}`
@@ -170,6 +454,7 @@ caldavRoutes.get('/oauth/authorize', (c) => {
 caldavRoutes.get('/oauth/callback', async (c) => {
   const code = c.req.query('code')
   const error = c.req.query('error')
+  const accountId = c.req.query('state') // Account ID encoded in state param
 
   if (error) {
     return c.html(`<html><body><h2>Authorization Failed</h2><p>${error}</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`)
@@ -179,15 +464,32 @@ caldavRoutes.get('/oauth/callback', async (c) => {
     return c.html('<html><body><h2>Missing authorization code</h2><script>setTimeout(()=>window.close(),3000)</script></body></html>', 400)
   }
 
-  const settings = getSettings()
-  const { googleClientId, googleClientSecret } = settings.caldav
-  // Must match the redirect_uri used in the authorize request
-  const host = c.req.header('host') ?? `localhost:${settings.server.port}`
-  const redirectUri = `http://${host}/api/caldav/oauth/callback`
+  // Determine which account's credentials to use
+  let googleClientId: string | undefined
+  let googleClientSecret: string | undefined
+
+  if (accountId) {
+    const account = getAccount(accountId)
+    if (account) {
+      googleClientId = account.googleClientId ?? undefined
+      googleClientSecret = account.googleClientSecret ?? undefined
+    }
+  }
+
+  if (!googleClientId || !googleClientSecret) {
+    // Fallback to settings
+    const settings = getSettings()
+    googleClientId = googleClientId ?? (settings.caldav.googleClientId || undefined)
+    googleClientSecret = googleClientSecret ?? (settings.caldav.googleClientSecret || undefined)
+  }
 
   if (!googleClientId || !googleClientSecret) {
     return c.html('<html><body><h2>Google OAuth not configured</h2><script>setTimeout(()=>window.close(),3000)</script></body></html>', 400)
   }
+
+  const settings = getSettings()
+  const host = c.req.header('host') ?? `localhost:${settings.server.port}`
+  const redirectUri = `http://${host}/api/caldav/oauth/callback`
 
   try {
     const tokens = await fetchOauthTokens({
@@ -202,11 +504,19 @@ caldavRoutes.get('/oauth/callback', async (c) => {
       return c.html('<html><body><h2>Failed to obtain tokens</h2><p>Missing access or refresh token. Try again with prompt=consent.</p><script>setTimeout(()=>window.close(),5000)</script></body></html>', 500)
     }
 
-    await completeGoogleOAuth({
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-      expiresIn: tokens.expires_in ?? 3600,
-    })
+    if (accountId) {
+      await completeAccountGoogleOAuth(accountId, {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresIn: tokens.expires_in ?? 3600,
+      })
+    } else {
+      await completeGoogleOAuth({
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresIn: tokens.expires_in ?? 3600,
+      })
+    }
 
     return c.html(`<html>
 <body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0a0a0a;color:#fff">
@@ -238,7 +548,8 @@ caldavRoutes.post('/sync', async (c) => {
 
 // GET /api/caldav/calendars
 caldavRoutes.get('/calendars', (c) => {
-  const calendars = listCalendars()
+  const accountId = c.req.query('accountId')
+  const calendars = listCalendars(accountId ?? undefined)
   return c.json(calendars)
 })
 

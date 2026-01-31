@@ -81,7 +81,8 @@ import { DiscordSetup } from '@/components/messaging/discord-setup'
 import { TelegramSetup } from '@/components/messaging/telegram-setup'
 import { SlackSetup } from '@/components/messaging/slack-setup'
 import { EmailSetup } from '@/components/messaging/email-setup'
-import { CaldavSetup } from '@/components/caldav/caldav-setup'
+import { CaldavAccounts } from '@/components/caldav/caldav-accounts'
+import { CaldavCopyRules } from '@/components/caldav/caldav-copy-rules'
 import {
   useDeploymentSettings,
   useUpdateDeploymentSettings,
@@ -2185,7 +2186,8 @@ function SettingsPage() {
 
               {/* CalDAV Calendar */}
               <SettingsSection title={t('sections.caldav')}>
-                <CaldavSetup isLoading={isLoading} />
+                <CaldavAccounts isLoading={isLoading} />
+                <CaldavCopyRules isLoading={isLoading} />
               </SettingsSection>
 
               {/* Appearance */}

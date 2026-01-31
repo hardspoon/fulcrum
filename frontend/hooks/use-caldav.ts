@@ -8,15 +8,46 @@ import { fetchJSON } from '@/lib/api'
 const API_BASE = ''
 
 // Types
+export interface CaldavAccountStatus {
+  id: string
+  name: string
+  connected: boolean
+  syncing: boolean
+  lastError: string | null
+  calendarCount: number
+  enabled: boolean
+  lastSyncedAt: string | null
+}
+
 export interface CaldavStatus {
   connected: boolean
   syncing: boolean
   lastError: string | null
   calendarCount: number
+  accounts: CaldavAccountStatus[]
+}
+
+export interface CaldavAccount {
+  id: string
+  name: string
+  serverUrl: string
+  authType: 'basic' | 'google-oauth'
+  username: string | null
+  password: string | null // masked as '***'
+  googleClientId: string | null
+  googleClientSecret: string | null // masked as '***'
+  oauthTokens: { hasTokens: boolean } | null
+  syncIntervalMinutes: number | null
+  enabled: boolean | null
+  lastSyncedAt: string | null
+  lastSyncError: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface CaldavCalendar {
   id: string
+  accountId: string | null
   remoteUrl: string
   displayName: string | null
   color: string | null
@@ -35,6 +66,17 @@ export interface CaldavEvent {
   description: string | null
 }
 
+export interface CaldavCopyRule {
+  id: string
+  name: string | null
+  sourceCalendarId: string
+  destCalendarId: string
+  enabled: boolean | null
+  lastExecutedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface TestConnectionResult {
   success: boolean
   calendars?: number
@@ -49,6 +91,220 @@ export function useCaldavStatus() {
     refetchInterval: 30000,
   })
 }
+
+// ==========================================
+// Account hooks
+// ==========================================
+
+export function useCaldavAccounts() {
+  return useQuery({
+    queryKey: ['caldav', 'accounts'],
+    queryFn: () => fetchJSON<CaldavAccount[]>(`${API_BASE}/api/caldav/accounts`),
+  })
+}
+
+export function useCreateCaldavAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: {
+      name: string
+      serverUrl: string
+      username: string
+      password: string
+      syncIntervalMinutes?: number
+    }) =>
+      fetchJSON<CaldavAccount>(`${API_BASE}/api/caldav/accounts`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav'] })
+    },
+  })
+}
+
+export function useCreateGoogleCaldavAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: {
+      name?: string
+      googleClientId: string
+      googleClientSecret: string
+      syncIntervalMinutes?: number
+    }) =>
+      fetchJSON<CaldavAccount>(`${API_BASE}/api/caldav/accounts/google`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav'] })
+    },
+  })
+}
+
+export function useUpdateCaldavAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, ...updates }: {
+      id: string
+      name?: string
+      serverUrl?: string
+      username?: string
+      password?: string
+      syncIntervalMinutes?: number
+    }) =>
+      fetchJSON<CaldavAccount>(`${API_BASE}/api/caldav/accounts/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav'] })
+    },
+  })
+}
+
+export function useDeleteCaldavAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJSON<{ success: boolean }>(`${API_BASE}/api/caldav/accounts/${id}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav'] })
+    },
+  })
+}
+
+export function useEnableCaldavAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJSON<{ success: boolean }>(`${API_BASE}/api/caldav/accounts/${id}/enable`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav'] })
+    },
+  })
+}
+
+export function useDisableCaldavAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJSON<{ success: boolean }>(`${API_BASE}/api/caldav/accounts/${id}/disable`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav'] })
+    },
+  })
+}
+
+export function useSyncCaldavAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJSON<{ success: boolean }>(`${API_BASE}/api/caldav/accounts/${id}/sync`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav'] })
+    },
+  })
+}
+
+export function useGetAccountGoogleAuthUrl() {
+  return useMutation({
+    mutationFn: (accountId: string) =>
+      fetchJSON<{ authUrl: string }>(`${API_BASE}/api/caldav/accounts/${accountId}/oauth/authorize`),
+  })
+}
+
+// ==========================================
+// Copy rule hooks
+// ==========================================
+
+export function useCaldavCopyRules() {
+  return useQuery({
+    queryKey: ['caldav', 'copy-rules'],
+    queryFn: () => fetchJSON<CaldavCopyRule[]>(`${API_BASE}/api/caldav/copy-rules`),
+  })
+}
+
+export function useCreateCaldavCopyRule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: {
+      name?: string
+      sourceCalendarId: string
+      destCalendarId: string
+    }) =>
+      fetchJSON<CaldavCopyRule>(`${API_BASE}/api/caldav/copy-rules`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav', 'copy-rules'] })
+    },
+  })
+}
+
+export function useUpdateCaldavCopyRule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, ...updates }: { id: string; name?: string; enabled?: boolean }) =>
+      fetchJSON<CaldavCopyRule>(`${API_BASE}/api/caldav/copy-rules/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav', 'copy-rules'] })
+    },
+  })
+}
+
+export function useDeleteCaldavCopyRule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJSON<{ success: boolean }>(`${API_BASE}/api/caldav/copy-rules/${id}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav', 'copy-rules'] })
+    },
+  })
+}
+
+export function useExecuteCaldavCopyRule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJSON<{ created: number; updated: number }>(`${API_BASE}/api/caldav/copy-rules/${id}/execute`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caldav'] })
+    },
+  })
+}
+
+// ==========================================
+// Backward-compatible hooks
+// ==========================================
 
 // Calendars
 export function useCaldavCalendars() {
@@ -133,7 +389,7 @@ export function useConfigureGoogleCaldav() {
       googleClientSecret: string
       syncIntervalMinutes?: number
     }) =>
-      fetchJSON<{ success: boolean }>(`${API_BASE}/api/caldav/configure-google`, {
+      fetchJSON<{ success: boolean; accountId: string }>(`${API_BASE}/api/caldav/configure-google`, {
         method: 'POST',
         body: JSON.stringify(config),
       }),

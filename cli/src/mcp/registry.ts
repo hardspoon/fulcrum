@@ -636,6 +636,64 @@ export const toolRegistry: ToolMetadata[] = [
     keywords: ['sweep', 'last', 'hourly', 'morning', 'evening', 'ritual'],
     defer_loading: false,
   },
+  // CalDAV account tools
+  {
+    name: 'list_caldav_accounts',
+    description: 'List all CalDAV accounts configured for calendar sync',
+    category: 'caldav',
+    keywords: ['caldav', 'account', 'list', 'calendar', 'google', 'nextcloud'],
+    defer_loading: true,
+  },
+  {
+    name: 'create_caldav_account',
+    description: 'Create a new CalDAV account with basic authentication',
+    category: 'caldav',
+    keywords: ['caldav', 'account', 'create', 'add', 'calendar', 'connect'],
+    defer_loading: true,
+  },
+  {
+    name: 'delete_caldav_account',
+    description: 'Delete a CalDAV account and all its calendars and events',
+    category: 'caldav',
+    keywords: ['caldav', 'account', 'delete', 'remove', 'disconnect'],
+    defer_loading: true,
+  },
+  {
+    name: 'sync_caldav_account',
+    description: 'Trigger a manual sync for a specific CalDAV account',
+    category: 'caldav',
+    keywords: ['caldav', 'account', 'sync', 'refresh', 'calendar'],
+    defer_loading: true,
+  },
+  // CalDAV copy rule tools
+  {
+    name: 'list_caldav_copy_rules',
+    description: 'List all CalDAV copy rules for one-way event replication between calendars',
+    category: 'caldav',
+    keywords: ['caldav', 'copy', 'rule', 'list', 'replicate', 'sync', 'calendar'],
+    defer_loading: true,
+  },
+  {
+    name: 'create_caldav_copy_rule',
+    description: 'Create a copy rule to replicate events from one calendar to another',
+    category: 'caldav',
+    keywords: ['caldav', 'copy', 'rule', 'create', 'replicate', 'calendar'],
+    defer_loading: true,
+  },
+  {
+    name: 'delete_caldav_copy_rule',
+    description: 'Delete a CalDAV copy rule',
+    category: 'caldav',
+    keywords: ['caldav', 'copy', 'rule', 'delete', 'remove'],
+    defer_loading: true,
+  },
+  {
+    name: 'execute_caldav_copy_rule',
+    description: 'Manually execute a copy rule to replicate events now',
+    category: 'caldav',
+    keywords: ['caldav', 'copy', 'rule', 'execute', 'run', 'replicate'],
+    defer_loading: true,
+  },
   // CalDAV calendar tools
   {
     name: 'list_calendars',

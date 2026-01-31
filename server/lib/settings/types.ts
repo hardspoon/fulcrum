@@ -95,12 +95,15 @@ export interface CalDavOAuthTokens {
 }
 
 // CalDAV calendar integration settings
+// Credential fields are kept for backward compatibility / migration detection
+// but are no longer the primary storage (moved to caldavAccounts table)
 export interface CalDavSettings {
   enabled: boolean
+  syncIntervalMinutes: number
+  // Legacy fields - read during migration, no longer written to
   serverUrl: string
   username: string
   password: string
-  syncIntervalMinutes: number
   authType: 'basic' | 'google-oauth'
   googleClientId: string
   googleClientSecret: string
@@ -333,14 +336,7 @@ export const VALID_SETTING_PATHS = new Set([
   'channels.telegram.enabled',
   'channels.telegram.botToken',
   'caldav.enabled',
-  'caldav.serverUrl',
-  'caldav.username',
-  'caldav.password',
   'caldav.syncIntervalMinutes',
-  'caldav.authType',
-  'caldav.googleClientId',
-  'caldav.googleClientSecret',
-  'caldav.oauthTokens',
 ])
 
 // Legacy flat settings interface for backward compatibility

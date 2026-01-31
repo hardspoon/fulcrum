@@ -6,14 +6,157 @@ import type { ToolRegistrar } from './types'
 import { formatSuccess, handleToolError } from '../utils'
 
 export const registerCaldavTools: ToolRegistrar = (server, client) => {
-  // list_calendars
+  // ==========================================
+  // Account tools
+  // ==========================================
+
   server.tool(
-    'list_calendars',
-    'List all CalDAV calendars synced from the configured server.',
+    'list_caldav_accounts',
+    'List all CalDAV accounts configured for calendar sync.',
     {},
     async () => {
       try {
-        const calendars = await client.listCalendars()
+        const accounts = await client.listCaldavAccounts()
+        return formatSuccess(accounts)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+
+  server.tool(
+    'create_caldav_account',
+    'Create a new CalDAV account with basic authentication.',
+    {
+      name: z.string().describe('Display name for the account'),
+      serverUrl: z.string().describe('CalDAV server URL'),
+      username: z.string().describe('Username for authentication'),
+      password: z.string().describe('Password for authentication'),
+      syncIntervalMinutes: z.optional(z.number()).describe('Sync interval in minutes (default: 15)'),
+    },
+    async (input) => {
+      try {
+        const account = await client.createCaldavAccount(input)
+        return formatSuccess(account)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+
+  server.tool(
+    'delete_caldav_account',
+    'Delete a CalDAV account and all its calendars and events.',
+    {
+      id: z.string().describe('Account ID to delete'),
+    },
+    async ({ id }) => {
+      try {
+        const result = await client.deleteCaldavAccount(id)
+        return formatSuccess(result)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+
+  server.tool(
+    'sync_caldav_account',
+    'Trigger a manual sync for a specific CalDAV account.',
+    {
+      id: z.string().describe('Account ID to sync'),
+    },
+    async ({ id }) => {
+      try {
+        const result = await client.syncCaldavAccount(id)
+        return formatSuccess(result)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+
+  // ==========================================
+  // Copy rule tools
+  // ==========================================
+
+  server.tool(
+    'list_caldav_copy_rules',
+    'List all CalDAV copy rules for one-way event replication between calendars.',
+    {},
+    async () => {
+      try {
+        const rules = await client.listCaldavCopyRules()
+        return formatSuccess(rules)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+
+  server.tool(
+    'create_caldav_copy_rule',
+    'Create a copy rule to replicate events from one calendar to another.',
+    {
+      sourceCalendarId: z.string().describe('Source calendar ID'),
+      destCalendarId: z.string().describe('Destination calendar ID'),
+      name: z.optional(z.string()).describe('Optional label for the rule'),
+    },
+    async (input) => {
+      try {
+        const rule = await client.createCaldavCopyRule(input)
+        return formatSuccess(rule)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+
+  server.tool(
+    'delete_caldav_copy_rule',
+    'Delete a CalDAV copy rule.',
+    {
+      id: z.string().describe('Copy rule ID to delete'),
+    },
+    async ({ id }) => {
+      try {
+        const result = await client.deleteCaldavCopyRule(id)
+        return formatSuccess(result)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+
+  server.tool(
+    'execute_caldav_copy_rule',
+    'Manually execute a copy rule to replicate events now.',
+    {
+      id: z.string().describe('Copy rule ID to execute'),
+    },
+    async ({ id }) => {
+      try {
+        const result = await client.executeCaldavCopyRule(id)
+        return formatSuccess(result)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+
+  // ==========================================
+  // Calendar tools (existing)
+  // ==========================================
+
+  server.tool(
+    'list_calendars',
+    'List all CalDAV calendars synced from the configured server.',
+    {
+      accountId: z.optional(z.string()).describe('Filter by account ID'),
+    },
+    async ({ accountId }) => {
+      try {
+        const calendars = await client.listCalendars(accountId)
         return formatSuccess(calendars)
       } catch (err) {
         return handleToolError(err)

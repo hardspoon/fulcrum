@@ -130,14 +130,17 @@ describe('CalDAV Routes', () => {
       expect(body.error).toContain('Client ID not configured')
     })
 
-    test('returns auth URL when Google is configured', async () => {
-      const { put, get } = createTestApp()
+    test('returns auth URL when Google account is configured', async () => {
+      const { post, get } = createTestApp()
 
-      // Configure Google client ID first
-      await put('/api/config/caldav.googleClientId', { value: 'test-client-id.apps.googleusercontent.com' })
-      await put('/api/config/caldav.googleClientSecret', { value: 'test-secret' })
+      // Create a Google OAuth account first
+      const createRes = await post('/api/caldav/configure-google', {
+        googleClientId: 'test-client-id.apps.googleusercontent.com',
+        googleClientSecret: 'test-secret',
+      })
+      const { accountId } = await createRes.json()
 
-      const res = await get('/api/caldav/oauth/authorize')
+      const res = await get(`/api/caldav/accounts/${accountId}/oauth/authorize`)
       const body = await res.json()
 
       expect(res.status).toBe(200)
@@ -238,30 +241,28 @@ describe('CalDAV Routes', () => {
   })
 
   describe('PATCH /api/caldav/events/:id', () => {
-    test('returns 500 when not connected', async () => {
+    test('returns 404 for nonexistent event', async () => {
       const { patch } = createTestApp()
       const res = await patch('/api/caldav/events/nonexistent-id', {
         summary: 'Updated',
       })
       const body = await res.json()
 
-      // ensureConnected() throws before event lookup since DAV client is null
-      expect(res.status).toBe(500)
-      expect(body.error).toContain('not connected')
+      expect(res.status).toBe(404)
+      expect(body.error).toContain('not found')
     })
   })
 
   describe('DELETE /api/caldav/events/:id', () => {
-    test('returns 500 when not connected', async () => {
+    test('returns 404 for nonexistent event', async () => {
       const { app } = createTestApp()
       const res = await app.request('http://localhost/api/caldav/events/nonexistent-id', {
         method: 'DELETE',
       })
       const body = await res.json()
 
-      // ensureConnected() throws before event lookup since DAV client is null
-      expect(res.status).toBe(500)
-      expect(body.error).toContain('not connected')
+      expect(res.status).toBe(404)
+      expect(body.error).toContain('not found')
     })
   })
 
