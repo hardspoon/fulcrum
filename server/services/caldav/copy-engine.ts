@@ -83,6 +83,18 @@ export async function executeSingleRule(
     .where(eq(caldavEvents.calendarId, rule.sourceCalendarId))
     .all()
 
+  // Get ALL copied destination event IDs (across all rules) to prevent circular copying
+  // With bidirectional rules (A→B and B→A), copied events in the destination would
+  // otherwise be treated as source events by the reverse rule, causing duplication.
+  const allCopiedDestIds = new Set(
+    db.select({ destEventId: caldavCopiedEvents.destEventId })
+      .from(caldavCopiedEvents)
+      .all()
+      .map(r => r.destEventId)
+  )
+
+  const filteredSourceEvents = sourceEvents.filter(e => !allCopiedDestIds.has(e.id))
+
   // Get existing copies for this rule
   const existingCopies = db
     .select()
@@ -96,7 +108,7 @@ export async function executeSingleRule(
   let updated = 0
   const now = new Date().toISOString()
 
-  for (const sourceEvent of sourceEvents) {
+  for (const sourceEvent of filteredSourceEvents) {
     const existingCopy = copiedBySourceId.get(sourceEvent.id)
 
     if (!existingCopy) {
