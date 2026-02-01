@@ -207,11 +207,20 @@ function KanbanBoardInner({ projectFilter, searchQuery, tagsFilter, selectedTask
         .sort((a, b) => b.score - a.score)
         .map(({ task }) => task)
     } else {
-      // Default sort: most recently updated first
-      filtered = [...filtered].sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      )
+      // Default sort: due date first (soonest first), then most recently updated
+      filtered = [...filtered].sort((a, b) => {
+        const aDue = a.dueDate ? new Date(a.dueDate).getTime() : null
+        const bDue = b.dueDate ? new Date(b.dueDate).getTime() : null
+
+        // Tasks with due dates come before tasks without
+        if (aDue !== null && bDue === null) return -1
+        if (aDue === null && bDue !== null) return 1
+        // Both have due dates: soonest first
+        if (aDue !== null && bDue !== null && aDue !== bDue) return aDue - bDue
+
+        // Fallback: most recently updated first
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      })
     }
     return filtered
   }, [allTasks, projectFilter, searchQuery, tagsFilter, projectRepoIds, projectRepoPaths, selectedProjectRepoIds, selectedProjectRepoPaths])

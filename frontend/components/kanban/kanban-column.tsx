@@ -27,10 +27,20 @@ export function KanbanColumn({ status, tasks, isMobile, blockedTaskIds, blocking
   const ref = useRef<HTMLDivElement>(null)
   const [isOver, setIsOver] = useState(false)
 
-  // Sort by most recently updated first
-  const sortedTasks = [...tasks].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  )
+  // Sort by due date first (soonest first), then by most recently updated
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const aDue = a.dueDate ? new Date(a.dueDate).getTime() : null
+    const bDue = b.dueDate ? new Date(b.dueDate).getTime() : null
+
+    // Tasks with due dates come before tasks without
+    if (aDue !== null && bDue === null) return -1
+    if (aDue === null && bDue !== null) return 1
+    // Both have due dates: soonest first
+    if (aDue !== null && bDue !== null && aDue !== bDue) return aDue - bDue
+
+    // Fallback: most recently updated first
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  })
 
   useEffect(() => {
     const el = ref.current
