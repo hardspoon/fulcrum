@@ -396,6 +396,7 @@ export async function configureCaldav(config: {
 }
 
 export async function configureGoogleOAuth(config: {
+  name?: string
   googleClientId: string
   googleClientSecret: string
   syncIntervalMinutes?: number
@@ -413,7 +414,7 @@ export async function configureGoogleOAuth(config: {
   } else {
     // Create new Google account
     const account = await createAccount({
-      name: 'Google Calendar',
+      name: config.name || 'Google Calendar',
       serverUrl: 'https://apidata.googleusercontent.com/caldav/v2/',
       authType: 'google-oauth',
       googleClientId: config.googleClientId,

@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useTasks } from '@/hooks/use-tasks'
 import { useProjects } from '@/hooks/use-projects'
@@ -32,9 +32,10 @@ interface TaskCalendarProps {
   className?: string
   projectFilter?: string | null
   tagsFilter?: string[]
+  sidebar?: (gridHeight: number | undefined) => React.ReactNode
 }
 
-export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalendarProps) {
+export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: TaskCalendarProps) {
   const navigate = useNavigate()
   const { data: tasks = [] } = useTasks()
   const { data: projects = [] } = useProjects()
@@ -43,6 +44,20 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<CaldavEvent | null>(null)
   const [eventModalOpen, setEventModalOpen] = useState(false)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [gridHeight, setGridHeight] = useState<number | undefined>(undefined)
+
+  // Measure grid height to constrain sidebar
+  useEffect(() => {
+    if (!gridRef.current) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setGridHeight(entry.contentRect.height)
+      }
+    })
+    observer.observe(gridRef.current)
+    return () => observer.disconnect()
+  }, [])
 
   // Build sets of repository IDs and paths that belong to projects
   const { projectRepoIds, projectRepoPaths } = useMemo(() => {
@@ -256,9 +271,11 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
         </div>
       </div>
 
-      {/* Calendar Grid */}
+      {/* Calendar Grid + Sidebar */}
       <div className="flex-1 overflow-auto p-4">
-        <div className="grid grid-cols-7 gap-px rounded-lg border bg-border">
+      <div className="flex gap-4">
+      <div className="flex-1">
+        <div ref={gridRef} className="grid grid-cols-7 gap-px rounded-lg border bg-border">
           {/* Weekday headers */}
           {WEEKDAYS.map((day) => (
             <div
@@ -358,6 +375,9 @@ export function TaskCalendar({ className, projectFilter, tagsFilter }: TaskCalen
             )
           })}
         </div>
+      </div>
+      {sidebar?.(gridHeight)}
+      </div>
       </div>
 
       {/* Non-worktree task modal */}

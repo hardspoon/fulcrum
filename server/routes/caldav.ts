@@ -123,6 +123,7 @@ caldavRoutes.post('/accounts/google', async (c) => {
 
   try {
     const accountId = await configureGoogleOAuth({
+      name: body.name,
       googleClientId: body.googleClientId,
       googleClientSecret: body.googleClientSecret,
       syncIntervalMinutes: body.syncIntervalMinutes,

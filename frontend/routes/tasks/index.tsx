@@ -3,15 +3,14 @@ import { useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { KanbanBoard } from '@/components/kanban/kanban-board'
 import { TaskDependencyGraph } from '@/components/graph/task-dependency-graph'
-import { TaskCalendar } from '@/components/calendar/task-calendar'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Search01Icon, GridViewIcon, HierarchyIcon, Calendar03Icon } from '@hugeicons/core-free-icons'
+import { Search01Icon, GridViewIcon, HierarchyIcon } from '@hugeicons/core-free-icons'
 import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { TagsFilter } from '@/components/tasks/tags-filter'
 import { ProjectFilter } from '@/components/tasks/project-filter'
 
-type ViewMode = 'kanban' | 'graph' | 'calendar'
+type ViewMode = 'kanban' | 'graph'
 
 interface TasksSearch {
   project?: string // 'inbox' for tasks without project, or project ID
@@ -25,7 +24,7 @@ export const Route = createFileRoute('/tasks/')({
   validateSearch: (search: Record<string, unknown>): TasksSearch => ({
     project: typeof search.project === 'string' ? search.project : undefined,
     tags: typeof search.tags === 'string' ? search.tags : undefined,
-    view: search.view === 'graph' ? 'graph' : search.view === 'calendar' ? 'calendar' : undefined,
+    view: search.view === 'graph' ? 'graph' : undefined,
     task: typeof search.task === 'string' ? search.task : undefined,
   }),
 })
@@ -107,9 +106,6 @@ function TasksView() {
           <ToggleGroupItem value="kanban" aria-label="Kanban view">
             <HugeiconsIcon icon={GridViewIcon} size={14} strokeWidth={2} />
           </ToggleGroupItem>
-          <ToggleGroupItem value="calendar" aria-label="Calendar view">
-            <HugeiconsIcon icon={Calendar03Icon} size={14} strokeWidth={2} />
-          </ToggleGroupItem>
           <ToggleGroupItem value="graph" aria-label="Dependency graph">
             <HugeiconsIcon icon={HierarchyIcon} size={14} strokeWidth={2} />
           </ToggleGroupItem>
@@ -119,7 +115,6 @@ function TasksView() {
         {viewMode === 'kanban' && (
           <KanbanBoard projectFilter={projectFilter ?? null} searchQuery={searchQuery} tagsFilter={tagsFilter} selectedTaskId={selectedTaskId} />
         )}
-        {viewMode === 'calendar' && <TaskCalendar projectFilter={projectFilter ?? null} tagsFilter={tagsFilter} />}
         {viewMode === 'graph' && <TaskDependencyGraph projectFilter={projectFilter ?? null} tagsFilter={tagsFilter} />}
       </div>
     </div>
