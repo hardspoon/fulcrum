@@ -33,6 +33,7 @@ import {
   useGetAccountGoogleAuthUrl,
   useEnableCaldav,
   useDisableCaldav,
+  useUpdateCaldavAccount,
 } from '@/hooks/use-caldav'
 import { usePort } from '@/hooks/use-config'
 
@@ -51,11 +52,14 @@ export function CaldavAccounts({ isLoading = false }: CaldavAccountsProps) {
   const disableAccount = useDisableCaldavAccount()
   const syncAccount = useSyncCaldavAccount()
   const getAccountAuthUrl = useGetAccountGoogleAuthUrl()
+  const updateAccount = useUpdateCaldavAccount()
   const enableCaldav = useEnableCaldav()
   const disableCaldav = useDisableCaldav()
   const backendPort = usePort()
 
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
+  const [editedName, setEditedName] = useState('')
   const [activeTab, setActiveTab] = useState<string>('google')
 
   // Basic auth fields
@@ -228,6 +232,7 @@ export function CaldavAccounts({ isLoading = false }: CaldavAccountsProps) {
     createAccount.isPending ||
     createGoogleAccount.isPending ||
     getAccountAuthUrl.isPending ||
+    updateAccount.isPending ||
     deleteAccount.isPending ||
     enableAccount.isPending ||
     disableAccount.isPending ||
@@ -287,7 +292,44 @@ export function CaldavAccounts({ isLoading = false }: CaldavAccountsProps) {
                 {/* Account info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium truncate">{acct.name}</span>
+                    {editingAccountId === acct.id ? (
+                      <Input
+                        autoFocus
+                        value={editedName}
+                        onChange={(e) => setEditedName(e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur()
+                          } else if (e.key === 'Escape') {
+                            setEditingAccountId(null)
+                            setEditedName('')
+                          }
+                        }}
+                        onBlur={() => {
+                          const trimmed = editedName.trim()
+                          if (trimmed && trimmed !== acct.name) {
+                            updateAccount.mutate(
+                              { id: acct.id, name: trimmed },
+                              { onSuccess: () => refetchStatus() },
+                            )
+                          }
+                          setEditingAccountId(null)
+                          setEditedName('')
+                        }}
+                        className="h-6 w-48 text-sm font-medium px-1.5 py-0"
+                      />
+                    ) : (
+                      <span
+                        className="text-sm font-medium truncate cursor-pointer hover:underline"
+                        onClick={() => {
+                          setEditingAccountId(acct.id)
+                          setEditedName(acct.name)
+                        }}
+                      >
+                        {acct.name}
+                      </span>
+                    )}
                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
                       {authType === 'google-oauth' ? 'Google' : 'Basic'}
                     </span>
