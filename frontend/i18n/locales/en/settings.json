@@ -1,5 +1,11 @@
 {
   "title": "Settings",
+  "tabs": {
+    "general": "General",
+    "ai": "AI & Dev",
+    "messaging": "Messaging",
+    "calendar": "Calendar"
+  },
   "sections": {
     "server": "Server",
     "serverDefaults": "Server & Defaults",

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,7 +20,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Folder01Icon, RotateLeft01Icon, Tick02Icon, TestTube01Icon, Loading03Icon, Upload04Icon, Delete02Icon, ArrowDown01Icon, Alert02Icon, ArrowUp02Icon, RefreshIcon } from '@hugeicons/core-free-icons'
+import { Folder01Icon, RotateLeft01Icon, Tick02Icon, TestTube01Icon, Loading03Icon, Upload04Icon, Delete02Icon, ArrowDown01Icon, Alert02Icon, ArrowUp02Icon, RefreshIcon, Settings05Icon, AiInnovation01Icon, MessageMultiple01Icon, Calendar03Icon } from '@hugeicons/core-free-icons'
 import { toast } from 'sonner'
 import {
   usePort,
@@ -91,8 +92,15 @@ import { useLanguageSync } from '@/hooks/use-language-sync'
 import { useThemeSync } from '@/hooks/use-theme-sync'
 import { useOpencodeModels } from '@/hooks/use-opencode-models'
 
+type SettingsTab = 'general' | 'ai' | 'messaging' | 'calendar'
+
+const VALID_TABS: SettingsTab[] = ['general', 'ai', 'messaging', 'calendar']
+
 export const Route = createFileRoute('/settings/')({
   component: SettingsPage,
+  validateSearch: (search: Record<string, unknown>): { tab?: SettingsTab } => ({
+    tab: VALID_TABS.includes(search.tab as SettingsTab) ? (search.tab as SettingsTab) : undefined,
+  }),
 })
 
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -109,6 +117,18 @@ function SettingsSection({ title, children }: { title: string; children: React.R
 function SettingsPage() {
   const { t } = useTranslation('settings')
   const { t: tc } = useTranslation('common')
+  const { tab: urlTab } = Route.useSearch()
+  const navigate = Route.useNavigate()
+
+  const activeTab = urlTab || 'general'
+
+  const handleTabChange = (newTab: string) => {
+    const validTab = newTab as SettingsTab
+    navigate({
+      search: (prev) => ({ ...prev, tab: validTab === 'general' ? undefined : validTab }),
+      replace: true,
+    })
+  }
   const { data: port, isLoading: portLoading } = usePort()
   const { data: defaultGitReposDir, isLoading: reposDirLoading } = useDefaultGitReposDir()
   const { data: editorApp, isLoading: editorAppLoading } = useEditorApp()
@@ -969,158 +989,257 @@ function SettingsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="film-grain relative flex shrink-0 items-center justify-between border-b border-border px-4 py-2" style={{ background: 'var(--gradient-header)' }}>
-        <h1 className="text-sm font-medium">{t('title')}</h1>
-        <div className="flex items-center gap-2">
-          {version && <span className="text-xs font-mono text-muted-foreground">v{version}</span>}
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-            onClick={() => refreshVersionCheck.mutate()}
-            disabled={versionCheckLoading || refreshVersionCheck.isPending}
-            title={t('version.refresh')}
-            aria-label={t('version.refresh')}
-          >
-            <HugeiconsIcon 
-              icon={RefreshIcon} 
-              size={14} 
-              strokeWidth={2} 
-              className={refreshVersionCheck.isPending ? "animate-spin" : ""}
-            />
-          </Button>
-          {versionCheckLoading && (
-            <div className="flex h-6 items-center gap-1.5 rounded-full bg-muted/50 px-2.5 text-xs text-muted-foreground">
-              <HugeiconsIcon icon={Loading03Icon} size={12} strokeWidth={2} className="animate-spin" />
-              <span>{t('version.checkingForUpdates')}</span>
-            </div>
-          )}
-
-          {versionCheck?.updateAvailable && versionCheck.latestVersion && (
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-medium text-primary border border-primary/20">
-                <HugeiconsIcon icon={ArrowUp02Icon} size={12} strokeWidth={2.5} />
-                {t('version.updateAvailable', { version: versionCheck.latestVersion })}
-              </span>
+      <div className="flex-1 overflow-hidden">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex h-full flex-col">
+          <div className="film-grain relative flex shrink-0 items-center border-b border-border px-4" style={{ background: 'var(--gradient-header)' }}>
+            <TabsList className="justify-start gap-1 bg-transparent rounded-none h-10">
+              <TabsTrigger value="general" className="gap-1.5 data-[state=active]:bg-muted">
+                <HugeiconsIcon icon={Settings05Icon} size={14} strokeWidth={2} />
+                <span className="max-sm:hidden">{t('tabs.general')}</span>
+              </TabsTrigger>
+              <TabsTrigger value="ai" className="gap-1.5 data-[state=active]:bg-muted">
+                <HugeiconsIcon icon={AiInnovation01Icon} size={14} strokeWidth={2} />
+                <span className="max-sm:hidden">{t('tabs.ai')}</span>
+              </TabsTrigger>
+              <TabsTrigger value="messaging" className="gap-1.5 data-[state=active]:bg-muted">
+                <HugeiconsIcon icon={MessageMultiple01Icon} size={14} strokeWidth={2} />
+                <span className="max-sm:hidden">{t('tabs.messaging')}</span>
+              </TabsTrigger>
+              <TabsTrigger value="calendar" className="gap-1.5 data-[state=active]:bg-muted">
+                <HugeiconsIcon icon={Calendar03Icon} size={14} strokeWidth={2} />
+                <span className="max-sm:hidden">{t('tabs.calendar')}</span>
+              </TabsTrigger>
+            </TabsList>
+            <div className="ml-auto flex items-center gap-2">
+              {version && <span className="text-xs font-mono text-muted-foreground">v{version}</span>}
               <Button
-                size="sm"
-                className="h-6 gap-1.5 px-2.5 text-xs"
-                disabled={triggerUpdate.isPending || triggerUpdate.isSuccess}
-                onClick={handleUpdate}
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={() => refreshVersionCheck.mutate()}
+                disabled={versionCheckLoading || refreshVersionCheck.isPending}
+                title={t('version.refresh')}
+                aria-label={t('version.refresh')}
               >
-                {triggerUpdate.isPending ? (
-                  <>
-                    <HugeiconsIcon icon={Loading03Icon} size={12} strokeWidth={2} className="animate-spin" />
-                    {t('version.updating')}
-                  </>
-                ) : (
-                  <>
-                    <HugeiconsIcon icon={ArrowUp02Icon} size={12} strokeWidth={2} />
-                    {t('version.update')}
-                  </>
-                )}
+                <HugeiconsIcon
+                  icon={RefreshIcon}
+                  size={14}
+                  strokeWidth={2}
+                  className={refreshVersionCheck.isPending ? "animate-spin" : ""}
+                />
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 gap-1.5 px-2.5 text-xs"
-                onClick={() => {
-                  if (versionCheck.releaseUrl) {
-                    window.open(versionCheck.releaseUrl, '_blank')
-                  }
-                }}
-              >
-                {t('version.viewRelease')}
-              </Button>
-            </div>
-          )}
-
-          {!versionCheckLoading && versionCheck && !versionCheck.updateAvailable && (
-            <span className="flex h-6 items-center gap-1.5 rounded-full bg-green-500/10 px-2.5 text-xs font-medium text-green-600 dark:text-green-400 border border-green-500/20">
-              <HugeiconsIcon icon={Tick02Icon} size={12} strokeWidth={2.5} />
-              {t('version.upToDate')}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-auto p-6">
-        <div className="mx-auto max-w-5xl space-y-4">
-              {/* Server */}
-              <SettingsSection title={t('sections.server')}>
-                <div className="space-y-1">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">{t('fields.port.label')}</label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={65535}
-                        value={localPort}
-                        onChange={(e) => setLocalPort(e.target.value)}
-                        placeholder="7777"
-                        disabled={isLoading}
-                        className="w-24 font-mono text-sm"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={handleResetPort}
-                        disabled={isLoading || resetConfig.isPending}
-                        title={tc('buttons.reset')}
-                      >
-                        <HugeiconsIcon icon={RotateLeft01Icon} size={14} strokeWidth={2} />
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                    {t('fields.port.description')}
-                  </p>
+              {versionCheckLoading && (
+                <div className="flex h-6 items-center gap-1.5 rounded-full bg-muted/50 px-2.5 text-xs text-muted-foreground">
+                  <HugeiconsIcon icon={Loading03Icon} size={12} strokeWidth={2} className="animate-spin" />
+                  <span>{t('version.checkingForUpdates')}</span>
                 </div>
-              </SettingsSection>
+              )}
+              {versionCheck?.updateAvailable && versionCheck.latestVersion && (
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-medium text-primary border border-primary/20">
+                    <HugeiconsIcon icon={ArrowUp02Icon} size={12} strokeWidth={2.5} />
+                    {t('version.updateAvailable', { version: versionCheck.latestVersion })}
+                  </span>
+                  <Button
+                    size="sm"
+                    className="h-6 gap-1.5 px-2.5 text-xs"
+                    disabled={triggerUpdate.isPending || triggerUpdate.isSuccess}
+                    onClick={handleUpdate}
+                  >
+                    {triggerUpdate.isPending ? (
+                      <>
+                        <HugeiconsIcon icon={Loading03Icon} size={12} strokeWidth={2} className="animate-spin" />
+                        {t('version.updating')}
+                      </>
+                    ) : (
+                      <>
+                        <HugeiconsIcon icon={ArrowUp02Icon} size={12} strokeWidth={2} />
+                        {t('version.update')}
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 gap-1.5 px-2.5 text-xs"
+                    onClick={() => {
+                      if (versionCheck.releaseUrl) {
+                        window.open(versionCheck.releaseUrl, '_blank')
+                      }
+                    }}
+                  >
+                    {t('version.viewRelease')}
+                  </Button>
+                </div>
+              )}
+              {!versionCheckLoading && versionCheck && !versionCheck.updateAvailable && (
+                <span className="flex h-6 items-center gap-1.5 rounded-full bg-green-500/10 px-2.5 text-xs font-medium text-green-600 dark:text-green-400 border border-green-500/20">
+                  <HugeiconsIcon icon={Tick02Icon} size={12} strokeWidth={2.5} />
+                  {t('version.upToDate')}
+                </span>
+              )}
+            </div>
+          </div>
 
-              {/* Paths */}
-              <SettingsSection title={t('sections.paths')}>
-                <div className="space-y-1">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                      {t('fields.gitReposDir.label')}
-                    </label>
-                    <div className="flex flex-1 items-center gap-2">
-                      <Input
-                        value={localReposDir}
-                        onChange={(e) => setLocalReposDir(e.target.value)}
-                        placeholder="~/projects"
-                        disabled={isLoading}
-                        className="flex-1 font-mono text-sm"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => setReposDirBrowserOpen(true)}
-                        disabled={isLoading}
-                        title={tc('buttons.browse')}
+          <TabsContent value="general" className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl space-y-4">
+
+              {/* Appearance */}
+              <SettingsSection title={t('sections.appearance')}>
+                <div className="space-y-4">
+                  {/* Language */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('fields.language.label')}
+                      </label>
+                      <Select
+                        value={savedLanguage ?? 'auto'}
+                        onValueChange={(v) => changeLanguage(v === 'auto' ? null : (v as 'en' | 'zh'))}
                       >
-                        <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={2} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={handleResetReposDir}
-                        disabled={isLoading || resetConfig.isPending}
-                        title={tc('buttons.reset')}
-                      >
-                        <HugeiconsIcon icon={RotateLeft01Icon} size={14} strokeWidth={2} />
-                      </Button>
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">{t('fields.language.options.auto')}</SelectItem>
+                          <SelectItem value="en">{t('fields.language.options.en')}</SelectItem>
+                          <SelectItem value="zh">{t('fields.language.options.zh')}</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.language.description')}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                    {t('fields.gitReposDir.description')}
-                  </p>
+
+                  {/* Theme */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('fields.theme.label')}
+                      </label>
+                      <Select
+                        value={theme ?? 'system'}
+                        onValueChange={(v) => changeTheme(v as 'system' | 'light' | 'dark')}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="system">{t('fields.theme.options.system')}</SelectItem>
+                          <SelectItem value="light">{t('fields.theme.options.light')}</SelectItem>
+                          <SelectItem value="dark">{t('fields.theme.options.dark')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.theme.description')}
+                    </p>
+                  </div>
+
+                  {/* Timezone */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('fields.timezone.label')}
+                      </label>
+                      <Select
+                        value={localTimezone ?? 'auto'}
+                        onValueChange={(v) => setLocalTimezone(v === 'auto' ? null : v)}
+                      >
+                        <SelectTrigger className="w-56">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">{t('fields.timezone.options.auto')}</SelectItem>
+                          <SelectItem value="America/New_York">America/New_York (EST/EDT)</SelectItem>
+                          <SelectItem value="America/Chicago">America/Chicago (CST/CDT)</SelectItem>
+                          <SelectItem value="America/Denver">America/Denver (MST/MDT)</SelectItem>
+                          <SelectItem value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</SelectItem>
+                          <SelectItem value="America/Anchorage">America/Anchorage (AKST/AKDT)</SelectItem>
+                          <SelectItem value="Pacific/Honolulu">Pacific/Honolulu (HST)</SelectItem>
+                          <SelectItem value="Europe/London">Europe/London (GMT/BST)</SelectItem>
+                          <SelectItem value="Europe/Paris">Europe/Paris (CET/CEST)</SelectItem>
+                          <SelectItem value="Europe/Berlin">Europe/Berlin (CET/CEST)</SelectItem>
+                          <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
+                          <SelectItem value="Asia/Shanghai">Asia/Shanghai (CST)</SelectItem>
+                          <SelectItem value="Asia/Singapore">Asia/Singapore (SGT)</SelectItem>
+                          <SelectItem value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</SelectItem>
+                          <SelectItem value="Pacific/Auckland">Pacific/Auckland (NZST/NZDT)</SelectItem>
+                          <SelectItem value="UTC">UTC</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.timezone.description')}
+                    </p>
+                  </div>
+
+                  {/* Sync Claude Code Theme */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('fields.syncClaudeTheme.label')}
+                      </label>
+                      <Switch
+                        checked={localSyncClaudeCode}
+                        onCheckedChange={setLocalSyncClaudeCode}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.syncClaudeTheme.description')}
+                    </p>
+                  </div>
+
+                  {/* Claude Code Theme Options (shown when sync is enabled) */}
+                  {localSyncClaudeCode && (
+                    <div className="space-y-3 border-t border-border pt-4 sm:ml-32 sm:pl-2">
+                      {/* Light Theme */}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label className="text-sm text-muted-foreground sm:w-24 sm:shrink-0">
+                          {t('fields.claudeCodeTheme.light')}
+                        </label>
+                        <Select
+                          value={localClaudeCodeLightTheme}
+                          onValueChange={(v) => setLocalClaudeCodeLightTheme(v as ClaudeCodeTheme)}
+                        >
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CLAUDE_CODE_THEMES.filter(thm => thm.startsWith('light')).map((thm) => (
+                              <SelectItem key={thm} value={thm}>
+                                {t(`fields.claudeCodeTheme.options.${thm}`)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Dark Theme */}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label className="text-sm text-muted-foreground sm:w-24 sm:shrink-0">
+                          {t('fields.claudeCodeTheme.dark')}
+                        </label>
+                        <Select
+                          value={localClaudeCodeDarkTheme}
+                          onValueChange={(v) => setLocalClaudeCodeDarkTheme(v as ClaudeCodeTheme)}
+                        >
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CLAUDE_CODE_THEMES.filter(thm => thm.startsWith('dark')).map((thm) => (
+                              <SelectItem key={thm} value={thm}>
+                                {t(`fields.claudeCodeTheme.options.${thm}`)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </SettingsSection>
 
@@ -1338,102 +1457,206 @@ function SettingsPage() {
                 </SettingsSection>
               </div>
 
-              {/* z.ai */}
-              <SettingsSection title={t('sections.zai')}>
+              {/* Task Defaults */}
+              <SettingsSection title={t('sections.tasks')}>
                 <div className="space-y-4">
-                  {/* Enable toggle */}
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
-                      {t('fields.zai.enable')}
-                    </label>
-                    <Switch
-                      checked={zAiEnabled}
-                      onCheckedChange={setZAiEnabled}
-                      disabled={isLoading}
-                    />
+                  {/* Default task type */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('fields.tasks.defaultType.label')}
+                      </label>
+                      <Select
+                        value={localDefaultTaskType}
+                        onValueChange={(v) => setLocalDefaultTaskType(v as TaskType)}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="worktree">{t('fields.tasks.defaultType.options.worktree')}</SelectItem>
+                          <SelectItem value="non-worktree">{t('fields.tasks.defaultType.options.nonWorktree')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.tasks.defaultType.description')}
+                    </p>
                   </div>
 
-                  {/* Settings (shown when enabled) */}
-                  {zAiEnabled && (
-                    <>
-                      {/* API Key */}
-                      <div className="space-y-1">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
-                            {t('fields.zai.apiKey')}
-                          </label>
-                          <div className="relative flex-1">
-                            <Input
-                              type="password"
-                              value={zAiApiKey}
-                              onChange={(e) => setZAiApiKey(e.target.value)}
-                              placeholder="zai_..."
-                              disabled={isLoading}
-                              className="flex-1 pr-8 font-mono text-sm"
-                            />
-                            {!!zAiSettings?.apiKey && (
-                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
-                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground sm:ml-20 sm:pl-2">
-                          {t('fields.zai.description')}
-                        </p>
-                      </div>
-
-                      {/* Model Mappings */}
-                      <div className="space-y-3 border-t border-border pt-4">
-                        <p className="text-xs font-medium text-muted-foreground">{t('fields.zai.modelMappings')}</p>
-
-                        {/* Haiku Model */}
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
-                            {t('fields.zai.haiku')}
-                          </label>
-                          <Input
-                            value={zAiHaikuModel}
-                            onChange={(e) => setZAiHaikuModel(e.target.value)}
-                            placeholder="glm-4.5-air"
-                            disabled={isLoading}
-                            className="flex-1 font-mono text-sm"
-                          />
-                        </div>
-
-                        {/* Sonnet Model */}
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
-                            {t('fields.zai.sonnet')}
-                          </label>
-                          <Input
-                            value={zAiSonnetModel}
-                            onChange={(e) => setZAiSonnetModel(e.target.value)}
-                            placeholder="glm-4.7"
-                            disabled={isLoading}
-                            className="flex-1 font-mono text-sm"
-                          />
-                        </div>
-
-                        {/* Opus Model */}
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
-                            {t('fields.zai.opus')}
-                          </label>
-                          <Input
-                            value={zAiOpusModel}
-                            onChange={(e) => setZAiOpusModel(e.target.value)}
-                            placeholder="glm-4.7"
-                            disabled={isLoading}
-                            className="flex-1 font-mono text-sm"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  {/* Start worktree tasks immediately */}
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                        {t('fields.tasks.startImmediately.label')}
+                      </label>
+                      <Switch
+                        checked={localStartWorktreeTasksImmediately}
+                        onCheckedChange={setLocalStartWorktreeTasksImmediately}
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.tasks.startImmediately.description')}
+                    </p>
+                  </div>
                 </div>
               </SettingsSection>
 
+              {/* Server */}
+              <SettingsSection title={t('sections.server')}>
+                <div className="space-y-1">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">{t('fields.port.label')}</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={65535}
+                        value={localPort}
+                        onChange={(e) => setLocalPort(e.target.value)}
+                        placeholder="7777"
+                        disabled={isLoading}
+                        className="w-24 font-mono text-sm"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={handleResetPort}
+                        disabled={isLoading || resetConfig.isPending}
+                        title={tc('buttons.reset')}
+                      >
+                        <HugeiconsIcon icon={RotateLeft01Icon} size={14} strokeWidth={2} />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                    {t('fields.port.description')}
+                  </p>
+                </div>
+              </SettingsSection>
+
+              {/* Paths */}
+              <SettingsSection title={t('sections.paths')}>
+                <div className="space-y-1">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                      {t('fields.gitReposDir.label')}
+                    </label>
+                    <div className="flex flex-1 items-center gap-2">
+                      <Input
+                        value={localReposDir}
+                        onChange={(e) => setLocalReposDir(e.target.value)}
+                        placeholder="~/projects"
+                        disabled={isLoading}
+                        className="flex-1 font-mono text-sm"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => setReposDirBrowserOpen(true)}
+                        disabled={isLoading}
+                        title={tc('buttons.browse')}
+                      >
+                        <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={2} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={handleResetReposDir}
+                        disabled={isLoading || resetConfig.isPending}
+                        title={tc('buttons.reset')}
+                      >
+                        <HugeiconsIcon icon={RotateLeft01Icon} size={14} strokeWidth={2} />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                    {t('fields.gitReposDir.description')}
+                  </p>
+                </div>
+              </SettingsSection>
+
+              {/* Developer (only visible in developer mode) */}
+              {developerMode?.enabled && (
+                <SettingsSection title={t('sections.developer')}>
+                  <div className="space-y-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm text-muted-foreground">
+                          {t('developer.restartDescription')}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Save current server start time to detect actual restart
+                          const originalStartTime = developerMode?.startedAt
+                          setIsRestarting(true)
+                          restartFulcrum.mutate(undefined, {
+                            onSuccess: () => {
+                              // Poll until server restarts (new startedAt) or timeout
+                              const pollForServer = async () => {
+                                const maxAttempts = 120 // 60 seconds max (build can take a while)
+                                for (let i = 0; i < maxAttempts; i++) {
+                                  await new Promise((r) => setTimeout(r, 500))
+                                  try {
+                                    const res = await fetch('/api/config/developer-mode')
+                                    if (res.ok) {
+                                      const data = await res.json()
+                                      // Only reload if server actually restarted (new start time)
+                                      if (data.startedAt !== originalStartTime) {
+                                        window.location.reload()
+                                        return
+                                      }
+                                      // Same start time means build failed, old instance still running
+                                    }
+                                  } catch {
+                                    // Server not ready yet, keep polling
+                                  }
+                                }
+                                // Timeout - build likely failed, show error
+                                setIsRestarting(false)
+                                toast.error(t('developer.restartFailed'), {
+                                  description: t('developer.checkLogs'),
+                                })
+                              }
+                              pollForServer()
+                            },
+                            onError: (error) => {
+                              setIsRestarting(false)
+                              toast.error(t('developer.restartFailed'), {
+                                description: error.message,
+                              })
+                            },
+                          })
+                        }}
+                        disabled={restartFulcrum.isPending || isRestarting}
+                        className="shrink-0 gap-2"
+                      >
+                        {(restartFulcrum.isPending || isRestarting) && (
+                          <HugeiconsIcon
+                            icon={Loading03Icon}
+                            size={14}
+                            strokeWidth={2}
+                            className="animate-spin"
+                          />
+                        )}
+                        {isRestarting ? t('developer.restarting') : t('developer.restartButton')}
+                      </Button>
+                    </div>
+                  </div>
+                </SettingsSection>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="ai" className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl space-y-4">
               {/* Agent */}
               <SettingsSection title={t('sections.agent')}>
                 <div className="space-y-4">
@@ -1865,52 +2088,106 @@ function SettingsPage() {
                 </div>
               </SettingsSection>
 
-              {/* Task Defaults */}
-              <SettingsSection title={t('sections.tasks')}>
+              {/* z.ai */}
+              <SettingsSection title={t('sections.zai')}>
                 <div className="space-y-4">
-                  {/* Default task type */}
-                  <div className="space-y-1">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                        {t('fields.tasks.defaultType.label')}
-                      </label>
-                      <Select
-                        value={localDefaultTaskType}
-                        onValueChange={(v) => setLocalDefaultTaskType(v as TaskType)}
-                      >
-                        <SelectTrigger className="w-40">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="worktree">{t('fields.tasks.defaultType.options.worktree')}</SelectItem>
-                          <SelectItem value="non-worktree">{t('fields.tasks.defaultType.options.nonWorktree')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                      {t('fields.tasks.defaultType.description')}
-                    </p>
+                  {/* Enable toggle */}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
+                      {t('fields.zai.enable')}
+                    </label>
+                    <Switch
+                      checked={zAiEnabled}
+                      onCheckedChange={setZAiEnabled}
+                      disabled={isLoading}
+                    />
                   </div>
 
-                  {/* Start worktree tasks immediately */}
-                  <div className="space-y-1">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                        {t('fields.tasks.startImmediately.label')}
-                      </label>
-                      <Switch
-                        checked={localStartWorktreeTasksImmediately}
-                        onCheckedChange={setLocalStartWorktreeTasksImmediately}
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                      {t('fields.tasks.startImmediately.description')}
-                    </p>
-                  </div>
+                  {/* Settings (shown when enabled) */}
+                  {zAiEnabled && (
+                    <>
+                      {/* API Key */}
+                      <div className="space-y-1">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
+                            {t('fields.zai.apiKey')}
+                          </label>
+                          <div className="relative flex-1">
+                            <Input
+                              type="password"
+                              value={zAiApiKey}
+                              onChange={(e) => setZAiApiKey(e.target.value)}
+                              placeholder="zai_..."
+                              disabled={isLoading}
+                              className="flex-1 pr-8 font-mono text-sm"
+                            />
+                            {!!zAiSettings?.apiKey && (
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground sm:ml-20 sm:pl-2">
+                          {t('fields.zai.description')}
+                        </p>
+                      </div>
+
+                      {/* Model Mappings */}
+                      <div className="space-y-3 border-t border-border pt-4">
+                        <p className="text-xs font-medium text-muted-foreground">{t('fields.zai.modelMappings')}</p>
+
+                        {/* Haiku Model */}
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
+                            {t('fields.zai.haiku')}
+                          </label>
+                          <Input
+                            value={zAiHaikuModel}
+                            onChange={(e) => setZAiHaikuModel(e.target.value)}
+                            placeholder="glm-4.5-air"
+                            disabled={isLoading}
+                            className="flex-1 font-mono text-sm"
+                          />
+                        </div>
+
+                        {/* Sonnet Model */}
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
+                            {t('fields.zai.sonnet')}
+                          </label>
+                          <Input
+                            value={zAiSonnetModel}
+                            onChange={(e) => setZAiSonnetModel(e.target.value)}
+                            placeholder="glm-4.7"
+                            disabled={isLoading}
+                            className="flex-1 font-mono text-sm"
+                          />
+                        </div>
+
+                        {/* Opus Model */}
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <label className="text-sm text-muted-foreground sm:w-20 sm:shrink-0">
+                            {t('fields.zai.opus')}
+                          </label>
+                          <Input
+                            value={zAiOpusModel}
+                            onChange={(e) => setZAiOpusModel(e.target.value)}
+                            placeholder="glm-4.7"
+                            disabled={isLoading}
+                            className="flex-1 font-mono text-sm"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </SettingsSection>
+            </div>
+          </TabsContent>
 
+          <TabsContent value="messaging" className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl space-y-4">
               {/* Notifications */}
               <SettingsSection title={t('sections.notifications')}>
                 <div className="space-y-4">
@@ -2183,245 +2460,19 @@ function SettingsPage() {
                   <EmailSetup isLoading={isLoading} />
                 </div>
               </SettingsSection>
+            </div>
+          </TabsContent>
 
+          <TabsContent value="calendar" className="flex-1 overflow-auto p-6">
+            <div className="mx-auto max-w-5xl space-y-4">
               {/* CalDAV Calendar */}
               <SettingsSection title={t('sections.caldav')}>
                 <CaldavAccounts isLoading={isLoading} />
                 <CaldavCopyRules isLoading={isLoading} />
               </SettingsSection>
-
-              {/* Appearance */}
-              <SettingsSection title={t('sections.appearance')}>
-                <div className="space-y-4">
-                  {/* Language */}
-                  <div className="space-y-1">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                        {t('fields.language.label')}
-                      </label>
-                      <Select
-                        value={savedLanguage ?? 'auto'}
-                        onValueChange={(v) => changeLanguage(v === 'auto' ? null : (v as 'en' | 'zh'))}
-                      >
-                        <SelectTrigger className="w-40">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto">{t('fields.language.options.auto')}</SelectItem>
-                          <SelectItem value="en">{t('fields.language.options.en')}</SelectItem>
-                          <SelectItem value="zh">{t('fields.language.options.zh')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                      {t('fields.language.description')}
-                    </p>
-                  </div>
-
-                  {/* Theme */}
-                  <div className="space-y-1">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                        {t('fields.theme.label')}
-                      </label>
-                      <Select
-                        value={theme ?? 'system'}
-                        onValueChange={(v) => changeTheme(v as 'system' | 'light' | 'dark')}
-                      >
-                        <SelectTrigger className="w-40">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="system">{t('fields.theme.options.system')}</SelectItem>
-                          <SelectItem value="light">{t('fields.theme.options.light')}</SelectItem>
-                          <SelectItem value="dark">{t('fields.theme.options.dark')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                      {t('fields.theme.description')}
-                    </p>
-                  </div>
-
-                  {/* Timezone */}
-                  <div className="space-y-1">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                        {t('fields.timezone.label')}
-                      </label>
-                      <Select
-                        value={localTimezone ?? 'auto'}
-                        onValueChange={(v) => setLocalTimezone(v === 'auto' ? null : v)}
-                      >
-                        <SelectTrigger className="w-56">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto">{t('fields.timezone.options.auto')}</SelectItem>
-                          <SelectItem value="America/New_York">America/New_York (EST/EDT)</SelectItem>
-                          <SelectItem value="America/Chicago">America/Chicago (CST/CDT)</SelectItem>
-                          <SelectItem value="America/Denver">America/Denver (MST/MDT)</SelectItem>
-                          <SelectItem value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</SelectItem>
-                          <SelectItem value="America/Anchorage">America/Anchorage (AKST/AKDT)</SelectItem>
-                          <SelectItem value="Pacific/Honolulu">Pacific/Honolulu (HST)</SelectItem>
-                          <SelectItem value="Europe/London">Europe/London (GMT/BST)</SelectItem>
-                          <SelectItem value="Europe/Paris">Europe/Paris (CET/CEST)</SelectItem>
-                          <SelectItem value="Europe/Berlin">Europe/Berlin (CET/CEST)</SelectItem>
-                          <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
-                          <SelectItem value="Asia/Shanghai">Asia/Shanghai (CST)</SelectItem>
-                          <SelectItem value="Asia/Singapore">Asia/Singapore (SGT)</SelectItem>
-                          <SelectItem value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</SelectItem>
-                          <SelectItem value="Pacific/Auckland">Pacific/Auckland (NZST/NZDT)</SelectItem>
-                          <SelectItem value="UTC">UTC</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                      {t('fields.timezone.description')}
-                    </p>
-                  </div>
-
-                  {/* Sync Claude Code Theme */}
-                  <div className="space-y-1">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                        {t('fields.syncClaudeTheme.label')}
-                      </label>
-                      <Switch
-                        checked={localSyncClaudeCode}
-                        onCheckedChange={setLocalSyncClaudeCode}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                      {t('fields.syncClaudeTheme.description')}
-                    </p>
-                  </div>
-
-                  {/* Claude Code Theme Options (shown when sync is enabled) */}
-                  {localSyncClaudeCode && (
-                    <div className="space-y-3 border-t border-border pt-4 sm:ml-32 sm:pl-2">
-                      {/* Light Theme */}
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <label className="text-sm text-muted-foreground sm:w-24 sm:shrink-0">
-                          {t('fields.claudeCodeTheme.light')}
-                        </label>
-                        <Select
-                          value={localClaudeCodeLightTheme}
-                          onValueChange={(v) => setLocalClaudeCodeLightTheme(v as ClaudeCodeTheme)}
-                        >
-                          <SelectTrigger className="w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CLAUDE_CODE_THEMES.filter(thm => thm.startsWith('light')).map((thm) => (
-                              <SelectItem key={thm} value={thm}>
-                                {t(`fields.claudeCodeTheme.options.${thm}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Dark Theme */}
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <label className="text-sm text-muted-foreground sm:w-24 sm:shrink-0">
-                          {t('fields.claudeCodeTheme.dark')}
-                        </label>
-                        <Select
-                          value={localClaudeCodeDarkTheme}
-                          onValueChange={(v) => setLocalClaudeCodeDarkTheme(v as ClaudeCodeTheme)}
-                        >
-                          <SelectTrigger className="w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CLAUDE_CODE_THEMES.filter(thm => thm.startsWith('dark')).map((thm) => (
-                              <SelectItem key={thm} value={thm}>
-                                {t(`fields.claudeCodeTheme.options.${thm}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-              </SettingsSection>
-
-              {/* Developer (only visible in developer mode) */}
-              {developerMode?.enabled && (
-                <SettingsSection title={t('sections.developer')}>
-                  <div className="space-y-1">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex-1">
-                        <p className="text-sm text-muted-foreground">
-                          {t('developer.restartDescription')}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          // Save current server start time to detect actual restart
-                          const originalStartTime = developerMode?.startedAt
-                          setIsRestarting(true)
-                          restartFulcrum.mutate(undefined, {
-                            onSuccess: () => {
-                              // Poll until server restarts (new startedAt) or timeout
-                              const pollForServer = async () => {
-                                const maxAttempts = 120 // 60 seconds max (build can take a while)
-                                for (let i = 0; i < maxAttempts; i++) {
-                                  await new Promise((r) => setTimeout(r, 500))
-                                  try {
-                                    const res = await fetch('/api/config/developer-mode')
-                                    if (res.ok) {
-                                      const data = await res.json()
-                                      // Only reload if server actually restarted (new start time)
-                                      if (data.startedAt !== originalStartTime) {
-                                        window.location.reload()
-                                        return
-                                      }
-                                      // Same start time means build failed, old instance still running
-                                    }
-                                  } catch {
-                                    // Server not ready yet, keep polling
-                                  }
-                                }
-                                // Timeout - build likely failed, show error
-                                setIsRestarting(false)
-                                toast.error(t('developer.restartFailed'), {
-                                  description: t('developer.checkLogs'),
-                                })
-                              }
-                              pollForServer()
-                            },
-                            onError: (error) => {
-                              setIsRestarting(false)
-                              toast.error(t('developer.restartFailed'), {
-                                description: error.message,
-                              })
-                            },
-                          })
-                        }}
-                        disabled={restartFulcrum.isPending || isRestarting}
-                        className="shrink-0 gap-2"
-                      >
-                        {(restartFulcrum.isPending || isRestarting) && (
-                          <HugeiconsIcon
-                            icon={Loading03Icon}
-                            size={14}
-                            strokeWidth={2}
-                            className="animate-spin"
-                          />
-                        )}
-                        {isRestarting ? t('developer.restarting') : t('developer.restartButton')}
-                      </Button>
-                    </div>
-                  </div>
-                </SettingsSection>
-              )}
-        </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Sticky Save Button Footer */}

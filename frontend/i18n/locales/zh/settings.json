@@ -1,5 +1,11 @@
 {
   "title": "设置",
+  "tabs": {
+    "general": "常规",
+    "ai": "AI 与开发",
+    "messaging": "消息",
+    "calendar": "日历"
+  },
   "sections": {
     "server": "服务器",
     "serverDefaults": "服务器与默认设置",
