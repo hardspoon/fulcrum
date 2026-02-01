@@ -41,9 +41,11 @@ export class EmailChannel implements MessagingChannel {
   private events: ChannelEvents | null = null
   private status: ConnectionStatus = 'disconnected'
   private pollTimer: ReturnType<typeof setInterval> | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private isShuttingDown = false
   private credentials: EmailAuthState | null = null
   private lastSeenUid: number = 0
+  private consecutiveFailures = 0
 
   constructor(connectionId: string, credentials?: EmailAuthState) {
     this.connectionId = connectionId
@@ -62,7 +64,7 @@ export class EmailChannel implements MessagingChannel {
         pass: this.credentials.imap.password,
       },
       logger: false,
-      socketTimeout: 30_000,
+      socketTimeout: 90_000,
       greetingTimeout: 15_000,
     })
     client.on('error', (err: Error) => {
@@ -145,6 +147,7 @@ export class EmailChannel implements MessagingChannel {
       await this.imapClient.logout()
 
       this.updateStatus('connected')
+      this.consecutiveFailures = 0
 
       // Start IMAP polling
       this.startPolling()
@@ -174,6 +177,23 @@ export class EmailChannel implements MessagingChannel {
     this.pollTimer = setInterval(() => {
       this.pollForNewEmails()
     }, intervalMs)
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer || this.isShuttingDown) return
+
+    const delayMs = Math.min(5000 * Math.pow(2, this.consecutiveFailures), 300_000)
+
+    log.messaging.info('Scheduling IMAP reconnect', {
+      connectionId: this.connectionId,
+      delayMs,
+      consecutiveFailures: this.consecutiveFailures,
+    })
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.connect()
+    }, delayMs)
   }
 
   private async pollForNewEmails(): Promise<void> {
@@ -306,21 +326,36 @@ export class EmailChannel implements MessagingChannel {
       }
 
       await client.logout()
+      this.consecutiveFailures = 0
     } catch (err) {
+      this.consecutiveFailures++
+
       log.messaging.error('IMAP poll error', {
         connectionId: this.connectionId,
         error: String(err),
+        consecutiveFailures: this.consecutiveFailures,
       })
 
-      // Don't change status for transient errors, but log them
       if (String(err).includes('AUTHENTICATIONFAILED') || String(err).includes('LOGIN')) {
         this.updateStatus('credentials_required')
+      } else if (this.consecutiveFailures >= 3) {
+        log.messaging.warn('IMAP polling failed repeatedly, scheduling reconnect', {
+          connectionId: this.connectionId,
+          consecutiveFailures: this.consecutiveFailures,
+        })
+        this.updateStatus('disconnected')
+        if (this.pollTimer) {
+          clearInterval(this.pollTimer)
+          this.pollTimer = null
+        }
+        this.scheduleReconnect()
       }
 
-      // Ensure client is cleaned up on error
+      // Ensure client is cleaned up on error — use close() instead of logout()
+      // to destroy the socket immediately rather than sending a command over a dead connection
       if (client) {
         try {
-          await client.logout()
+          client.close()
         } catch {
           // Ignore cleanup errors
         }
@@ -334,6 +369,11 @@ export class EmailChannel implements MessagingChannel {
     if (this.pollTimer) {
       clearInterval(this.pollTimer)
       this.pollTimer = null
+    }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
     }
 
     if (this.imapClient) {
