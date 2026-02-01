@@ -119,7 +119,7 @@ export function TaskListSidebar({ projectFilter, tagsFilter, onTaskClick }: Task
   }
 
   return (
-    <div className="hidden md:block h-full overflow-y-auto rounded-lg border border-border bg-background">
+    <div className="h-full overflow-y-auto rounded-lg border border-border bg-background">
         <div className="p-1.5">
           {sortedTasks.length === 0 ? (
             <div className="py-6 text-center text-xs text-muted-foreground">No active tasks</div>

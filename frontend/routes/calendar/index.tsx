@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useMemo, useCallback } from 'react'
 import { TaskCalendar } from '@/components/calendar/task-calendar'
 import { TaskListSidebar } from '@/components/calendar/task-list-sidebar'
+import { MobileCalendarList } from '@/components/calendar/mobile-calendar-list'
 import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
 import { TagsFilter } from '@/components/tasks/tags-filter'
 import { ProjectFilter } from '@/components/tasks/project-filter'
@@ -74,7 +75,17 @@ function CalendarView() {
         </div>
         <div className="flex-1" />
       </div>
-      <div className="flex-1 overflow-hidden">
+
+      {/* Mobile: list view */}
+      <div className="flex-1 overflow-hidden md:hidden">
+        <MobileCalendarList
+          projectFilter={projectFilter ?? null}
+          tagsFilter={tagsFilter}
+        />
+      </div>
+
+      {/* Desktop: grid + sidebar */}
+      <div className="hidden md:block flex-1 overflow-hidden">
         <TaskCalendar
           projectFilter={projectFilter ?? null}
           tagsFilter={tagsFilter}
