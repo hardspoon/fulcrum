@@ -96,6 +96,7 @@ export function getSettings(): Settings {
       opencodeDefaultAgent: ((parsed.agent as Record<string, unknown>)?.opencodeDefaultAgent as string) ?? DEFAULT_SETTINGS.agent.opencodeDefaultAgent,
       opencodePlanAgent: ((parsed.agent as Record<string, unknown>)?.opencodePlanAgent as string) ?? DEFAULT_SETTINGS.agent.opencodePlanAgent,
       autoScrollToBottom: ((parsed.agent as Record<string, unknown>)?.autoScrollToBottom as boolean) ?? DEFAULT_SETTINGS.agent.autoScrollToBottom,
+      claudeCodePath: ((parsed.agent as Record<string, unknown>)?.claudeCodePath as string | null) ?? DEFAULT_SETTINGS.agent.claudeCodePath,
     },
     tasks: {
       // Migrate old 'code'/'non-code' values to 'worktree'/'non-worktree'
@@ -113,6 +114,9 @@ export function getSettings(): Settings {
     assistant: {
       provider: ((parsed.assistant as Record<string, unknown>)?.provider as AssistantProvider) ?? DEFAULT_SETTINGS.assistant.provider,
       model: ((parsed.assistant as Record<string, unknown>)?.model as AssistantModel) ?? DEFAULT_SETTINGS.assistant.model,
+      observerModel: ((parsed.assistant as Record<string, unknown>)?.observerModel as AssistantModel) ?? DEFAULT_SETTINGS.assistant.observerModel,
+      observerProvider: ((parsed.assistant as Record<string, unknown>)?.observerProvider as AssistantProvider | null) ?? DEFAULT_SETTINGS.assistant.observerProvider,
+      observerOpencodeModel: ((parsed.assistant as Record<string, unknown>)?.observerOpencodeModel as string | null) ?? DEFAULT_SETTINGS.assistant.observerOpencodeModel,
       customInstructions: ((parsed.assistant as Record<string, unknown>)?.customInstructions as string | null) ?? null,
       documentsDir: expandPath(
         ((parsed.assistant as Record<string, unknown>)?.documentsDir as string) ?? DEFAULT_SETTINGS.assistant.documentsDir

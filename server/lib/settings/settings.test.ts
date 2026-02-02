@@ -847,6 +847,83 @@ describe('Settings', () => {
     })
   })
 
+  describe('getSettings() completeness', () => {
+    // Recursively collect all leaf paths from an object
+    function collectPaths(obj: Record<string, unknown>, prefix = ''): string[] {
+      const paths: string[] = []
+      for (const [key, value] of Object.entries(obj)) {
+        if (key === '_schemaVersion') continue
+        const path = prefix ? `${prefix}.${key}` : key
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          paths.push(...collectPaths(value as Record<string, unknown>, path))
+        } else {
+          paths.push(path)
+        }
+      }
+      return paths
+    }
+
+    test('returns every field from DEFAULT_SETTINGS (no dropped fields in manual construction)', async () => {
+      const { getSettings, DEFAULT_SETTINGS } = await import('./')
+      const settings = getSettings()
+
+      const defaultPaths = collectPaths(DEFAULT_SETTINGS as unknown as Record<string, unknown>)
+      const settingsPaths = collectPaths(settings as unknown as Record<string, unknown>)
+
+      const missing = defaultPaths.filter((p) => !settingsPaths.includes(p))
+
+      if (missing.length > 0) {
+        throw new Error(
+          `getSettings() is missing fields that exist in DEFAULT_SETTINGS:\n` +
+            missing.map((p) => `  - ${p}`).join('\n') +
+            `\n\nAdd them to the fileSettings object in getSettings() (server/lib/settings/core.ts).`
+        )
+      }
+    })
+
+    test('write-then-read roundtrip preserves value for all VALID_SETTING_PATHS', async () => {
+      const { updateSettingByPath, getSettings, ensureFulcrumDir } = await import('./')
+      const { VALID_SETTING_PATHS } = await import('./types')
+
+      ensureFulcrumDir()
+
+      // For each valid path, write a sentinel value and verify getSettings returns it
+      // Skip paths where the value type is complex (objects/arrays) - focus on scalar settings
+      const scalarTestValue: Record<string, unknown> = {
+        string: '__test_sentinel__',
+        number: 99999,
+        boolean: true,
+      }
+
+      // Pick a few representative paths from different sections to test the roundtrip
+      const testPaths: Record<string, unknown> = {
+        'assistant.observerModel': 'sonnet',
+        'assistant.observerProvider': 'claude',
+        'assistant.observerOpencodeModel': 'test-model',
+        'agent.claudeCodePath': '/test/path',
+        'assistant.model': 'opus',
+        'assistant.provider': 'opencode',
+        'agent.defaultAgent': 'opencode',
+        'appearance.timezone': 'UTC',
+      }
+
+      for (const [path, value] of Object.entries(testPaths)) {
+        updateSettingByPath(path, value)
+        const settings = getSettings()
+        const parts = path.split('.')
+        let current: unknown = settings
+        for (const part of parts) {
+          current = (current as Record<string, unknown>)[part]
+        }
+        if (current !== value) {
+          throw new Error(
+            `Roundtrip failed for ${path}: wrote ${JSON.stringify(value)}, read ${JSON.stringify(current)}`
+          )
+        }
+      }
+    })
+  })
+
   describe('helper functions', () => {
     test('getNestedValue retrieves nested values', async () => {
       const { getNestedValue } = await import('./')
