@@ -3,6 +3,8 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { createTestApp } from '../__tests__/fixtures/app'
 import { setupTestEnv, type TestEnv } from '../__tests__/utils/env'
+import { CONFIG_KEYS } from '../../shared/config-keys'
+import { VALID_SETTING_PATHS } from '../lib/settings/types'
 
 describe('Config Routes', () => {
   let testEnv: TestEnv
@@ -606,6 +608,39 @@ describe('Config Routes', () => {
       const body2 = await res2.json()
       expect(body2.success).toBe(true)
       expect(body2.skipped).toBe(true)
+    })
+  })
+
+  describe('CONFIG_KEYS / VALID_SETTING_PATHS drift prevention', () => {
+    // Keys that are only exposed through specialized routes, not the generic config API.
+    // These are intentionally excluded from CONFIG_KEYS.
+    const EXCLUDED_PATHS = new Set([
+      // Cloudflare integration keys (managed via integrations routes)
+      'integrations.cloudflareApiToken',
+      'integrations.cloudflareAccountId',
+      // Channel settings (managed via messaging/channel routes)
+      ...Array.from(VALID_SETTING_PATHS).filter(
+        (p) => p.startsWith('channels.')
+      ),
+    ])
+
+    test('every VALID_SETTING_PATHS entry is either in CONFIG_KEYS or explicitly excluded', () => {
+      const configValues = new Set(Object.values(CONFIG_KEYS))
+      const missing: string[] = []
+
+      for (const path of VALID_SETTING_PATHS) {
+        if (!configValues.has(path as any) && !EXCLUDED_PATHS.has(path)) {
+          missing.push(path)
+        }
+      }
+
+      if (missing.length > 0) {
+        throw new Error(
+          `VALID_SETTING_PATHS contains paths not in CONFIG_KEYS (shared/config-keys.ts):\n` +
+            missing.map((p) => `  - ${p}`).join('\n') +
+            `\n\nAdd them to CONFIG_KEYS or to the EXCLUDED_PATHS allowlist in this test.`
+        )
+      }
     })
   })
 })

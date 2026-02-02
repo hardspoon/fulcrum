@@ -22,51 +22,8 @@ import {
 import { spawn } from 'child_process'
 import { testNotificationChannel, sendNotification, type NotificationPayload } from '../services/notification-service'
 
-// Config keys using dot-notation for nested settings
-export const CONFIG_KEYS = {
-  PORT: 'server.port',
-  DEFAULT_GIT_REPOS_DIR: 'paths.defaultGitReposDir',
-  REMOTE_HOST: 'remoteFulcrum.host',
-  REMOTE_PORT: 'remoteFulcrum.port',
-  EDITOR_APP: 'editor.app',
-  EDITOR_HOST: 'editor.host',
-  EDITOR_SSH_PORT: 'editor.sshPort',
-  GITHUB_PAT: 'integrations.githubPat',
-  DEFAULT_AGENT: 'agent.defaultAgent',
-  OPENCODE_MODEL: 'agent.opencodeModel',
-  OPENCODE_DEFAULT_AGENT: 'agent.opencodeDefaultAgent',
-  OPENCODE_PLAN_AGENT: 'agent.opencodePlanAgent',
-  AGENT_AUTO_SCROLL_TO_BOTTOM: 'agent.autoScrollToBottom',
-  CLAUDE_CODE_PATH: 'agent.claudeCodePath',
-  DEFAULT_TASK_TYPE: 'tasks.defaultTaskType',
-  START_WORKTREE_TASKS_IMMEDIATELY: 'tasks.startWorktreeTasksImmediately',
-  LANGUAGE: 'appearance.language',
-  THEME: 'appearance.theme',
-  TIMEZONE: 'appearance.timezone',
-  SYNC_CLAUDE_CODE_THEME: 'appearance.syncClaudeCodeTheme',
-  CLAUDE_CODE_LIGHT_THEME: 'appearance.claudeCodeLightTheme',
-  CLAUDE_CODE_DARK_THEME: 'appearance.claudeCodeDarkTheme',
-  ASSISTANT_PROVIDER: 'assistant.provider',
-  ASSISTANT_MODEL: 'assistant.model',
-  ASSISTANT_OBSERVER_PROVIDER: 'assistant.observerProvider',
-  ASSISTANT_OBSERVER_OPENCODE_MODEL: 'assistant.observerOpencodeModel',
-  ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
-  ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
-  ASSISTANT_RITUALS_ENABLED: 'assistant.ritualsEnabled',
-  ASSISTANT_MORNING_RITUAL_TIME: 'assistant.morningRitual.time',
-  ASSISTANT_MORNING_RITUAL_PROMPT: 'assistant.morningRitual.prompt',
-  ASSISTANT_EVENING_RITUAL_TIME: 'assistant.eveningRitual.time',
-  ASSISTANT_EVENING_RITUAL_PROMPT: 'assistant.eveningRitual.prompt',
-  CALDAV_ENABLED: 'caldav.enabled',
-  CALDAV_SERVER_URL: 'caldav.serverUrl',
-  CALDAV_USERNAME: 'caldav.username',
-  CALDAV_PASSWORD: 'caldav.password',
-  CALDAV_SYNC_INTERVAL: 'caldav.syncIntervalMinutes',
-  CALDAV_AUTH_TYPE: 'caldav.authType',
-  CALDAV_GOOGLE_CLIENT_ID: 'caldav.googleClientId',
-  CALDAV_GOOGLE_CLIENT_SECRET: 'caldav.googleClientSecret',
-  CALDAV_OAUTH_TOKENS: 'caldav.oauthTokens',
-} as const
+export { CONFIG_KEYS } from '../../shared/config-keys'
+import { CONFIG_KEYS } from '../../shared/config-keys'
 
 // Legacy key mapping to new nested paths (for backward compatibility)
 const LEGACY_KEY_MAP: Record<string, string> = {
@@ -438,7 +395,7 @@ app.put('/:key', async (c) => {
       if (!validProviders.includes(value as string)) {
         return c.json({ error: `Assistant provider must be one of: ${validProviders.join(', ')}` }, 400)
       }
-    } else if (path === CONFIG_KEYS.ASSISTANT_MODEL) {
+    } else if (path === CONFIG_KEYS.ASSISTANT_MODEL || path === CONFIG_KEYS.ASSISTANT_OBSERVER_MODEL) {
       const validModels = ['opus', 'sonnet', 'haiku']
       if (!validModels.includes(value as string)) {
         return c.json({ error: `Assistant model must be one of: ${validModels.join(', ')}` }, 400)

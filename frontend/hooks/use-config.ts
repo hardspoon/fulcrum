@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJSON } from '@/lib/api'
+export { CONFIG_KEYS } from '@shared/config-keys'
+import { CONFIG_KEYS } from '@shared/config-keys'
 
 // Use relative URLs - works with both Vite dev proxy and production
 const API_BASE = ''
@@ -9,45 +11,6 @@ interface ConfigResponse {
   value: string | number | boolean | string[] | null
   isDefault?: boolean
 }
-
-// Config keys using dot-notation for nested settings
-export const CONFIG_KEYS = {
-  PORT: 'server.port',
-  WORKTREE_BASE_PATH: 'worktree_base_path', // Read-only, derived from FULCRUM_DIR
-  HOME_DIR: 'home_dir', // Read-only, system home directory
-  DEFAULT_GIT_REPOS_DIR: 'paths.defaultGitReposDir',
-  EDITOR_APP: 'editor.app',
-  EDITOR_HOST: 'editor.host',
-  EDITOR_SSH_PORT: 'editor.sshPort',
-  GITHUB_PAT: 'integrations.githubPat',
-  DEFAULT_AGENT: 'agent.defaultAgent',
-  OPENCODE_MODEL: 'agent.opencodeModel',
-  OPENCODE_DEFAULT_AGENT: 'agent.opencodeDefaultAgent',
-  OPENCODE_PLAN_AGENT: 'agent.opencodePlanAgent',
-  AGENT_AUTO_SCROLL_TO_BOTTOM: 'agent.autoScrollToBottom',
-  CLAUDE_CODE_PATH: 'agent.claudeCodePath',
-  LANGUAGE: 'appearance.language',
-  THEME: 'appearance.theme',
-  TIMEZONE: 'appearance.timezone',
-  SYNC_CLAUDE_CODE_THEME: 'appearance.syncClaudeCodeTheme',
-  CLAUDE_CODE_LIGHT_THEME: 'appearance.claudeCodeLightTheme',
-  CLAUDE_CODE_DARK_THEME: 'appearance.claudeCodeDarkTheme',
-  DEFAULT_TASK_TYPE: 'tasks.defaultTaskType',
-  START_WORKTREE_TASKS_IMMEDIATELY: 'tasks.startWorktreeTasksImmediately',
-  ASSISTANT_PROVIDER: 'assistant.provider',
-  ASSISTANT_MODEL: 'assistant.model',
-  ASSISTANT_OBSERVER_MODEL: 'assistant.observerModel',
-  ASSISTANT_OBSERVER_PROVIDER: 'assistant.observerProvider',
-  ASSISTANT_OBSERVER_OPENCODE_MODEL: 'assistant.observerOpencodeModel',
-  ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
-  ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
-  // Ritual settings (under assistant)
-  ASSISTANT_RITUALS_ENABLED: 'assistant.ritualsEnabled',
-  ASSISTANT_MORNING_RITUAL_TIME: 'assistant.morningRitual.time',
-  ASSISTANT_MORNING_RITUAL_PROMPT: 'assistant.morningRitual.prompt',
-  ASSISTANT_EVENING_RITUAL_TIME: 'assistant.eveningRitual.time',
-  ASSISTANT_EVENING_RITUAL_PROMPT: 'assistant.eveningRitual.prompt',
-} as const
 
 // Default values (client-side fallbacks)
 const DEFAULT_PORT = 7777
