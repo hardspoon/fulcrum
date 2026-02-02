@@ -9,6 +9,8 @@ import { db, googleAccounts, caldavCalendars, caldavEvents } from '../../db'
 import type { GoogleAccount } from '../../db'
 import { googleCalendarManager } from './google-calendar-manager'
 import { createLogger } from '../../lib/logger'
+import { updateSettingByPath } from '../../lib/settings'
+import { startEmailChannel, stopEmailChannel } from '../channels/channel-manager'
 
 const logger = createLogger('Google:CalendarService')
 
@@ -83,6 +85,16 @@ export async function enableGmail(id: string): Promise<void> {
     .set({ gmailEnabled: true, updatedAt: now })
     .where(eq(googleAccounts.id, id))
     .run()
+
+  // Update email channel settings so the channel starts with Gmail backend
+  updateSettingByPath('channels.email.enabled', true)
+  updateSettingByPath('channels.email.backend', 'gmail-api')
+  updateSettingByPath('channels.email.googleAccountId', id)
+
+  // Restart the email channel with the new configuration
+  await stopEmailChannel()
+  await startEmailChannel()
+
   logger.info('Enabled Gmail for account', { accountId: id })
 }
 
@@ -92,6 +104,12 @@ export async function disableGmail(id: string): Promise<void> {
     .set({ gmailEnabled: false, updatedAt: now })
     .where(eq(googleAccounts.id, id))
     .run()
+
+  // Stop the email channel and update settings
+  await stopEmailChannel()
+  updateSettingByPath('channels.email.enabled', false)
+  updateSettingByPath('channels.email.googleAccountId', null)
+
   logger.info('Disabled Gmail for account', { accountId: id })
 }
 

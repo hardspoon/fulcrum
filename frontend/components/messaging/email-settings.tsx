@@ -34,6 +34,8 @@ import {
   useUpdateGoogleAccount,
 } from '@/hooks/use-google'
 import type { GoogleAccount } from '@/hooks/use-google'
+import { useConfig, useUpdateConfig } from '@/hooks/use-config'
+import { CONFIG_KEYS } from '../../../shared/config-keys'
 import { Link } from '@tanstack/react-router'
 
 interface EmailSettingsProps {
@@ -548,6 +550,22 @@ function GmailSettings() {
   const { data: accounts } = useGoogleAccounts()
   const enableGmail = useEnableGmail()
   const disableGmail = useDisableGmail()
+  const pollIntervalQuery = useConfig(CONFIG_KEYS.EMAIL_POLL_INTERVAL)
+  const updateConfig = useUpdateConfig()
+  const [pollInterval, setPollInterval] = useState(30)
+
+  // Sync poll interval from settings
+  useEffect(() => {
+    if (pollIntervalQuery.data?.value != null) {
+      setPollInterval(Number(pollIntervalQuery.data.value) || 30)
+    }
+  }, [pollIntervalQuery.data?.value])
+
+  const handlePollIntervalBlur = () => {
+    const clamped = Math.max(5, Math.min(3600, pollInterval || 30))
+    setPollInterval(clamped)
+    updateConfig.mutate({ key: CONFIG_KEYS.EMAIL_POLL_INTERVAL, value: clamped })
+  }
 
   const handleToggleGmail = async (id: string, enabled: boolean) => {
     try {
@@ -562,6 +580,8 @@ function GmailSettings() {
       toast.error(String(err))
     }
   }
+
+  const hasEnabledAccount = accounts?.some((a) => a.gmailEnabled)
 
   if (!accounts || accounts.length === 0) {
     return (
@@ -589,6 +609,25 @@ function GmailSettings() {
           onToggle={handleToggleGmail}
         />
       ))}
+
+      {hasEnabledAccount && (
+        <div className="flex items-center gap-2 ml-4">
+          <Label htmlFor="gmailPollInterval">{t('imap.checkEvery', 'Check for new emails every')}</Label>
+          <Input
+            id="gmailPollInterval"
+            type="number"
+            min={5}
+            max={3600}
+            value={pollInterval}
+            onChange={(e) => setPollInterval(parseInt(e.target.value) || 30)}
+            onBlur={handlePollIntervalBlur}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            className="w-20 h-8"
+          />
+          <span className="text-sm text-muted-foreground">{t('imap.seconds', 'seconds')}</span>
+        </div>
+      )}
+
       <p className="text-xs text-muted-foreground">
         {t('google.gmailDescription', 'Gmail API uses OAuth2 — no app passwords needed. Drafts are created for human review before sending.')}
       </p>

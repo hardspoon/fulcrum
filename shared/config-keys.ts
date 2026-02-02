@@ -39,6 +39,7 @@ export const CONFIG_KEYS = {
   ASSISTANT_MORNING_RITUAL_PROMPT: 'assistant.morningRitual.prompt',
   ASSISTANT_EVENING_RITUAL_TIME: 'assistant.eveningRitual.time',
   ASSISTANT_EVENING_RITUAL_PROMPT: 'assistant.eveningRitual.prompt',
+  EMAIL_POLL_INTERVAL: 'channels.email.pollIntervalSeconds',
   CALDAV_ENABLED: 'caldav.enabled',
   CALDAV_SERVER_URL: 'caldav.serverUrl',
   CALDAV_USERNAME: 'caldav.username',

@@ -426,6 +426,12 @@ app.put('/:key', async (c) => {
       if (value === '') {
         value = null
       }
+    } else if (path === CONFIG_KEYS.EMAIL_POLL_INTERVAL) {
+      const num = typeof value === 'string' ? parseInt(value, 10) : value
+      if (typeof num !== 'number' || isNaN(num) || num < 5 || num > 3600) {
+        return c.json({ error: 'Poll interval must be a number between 5 and 3600 seconds' }, 400)
+      }
+      value = num
     } else if (typeof value === 'string' && value === '') {
       // Convert empty strings to null for nullable fields
       if (path === CONFIG_KEYS.GITHUB_PAT ||
