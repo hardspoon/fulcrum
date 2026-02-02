@@ -1,39 +1,18 @@
 // Tests for message handler - observe-only routing, command parsing, security tier selection
-import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
 import { nanoid } from 'nanoid'
 import { db, messagingConnections } from '../../db'
-
-// Mock external services before importing - these don't affect other test files
-mock.module('../assistant-service', () => ({
-  streamMessage: async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
-    // Track calls for assertions
-    streamMessageCalls.push({ sessionId, message, options })
-    yield { type: 'content:delta', data: { text: 'Mock response' } }
-    yield { type: 'done', data: {} }
-  },
-}))
-
-mock.module('../opencode-channel-service', () => ({
-  streamOpencodeObserverMessage: async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
-    opencodeObserverCalls.push({ sessionId, message, options })
-    yield { type: 'done', data: {} }
-  },
-}))
-
-// Mock system prompts (only used by message-handler, not by other channel tests)
-mock.module('./system-prompts', () => ({
-  getMessagingSystemPrompt: () => 'mock system prompt',
-  getObserveOnlySystemPrompt: () => 'mock observe-only prompt',
-}))
+import { activeChannels } from './channel-manager'
+import { handleIncomingMessage, _deps } from './message-handler'
 
 // Track mock calls
 let streamMessageCalls: Array<{ sessionId: string; message: string; options?: Record<string, unknown> }> = []
 let opencodeObserverCalls: Array<{ sessionId: string; message: string; options?: Record<string, unknown> }> = []
 
-// Import real channel-manager and session-mapper (no mock.module to avoid poisoning other tests)
-import { activeChannels } from './channel-manager'
-import { handleIncomingMessage } from './message-handler'
+// Save original deps
+const originalStreamMessage = _deps.streamMessage
+const originalStreamOpencodeObserverMessage = _deps.streamOpencodeObserverMessage
 
 describe('Message Handler', () => {
   let testEnv: TestEnv
@@ -44,6 +23,18 @@ describe('Message Handler', () => {
     streamMessageCalls = []
     opencodeObserverCalls = []
     activeChannels.clear()
+
+    // Replace deps with mocks (avoids mock.module which is unreliable across test files)
+    _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+      streamMessageCalls.push({ sessionId, message, options })
+      yield { type: 'content:delta', data: { text: 'Mock response' } }
+      yield { type: 'done', data: {} }
+    } as typeof _deps.streamMessage
+
+    _deps.streamOpencodeObserverMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+      opencodeObserverCalls.push({ sessionId, message, options })
+      yield { type: 'done', data: {} }
+    } as typeof _deps.streamOpencodeObserverMessage
 
     // Create a real messaging connection in the DB for session-mapper
     connectionId = nanoid()
@@ -72,6 +63,9 @@ describe('Message Handler', () => {
 
   afterEach(() => {
     activeChannels.clear()
+    // Restore original deps
+    _deps.streamMessage = originalStreamMessage
+    _deps.streamOpencodeObserverMessage = originalStreamOpencodeObserverMessage
     testEnv.cleanup()
   })
 

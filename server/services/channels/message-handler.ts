@@ -12,6 +12,14 @@ import { streamOpencodeObserverMessage } from '../opencode-channel-service'
 import { getSettings } from '../../lib/settings/core'
 import type { IncomingMessage } from './types'
 
+// Internal deps - exposed for test replacement (avoids unreliable mock.module)
+export const _deps = {
+  streamMessage: (...args: Parameters<typeof assistantService.streamMessage>) =>
+    assistantService.streamMessage(...args),
+  streamOpencodeObserverMessage: (...args: Parameters<typeof streamOpencodeObserverMessage>) =>
+    streamOpencodeObserverMessage(...args),
+}
+
 // Special commands that don't go to the AI
 const COMMANDS = {
   RESET: ['/reset', '/new', '/clear'],
@@ -95,7 +103,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
     const systemPrompt = getMessagingSystemPrompt(msg.channelType, context)
 
     // Stream the response - assistant handles everything via MCP tools
-    const stream = assistantService.streamMessage(session.id, content, {
+    const stream = _deps.streamMessage(session.id, content, {
       systemPromptAdditions: systemPrompt,
     })
 
@@ -366,7 +374,7 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
   if (observerProvider === 'opencode') {
     // Route to OpenCode text-only observer (no direct tool access)
     try {
-      const stream = streamOpencodeObserverMessage(session.id, msg.content, {
+      const stream = _deps.streamOpencodeObserverMessage(session.id, msg.content, {
         channelType: msg.channelType,
         senderId: msg.senderId,
         senderName: msg.senderName,
@@ -404,7 +412,7 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
     const observerModelId = settings.assistant.observerModel
 
     // Stream with observer security tier: no built-in tools, MCP restricted to memory only
-    const stream = assistantService.streamMessage(session.id, msg.content, {
+    const stream = _deps.streamMessage(session.id, msg.content, {
       systemPromptAdditions: systemPrompt,
       modelId: observerModelId,
       securityTier: 'observer',
