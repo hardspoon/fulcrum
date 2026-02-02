@@ -9,6 +9,7 @@ import { Hono } from 'hono'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { registerMemoryTools } from '../../cli/src/mcp/tools/memory'
+import { registerMemoryFileTools } from '../../cli/src/mcp/tools/memory-file'
 import { FulcrumClient } from '../../cli/src/client'
 import { getSettings } from '../lib/settings'
 
@@ -29,6 +30,7 @@ mcpObserverRoutes.all('/', async (c) => {
 
   const client = new FulcrumClient(`http://localhost:${port}`)
   registerMemoryTools(server, client)
+  registerMemoryFileTools(server, client)
 
   await server.connect(transport)
 

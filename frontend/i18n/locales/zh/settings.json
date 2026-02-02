@@ -166,9 +166,9 @@
         "placeholder": "选择模型"
       },
       "customInstructions": {
-        "label": "自定义指令",
-        "description": "添加到助手系统提示的额外指令。用于自定义行为、提供上下文或设置偏好。",
-        "placeholder": "例如：始终使用 TypeScript。偏好函数式编程模式。"
+        "label": "记忆文件",
+        "openMemoryFile": "打开记忆文件",
+        "memoryDescription": "助手的持久指令和知识。存储在 ~/.fulcrum/MEMORY.md 中，包含在每次对话中。"
       },
       "documentsDir": {
         "label": "文档目录",

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Code2, FileText, Eye, Edit3, Star, Pencil, Check, X } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Code2, FileText, Eye, Edit3, Star, Pencil, Check, X, Brain } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
@@ -25,8 +26,8 @@ interface CanvasPanelProps {
   onSelectDocument: (doc: Document) => void
   onStarDocument: (sessionId: string, starred: boolean) => void
   onRenameDocument: (sessionId: string, newFilename: string) => void
-  activeTab?: 'viewer' | 'editor' | 'documents'
-  onTabChange?: (tab: 'viewer' | 'editor' | 'documents') => void
+  activeTab?: 'viewer' | 'editor' | 'documents' | 'memory'
+  onTabChange?: (tab: 'viewer' | 'editor' | 'documents' | 'memory') => void
 }
 
 export function CanvasPanel({
@@ -48,11 +49,11 @@ export function CanvasPanel({
   // Note: artifacts and onSelectArtifact kept for API compatibility but unused after Gallery removal
   void _artifacts
   void _onSelectArtifact
-  const [internalActiveTab, setInternalActiveTab] = useState<'viewer' | 'editor' | 'documents'>('viewer')
+  const [internalActiveTab, setInternalActiveTab] = useState<'viewer' | 'editor' | 'documents' | 'memory'>('viewer')
 
   // Use controlled or internal state
   const activeTab = controlledActiveTab ?? internalActiveTab
-  const setActiveTab = (tab: 'viewer' | 'editor' | 'documents') => {
+  const setActiveTab = (tab: 'viewer' | 'editor' | 'documents' | 'memory') => {
     if (onTabChange) {
       onTabChange(tab)
     } else {
@@ -89,6 +90,10 @@ export function CanvasPanel({
             <TabsTrigger value="documents" className="gap-1 sm:gap-1.5 text-xs px-1.5 sm:px-2">
               <FileText className="size-3" />
               <span className="hidden sm:inline">{t('canvas.tabs.documents')}</span>
+            </TabsTrigger>
+            <TabsTrigger value="memory" className="gap-1 sm:gap-1.5 text-xs px-1.5 sm:px-2">
+              <Brain className="size-3" />
+              <span className="hidden sm:inline">{t('canvas.tabs.memory')}</span>
             </TabsTrigger>
           </TabsList>
 
@@ -133,6 +138,10 @@ export function CanvasPanel({
             onStarDocument={onStarDocument}
             onRenameDocument={onRenameDocument}
           />
+        </TabsContent>
+
+        <TabsContent value="memory" className="flex-1 m-0 data-[state=inactive]:hidden overflow-hidden">
+          <MemoryTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -244,6 +253,91 @@ function DocumentsTab({
         ))}
       </div>
     </ScrollArea>
+  )
+}
+
+function MemoryTab() {
+  const { t } = useTranslation('assistant')
+  const queryClient = useQueryClient()
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [localContent, setLocalContent] = useState<string | null>(null)
+  const isDirtyRef = useRef(false)
+
+  const { data, isLoading } = useQuery<{ content: string; path: string }>({
+    queryKey: ['memory-file'],
+    queryFn: async () => {
+      const res = await fetch('/api/memory-file')
+      return res.json()
+    },
+    refetchInterval: 3000,
+  })
+
+  // Sync server data to local state when user isn't editing
+  useEffect(() => {
+    if (data?.content != null && !isDirtyRef.current) {
+      setLocalContent(data.content)
+    }
+  }, [data?.content])
+
+  const saveContent = useCallback(async (content: string) => {
+    await fetch('/api/memory-file', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    isDirtyRef.current = false
+    queryClient.invalidateQueries({ queryKey: ['memory-file'] })
+  }, [queryClient])
+
+  const handleChange = useCallback((newContent: string) => {
+    isDirtyRef.current = true
+    setLocalContent(newContent)
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      saveContent(newContent)
+    }, 500)
+  }, [saveContent])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          <Brain className="size-12 mx-auto mb-4 opacity-20 animate-pulse" />
+          <p className="text-sm">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="px-4 py-2 border-b border-border bg-background/50 flex items-center justify-between">
+        <div className="text-xs text-muted-foreground">
+          {t('canvas.memory.title')}
+        </div>
+        <div className="text-[0.65rem] text-muted-foreground/60 font-mono">
+          {data?.path || t('canvas.memory.path')}
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <MarkdownEditor
+          content={localContent ?? ''}
+          onChange={handleChange}
+          placeholder={t('canvas.memory.placeholder')}
+        />
+      </div>
+    </div>
   )
 }
 

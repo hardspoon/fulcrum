@@ -172,9 +172,9 @@
         "placeholder": "Select model"
       },
       "customInstructions": {
-        "label": "Custom Instructions",
-        "description": "Additional instructions added to the assistant's system prompt. Use this to customize behavior, provide context, or set preferences.",
-        "placeholder": "e.g., \"Always use TypeScript. Prefer functional programming patterns.\""
+        "label": "Memory File",
+        "openMemoryFile": "Open Memory File",
+        "memoryDescription": "Persistent instructions and knowledge for the assistant. Stored in ~/.fulcrum/MEMORY.md and included in every conversation."
       },
       "documentsDir": {
         "label": "Documents Directory",

@@ -753,6 +753,20 @@ export const toolRegistry: ToolMetadata[] = [
     defer_loading: false,
   },
   {
+    name: 'memory_file_read',
+    description: 'Read the master memory file (MEMORY.md)',
+    category: 'memory',
+    keywords: ['memory', 'file', 'read', 'instructions', 'preferences', 'persistent', 'knowledge'],
+    defer_loading: false,
+  },
+  {
+    name: 'memory_file_update',
+    description: 'Update the master memory file (whole or by section)',
+    category: 'memory',
+    keywords: ['memory', 'file', 'update', 'write', 'edit', 'section', 'instructions', 'preferences'],
+    defer_loading: false,
+  },
+  {
     name: 'search',
     description: 'Search across all Fulcrum entities (tasks, projects, messages, events, memories) using full-text search',
     category: 'core',

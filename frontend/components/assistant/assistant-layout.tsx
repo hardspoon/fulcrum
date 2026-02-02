@@ -26,8 +26,8 @@ interface AssistantLayoutProps {
   editorContent: string
   canvasContent: string | null
   documents: Document[]
-  canvasActiveTab?: 'viewer' | 'editor' | 'documents'
-  onCanvasTabChange?: (tab: 'viewer' | 'editor' | 'documents') => void
+  canvasActiveTab?: 'viewer' | 'editor' | 'documents' | 'memory'
+  onCanvasTabChange?: (tab: 'viewer' | 'editor' | 'documents' | 'memory') => void
   mobileView?: MobilePanel
   onMobileViewChange?: (view: MobilePanel) => void
   onProviderChange: (provider: AgentType) => void

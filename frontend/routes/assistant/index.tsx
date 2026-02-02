@@ -33,7 +33,7 @@ interface SessionWithMessages extends ChatSession {
   messages: ChatMessage[]
 }
 
-type CanvasTab = 'viewer' | 'editor' | 'documents'
+type CanvasTab = 'viewer' | 'editor' | 'documents' | 'memory'
 type MobilePanel = 'chat' | 'canvas'
 
 function AssistantView() {
@@ -51,7 +51,7 @@ function AssistantView() {
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
 
   // Set canvas active tab via URL
-  const setCanvasActiveTab = useCallback((tab: 'viewer' | 'editor' | 'documents') => {
+  const setCanvasActiveTab = useCallback((tab: 'viewer' | 'editor' | 'documents' | 'memory') => {
     navigate({
       to: '/assistant',
       search: (prev) => ({ chat: prev.chat, panel: prev.panel as MobilePanel | undefined, tab }),
@@ -604,7 +604,7 @@ function AssistantView() {
 export const Route = createFileRoute('/assistant/')({
   component: AssistantView,
   validateSearch: (search: Record<string, unknown>): { chat?: string; tab?: CanvasTab; panel?: MobilePanel } => {
-    const validTabs: CanvasTab[] = ['viewer', 'editor', 'documents']
+    const validTabs: CanvasTab[] = ['viewer', 'editor', 'documents', 'memory']
     const validPanels: MobilePanel[] = ['chat', 'canvas']
     const tab = typeof search.tab === 'string' && validTabs.includes(search.tab as CanvasTab)
       ? (search.tab as CanvasTab)

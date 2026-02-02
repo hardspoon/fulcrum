@@ -37,6 +37,7 @@ import caldavRoutes from './routes/caldav'
 import googleOauthRoutes from './routes/google-oauth'
 import googleRoutes from './routes/google'
 import memoryRoutes from './routes/memory'
+import memoryFileRoutes from './routes/memory-file'
 import searchRoutes from './routes/search'
 import { writeEntry } from './lib/logger'
 import type { LogEntry } from '../shared/logger'
@@ -115,6 +116,9 @@ export function createApp() {
 
   // Agent memory system
   app.route('/api/memory', memoryRoutes)
+
+  // Master memory file (MEMORY.md)
+  app.route('/api/memory-file', memoryFileRoutes)
 
   // Unified search across all entities
   app.route('/api/search', searchRoutes)

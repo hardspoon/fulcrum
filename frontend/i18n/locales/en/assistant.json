@@ -45,7 +45,8 @@
     "tabs": {
       "canvas": "Canvas",
       "editor": "Editor",
-      "documents": "Documents"
+      "documents": "Documents",
+      "memory": "Memory"
     },
     "empty": {
       "title": "Select a chat to view the canvas",
@@ -65,6 +66,15 @@
       "empty": {
         "title": "No documents yet",
         "description": "Documents created by AI will appear here"
+      }
+    },
+    "memory": {
+      "title": "Master Memory File",
+      "path": "~/.fulcrum/MEMORY.md",
+      "placeholder": "# Memory\n\nThe assistant will store persistent knowledge here as it learns about you.\nYou can also edit this file directly.\n\n## Instructions\n\nAdd any standing instructions for the assistant here...",
+      "empty": {
+        "title": "Memory file is empty",
+        "description": "The assistant will populate this as it learns about you, or you can add content directly"
       }
     }
   },

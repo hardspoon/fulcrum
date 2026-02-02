@@ -1397,6 +1397,25 @@ export class FulcrumClient {
     return this.fetch(`/api/google/accounts/${accountId}/drafts/${draftId}`, { method: 'DELETE' })
   }
 
+  // Memory File
+  async readMemoryFile(): Promise<{ content: string }> {
+    return this.fetch('/api/memory-file')
+  }
+
+  async writeMemoryFile(content: string): Promise<{ success: boolean }> {
+    return this.fetch('/api/memory-file', {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    })
+  }
+
+  async updateMemoryFileSection(heading: string, content: string): Promise<{ success: boolean }> {
+    return this.fetch('/api/memory-file/section', {
+      method: 'PATCH',
+      body: JSON.stringify({ heading, content }),
+    })
+  }
+
   // Unified Search
   async search(input: {
     query: string

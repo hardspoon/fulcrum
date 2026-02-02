@@ -174,8 +174,12 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
   - Entity-specific filters: \`taskStatus\`, \`projectStatus\`, \`messageChannel\`, \`messageDirection\`, \`eventFrom\`, \`eventTo\`, \`memoryTags\`
   - Results sorted by relevance score with BM25 ranking
 
-**Memory Tools:**
-- \`memory_store\` - Store a piece of knowledge in persistent memory with optional tags
+**Memory File (Persistent Knowledge):**
+- \`memory_file_read\` - Read the master memory file (MEMORY.md)
+- \`memory_file_update\` - Update the file (whole or by section heading)
+
+**Ephemeral Memories:**
+- \`memory_store\` - Store individual knowledge snippets with optional tags
 
 **Google Account & Gmail Tools:**
 - \`list_google_accounts\` - List all Google accounts with calendar/Gmail status
@@ -515,7 +519,7 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - Deploying apps with Docker Compose
 - Sending notifications to Slack, Discord, Pushover
 - Calendar awareness via multi-account CalDAV sync with event copy rules
-- Persistent memory across conversations (store and search knowledge)
+- Persistent memory across conversations (memory file + ephemeral store)
 
 **Key tools available:**
 - list_tasks, create_task, update_task, move_task
@@ -523,7 +527,8 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - execute_command (run any CLI command)
 - send_notification
 - search (unified FTS5 search across tasks, projects, messages, events, memories)
-- memory_store (persistent knowledge across sessions)
+- memory_file_read, memory_file_update (master memory file - always in prompt)
+- memory_store (ephemeral knowledge snippets with tags)
 - message (send to email/WhatsApp - concierge mode)
 - memory_store with tag \`actionable\` (track things needing attention - concierge mode)
 - search with memoryTags filter (find tracked items by tag)

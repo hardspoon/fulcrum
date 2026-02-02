@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -61,7 +61,6 @@ import {
   useAssistantObserverModel,
   useAssistantObserverProvider,
   useAssistantObserverOpencodeModel,
-  useAssistantCustomInstructions,
   useAssistantDocumentsDir,
   useAssistantRitualsEnabled,
   useAssistantMorningRitualTime,
@@ -167,7 +166,6 @@ function SettingsPage() {
   const { data: assistantObserverModel, isLoading: assistantObserverModelLoading } = useAssistantObserverModel()
   const { data: assistantObserverProvider } = useAssistantObserverProvider()
   const { data: assistantObserverOpencodeModel } = useAssistantObserverOpencodeModel()
-  const { data: assistantCustomInstructions, isLoading: assistantInstructionsLoading } = useAssistantCustomInstructions()
   const { data: assistantDocumentsDir, isLoading: assistantDocumentsDirLoading } = useAssistantDocumentsDir()
   const { data: ritualsEnabled, isLoading: ritualsEnabledLoading } = useAssistantRitualsEnabled()
   const { data: morningRitualTime, isLoading: morningTimeLoading } = useAssistantMorningRitualTime()
@@ -245,7 +243,6 @@ function SettingsPage() {
   const [localAssistantObserverModel, setLocalAssistantObserverModel] = useState<AssistantModel>('haiku')
   const [localAssistantObserverProvider, setLocalAssistantObserverProvider] = useState<AssistantProvider | null>(null)
   const [localAssistantObserverOpencodeModel, setLocalAssistantObserverOpencodeModel] = useState<string | null>(null)
-  const [localAssistantCustomInstructions, setLocalAssistantCustomInstructions] = useState<string>('')
   const [localAssistantDocumentsDir, setLocalAssistantDocumentsDir] = useState<string>('~/.fulcrum/documents')
 
   // Ritual settings local state (under assistant)
@@ -347,9 +344,8 @@ function SettingsPage() {
     if (assistantObserverModel !== undefined) setLocalAssistantObserverModel(assistantObserverModel)
     if (assistantObserverProvider !== undefined) setLocalAssistantObserverProvider(assistantObserverProvider)
     if (assistantObserverOpencodeModel !== undefined) setLocalAssistantObserverOpencodeModel(assistantObserverOpencodeModel)
-    if (assistantCustomInstructions !== undefined) setLocalAssistantCustomInstructions(assistantCustomInstructions ?? '')
     if (assistantDocumentsDir !== undefined) setLocalAssistantDocumentsDir(assistantDocumentsDir)
-  }, [assistantProvider, assistantModel, assistantObserverModel, assistantObserverProvider, assistantObserverOpencodeModel, assistantCustomInstructions, assistantDocumentsDir])
+  }, [assistantProvider, assistantModel, assistantObserverModel, assistantObserverProvider, assistantObserverOpencodeModel, assistantDocumentsDir])
 
   // Sync ritual settings
   useEffect(() => {
@@ -367,7 +363,7 @@ function SettingsPage() {
   ])
 
   const isLoading =
-    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || autoScrollLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading || assistantProviderLoading || assistantModelLoading || assistantObserverModelLoading || assistantInstructionsLoading || assistantDocumentsDirLoading ||
+    portLoading || reposDirLoading || editorAppLoading || editorHostLoading || editorSshPortLoading || githubPatLoading || defaultAgentLoading || opcodeModelLoading || opcodeDefaultAgentLoading || opencodePlanAgentLoading || autoScrollLoading || notificationsLoading || zAiLoading || deploymentLoading || taskTypeLoading || startImmediatelyLoading || timezoneLoading || assistantProviderLoading || assistantModelLoading || assistantObserverModelLoading || assistantDocumentsDirLoading ||
     ritualsEnabledLoading || morningTimeLoading || morningPromptLoading || eveningTimeLoading || eveningPromptLoading
 
   const hasZAiChanges = zAiSettings && (
@@ -395,7 +391,6 @@ function SettingsPage() {
     localAssistantObserverModel !== assistantObserverModel ||
     localAssistantObserverProvider !== assistantObserverProvider ||
     localAssistantObserverOpencodeModel !== assistantObserverOpencodeModel ||
-    localAssistantCustomInstructions !== (assistantCustomInstructions ?? '') ||
     localAssistantDocumentsDir !== assistantDocumentsDir
 
   const hasRitualsChanges =
@@ -788,16 +783,6 @@ function SettingsPage() {
           new Promise((resolve) => {
             updateConfig.mutate(
               { key: CONFIG_KEYS.ASSISTANT_OBSERVER_OPENCODE_MODEL, value: localAssistantObserverOpencodeModel },
-              { onSettled: resolve }
-            )
-          })
-        )
-      }
-      if (localAssistantCustomInstructions !== (assistantCustomInstructions ?? '')) {
-        promises.push(
-          new Promise((resolve) => {
-            updateConfig.mutate(
-              { key: CONFIG_KEYS.ASSISTANT_CUSTOM_INSTRUCTIONS, value: localAssistantCustomInstructions || null },
               { onSettled: resolve }
             )
           })
@@ -2099,23 +2084,20 @@ function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Custom instructions */}
+                  {/* Memory file link (replaces custom instructions) */}
                   <div className="space-y-1">
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm text-muted-foreground">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
                         {t('fields.assistant.customInstructions.label')}
                       </label>
-                      <Textarea
-                        value={localAssistantCustomInstructions}
-                        onChange={(e) => setLocalAssistantCustomInstructions(e.target.value)}
-                        placeholder={t('fields.assistant.customInstructions.placeholder')}
-                        disabled={isLoading}
-                        className="min-h-24 resize-y font-mono text-sm"
-                        rows={4}
-                      />
+                      <Link to="/assistant" search={{ tab: 'memory' }}>
+                        <Button variant="outline" size="sm">
+                          {t('fields.assistant.customInstructions.openMemoryFile')}
+                        </Button>
+                      </Link>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t('fields.assistant.customInstructions.description')}
+                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                      {t('fields.assistant.customInstructions.memoryDescription')}
                     </p>
                   </div>
 

@@ -189,13 +189,17 @@ Enable in Settings → Email & Messaging and follow the setup instructions for e
 
 ### Agent Memory
 
-Agents can store and recall knowledge across conversations using a persistent memory system backed by SQLite FTS5 full-text search.
+A two-tier memory system gives agents both always-on context and on-demand recall:
 
-- **Persistent** — Memories survive across sessions and agent restarts
+**Master Memory File** (`~/.fulcrum/MEMORY.md`) — A structured markdown document injected into every system prompt. Use it for user preferences, project context, architecture decisions, and standing instructions. Editable from the Assistant > Memory tab or via MCP tools.
+
+**Ephemeral Memories** — Individual tagged facts stored in SQLite with FTS5 full-text search. Use for transient observations, action items, and channel-sourced data points.
+
+- **Always in context** — Memory file content is included in every conversation automatically
 - **Searchable** — Full-text search with boolean operators, phrase matching, and prefix queries
-- **Tagged** — Categorize memories with tags (preferences, decisions, architecture, etc.)
+- **Tagged** — Categorize ephemeral memories with tags (preferences, decisions, architecture, etc.)
 - **Browsable** — View, search, edit, and delete memories from the Monitoring > Memory tab
-- **MCP tools** — `memory_store` for saving knowledge, unified `search` tool for cross-entity full-text search
+- **MCP tools** — `memory_file_read`/`memory_file_update` for the master file, `memory_store` for ephemeral facts, unified `search` for cross-entity queries
 
 ### System Monitoring
 
@@ -250,7 +254,7 @@ Both plugins include an MCP server with 60+ tools:
 | **Backup & Restore** | Snapshot database and settings; auto-safety-backup on restore |
 | **Settings** | View and update configuration; manage notification channels |
 | **Search** | Unified full-text search across tasks, projects, messages, events, and memories |
-| **Memory** | Store persistent knowledge for agent recall across sessions |
+| **Memory** | Read/update master memory file; store ephemeral knowledge with tags |
 | **Calendar** | Manage CalDAV accounts, sync calendars, configure event copy rules |
 | **Gmail** | List Google accounts, manage Gmail drafts (create, update, delete) |
 | **Assistant** | Send messages via channels; query sweep history |

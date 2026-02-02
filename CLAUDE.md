@@ -41,7 +41,7 @@ Fulcrum is the Vibe Engineer's Cockpit. A terminal-first tool for orchestrating 
 - App deployment → `server/routes/apps.ts`, `server/services/` (docker/cloudflare/traefik)
 - Calendar integration → `server/services/caldav/`, `server/routes/caldav.ts`, `frontend/components/caldav/`
 - Google integration → `server/services/google/`, `server/services/google-oauth.ts`, `server/routes/google.ts`, `server/routes/google-oauth.ts`
-- Agent memory → `server/routes/memory.ts`, `server/services/memory-service.ts`
+- Agent memory → `server/routes/memory.ts`, `server/services/memory-service.ts`, `server/routes/memory-file.ts`, `server/services/memory-file-service.ts`
 - Unified search → `server/routes/search.ts`, `server/services/search-service.ts`
 - Settings → `server/lib/settings/`, `frontend/routes/settings/`
 
@@ -125,6 +125,7 @@ fulcrum notify <title> <message>  # Send notification
 - `opencode-channel-service.ts` - OpenCode observer for channel message processing (structured JSON output, no direct tool access)
 - `search-service.ts` - Unified FTS5 full-text search across tasks, projects, messages, events, and memories
 - `memory-service.ts` - Persistent agent memory with SQLite FTS5 full-text search
+- `memory-file-service.ts` - Master memory file (MEMORY.md) read/write/section-update, injected into every system prompt
 - `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
 - `pr-monitor.ts` - GitHub PR status polling, auto-close tasks on merge
 - `metrics-collector.ts` - System metrics collection (CPU, memory, disk)
@@ -142,6 +143,7 @@ fulcrum notify <title> <message>  # Send notification
 - `/api/repositories/*` - Repository management
 - `/api/search` - Unified full-text search across all entity types
 - `/api/memory/*` - Agent memory CRUD and FTS5 search
+- `/api/memory-file` - Master memory file read/write/section-update
 - `/api/messaging/*` - Messaging channel management (WhatsApp, Discord, Telegram, Slack)
 - `/api/assistant/*` - Unified assistant API (Claude and OpenCode providers)
 - `/api/caldav/*` - CalDAV calendar integration (accounts, sync, OAuth, copy rules)

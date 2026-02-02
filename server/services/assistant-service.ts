@@ -10,6 +10,7 @@ import { log } from '../lib/logger'
 import type { PageContext, ImageData } from '../../shared/types'
 import { saveDocument, readDocument, deleteDocument, renameDocument, generateDocumentFilename } from './document-service'
 import { getFullKnowledge, getCondensedKnowledge } from './assistant-knowledge'
+import { readMemoryFile } from './memory-file-service'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
 
@@ -235,14 +236,16 @@ export function buildBaselinePrompt(condensed = false): string {
 
 ${knowledge}`
 
-  // Add custom instructions from settings if configured
-  const customInstructions = settings.assistant.customInstructions
-  if (customInstructions) {
+  // Inject master memory file content if it exists
+  const memoryFileContent = readMemoryFile()
+  if (memoryFileContent.trim()) {
     baseline += `
 
-## Custom Instructions
+## Master Memory File
 
-${customInstructions}`
+This is your persistent memory. Update it with \`memory_file_update\` when you learn broadly useful information about the user, their preferences, projects, or recurring patterns.
+
+${memoryFileContent}`
   }
 
   return baseline
