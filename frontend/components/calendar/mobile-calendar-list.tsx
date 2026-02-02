@@ -364,7 +364,7 @@ function TaskItem({
     task.status !== 'DONE' &&
     task.status !== 'CANCELED'
   const isToday = dueDateStr === todayString
-  const tomorrow = new Date()
+  const tomorrow = new Date(todayString + 'T00:00:00')
   tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowString = tomorrow.toISOString().split('T')[0]
   const isTomorrow = dueDateStr === tomorrowString
