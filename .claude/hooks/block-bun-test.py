@@ -7,7 +7,6 @@ Running `bun test` directly bypasses test isolation (HOME/FULCRUM_DIR overrides)
 which can corrupt production settings files.
 """
 import json
-import re
 import sys
 
 input_data = json.load(sys.stdin)
@@ -17,11 +16,7 @@ if input_data.get("tool_name") != "Bash":
 
 command = input_data.get("tool_input", {}).get("command", "")
 
-# Block direct bun test commands
-# Matches: bun test, bun test somefile.ts, bun test --watch,
-#          HOME=/tmp/x bun test (env var prefixed), etc.
-# Does NOT match: mise run test, echo "bun test", etc.
-if re.search(r"(?:^|&&|\|\||;)\s*(?:\S+=\S*\s+)*bun\s+test\b", command):
+if "bun test" in command:
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

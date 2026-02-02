@@ -347,8 +347,8 @@ function AssistantView() {
         }
       )
 
-      // Use current model from state
-      const currentModel = model
+      // Use correct model based on provider
+      const currentModel = provider === 'opencode' ? opencodeModel : model
 
       // Prepare images for the API (extract base64 data without the data URL prefix)
       const imageData = images?.map((img) => ({
@@ -530,7 +530,7 @@ function AssistantView() {
         queryClient.invalidateQueries({ queryKey: ['assistant-sessions'] })
       }
     },
-    [chatId, model, isStreaming, queryClient, editorContent, saveEditorContentMutation]
+    [chatId, model, opencodeModel, provider, isStreaming, queryClient, editorContent, saveEditorContentMutation]
   )
 
   // Stop streaming handler

@@ -703,6 +703,12 @@ export interface PageContext {
   searchParams?: Record<string, string>
 }
 
+// Image data for chat attachments
+export interface ImageData {
+  mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+  data: string // base64
+}
+
 // Messaging channel types
 export type MessagingChannelType = 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email'
 export type MessagingConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'qr_pending' | 'credentials_required'

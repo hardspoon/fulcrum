@@ -29,7 +29,7 @@ import taskDependenciesRoutes from './routes/task-dependencies'
 import tagsRoutes from './routes/tags'
 import versionRoutes from './routes/version'
 import mcpRoutes from './routes/mcp'
-import chatRoutes from './routes/chat'
+import mcpObserverRoutes from './routes/mcp-restricted'
 import assistantRoutes from './routes/assistant'
 import messagingRoutes from './routes/messaging'
 import backupRoutes from './routes/backup'
@@ -90,11 +90,11 @@ export function createApp() {
   app.route('/api/tags', tagsRoutes)
   app.route('/api/version', versionRoutes)
 
-  // MCP HTTP transport endpoint
+  // MCP HTTP transport endpoints
+  app.route('/mcp/observer', mcpObserverRoutes)
   app.route('/mcp', mcpRoutes)
 
   // AI Chat assistant routes
-  app.route('/api/chat', chatRoutes)
   app.route('/api/assistant', assistantRoutes)
 
   // Messaging channels (WhatsApp, etc.)

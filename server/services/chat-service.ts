@@ -5,9 +5,8 @@ import { getInstanceContext } from '../lib/settings/paths'
 import { log } from '../lib/logger'
 import { db, tasks, projects, repositories, apps, projectRepositories } from '../db'
 import { eq } from 'drizzle-orm'
-import type { PageContext } from '../../shared/types'
+import type { PageContext, ImageData } from '../../shared/types'
 import { getFullKnowledge } from './assistant-knowledge'
-import type { ImageData } from '../routes/chat'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
 

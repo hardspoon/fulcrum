@@ -8,6 +8,7 @@ import { activeChannels, setMessageHandler } from './channel-manager'
 import { getOrCreateSession, resetSession } from './session-mapper'
 import { getMessagingSystemPrompt, getObserveOnlySystemPrompt, type MessagingContext } from './system-prompts'
 import * as assistantService from '../assistant-service'
+import { streamOpencodeObserverMessage } from '../opencode-channel-service'
 import { getSettings } from '../../lib/settings/core'
 import type { IncomingMessage } from './types'
 
@@ -348,6 +349,36 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
     'Observer'
   )
 
+  const settings = getSettings()
+
+  // Determine which provider to use for observer processing
+  const observerProvider = settings.assistant.observerProvider ?? settings.assistant.provider
+
+  if (observerProvider === 'opencode') {
+    // Route to OpenCode text-only observer (no direct tool access)
+    try {
+      const stream = streamOpencodeObserverMessage(session.id, msg.content, {
+        channelType: msg.channelType,
+        senderId: msg.senderId,
+        senderName: msg.senderName,
+      })
+
+      for await (const event of stream) {
+        if (event.type === 'error') {
+          const errorMsg = (event.data as { message: string }).message
+          log.messaging.error('Error in OpenCode observe-only processing', { error: errorMsg })
+        }
+      }
+    } catch (err) {
+      log.messaging.error('Error processing observe-only message via OpenCode', {
+        connectionId: msg.connectionId,
+        error: String(err),
+      })
+    }
+    return
+  }
+
+  // Claude observer: uses restricted MCP endpoint (memory tools only)
   const context: MessagingContext = {
     channel: msg.channelType,
     sender: msg.senderId,
@@ -361,14 +392,13 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
   const systemPrompt = getObserveOnlySystemPrompt(msg.channelType, context)
 
   try {
-    // Use the configured observer model (defaults to haiku for cost efficiency)
-    const settings = getSettings()
     const observerModelId = settings.assistant.observerModel
 
-    // Stream the response - assistant can only store memories, not respond
+    // Stream with observer security tier: no built-in tools, MCP restricted to memory only
     const stream = assistantService.streamMessage(session.id, msg.content, {
       systemPromptAdditions: systemPrompt,
       modelId: observerModelId,
+      securityTier: 'observer',
     })
 
     // Consume stream

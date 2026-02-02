@@ -37,6 +37,8 @@ export const CONFIG_KEYS = {
   ASSISTANT_PROVIDER: 'assistant.provider',
   ASSISTANT_MODEL: 'assistant.model',
   ASSISTANT_OBSERVER_MODEL: 'assistant.observerModel',
+  ASSISTANT_OBSERVER_PROVIDER: 'assistant.observerProvider',
+  ASSISTANT_OBSERVER_OPENCODE_MODEL: 'assistant.observerOpencodeModel',
   ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
   ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
   // Ritual settings (under assistant)
@@ -331,6 +333,26 @@ export function useAssistantObserverModel() {
   return {
     ...query,
     data: (query.data?.value as AssistantModel) ?? 'haiku',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantObserverProvider() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_OBSERVER_PROVIDER)
+
+  return {
+    ...query,
+    data: (query.data?.value as AssistantProvider | null) ?? null,
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useAssistantObserverOpencodeModel() {
+  const query = useConfig(CONFIG_KEYS.ASSISTANT_OBSERVER_OPENCODE_MODEL)
+
+  return {
+    ...query,
+    data: (query.data?.value as string | null) ?? null,
     isDefault: query.data?.isDefault ?? true,
   }
 }

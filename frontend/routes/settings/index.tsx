@@ -57,6 +57,8 @@ import {
   useAssistantProvider,
   useAssistantModel,
   useAssistantObserverModel,
+  useAssistantObserverProvider,
+  useAssistantObserverOpencodeModel,
   useAssistantCustomInstructions,
   useAssistantDocumentsDir,
   useAssistantRitualsEnabled,
@@ -157,6 +159,8 @@ function SettingsPage() {
   const { data: assistantProvider, isLoading: assistantProviderLoading } = useAssistantProvider()
   const { data: assistantModel, isLoading: assistantModelLoading } = useAssistantModel()
   const { data: assistantObserverModel, isLoading: assistantObserverModelLoading } = useAssistantObserverModel()
+  const { data: assistantObserverProvider } = useAssistantObserverProvider()
+  const { data: assistantObserverOpencodeModel } = useAssistantObserverOpencodeModel()
   const { data: assistantCustomInstructions, isLoading: assistantInstructionsLoading } = useAssistantCustomInstructions()
   const { data: assistantDocumentsDir, isLoading: assistantDocumentsDirLoading } = useAssistantDocumentsDir()
   const { data: ritualsEnabled, isLoading: ritualsEnabledLoading } = useAssistantRitualsEnabled()
@@ -231,6 +235,8 @@ function SettingsPage() {
   const [localAssistantProvider, setLocalAssistantProvider] = useState<AssistantProvider>('claude')
   const [localAssistantModel, setLocalAssistantModel] = useState<AssistantModel>('sonnet')
   const [localAssistantObserverModel, setLocalAssistantObserverModel] = useState<AssistantModel>('haiku')
+  const [localAssistantObserverProvider, setLocalAssistantObserverProvider] = useState<AssistantProvider | null>(null)
+  const [localAssistantObserverOpencodeModel, setLocalAssistantObserverOpencodeModel] = useState<string | null>(null)
   const [localAssistantCustomInstructions, setLocalAssistantCustomInstructions] = useState<string>('')
   const [localAssistantDocumentsDir, setLocalAssistantDocumentsDir] = useState<string>('~/.fulcrum/documents')
 
@@ -329,9 +335,11 @@ function SettingsPage() {
     if (assistantProvider !== undefined) setLocalAssistantProvider(assistantProvider)
     if (assistantModel !== undefined) setLocalAssistantModel(assistantModel)
     if (assistantObserverModel !== undefined) setLocalAssistantObserverModel(assistantObserverModel)
+    if (assistantObserverProvider !== undefined) setLocalAssistantObserverProvider(assistantObserverProvider)
+    if (assistantObserverOpencodeModel !== undefined) setLocalAssistantObserverOpencodeModel(assistantObserverOpencodeModel)
     if (assistantCustomInstructions !== undefined) setLocalAssistantCustomInstructions(assistantCustomInstructions ?? '')
     if (assistantDocumentsDir !== undefined) setLocalAssistantDocumentsDir(assistantDocumentsDir)
-  }, [assistantProvider, assistantModel, assistantObserverModel, assistantCustomInstructions, assistantDocumentsDir])
+  }, [assistantProvider, assistantModel, assistantObserverModel, assistantObserverProvider, assistantObserverOpencodeModel, assistantCustomInstructions, assistantDocumentsDir])
 
   // Sync ritual settings
   useEffect(() => {
@@ -375,6 +383,8 @@ function SettingsPage() {
     localAssistantProvider !== assistantProvider ||
     localAssistantModel !== assistantModel ||
     localAssistantObserverModel !== assistantObserverModel ||
+    localAssistantObserverProvider !== assistantObserverProvider ||
+    localAssistantObserverOpencodeModel !== assistantObserverOpencodeModel ||
     localAssistantCustomInstructions !== (assistantCustomInstructions ?? '') ||
     localAssistantDocumentsDir !== assistantDocumentsDir
 
@@ -724,6 +734,26 @@ function SettingsPage() {
           new Promise((resolve) => {
             updateConfig.mutate(
               { key: CONFIG_KEYS.ASSISTANT_OBSERVER_MODEL, value: localAssistantObserverModel },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localAssistantObserverProvider !== assistantObserverProvider) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_OBSERVER_PROVIDER, value: localAssistantObserverProvider },
+              { onSettled: resolve }
+            )
+          })
+        )
+      }
+      if (localAssistantObserverOpencodeModel !== assistantObserverOpencodeModel) {
+        promises.push(
+          new Promise((resolve) => {
+            updateConfig.mutate(
+              { key: CONFIG_KEYS.ASSISTANT_OBSERVER_OPENCODE_MODEL, value: localAssistantObserverOpencodeModel },
               { onSettled: resolve }
             )
           })
@@ -1860,111 +1890,169 @@ function SettingsPage() {
               {/* AI Assistant */}
               <SettingsSection title={t('sections.assistant')}>
                 <div className="space-y-4">
-                  {/* Default provider */}
-                  <div className="space-y-1">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                        {t('fields.assistant.provider.label')}
-                      </label>
-                      <Select
-                        value={localAssistantProvider}
-                        onValueChange={(v) => setLocalAssistantProvider(v as AssistantProvider)}
-                      >
-                        <SelectTrigger className="w-48">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="claude">Claude</SelectItem>
-                          {opencodeInstalled && (
-                            <SelectItem value="opencode">OpenCode</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                  {/* Provider & model settings — 2-column on md+ */}
+                  <div className="grid gap-4 md:grid-cols-2 md:gap-x-8">
+                    {/* Left column: Main provider */}
+                    <div className="space-y-4">
+                      {/* Default provider */}
+                      <div className="space-y-1">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                            {t('fields.assistant.provider.label')}
+                          </label>
+                          <Select
+                            value={localAssistantProvider}
+                            onValueChange={(v) => setLocalAssistantProvider(v as AssistantProvider)}
+                          >
+                            <SelectTrigger className="w-48">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="claude">Claude</SelectItem>
+                              {opencodeInstalled && (
+                                <SelectItem value="opencode">OpenCode</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                          {t('fields.assistant.provider.description')}
+                        </p>
+                      </div>
+
+                      {/* Claude model (shown when provider is Claude) */}
+                      {localAssistantProvider === 'claude' && (
+                        <div className="space-y-1">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                              {t('fields.assistant.model.label')}
+                            </label>
+                            <Select
+                              value={localAssistantModel}
+                              onValueChange={(v) => setLocalAssistantModel(v as AssistantModel)}
+                            >
+                              <SelectTrigger className="w-48">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ASSISTANT_MODELS.map((model) => (
+                                  <SelectItem key={model} value={model}>
+                                    {t(`fields.assistant.model.options.${model}`)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('fields.assistant.model.description')}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* OpenCode model (shown when provider is OpenCode) */}
+                      {localAssistantProvider === 'opencode' && (
+                        <div className="space-y-1">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                              {t('fields.assistant.opencodeModel.label')}
+                            </label>
+                            <ModelPicker
+                              value={globalOpencodeModel}
+                              onChange={(v) => {
+                                updateConfig.mutate({ key: CONFIG_KEYS.OPENCODE_MODEL, value: v })
+                              }}
+                              placeholder={t('fields.assistant.opencodeModel.placeholder')}
+                              className="w-64"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('fields.assistant.opencodeModel.description')}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                      {t('fields.assistant.provider.description')}
-                    </p>
+
+                    {/* Right column: Observer */}
+                    <div className="space-y-4">
+                      {/* Observer provider */}
+                      <div className="space-y-1">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                            {t('fields.assistant.observerProvider.label')}
+                          </label>
+                          <Select
+                            value={localAssistantObserverProvider ?? 'same-as-main'}
+                            onValueChange={(v) => setLocalAssistantObserverProvider(v === 'same-as-main' ? null : v as AssistantProvider)}
+                          >
+                            <SelectTrigger className="w-48">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="same-as-main">
+                                {t('fields.assistant.observerProvider.options.default')}
+                              </SelectItem>
+                              <SelectItem value="claude">Claude</SelectItem>
+                              {opencodeInstalled && (
+                                <SelectItem value="opencode">OpenCode</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                          {t('fields.assistant.observerProvider.description')}
+                        </p>
+                      </div>
+
+                      {/* Observer model (shown when observer provider is Claude or default+Claude) */}
+                      {(localAssistantObserverProvider === 'claude' || (localAssistantObserverProvider === null && localAssistantProvider === 'claude')) && (
+                        <div className="space-y-1">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                              {t('fields.assistant.observerModel.label')}
+                            </label>
+                            <Select
+                              value={localAssistantObserverModel}
+                              onValueChange={(v) => setLocalAssistantObserverModel(v as AssistantModel)}
+                            >
+                              <SelectTrigger className="w-48">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ASSISTANT_MODELS.map((model) => (
+                                  <SelectItem key={model} value={model}>
+                                    {t(`fields.assistant.observerModel.options.${model}`)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('fields.assistant.observerModel.description')}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Observer OpenCode model (shown when observer provider is OpenCode) */}
+                      {(localAssistantObserverProvider === 'opencode' || (localAssistantObserverProvider === null && localAssistantProvider === 'opencode')) && opencodeInstalled && (
+                        <div className="space-y-1">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
+                              {t('fields.assistant.observerOpencodeModel.label')}
+                            </label>
+                            <ModelPicker
+                              value={localAssistantObserverOpencodeModel}
+                              onChange={(v) => setLocalAssistantObserverOpencodeModel(v)}
+                              placeholder={t('fields.assistant.observerOpencodeModel.placeholder')}
+                              className="w-64"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
+                            {t('fields.assistant.observerOpencodeModel.description')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-
-                  {/* Claude model (shown when provider is Claude) */}
-                  {localAssistantProvider === 'claude' && (
-                    <div className="space-y-1">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                          {t('fields.assistant.model.label')}
-                        </label>
-                        <Select
-                          value={localAssistantModel}
-                          onValueChange={(v) => setLocalAssistantModel(v as AssistantModel)}
-                        >
-                          <SelectTrigger className="w-48">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ASSISTANT_MODELS.map((model) => (
-                              <SelectItem key={model} value={model}>
-                                {t(`fields.assistant.model.options.${model}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                        {t('fields.assistant.model.description')}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Observer model (shown when provider is Claude) */}
-                  {localAssistantProvider === 'claude' && (
-                    <div className="space-y-1">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                          {t('fields.assistant.observerModel.label')}
-                        </label>
-                        <Select
-                          value={localAssistantObserverModel}
-                          onValueChange={(v) => setLocalAssistantObserverModel(v as AssistantModel)}
-                        >
-                          <SelectTrigger className="w-48">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ASSISTANT_MODELS.map((model) => (
-                              <SelectItem key={model} value={model}>
-                                {t(`fields.assistant.observerModel.options.${model}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                        {t('fields.assistant.observerModel.description')}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* OpenCode model (shown when provider is OpenCode) */}
-                  {localAssistantProvider === 'opencode' && (
-                    <div className="space-y-1">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <label className="text-sm text-muted-foreground sm:w-32 sm:shrink-0">
-                          {t('fields.assistant.opencodeModel.label')}
-                        </label>
-                        <ModelPicker
-                          value={globalOpencodeModel}
-                          onChange={(v) => {
-                            updateConfig.mutate({ key: CONFIG_KEYS.OPENCODE_MODEL, value: v })
-                          }}
-                          placeholder={t('fields.assistant.opencodeModel.placeholder')}
-                          className="w-64"
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground sm:ml-32 sm:pl-2">
-                        {t('fields.assistant.opencodeModel.description')}
-                      </p>
-                    </div>
-                  )}
 
                   {/* Custom instructions */}
                   <div className="space-y-1">

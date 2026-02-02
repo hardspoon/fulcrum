@@ -139,14 +139,26 @@
           "haiku": "Haiku (Fastest)"
         }
       },
+      "observerProvider": {
+        "label": "Observer Provider",
+        "description": "AI provider for observe-only message processing. Observe-only messages (non-self WhatsApp, unauthorized emails) use restricted tool access for security.",
+        "options": {
+          "default": "Same as main provider"
+        }
+      },
       "observerModel": {
         "label": "Observer Model",
-        "description": "Model used for observe-only message processing (e.g., non-self WhatsApp chats, unauthorized emails). Use a cheaper model to reduce costs.",
+        "description": "Claude model for observe-only message processing. Use a cheaper model to reduce costs.",
         "options": {
           "opus": "Opus (Most capable)",
           "sonnet": "Sonnet (Balanced)",
           "haiku": "Haiku (Fastest)"
         }
+      },
+      "observerOpencodeModel": {
+        "label": "Observer OpenCode Model",
+        "description": "OpenCode model for observe-only message processing. Falls back to the main OpenCode model if not set.",
+        "placeholder": "Same as main OpenCode model"
       },
       "opencodeModel": {
         "label": "OpenCode Model",

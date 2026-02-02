@@ -48,6 +48,8 @@ export const CONFIG_KEYS = {
   CLAUDE_CODE_DARK_THEME: 'appearance.claudeCodeDarkTheme',
   ASSISTANT_PROVIDER: 'assistant.provider',
   ASSISTANT_MODEL: 'assistant.model',
+  ASSISTANT_OBSERVER_PROVIDER: 'assistant.observerProvider',
+  ASSISTANT_OBSERVER_OPENCODE_MODEL: 'assistant.observerOpencodeModel',
   ASSISTANT_CUSTOM_INSTRUCTIONS: 'assistant.customInstructions',
   ASSISTANT_DOCUMENTS_DIR: 'assistant.documentsDir',
   ASSISTANT_RITUALS_ENABLED: 'assistant.ritualsEnabled',
@@ -440,6 +442,23 @@ app.put('/:key', async (c) => {
       const validModels = ['opus', 'sonnet', 'haiku']
       if (!validModels.includes(value as string)) {
         return c.json({ error: `Assistant model must be one of: ${validModels.join(', ')}` }, 400)
+      }
+    } else if (path === CONFIG_KEYS.ASSISTANT_OBSERVER_PROVIDER) {
+      // Observer provider can be null (use main provider), 'claude', or 'opencode'
+      if (value !== null && value !== 'claude' && value !== 'opencode') {
+        return c.json({ error: 'Observer provider must be "claude", "opencode", or null' }, 400)
+      }
+      // Convert empty string to null
+      if (value === '') {
+        value = null
+      }
+    } else if (path === CONFIG_KEYS.ASSISTANT_OBSERVER_OPENCODE_MODEL) {
+      // Observer OpenCode model can be null or a string
+      if (value !== null && typeof value !== 'string') {
+        return c.json({ error: 'Observer OpenCode model must be a string or null' }, 400)
+      }
+      if (value === '') {
+        value = null
       }
     } else if (path === CONFIG_KEYS.ASSISTANT_CUSTOM_INSTRUCTIONS) {
       // Custom instructions can be null or a string

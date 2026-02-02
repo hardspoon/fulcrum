@@ -1,82 +1,39 @@
-import { createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk'
+import { createOpencode, createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk'
 import { log } from '../lib/logger'
 import { db, tasks, projects, repositories, apps, projectRepositories } from '../db'
 import { eq } from 'drizzle-orm'
-import type { PageContext } from '../../shared/types'
-import type { ImageData } from '../routes/chat'
+import type { PageContext, ImageData } from '../../shared/types'
 
 // Default OpenCode server port
 const OPENCODE_DEFAULT_PORT = 4096
 
-interface OpencodeSession {
-  id: string
-  opencodeSessionId?: string // OpenCode SDK session ID
-  createdAt: Date
-}
-
-// In-memory session storage
-const sessions = new Map<string, OpencodeSession>()
+// Maps Fulcrum session ID → OpenCode SDK session ID
+const opencodeSessionIds = new Map<string, string>()
 
 // OpenCode client singleton
 let opencodeClient: OpencodeClient | null = null
+let serverHandle: { url: string; close(): void } | null = null
 
 async function getClient(): Promise<OpencodeClient> {
-  if (!opencodeClient) {
-    // Try to connect to a running OpenCode server
-    // OpenCode typically runs on port 14000
-    const baseUrl = `http://localhost:${OPENCODE_DEFAULT_PORT}`
+  if (opencodeClient) return opencodeClient
 
-    opencodeClient = createOpencodeClient({
-      baseUrl,
-    })
+  // Try connecting to existing server
+  try {
+    const client = createOpencodeClient({ baseUrl: `http://localhost:${OPENCODE_DEFAULT_PORT}` })
+    await client.session.list()
+    opencodeClient = client
+    return opencodeClient
+  } catch {
+    // Not running, start one
   }
+
+  // Start server
+  log.chat.info('Starting OpenCode server', { port: OPENCODE_DEFAULT_PORT })
+  const result = await createOpencode({ port: OPENCODE_DEFAULT_PORT })
+  serverHandle = result.server
+  opencodeClient = result.client
+  log.chat.info('OpenCode server started', { url: serverHandle.url })
   return opencodeClient
-}
-
-// Session cleanup - remove sessions older than 1 hour
-const SESSION_TTL_MS = 60 * 60 * 1000
-setInterval(() => {
-  const now = Date.now()
-  for (const [id, session] of sessions) {
-    if (now - session.createdAt.getTime() > SESSION_TTL_MS) {
-      sessions.delete(id)
-      log.chat.debug('OpenCode session expired and cleaned up', { sessionId: id })
-    }
-  }
-}, 5 * 60 * 1000) // Check every 5 minutes
-
-/**
- * Create a new OpenCode chat session
- */
-export function createOpencodeSession(): string {
-  const id = crypto.randomUUID()
-  const session: OpencodeSession = {
-    id,
-    createdAt: new Date(),
-  }
-  sessions.set(id, session)
-  log.chat.info('Created OpenCode chat session', { sessionId: id })
-  return id
-}
-
-/**
- * Get a session by ID
- */
-export function getOpencodeSession(id: string): OpencodeSession | undefined {
-  return sessions.get(id)
-}
-
-/**
- * End an OpenCode chat session
- */
-export function endOpencodeSession(id: string): boolean {
-  const session = sessions.get(id)
-  if (session) {
-    sessions.delete(id)
-    log.chat.info('Ended OpenCode chat session', { sessionId: id })
-    return true
-  }
-  return false
 }
 
 /**
@@ -246,16 +203,10 @@ export async function* streamOpencodeMessage(
   context?: PageContext,
   images?: ImageData[]
 ): AsyncGenerator<{ type: string; data: unknown }> {
-  const session = sessions.get(sessionId)
-  if (!session) {
-    yield { type: 'error', data: { message: 'Session not found' } }
-    return
-  }
-
   try {
     log.chat.debug('Starting OpenCode SDK query', {
       sessionId,
-      hasResume: !!session.opencodeSessionId,
+      hasResume: !!opencodeSessionIds.get(sessionId),
       pageType: context?.pageType,
       model,
       hasImages: images && images.length > 0,
@@ -268,9 +219,8 @@ export async function* streamOpencodeMessage(
     const fullMessage = contextMessage ? `${contextMessage}\n\n${userMessage}` : userMessage
 
     // Create or get OpenCode session
-    let opencodeSessionId = session.opencodeSessionId
+    let opencodeSessionId = opencodeSessionIds.get(sessionId)
     if (!opencodeSessionId) {
-      // Create a new OpenCode session
       // Parse model string "provider/modelId" into separate fields
       // e.g., "openrouter/z-ai/glm-4.7" -> providerID: "openrouter", modelID: "z-ai/glm-4.7"
       let modelConfig: { providerID: string; modelID: string } | undefined
@@ -295,7 +245,9 @@ export async function* streamOpencodeMessage(
         throw new Error(newSession.error.message || 'Failed to create OpenCode session')
       }
       opencodeSessionId = newSession.data?.id
-      session.opencodeSessionId = opencodeSessionId
+      if (opencodeSessionId) {
+        opencodeSessionIds.set(sessionId, opencodeSessionId)
+      }
       log.chat.debug('Created new OpenCode session', { opencodeSessionId })
     }
 
@@ -369,9 +321,15 @@ export async function* streamOpencodeMessage(
         type?: string
         properties?: {
           part?: { type?: string; text?: string; messageID?: string; sessionID?: string; id?: string }
-          info?: { role?: string; sessionID?: string; id?: string }
+          info?: {
+            role?: string
+            sessionID?: string
+            id?: string
+            error?: { name?: string; data?: { message?: string } }
+          }
           message?: string
           sessionID?: string
+          error?: { name?: string; data?: { message?: string } } | string
         }
       }
 
@@ -386,10 +344,17 @@ export async function* streamOpencodeMessage(
       }
 
       // Track the user message ID so we can skip its text updates
+      // Also detect errors from completed assistant messages
       if (evt.type === 'message.updated') {
         const info = evt.properties?.info
         if (info?.role === 'user' && info?.id) {
           userMessageId = info.id
+        }
+        // Check if assistant message completed with an error
+        if (info?.role === 'assistant' && info?.error) {
+          const errorMsg = info.error.data?.message || info.error.name || 'Unknown OpenCode error'
+          log.chat.error('OpenCode message error', { sessionId, error: errorMsg, errorName: info.error.name })
+          throw new Error(errorMsg)
         }
       }
 
@@ -424,7 +389,14 @@ export async function* streamOpencodeMessage(
 
       // Handle errors for our session
       if (evt.type === 'session.error' && evt.properties?.sessionID === opencodeSessionId) {
-        throw new Error(evt.properties?.message || 'OpenCode session error')
+        const rawError = evt.properties?.error
+        const errorMsg = evt.properties?.message
+          || (typeof rawError === 'object' && rawError !== null
+              ? (rawError.data?.message || rawError.name || JSON.stringify(rawError))
+              : rawError)
+          || 'OpenCode session error'
+        log.chat.error('OpenCode session error event', { sessionId, error: errorMsg })
+        throw new Error(errorMsg)
       }
     }
 
@@ -489,15 +461,16 @@ export async function* streamOpencodeMessage(
     const errorMsg = err instanceof Error ? err.message : String(err)
     log.chat.error('OpenCode chat stream error', { sessionId, error: errorMsg })
 
-    // Check if it's a connection error (OpenCode not running)
+    // Check if it's a connection error - reset client so next request retries
     if (
       errorMsg.includes('ECONNREFUSED') ||
       errorMsg.includes('fetch failed') ||
       errorMsg.includes('network')
     ) {
+      opencodeClient = null
       yield {
         type: 'error',
-        data: { message: 'OpenCode is not running. Please start OpenCode first.' },
+        data: { message: 'Failed to connect to OpenCode server. It will auto-start on the next attempt.' },
       }
     } else {
       yield { type: 'error', data: { message: errorMsg } }
@@ -505,16 +478,3 @@ export async function* streamOpencodeMessage(
   }
 }
 
-/**
- * Get session info
- */
-export function getOpencodeSessionInfo(
-  sessionId: string
-): { id: string; hasConversation: boolean } | null {
-  const session = sessions.get(sessionId)
-  if (!session) return null
-  return {
-    id: session.id,
-    hasConversation: !!session.opencodeSessionId,
-  }
-}

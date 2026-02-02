@@ -1,35 +1,38 @@
+/**
+ * Restricted MCP endpoints for untrusted contexts.
+ *
+ * /mcp/observer — only memory tools (memory_store, memory_search).
+ * Used for observe-only channel messages where the input is untrusted
+ * third-party content (non-self WhatsApp chats, unauthorized emails).
+ */
 import { Hono } from 'hono'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import { registerTools } from '../../cli/src/mcp/tools'
+import { registerMemoryTools } from '../../cli/src/mcp/tools/memory'
 import { FulcrumClient } from '../../cli/src/client'
 import { getSettings } from '../lib/settings'
 
-const mcpRoutes = new Hono()
+const mcpObserverRoutes = new Hono()
 
-// Handle all MCP HTTP requests (stateless - new transport per request)
-mcpRoutes.all('/', async (c) => {
+mcpObserverRoutes.all('/', async (c) => {
   const settings = getSettings()
   const port = settings.server?.port ?? 7777
 
-  // Create transport in stateless mode (no sessionIdGenerator means stateless)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   })
 
-  // Create MCP server
   const server = new McpServer({
-    name: 'fulcrum',
-    version: '2.13.0',
+    name: 'fulcrum-observer',
+    version: '2.12.0',
   })
 
-  // Client connects back to this server
   const client = new FulcrumClient(`http://localhost:${port}`)
-  registerTools(server, client)
+  registerMemoryTools(server, client)
 
   await server.connect(transport)
 
   return transport.handleRequest(c.req.raw)
 })
 
-export default mcpRoutes
+export default mcpObserverRoutes

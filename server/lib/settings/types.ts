@@ -161,6 +161,10 @@ export interface Settings {
     provider: AssistantProvider
     model: AssistantModel
     observerModel: AssistantModel
+    /** Provider for observe-only message processing (null = use main provider) */
+    observerProvider: AssistantProvider | null
+    /** OpenCode model for observer processing (null = use main agent.opencodeModel) */
+    observerOpencodeModel: string | null
     customInstructions: string | null
     documentsDir: string
     ritualsEnabled: boolean
@@ -214,6 +218,8 @@ export const DEFAULT_SETTINGS: Settings = {
     provider: 'claude',
     model: 'sonnet',
     observerModel: 'haiku',
+    observerProvider: null,
+    observerOpencodeModel: null,
     customInstructions: null,
     documentsDir: '~/.fulcrum/documents',
     ritualsEnabled: false,
@@ -306,6 +312,8 @@ export const VALID_SETTING_PATHS = new Set([
   'assistant.provider',
   'assistant.model',
   'assistant.observerModel',
+  'assistant.observerProvider',
+  'assistant.observerOpencodeModel',
   'assistant.customInstructions',
   'assistant.documentsDir',
   'assistant.ritualsEnabled',

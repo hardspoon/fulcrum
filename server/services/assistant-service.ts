@@ -7,10 +7,9 @@ import { getSettings } from '../lib/settings'
 import { getClaudeCodePathForSdk } from '../lib/claude-code-path'
 import { getInstanceContext } from '../lib/settings/paths'
 import { log } from '../lib/logger'
-import type { PageContext } from '../../shared/types'
+import type { PageContext, ImageData } from '../../shared/types'
 import { saveDocument, readDocument, deleteDocument, renameDocument, generateDocumentFilename } from './document-service'
 import { getFullKnowledge, getCondensedKnowledge } from './assistant-knowledge'
-import type { ImageData } from '../routes/chat'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
 
@@ -363,6 +362,13 @@ export interface StreamMessageOptions {
   context?: PageContext
   /** UI mode: 'full' includes canvas/editor/chart instructions, 'compact' uses inline markdown only */
   uiMode?: 'full' | 'compact'
+  /**
+   * Security tier controls tool access.
+   * - 'observer': No built-in tools, MCP restricted to memory tools only.
+   *   Used for untrusted input (observe-only channel messages).
+   * - 'trusted' (default): Full tool access (claude_code preset + all MCP tools).
+   */
+  securityTier?: 'observer' | 'trusted'
 }
 
 /**
@@ -639,6 +645,19 @@ User message: ${userMessage}`
       fullPrompt = textMessage
     }
 
+    // Switch tool access based on security tier
+    const isObserver = options.securityTier === 'observer'
+    const mcpUrl = isObserver
+      ? `http://localhost:${port}/mcp/observer`
+      : `http://localhost:${port}/mcp`
+
+    log.assistant.debug('SDK query params', {
+      sessionId,
+      requestedModelId: effectiveModelId,
+      resolvedModel: MODEL_MAP[effectiveModelId],
+      resumeSessionId: state.claudeSessionId ?? null,
+    })
+
     const result = query({
       prompt: fullPrompt,
       options: {
@@ -649,10 +668,12 @@ User message: ${userMessage}`
         mcpServers: {
           fulcrum: {
             type: 'http',
-            url: `http://localhost:${port}/mcp`,
+            url: mcpUrl,
           },
         },
-        tools: { type: 'preset', preset: 'claude_code' },
+        // Observer tier: no built-in tools (only MCP memory tools available)
+        // Trusted tier: full claude_code preset
+        tools: isObserver ? [] : { type: 'preset', preset: 'claude_code' },
         systemPrompt,
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
@@ -672,9 +693,10 @@ User message: ${userMessage}`
           tools?: string[]
           mcp_servers?: { name: string; status: string }[]
         }
-        log.assistant.info('SDK system message', {
+        log.assistant.debug('SDK system message', {
           sessionId,
           subtype: sysMsg.subtype,
+          model: (sysMsg as { model?: string }).model,
           toolCount: sysMsg.tools?.length,
           mcpServers: sysMsg.mcp_servers,
         })
@@ -738,6 +760,7 @@ User message: ${userMessage}`
           total_cost_usd?: number
           is_error?: boolean
           errors?: string[]
+          modelUsage?: Record<string, unknown>
         }
 
         if (resultMsg.subtype?.startsWith('error_')) {
@@ -745,7 +768,11 @@ User message: ${userMessage}`
           yield { type: 'error', data: { message: errors.join(', ') } }
         }
 
-        log.assistant.debug('Query completed', { sessionId, cost: resultMsg.total_cost_usd })
+        log.assistant.debug('Query completed', {
+          sessionId,
+          cost: resultMsg.total_cost_usd,
+          modelsUsed: resultMsg.modelUsage ? Object.keys(resultMsg.modelUsage) : [],
+        })
       }
     }
 

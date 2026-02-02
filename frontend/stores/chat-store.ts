@@ -132,24 +132,14 @@ export const ChatStore = types
       createSession: flow(function* () {
         const log = getLog()
         try {
-          // Use assistant API for Claude (persisted), chat API for OpenCode (in-memory)
-          const apiEndpoint =
-            self.provider === 'claude'
-              ? `${API_BASE}/api/assistant/sessions`
-              : `${API_BASE}/api/chat/sessions`
+          const title = new Date().toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          })
 
-          // Generate a timestamp-based title for persisted sessions
-          const title =
-            self.provider === 'claude'
-              ? new Date().toLocaleString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })
-              : undefined
-
-          const response: Response = yield fetch(apiEndpoint, {
+          const response: Response = yield fetch(`${API_BASE}/api/assistant/sessions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ provider: self.provider, title }),
@@ -159,15 +149,13 @@ export const ChatStore = types
             throw new Error('Failed to create chat session')
           }
 
-          const data: { id?: string; sessionId?: string } = yield response.json()
-          // Assistant API returns { id }, chat API returns { sessionId }
-          const sessionId = data.id ?? data.sessionId
-          if (!sessionId) {
+          const data: { id: string } = yield response.json()
+          if (!data.id) {
             throw new Error('Invalid session response')
           }
-          self.sessionId = sessionId
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessionId, provider: self.provider }))
-          log.info('Created chat session', { sessionId, provider: self.provider })
+          self.sessionId = data.id
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessionId: data.id, provider: self.provider }))
+          log.info('Created chat session', { sessionId: data.id, provider: self.provider })
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err)
           log.error('Failed to create chat session', { error: errorMsg })
@@ -194,42 +182,30 @@ export const ChatStore = types
         }
 
         try {
-          // Try assistant API for Claude sessions
-          if (storedProvider === 'claude') {
-            const response: Response = yield fetch(`${API_BASE}/api/assistant/sessions/${sessionId}`)
-            if (response.ok) {
-              const data: { id: string; messages?: Array<{ role: string; content: string; createdAt: string }> } =
-                yield response.json()
-              self.sessionId = sessionId
-              self.provider = 'claude'
-
-              // Restore messages from DB
-              if (data.messages && data.messages.length > 0) {
-                self.messages.clear()
-                for (const msg of data.messages) {
-                  self.messages.push(
-                    ChatMessageModel.create({
-                      id: crypto.randomUUID(),
-                      role: msg.role as 'user' | 'assistant',
-                      content: msg.content,
-                      timestamp: new Date(msg.createdAt),
-                      isStreaming: false,
-                    })
-                  )
-                }
-              }
-
-              log.info('Restored assistant session', { sessionId, messageCount: data.messages?.length ?? 0 })
-              return
-            }
-          }
-
-          // Fall back to in-memory chat API (for OpenCode or legacy sessions)
-          const response: Response = yield fetch(`${API_BASE}/api/chat/${sessionId}`)
+          const response: Response = yield fetch(`${API_BASE}/api/assistant/sessions/${sessionId}`)
           if (response.ok) {
+            const data: { id: string; provider?: string; messages?: Array<{ role: string; content: string; createdAt: string }> } =
+              yield response.json()
             self.sessionId = sessionId
-            self.provider = storedProvider
-            log.info('Restored chat session', { sessionId })
+            self.provider = (data.provider as 'claude' | 'opencode') || storedProvider
+
+            // Restore messages from DB
+            if (data.messages && data.messages.length > 0) {
+              self.messages.clear()
+              for (const msg of data.messages) {
+                self.messages.push(
+                  ChatMessageModel.create({
+                    id: crypto.randomUUID(),
+                    role: msg.role as 'user' | 'assistant',
+                    content: msg.content,
+                    timestamp: new Date(msg.createdAt),
+                    isStreaming: false,
+                  })
+                )
+              }
+            }
+
+            log.info('Restored session', { sessionId, provider: self.provider, messageCount: data.messages?.length ?? 0 })
           } else {
             localStorage.removeItem(STORAGE_KEY)
             log.debug('Removed stale session from storage', { sessionId })
@@ -247,25 +223,16 @@ export const ChatStore = types
         const log = getLog()
 
         if (!self.sessionId) {
-          // Create session inline - use appropriate API based on provider
+          // Create session inline
           try {
-            const apiEndpoint =
-              self.provider === 'claude'
-                ? `${API_BASE}/api/assistant/sessions`
-                : `${API_BASE}/api/chat/sessions`
+            const title = new Date().toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })
 
-            // Generate a timestamp-based title for persisted sessions
-            const title =
-              self.provider === 'claude'
-                ? new Date().toLocaleString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })
-                : undefined
-
-            const sessionResponse: Response = yield fetch(apiEndpoint, {
+            const sessionResponse: Response = yield fetch(`${API_BASE}/api/assistant/sessions`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ provider: self.provider, title }),
@@ -275,14 +242,13 @@ export const ChatStore = types
               throw new Error('Failed to create chat session')
             }
 
-            const data: { id?: string; sessionId?: string } = yield sessionResponse.json()
-            const sessionId = data.id ?? data.sessionId
-            if (!sessionId) {
+            const data: { id: string } = yield sessionResponse.json()
+            if (!data.id) {
               throw new Error('Invalid session response')
             }
-            self.sessionId = sessionId
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessionId, provider: self.provider }))
-            log.info('Created chat session', { sessionId, provider: self.provider })
+            self.sessionId = data.id
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessionId: data.id, provider: self.provider }))
+            log.info('Created chat session', { sessionId: data.id, provider: self.provider })
           } catch (err) {
             const errorMsg = err instanceof Error ? err.message : String(err)
             log.error('Failed to create chat session', { error: errorMsg })
@@ -370,13 +336,7 @@ export const ChatStore = types
             data: img.dataUrl.split(',')[1], // Remove "data:image/png;base64," prefix
           }))
 
-          // Use assistant API for Claude, chat API for OpenCode
-          const messageEndpoint =
-            self.provider === 'claude'
-              ? `${API_BASE}/api/assistant/sessions/${self.sessionId}/messages`
-              : `${API_BASE}/api/chat/${self.sessionId}/messages`
-
-          const response: Response = yield fetch(messageEndpoint, {
+          const response: Response = yield fetch(`${API_BASE}/api/assistant/sessions/${self.sessionId}/messages`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -491,21 +451,8 @@ export const ChatStore = types
         log.info('Cleared chat messages, ready for new session')
       },
 
-      endSession: flow(function* () {
+      endSession() {
         const log = getLog()
-
-        // For Claude sessions, we just clear local state - session persists in DB
-        // For OpenCode sessions, also delete from server (they're in-memory anyway)
-        if (self.sessionId && self.provider === 'opencode') {
-          try {
-            yield fetch(`${API_BASE}/api/chat/${self.sessionId}`, {
-              method: 'DELETE',
-            })
-            log.info('Ended OpenCode chat session', { sessionId: self.sessionId })
-          } catch (err) {
-            log.warn('Failed to end chat session', { error: String(err) })
-          }
-        }
 
         if (self.eventSource) {
           self.eventSource.close()
@@ -518,7 +465,7 @@ export const ChatStore = types
         self.isStreaming = false
         self.error = null
         localStorage.removeItem(STORAGE_KEY)
-      }),
+      },
 
       reset() {
         this.endSession()

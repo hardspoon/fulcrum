@@ -4,8 +4,8 @@ import { db } from '../db'
 import { sweepRuns } from '../db/schema'
 import { eq, desc } from 'drizzle-orm'
 import * as assistantService from '../services/assistant-service'
-import type { PageContext } from '../../shared/types'
-import type { ImageData } from './chat'
+import { streamOpencodeMessage } from '../services/opencode-chat-service'
+import type { PageContext, ImageData } from '../../shared/types'
 
 const assistantRoutes = new Hono()
 
@@ -115,7 +115,7 @@ assistantRoutes.post('/sessions/:id/messages', async (c) => {
   const sessionId = c.req.param('id')
   const { message, model, editorContent, images, context, uiMode } = await c.req.json<{
     message: string
-    model?: 'opus' | 'sonnet' | 'haiku'
+    model?: string
     editorContent?: string
     images?: ImageData[]
     context?: PageContext
@@ -132,9 +132,32 @@ assistantRoutes.post('/sessions/:id/messages', async (c) => {
     return c.json({ error: 'Session not found' }, 404)
   }
 
+  if (session.provider === 'opencode') {
+    // Save user message to DB
+    assistantService.addMessage(sessionId, { role: 'user', content: message || '', sessionId })
+
+    return streamSSE(c, async (stream) => {
+      let fullResponse = ''
+      for await (const event of streamOpencodeMessage(sessionId, message || '', model, context, images)) {
+        if (event.type === 'content:delta' && (event.data as { text?: string })?.text) {
+          fullResponse += (event.data as { text: string }).text
+        }
+        await stream.writeSSE({
+          event: event.type,
+          data: JSON.stringify(event.data),
+        })
+      }
+      // Save assistant response to DB
+      if (fullResponse) {
+        assistantService.addMessage(sessionId, { role: 'assistant', content: fullResponse, sessionId })
+      }
+    })
+  }
+
+  // Claude path (existing behavior)
   return streamSSE(c, async (stream) => {
     for await (const event of assistantService.streamMessage(sessionId, message || '', {
-      modelId: model,
+      modelId: model as 'opus' | 'sonnet' | 'haiku' | undefined,
       editorContent,
       images,
       context,
