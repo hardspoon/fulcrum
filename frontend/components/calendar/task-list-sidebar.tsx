@@ -125,11 +125,17 @@ export function TaskListSidebar({ projectFilter, tagsFilter, onTaskClick }: Task
             <div className="py-6 text-center text-xs text-muted-foreground">No active tasks</div>
           ) : (
             sortedTasks.map((task) => {
+              const dueDateStr = task.dueDate?.split('T')[0]
               const isOverdue =
-                task.dueDate &&
-                task.dueDate < todayString &&
+                dueDateStr &&
+                dueDateStr < todayString &&
                 task.status !== 'DONE' &&
                 task.status !== 'CANCELED'
+              const isToday = dueDateStr === todayString
+              const tomorrow = new Date()
+              tomorrow.setDate(tomorrow.getDate() + 1)
+              const tomorrowString = tomorrow.toISOString().split('T')[0]
+              const isTomorrow = dueDateStr === tomorrowString
 
               return (
                 <button
@@ -149,7 +155,13 @@ export function TaskListSidebar({ projectFilter, tagsFilter, onTaskClick }: Task
                       <span
                         className={cn(
                           'text-[10px]',
-                          isOverdue ? 'text-red-500 font-medium' : 'text-muted-foreground'
+                          isOverdue
+                            ? 'text-red-500 font-medium'
+                            : isToday
+                              ? 'text-orange-500 font-medium'
+                              : isTomorrow
+                                ? 'text-yellow-500'
+                                : 'text-muted-foreground'
                         )}
                       >
                         {formatDueDate(task.dueDate, todayString)}

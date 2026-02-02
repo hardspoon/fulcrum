@@ -357,11 +357,17 @@ function TaskItem({
   todayString: string
   onClick: (task: Task) => void
 }) {
+  const dueDateStr = task.dueDate?.split('T')[0]
   const isOverdue =
-    task.dueDate &&
-    task.dueDate.split('T')[0] < todayString &&
+    dueDateStr &&
+    dueDateStr < todayString &&
     task.status !== 'DONE' &&
     task.status !== 'CANCELED'
+  const isToday = dueDateStr === todayString
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowString = tomorrow.toISOString().split('T')[0]
+  const isTomorrow = dueDateStr === tomorrowString
 
   return (
     <button
@@ -380,7 +386,13 @@ function TaskItem({
           <span
             className={cn(
               'text-xs',
-              isOverdue ? 'text-red-500 font-medium' : 'text-muted-foreground'
+              isOverdue
+                ? 'text-red-500 font-medium'
+                : isToday
+                  ? 'text-orange-500 font-medium'
+                  : isTomorrow
+                    ? 'text-yellow-500'
+                    : 'text-muted-foreground'
             )}
           >
             {formatDueDate(task.dueDate, todayString)}
