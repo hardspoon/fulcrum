@@ -2584,7 +2584,9 @@ function SettingsPage() {
               {/* Messaging Channels */}
               <SettingsSection title="Channels">
                 <div className="space-y-8">
-                  <EmailSettings isLoading={isLoading} />
+                  <div className="rounded-lg border border-border p-4">
+                    <EmailSettings isLoading={isLoading} />
+                  </div>
                   <WhatsAppSetup isLoading={isLoading} />
                   <DiscordSetup isLoading={isLoading} />
                   <TelegramSetup isLoading={isLoading} />
