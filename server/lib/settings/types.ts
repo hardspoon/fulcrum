@@ -225,11 +225,25 @@ export const DEFAULT_SETTINGS: Settings = {
     ritualsEnabled: false,
     morningRitual: {
       time: '09:00',
-      prompt: 'Review messages since yesterday evening, summarize what needs attention today, and send a prioritized action plan.',
+      prompt: `Retrieve the most recent evening ritual plan from memory (search for tags: ritual, plan, evening-ritual).
+
+Review the plan alongside any new messages or events that arrived overnight. Adjust priorities if needed based on new information.
+
+Send the morning briefing via these channels (in order): email, Slack, WhatsApp, Telegram.
+
+Then store the morning review as a memory tagged with: ritual, plan, morning-ritual.`,
     },
     eveningRitual: {
       time: '18:00',
-      prompt: 'Summarize what was accomplished today, note pending items, and suggest focus areas for tomorrow.',
+      prompt: `Retrieve the most recent morning ritual plan from memory (search for tags: ritual, plan, morning-ritual) for context on what was planned today.
+
+Review what was accomplished today (tasks completed, messages exchanged, calendar events). Identify unfinished items and any new priorities that emerged.
+
+Create a concrete action plan for tomorrow with prioritized items.
+
+Send the evening summary and tomorrow's plan via these channels (in order): email, Slack, WhatsApp, Telegram.
+
+Then store the action plan as a memory tagged with: ritual, plan, evening-ritual.`,
     },
   },
   channels: {
