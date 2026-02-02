@@ -132,7 +132,7 @@ export function isAutomatedEmail(headers: EmailHeaders): AutomatedEmailResult {
 
   // 5. Check Return-Path for empty value (bounce/delivery notification)
   // Empty Return-Path is represented as "<>" or empty string
-  if (headers.returnPath !== null) {
+  if (headers.returnPath != null) {
     const returnPathTrimmed = headers.returnPath.trim()
     if (returnPathTrimmed === '<>' || returnPathTrimmed === '') {
       return {

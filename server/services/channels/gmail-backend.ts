@@ -112,6 +112,7 @@ export class GmailBackend {
           xAutoResponseSuppress: null,
           xMailer: null,
           contentType: null,
+          returnPath: null,
         })
         if (automatedCheck.isAutomated) continue
 
