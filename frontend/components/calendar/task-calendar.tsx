@@ -40,8 +40,12 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
   const { data: tasks = [] } = useTasks()
   const { data: projects = [] } = useProjects()
   const [currentDate, setCurrentDate] = useState(() => new Date())
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) ?? null : null),
+    [selectedTaskId, tasks]
+  )
   const [selectedEvent, setSelectedEvent] = useState<CaldavEvent | null>(null)
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
@@ -229,7 +233,7 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
         params: { taskId: task.id },
       })
     } else {
-      setSelectedTask(task)
+      setSelectedTaskId(task.id)
       setModalOpen(true)
     }
   }
@@ -402,7 +406,7 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
           open={modalOpen}
           onOpenChange={(open) => {
             setModalOpen(open)
-            if (!open) setSelectedTask(null)
+            if (!open) setSelectedTaskId(null)
           }}
         />
       )}

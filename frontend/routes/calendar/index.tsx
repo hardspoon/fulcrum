@@ -6,6 +6,7 @@ import { MobileCalendarList } from '@/components/calendar/mobile-calendar-list'
 import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
 import { TagsFilter } from '@/components/tasks/tags-filter'
 import { ProjectFilter } from '@/components/tasks/project-filter'
+import { useTasks } from '@/hooks/use-tasks'
 import type { Task } from '@/types'
 
 interface CalendarSearch {
@@ -24,8 +25,14 @@ export const Route = createFileRoute('/calendar/')({
 function CalendarView() {
   const { project: projectFilter, tags: tagsParam } = Route.useSearch()
   const navigate = useNavigate()
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const { data: tasks } = useTasks()
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? tasks?.find((t) => t.id === selectedTaskId) ?? null : null),
+    [selectedTaskId, tasks]
+  )
 
   const tagsFilter = useMemo(() => {
     if (!tagsParam) return []
@@ -59,7 +66,7 @@ function CalendarView() {
       if (task.worktreePath) {
         navigate({ to: '/tasks/$taskId', params: { taskId: task.id } })
       } else {
-        setSelectedTask(task)
+        setSelectedTaskId(task.id)
         setModalOpen(true)
       }
     },
@@ -110,7 +117,7 @@ function CalendarView() {
           open={modalOpen}
           onOpenChange={(open) => {
             setModalOpen(open)
-            if (!open) setSelectedTask(null)
+            if (!open) setSelectedTaskId(null)
           }}
         />
       )}

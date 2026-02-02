@@ -46,8 +46,12 @@ export function MobileCalendarList({ className, projectFilter, tagsFilter }: Mob
   const todayString = useToday()
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [showOverdue, setShowOverdue] = useState(true)
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) ?? null : null),
+    [selectedTaskId, tasks]
+  )
 
   // Project filter helpers
   const { projectRepoIds, projectRepoPaths } = useMemo(() => {
@@ -214,7 +218,7 @@ export function MobileCalendarList({ className, projectFilter, tagsFilter }: Mob
     if (task.worktreePath) {
       navigate({ to: '/tasks/$taskId', params: { taskId: task.id } })
     } else {
-      setSelectedTask(task)
+      setSelectedTaskId(task.id)
       setModalOpen(true)
     }
   }
@@ -340,7 +344,7 @@ export function MobileCalendarList({ className, projectFilter, tagsFilter }: Mob
           open={modalOpen}
           onOpenChange={(open) => {
             setModalOpen(open)
-            if (!open) setSelectedTask(null)
+            if (!open) setSelectedTaskId(null)
           }}
         />
       )}

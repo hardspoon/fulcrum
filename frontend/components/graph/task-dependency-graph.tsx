@@ -17,7 +17,7 @@ import dagre from '@dagrejs/dagre'
 import { useTaskDependencyGraph, useTasks, type TaskGraphNode } from '@/hooks/use-tasks'
 import { useProjects } from '@/hooks/use-projects'
 import { useIsOverdue, useIsDueToday } from '@/hooks/use-date-utils'
-import type { Task, TaskStatus } from '@/types'
+import type { TaskStatus } from '@/types'
 import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
 import 'reactflow/dist/style.css'
 
@@ -184,8 +184,12 @@ export function TaskDependencyGraph({ className, projectFilter, tagsFilter }: Ta
   const { data: graphData, isLoading } = useTaskDependencyGraph()
   const { data: allTasks = [] } = useTasks()
   const { data: projects = [] } = useProjects()
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? allTasks.find((t) => t.id === selectedTaskId) ?? null : null),
+    [selectedTaskId, allTasks]
+  )
 
   // Create a map of task IDs to full task objects for quick lookup
   const taskMap = useMemo(() => {
@@ -406,7 +410,7 @@ export function TaskDependencyGraph({ className, projectFilter, tagsFilter }: Ta
           params: { taskId: node.id },
         })
       } else {
-        setSelectedTask(task)
+        setSelectedTaskId(task.id)
         setModalOpen(true)
       }
     },
@@ -479,7 +483,7 @@ export function TaskDependencyGraph({ className, projectFilter, tagsFilter }: Ta
           open={modalOpen}
           onOpenChange={(open) => {
             setModalOpen(open)
-            if (!open) setSelectedTask(null)
+            if (!open) setSelectedTaskId(null)
           }}
         />
       )}
