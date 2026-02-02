@@ -753,10 +753,10 @@ export const toolRegistry: ToolMetadata[] = [
     defer_loading: false,
   },
   {
-    name: 'memory_search',
-    description: 'Search persistent memory using full-text search',
-    category: 'memory',
-    keywords: ['memory', 'search', 'find', 'recall', 'knowledge', 'retrieve', 'remember'],
+    name: 'search',
+    description: 'Search across all Fulcrum entities (tasks, projects, messages, events, memories) using full-text search',
+    category: 'core',
+    keywords: ['search', 'find', 'query', 'fts', 'full-text', 'task', 'project', 'message', 'event', 'memory', 'recall', 'knowledge'],
     defer_loading: false,
   },
 

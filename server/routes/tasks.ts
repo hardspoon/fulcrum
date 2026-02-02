@@ -15,6 +15,7 @@ import {
 } from '../terminal/pty-instance'
 import { broadcast } from '../websocket/terminal-ws'
 import { updateTaskStatus } from '../services/task-status'
+import { reindexTaskFTS } from '../services/search-service'
 import { log } from '../lib/logger'
 
 // Helper to create git worktree
@@ -897,6 +898,7 @@ app.post('/:id/tags', async (c) => {
         .run()
     }
 
+    reindexTaskFTS(taskId)
     const currentTags = getTaskTags(taskId)
     broadcast({ type: 'task:updated', payload: { taskId } })
     return c.json({ tags: currentTags })
@@ -938,6 +940,7 @@ app.delete('/:id/tags/:tag', (c) => {
     .where(eq(tasks.id, taskId))
     .run()
 
+  reindexTaskFTS(taskId)
   const currentTags = getTaskTags(taskId)
   broadcast({ type: 'task:updated', payload: { taskId } })
   return c.json({ tags: currentTags })

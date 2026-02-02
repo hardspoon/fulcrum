@@ -1397,4 +1397,37 @@ export class FulcrumClient {
     return this.fetch(`/api/google/accounts/${accountId}/drafts/${draftId}`, { method: 'DELETE' })
   }
 
+  // Unified Search
+  async search(input: {
+    query: string
+    entities?: string[]
+    limit?: number
+    taskStatus?: string[]
+    projectStatus?: string
+    messageChannel?: string
+    messageDirection?: string
+    eventFrom?: string
+    eventTo?: string
+    memoryTags?: string[]
+  }): Promise<Array<{
+    entityType: string
+    id: string
+    title: string
+    snippet: string
+    score: number
+    metadata: Record<string, unknown>
+  }>> {
+    const params = new URLSearchParams({ q: input.query })
+    if (input.entities?.length) params.set('entities', input.entities.join(','))
+    if (input.limit) params.set('limit', String(input.limit))
+    if (input.taskStatus?.length) params.set('taskStatus', input.taskStatus.join(','))
+    if (input.projectStatus) params.set('projectStatus', input.projectStatus)
+    if (input.messageChannel) params.set('messageChannel', input.messageChannel)
+    if (input.messageDirection) params.set('messageDirection', input.messageDirection)
+    if (input.eventFrom) params.set('eventFrom', input.eventFrom)
+    if (input.eventTo) params.set('eventTo', input.eventTo)
+    if (input.memoryTags?.length) params.set('memoryTags', input.memoryTags.join(','))
+    return this.fetch(`/api/search?${params.toString()}`)
+  }
+
 }

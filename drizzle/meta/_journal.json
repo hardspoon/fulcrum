@@ -407,6 +407,13 @@
       "when": 1771066400000,
       "tag": "0057_add_send_as_email",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "6",
+      "when": 1771152800000,
+      "tag": "0058_unified_search_fts",
+      "breakpoints": true
     }
   ]
 }

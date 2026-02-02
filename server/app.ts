@@ -37,6 +37,7 @@ import caldavRoutes from './routes/caldav'
 import googleOauthRoutes from './routes/google-oauth'
 import googleRoutes from './routes/google'
 import memoryRoutes from './routes/memory'
+import searchRoutes from './routes/search'
 import { writeEntry } from './lib/logger'
 import type { LogEntry } from '../shared/logger'
 
@@ -114,6 +115,9 @@ export function createApp() {
 
   // Agent memory system
   app.route('/api/memory', memoryRoutes)
+
+  // Unified search across all entities
+  app.route('/api/search', searchRoutes)
 
   // Logging endpoint for frontend to send batched logs to server
   app.post('/api/logs', async (c) => {

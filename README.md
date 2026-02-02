@@ -195,7 +195,7 @@ Agents can store and recall knowledge across conversations using a persistent me
 - **Searchable** — Full-text search with boolean operators, phrase matching, and prefix queries
 - **Tagged** — Categorize memories with tags (preferences, decisions, architecture, etc.)
 - **Browsable** — View, search, edit, and delete memories from the Monitoring > Memory tab
-- **MCP tools** — `memory_store` and `memory_search` available to all connected agents
+- **MCP tools** — `memory_store` for saving knowledge, unified `search` tool for cross-entity full-text search
 
 ### System Monitoring
 
@@ -249,7 +249,8 @@ Both plugins include an MCP server with 60+ tools:
 | **Notifications** | Send notifications to enabled channels |
 | **Backup & Restore** | Snapshot database and settings; auto-safety-backup on restore |
 | **Settings** | View and update configuration; manage notification channels |
-| **Memory** | Store and search persistent knowledge with FTS5 full-text search |
+| **Search** | Unified full-text search across tasks, projects, messages, events, and memories |
+| **Memory** | Store persistent knowledge for agent recall across sessions |
 | **Calendar** | Manage CalDAV accounts, sync calendars, configure event copy rules |
 | **Gmail** | List Google accounts, manage Gmail drafts (create, update, delete) |
 | **Assistant** | Send messages via channels; query sweep history |

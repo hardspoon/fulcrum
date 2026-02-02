@@ -42,6 +42,7 @@ Fulcrum is the Vibe Engineer's Cockpit. A terminal-first tool for orchestrating 
 - Calendar integration → `server/services/caldav/`, `server/routes/caldav.ts`, `frontend/components/caldav/`
 - Google integration → `server/services/google/`, `server/services/google-oauth.ts`, `server/routes/google.ts`, `server/routes/google-oauth.ts`
 - Agent memory → `server/routes/memory.ts`, `server/services/memory-service.ts`
+- Unified search → `server/routes/search.ts`, `server/services/search-service.ts`
 - Settings → `server/lib/settings/`, `frontend/routes/settings/`
 
 **UI components:**
@@ -122,6 +123,7 @@ fulcrum notify <title> <message>  # Send notification
 - `google/` - Google API integration (Calendar sync via googleapis, Gmail draft management)
 - `google-oauth.ts` - Shared Google OAuth2 client management, token refresh
 - `opencode-channel-service.ts` - OpenCode observer for channel message processing (structured JSON output, no direct tool access)
+- `search-service.ts` - Unified FTS5 full-text search across tasks, projects, messages, events, and memories
 - `memory-service.ts` - Persistent agent memory with SQLite FTS5 full-text search
 - `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
 - `pr-monitor.ts` - GitHub PR status polling, auto-close tasks on merge
@@ -138,6 +140,7 @@ fulcrum notify <title> <message>  # Send notification
 - `/api/monitoring/*` - System and Claude instance monitoring, channel messages
 - `/api/deployments/*` - Deployment history
 - `/api/repositories/*` - Repository management
+- `/api/search` - Unified full-text search across all entity types
 - `/api/memory/*` - Agent memory CRUD and FTS5 search
 - `/api/messaging/*` - Messaging channel management (WhatsApp, Discord, Telegram, Slack)
 - `/api/assistant/*` - Unified assistant API (Claude and OpenCode providers)

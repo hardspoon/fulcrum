@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { nanoid } from 'nanoid'
 import { db, tags, taskTags, projectTags } from '../db'
 import { eq, sql, like, and } from 'drizzle-orm'
+import { reindexTaskFTS } from '../services/search-service'
 import type { TagWithUsage } from '../../shared/types'
 
 const app = new Hono()
@@ -218,12 +219,20 @@ app.delete('/:id', (c) => {
     return c.json({ error: 'Tag not found' }, 404)
   }
 
+  // Find affected tasks before deleting associations
+  const affectedTasks = db.select({ taskId: taskTags.taskId }).from(taskTags).where(eq(taskTags.tagId, id)).all()
+
   // Delete all task_tags and project_tags associations first
   db.delete(taskTags).where(eq(taskTags.tagId, id)).run()
   db.delete(projectTags).where(eq(projectTags.tagId, id)).run()
 
   // Delete the tag
   db.delete(tags).where(eq(tags.id, id)).run()
+
+  // Reindex affected tasks' FTS entries
+  for (const { taskId } of affectedTasks) {
+    reindexTaskFTS(taskId)
+  }
 
   return c.json({ success: true })
 })

@@ -883,6 +883,8 @@ describe('Settings', () => {
 
     test('write-then-read roundtrip preserves value for all VALID_SETTING_PATHS', async () => {
       const { updateSettingByPath, getSettings, ensureFulcrumDir } = await import('./')
+
+
       ensureFulcrumDir()
 
       // Pick a few representative paths from different sections to test the roundtrip

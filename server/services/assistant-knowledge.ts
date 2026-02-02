@@ -166,11 +166,16 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`message\` - Send a message to a channel (email, whatsapp)
 - \`get_last_sweep\` - Check when last sweep ran
 - Use \`memory_store\` with tag \`actionable\` to track things that need attention
-- Use \`memory_search\` to review tracked items (search for tags \`actionable\` or \`monitoring\`)
+- Use \`search\` with \`memoryTags: ["actionable"]\` to review tracked items
+
+**Unified Search:**
+- \`search\` - Cross-entity FTS5 full-text search across tasks, projects, messages, events, and memories
+  - Filter by entity type: \`entities: ["tasks", "projects", "messages", "events", "memories"]\`
+  - Entity-specific filters: \`taskStatus\`, \`projectStatus\`, \`messageChannel\`, \`messageDirection\`, \`eventFrom\`, \`eventTo\`, \`memoryTags\`
+  - Results sorted by relevance score with BM25 ranking
 
 **Memory Tools:**
 - \`memory_store\` - Store a piece of knowledge in persistent memory with optional tags
-- \`memory_search\` - Search memories using FTS5 full-text search (supports AND, OR, NOT, "phrases", prefix*)
 
 **Google Account & Gmail Tools:**
 - \`list_google_accounts\` - List all Google accounts with calendar/Gmail status
@@ -517,9 +522,11 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - list_projects, create_project
 - execute_command (run any CLI command)
 - send_notification
-- memory_store, memory_search (persistent knowledge across sessions)
+- search (unified FTS5 search across tasks, projects, messages, events, memories)
+- memory_store (persistent knowledge across sessions)
 - message (send to email/WhatsApp - concierge mode)
 - memory_store with tag \`actionable\` (track things needing attention - concierge mode)
+- search with memoryTags filter (find tracked items by tag)
 
 **Remember:** When users need external services (email, cloud, APIs), guide them on what credentials to provide - don't say "Fulcrum can't do that."`
 }
