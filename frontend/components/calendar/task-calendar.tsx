@@ -44,6 +44,8 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<CaldavEvent | null>(null)
   const [eventModalOpen, setEventModalOpen] = useState(false)
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [dayDialogOpen, setDayDialogOpen] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
   const [gridHeight, setGridHeight] = useState<number | undefined>(undefined)
 
@@ -309,15 +311,22 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
                   !isCurrentMonth && 'bg-muted/50'
                 )}
               >
-                <div
+                <button
+                  onClick={() => {
+                    if (totalItems > 0) {
+                      setSelectedDay(dateKey)
+                      setDayDialogOpen(true)
+                    }
+                  }}
                   className={cn(
                     'mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs',
                     isToday && 'bg-primary text-primary-foreground font-semibold',
-                    !isToday && !isCurrentMonth && 'text-muted-foreground'
+                    !isToday && !isCurrentMonth && 'text-muted-foreground',
+                    totalItems > 0 && 'hover:bg-accent cursor-pointer'
                   )}
                 >
                   {date.getDate()}
-                </div>
+                </button>
                 <div className="flex flex-col gap-0.5">
                   {visibleTasks.map((task) => {
                     const colors = STATUS_COLORS[task.status]
@@ -366,9 +375,15 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
                     )
                   })}
                   {overflowCount > 0 && (
-                    <div className="px-1 text-[10px] text-muted-foreground">
+                    <button
+                      onClick={() => {
+                        setSelectedDay(dateKey)
+                        setDayDialogOpen(true)
+                      }}
+                      className="px-1 text-[10px] text-muted-foreground hover:text-foreground cursor-pointer text-left"
+                    >
                       +{overflowCount} more
-                    </div>
+                    </button>
                   )}
                 </div>
               </div>
@@ -388,6 +403,34 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
           onOpenChange={(open) => {
             setModalOpen(open)
             if (!open) setSelectedTask(null)
+          }}
+        />
+      )}
+
+      {/* Day detail dialog */}
+      {selectedDay && (
+        <DayDetailDialog
+          dateKey={selectedDay}
+          open={dayDialogOpen}
+          onOpenChange={(open) => {
+            setDayDialogOpen(open)
+            if (!open) setSelectedDay(null)
+          }}
+          tasks={tasksByDate.get(selectedDay) || []}
+          events={eventsByDate.get(selectedDay) || []}
+          calendarColorMap={calendarColorMap}
+          calendarNameMap={calendarNameMap}
+          todayString={todayString}
+          onTaskClick={(task) => {
+            setDayDialogOpen(false)
+            setSelectedDay(null)
+            handleTaskClick(task)
+          }}
+          onEventClick={(event) => {
+            setDayDialogOpen(false)
+            setSelectedDay(null)
+            setSelectedEvent(event)
+            setEventModalOpen(true)
           }}
         />
       )}
@@ -449,6 +492,99 @@ interface CaldavEventDialogProps {
   onOpenChange: (open: boolean) => void
   calendarName?: string
   calendarColor: string
+}
+
+interface DayDetailDialogProps {
+  dateKey: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  tasks: Task[]
+  events: CaldavEvent[]
+  calendarColorMap: Map<string, string>
+  calendarNameMap: Map<string, string>
+  todayString: string
+  onTaskClick: (task: Task) => void
+  onEventClick: (event: CaldavEvent) => void
+}
+
+function DayDetailDialog({
+  dateKey,
+  open,
+  onOpenChange,
+  tasks,
+  events,
+  calendarColorMap,
+  calendarNameMap,
+  todayString,
+  onTaskClick,
+  onEventClick,
+}: DayDetailDialogProps) {
+  const dateTitle = new Date(dateKey + 'T00:00:00').toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{dateTitle}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto">
+          {tasks.map((task) => {
+            const colors = STATUS_COLORS[task.status]
+            const isOverdue =
+              dateKey < todayString && task.status !== 'DONE' && task.status !== 'CANCELED'
+
+            return (
+              <button
+                key={task.id}
+                onClick={() => onTaskClick(task)}
+                className={cn(
+                  'w-full truncate rounded px-2 py-1.5 text-left text-sm border transition-opacity hover:opacity-80',
+                  colors.bg,
+                  colors.text,
+                  isOverdue ? 'border-red-500' : colors.border
+                )}
+                title={task.title}
+              >
+                {task.title}
+              </button>
+            )
+          })}
+          {events.map((event) => {
+            const calColor = calendarColorMap.get(event.calendarId) || '#6b7280'
+            const calName = calendarNameMap.get(event.calendarId)
+            const timeStr =
+              !event.allDay && event.dtstart?.includes('T')
+                ? event.dtstart.split('T')[1].slice(0, 5)
+                : null
+
+            return (
+              <button
+                key={event.id}
+                onClick={() => onEventClick(event)}
+                className="w-full truncate rounded px-2 py-1.5 text-left text-sm bg-muted/60 text-muted-foreground transition-opacity hover:opacity-80 cursor-pointer"
+                style={{ borderLeft: `3px solid ${calColor}` }}
+                title={[event.summary, event.location].filter(Boolean).join(' · ')}
+              >
+                {timeStr && <span className="font-medium mr-1">{timeStr}</span>}
+                {event.summary || 'Untitled'}
+                {calName && (
+                  <span className="ml-1 text-xs opacity-60">· {calName}</span>
+                )}
+              </button>
+            )
+          })}
+          {tasks.length === 0 && events.length === 0 && (
+            <p className="text-sm text-muted-foreground py-2 text-center">No items for this day</p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function CaldavEventDialog({ event, open, onOpenChange, calendarName, calendarColor }: CaldavEventDialogProps) {
