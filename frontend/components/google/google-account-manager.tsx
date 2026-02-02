@@ -71,9 +71,23 @@ export function GoogleAccountManager({
 
     try {
       setIsConnecting(true)
-      const result = await getOAuthUrl.mutateAsync({ accountName: accountName.trim() })
 
-      window.open(result.authUrl, '_blank', 'width=600,height=700')
+      // Open window synchronously to avoid popup blocker (must be in click context)
+      const popup = window.open('about:blank', '_blank', 'width=600,height=700')
+
+      try {
+        const result = await getOAuthUrl.mutateAsync({ accountName: accountName.trim() })
+
+        if (popup && !popup.closed) {
+          popup.location.href = result.authUrl
+        } else {
+          // Popup was blocked or closed — fall back to same-tab redirect
+          window.location.href = result.authUrl
+        }
+      } catch (err) {
+        popup?.close()
+        throw err
+      }
 
       pollIntervalRef.current = setInterval(async () => {
         const prevCount = accounts?.length ?? 0
