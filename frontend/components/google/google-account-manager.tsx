@@ -39,6 +39,7 @@ interface GoogleAccountManagerProps {
   onClientSecretChange: (value: string) => void
   clientSecretSaved: boolean
   isLoading: boolean
+  onSaveCredentials?: () => Promise<void>
 }
 
 export function GoogleAccountManager({
@@ -49,6 +50,7 @@ export function GoogleAccountManager({
   onClientSecretChange,
   clientSecretSaved,
   isLoading,
+  onSaveCredentials,
 }: GoogleAccountManagerProps) {
   const { t } = useTranslation('settings')
   const { data: accounts, refetch } = useGoogleAccounts()
@@ -76,6 +78,9 @@ export function GoogleAccountManager({
       const popup = window.open('about:blank', '_blank', 'width=600,height=700')
 
       try {
+        // Persist credentials before OAuth flow so the backend can read them
+        await onSaveCredentials?.()
+
         const result = await getOAuthUrl.mutateAsync({ accountName: accountName.trim() })
 
         if (popup && !popup.closed) {

@@ -456,6 +456,21 @@ function SettingsPage() {
     hasAssistantChanges ||
     hasRitualsChanges
 
+  const saveGoogleCredentials = async () => {
+    const promises: Promise<unknown>[] = []
+    if (localGoogleClientId !== googleClientId) {
+      promises.push(
+        updateConfig.mutateAsync({ key: CONFIG_KEYS.GOOGLE_CLIENT_ID, value: localGoogleClientId || null })
+      )
+    }
+    if (localGoogleClientSecret !== googleClientSecret) {
+      promises.push(
+        updateConfig.mutateAsync({ key: CONFIG_KEYS.GOOGLE_CLIENT_SECRET, value: localGoogleClientSecret || null })
+      )
+    }
+    if (promises.length > 0) await Promise.all(promises)
+  }
+
   const handleSaveAll = async () => {
     const promises: Promise<unknown>[] = []
 
@@ -1512,6 +1527,7 @@ function SettingsPage() {
                       onClientSecretChange={setLocalGoogleClientSecret}
                       clientSecretSaved={!!googleClientSecret}
                       isLoading={isLoading}
+                      onSaveCredentials={saveGoogleCredentials}
                     />
                   </div>
                 </SettingsSection>
