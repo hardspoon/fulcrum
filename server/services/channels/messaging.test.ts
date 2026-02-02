@@ -413,10 +413,11 @@ describe('sendMessageToChannel', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
-      // Error should mention the channel or "not connected"
+      // Error should mention the channel, "not connected", or "disabled"
       expect(
         result.error?.includes('not connected') ||
-        result.error?.includes('not active')
+        result.error?.includes('not active') ||
+        result.error?.includes('disabled')
       ).toBe(true)
     }
   })

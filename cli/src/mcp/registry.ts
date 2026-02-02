@@ -624,9 +624,9 @@ export const toolRegistry: ToolMetadata[] = [
   // Concierge tools - proactive digital concierge
   {
     name: 'message',
-    description: 'Send a message to a messaging channel (email, WhatsApp, etc.)',
+    description: 'Send a message to a messaging channel (WhatsApp, Discord, Telegram, Slack)',
     category: 'assistant',
-    keywords: ['message', 'send', 'reply', 'email', 'whatsapp', 'communicate', 'respond'],
+    keywords: ['message', 'send', 'reply', 'whatsapp', 'communicate', 'respond'],
     defer_loading: false,
   },
   {
@@ -758,6 +758,43 @@ export const toolRegistry: ToolMetadata[] = [
     category: 'memory',
     keywords: ['memory', 'search', 'find', 'recall', 'knowledge', 'retrieve', 'remember'],
     defer_loading: false,
+  },
+
+  // Gmail / Google Account tools
+  {
+    name: 'list_google_accounts',
+    description: 'List all configured Google accounts',
+    category: 'email',
+    keywords: ['google', 'account', 'list', 'gmail', 'calendar', 'oauth'],
+    defer_loading: true,
+  },
+  {
+    name: 'list_gmail_drafts',
+    description: 'List Gmail drafts for a Google account',
+    category: 'email',
+    keywords: ['gmail', 'draft', 'list', 'email', 'google'],
+    defer_loading: true,
+  },
+  {
+    name: 'create_gmail_draft',
+    description: 'Create a new Gmail draft email',
+    category: 'email',
+    keywords: ['gmail', 'draft', 'create', 'compose', 'email', 'google'],
+    defer_loading: true,
+  },
+  {
+    name: 'update_gmail_draft',
+    description: 'Update an existing Gmail draft',
+    category: 'email',
+    keywords: ['gmail', 'draft', 'update', 'edit', 'email', 'google'],
+    defer_loading: true,
+  },
+  {
+    name: 'delete_gmail_draft',
+    description: 'Delete a Gmail draft',
+    category: 'email',
+    keywords: ['gmail', 'draft', 'delete', 'remove', 'email', 'google'],
+    defer_loading: true,
   },
 ]
 

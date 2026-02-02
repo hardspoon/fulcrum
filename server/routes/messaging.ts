@@ -389,9 +389,6 @@ app.post('/email/configure', async (c) => {
     const body = await c.req.json<EmailAuthState>()
 
     // Validate required fields
-    if (!body.smtp?.host || !body.smtp?.user || !body.smtp?.password) {
-      return c.json({ error: 'Missing SMTP configuration' }, 400)
-    }
     if (!body.imap?.host || !body.imap?.user || !body.imap?.password) {
       return c.json({ error: 'Missing IMAP configuration' }, 400)
     }
@@ -411,9 +408,6 @@ app.post('/email/test', async (c) => {
     const body = await c.req.json<EmailAuthState>()
 
     // Validate required fields
-    if (!body.smtp?.host || !body.smtp?.user || !body.smtp?.password) {
-      return c.json({ error: 'Missing SMTP configuration' }, 400)
-    }
     if (!body.imap?.host || !body.imap?.user || !body.imap?.password) {
       return c.json({ error: 'Missing IMAP configuration' }, 400)
     }

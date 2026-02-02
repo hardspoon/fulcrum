@@ -137,6 +137,32 @@ export interface StoredEmail {
   createdAt: string
 }
 
+// Google types
+export interface GoogleAccount {
+  id: string
+  name: string
+  email: string | null
+  calendarEnabled: boolean | null
+  gmailEnabled: boolean | null
+  syncIntervalMinutes: number | null
+  lastCalendarSyncAt: string | null
+  lastCalendarSyncError: string | null
+  lastGmailSyncAt: string | null
+  lastGmailSyncError: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GmailDraftSummary {
+  id: string
+  gmailDraftId: string
+  to: string[]
+  cc: string[]
+  subject: string | null
+  snippet: string | null
+  updatedAt: string
+}
+
 // CalDAV types
 export interface CaldavAccount {
   id: string
@@ -1096,7 +1122,7 @@ export class FulcrumClient {
 
   // Messaging - Send Message
   async sendMessage(data: {
-    channel: 'email' | 'whatsapp' | 'discord' | 'telegram' | 'slack'
+    channel: 'whatsapp' | 'discord' | 'telegram' | 'slack'
     to: string
     body: string
     subject?: string
@@ -1297,6 +1323,78 @@ export class FulcrumClient {
 
   async deleteMemory(id: string): Promise<{ success: boolean }> {
     return this.fetch(`/api/memory/${id}`, { method: 'DELETE' })
+  }
+
+  // Google Accounts
+  async listGoogleAccounts(): Promise<GoogleAccount[]> {
+    const result = await this.fetch<{ accounts: GoogleAccount[] }>('/api/google/accounts')
+    return result.accounts
+  }
+
+  async getGoogleAccount(id: string): Promise<GoogleAccount> {
+    return this.fetch(`/api/google/accounts/${id}`)
+  }
+
+  async deleteGoogleAccount(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/google/accounts/${id}`, { method: 'DELETE' })
+  }
+
+  async enableGoogleCalendar(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/google/accounts/${id}/enable-calendar`, { method: 'POST' })
+  }
+
+  async disableGoogleCalendar(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/google/accounts/${id}/disable-calendar`, { method: 'POST' })
+  }
+
+  async enableGmail(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/google/accounts/${id}/enable-gmail`, { method: 'POST' })
+  }
+
+  async disableGmail(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/google/accounts/${id}/disable-gmail`, { method: 'POST' })
+  }
+
+  async syncGoogleCalendar(id: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/google/accounts/${id}/sync`, { method: 'POST' })
+  }
+
+  // Gmail Drafts
+  async listGmailDrafts(accountId: string): Promise<GmailDraftSummary[]> {
+    const result = await this.fetch<{ drafts: GmailDraftSummary[] }>(`/api/google/accounts/${accountId}/drafts`)
+    return result.drafts
+  }
+
+  async createGmailDraft(accountId: string, input: {
+    to?: string[]
+    cc?: string[]
+    bcc?: string[]
+    subject?: string
+    body?: string
+    htmlBody?: string
+  }): Promise<{ draftId: string; messageId: string | null }> {
+    return this.fetch(`/api/google/accounts/${accountId}/drafts`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+  }
+
+  async updateGmailDraft(accountId: string, draftId: string, input: {
+    to?: string[]
+    cc?: string[]
+    bcc?: string[]
+    subject?: string
+    body?: string
+    htmlBody?: string
+  }): Promise<{ draftId: string; messageId: string | null }> {
+    return this.fetch(`/api/google/accounts/${accountId}/drafts/${draftId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    })
+  }
+
+  async deleteGmailDraft(accountId: string, draftId: string): Promise<{ success: boolean }> {
+    return this.fetch(`/api/google/accounts/${accountId}/drafts/${draftId}`, { method: 'DELETE' })
   }
 
 }

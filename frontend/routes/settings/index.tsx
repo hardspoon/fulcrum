@@ -29,6 +29,8 @@ import {
   useEditorHost,
   useEditorSshPort,
   useGitHubPat,
+  useGoogleClientId,
+  useGoogleClientSecret,
   useDefaultAgent,
   useOpencodeModel,
   useOpencodeDefaultAgent,
@@ -83,8 +85,10 @@ import { WhatsAppSetup } from '@/components/messaging/whatsapp-setup'
 import { DiscordSetup } from '@/components/messaging/discord-setup'
 import { TelegramSetup } from '@/components/messaging/telegram-setup'
 import { SlackSetup } from '@/components/messaging/slack-setup'
-import { EmailSetup } from '@/components/messaging/email-setup'
+import { EmailSettings } from '@/components/messaging/email-settings'
 import { CaldavAccounts } from '@/components/caldav/caldav-accounts'
+import { GoogleAccountManager } from '@/components/google/google-account-manager'
+import { GoogleCalendarSettings } from '@/components/google/google-calendar-settings'
 import { CaldavCopyRules } from '@/components/caldav/caldav-copy-rules'
 import {
   useDeploymentSettings,
@@ -137,6 +141,8 @@ function SettingsPage() {
   const { data: editorHost, isLoading: editorHostLoading } = useEditorHost()
   const { data: editorSshPort, isLoading: editorSshPortLoading } = useEditorSshPort()
   const { data: githubPat, isLoading: githubPatLoading } = useGitHubPat()
+  const { data: googleClientId } = useGoogleClientId()
+  const { data: googleClientSecret } = useGoogleClientSecret()
   const { data: defaultAgent, isLoading: defaultAgentLoading } = useDefaultAgent()
   const { data: globalOpencodeModel, isLoading: opcodeModelLoading } = useOpencodeModel()
   const { data: globalOpencodeDefaultAgent, isLoading: opcodeDefaultAgentLoading } = useOpencodeDefaultAgent()
@@ -186,6 +192,8 @@ function SettingsPage() {
   const [localEditorHost, setLocalEditorHost] = useState('')
   const [localEditorSshPort, setLocalEditorSshPort] = useState('')
   const [localGitHubPat, setLocalGitHubPat] = useState('')
+  const [localGoogleClientId, setLocalGoogleClientId] = useState('')
+  const [localGoogleClientSecret, setLocalGoogleClientSecret] = useState('')
   const [localDefaultAgent, setLocalDefaultAgent] = useState<AgentType>('claude')
   const [localOpencodeModel, setLocalOpencodeModel] = useState<string | null>(null)
   const [localOpencodeDefaultAgent, setLocalOpencodeDefaultAgent] = useState<string>('build')
@@ -263,13 +271,15 @@ function SettingsPage() {
     if (editorHost !== undefined) setLocalEditorHost(editorHost)
     if (editorSshPort !== undefined) setLocalEditorSshPort(String(editorSshPort))
     if (githubPat !== undefined) setLocalGitHubPat(githubPat)
+    if (googleClientId !== undefined) setLocalGoogleClientId(googleClientId)
+    if (googleClientSecret !== undefined) setLocalGoogleClientSecret(googleClientSecret)
     if (defaultAgent !== undefined) setLocalDefaultAgent(defaultAgent)
     if (globalOpencodeModel !== undefined) setLocalOpencodeModel(globalOpencodeModel)
     if (globalOpencodeDefaultAgent !== undefined) setLocalOpencodeDefaultAgent(globalOpencodeDefaultAgent)
     if (globalOpencodePlanAgent !== undefined) setLocalOpencodePlanAgent(globalOpencodePlanAgent)
     if (autoScrollToBottom !== undefined) setLocalAutoScrollToBottom(autoScrollToBottom)
     if (claudeCodePath !== undefined) setLocalClaudeCodePath(claudeCodePath ?? '')
-  }, [port, defaultGitReposDir, editorApp, editorHost, editorSshPort, githubPat, defaultAgent, globalOpencodeModel, globalOpencodeDefaultAgent, globalOpencodePlanAgent, autoScrollToBottom, claudeCodePath])
+  }, [port, defaultGitReposDir, editorApp, editorHost, editorSshPort, githubPat, googleClientId, googleClientSecret, defaultAgent, globalOpencodeModel, globalOpencodeDefaultAgent, globalOpencodePlanAgent, autoScrollToBottom, claudeCodePath])
 
   // Sync notification settings
   useEffect(() => {
@@ -438,6 +448,8 @@ function SettingsPage() {
     localPort !== String(port) ||
     localReposDir !== defaultGitReposDir ||
     localGitHubPat !== githubPat ||
+    localGoogleClientId !== googleClientId ||
+    localGoogleClientSecret !== googleClientSecret ||
     hasAgentChanges ||
     hasEditorChanges ||
     hasNotificationChanges ||
@@ -516,6 +528,28 @@ function SettingsPage() {
         new Promise((resolve) => {
           updateConfig.mutate(
             { key: CONFIG_KEYS.GITHUB_PAT, value: localGitHubPat },
+            { onSettled: resolve }
+          )
+        })
+      )
+    }
+
+    if (localGoogleClientId !== googleClientId) {
+      promises.push(
+        new Promise((resolve) => {
+          updateConfig.mutate(
+            { key: CONFIG_KEYS.GOOGLE_CLIENT_ID, value: localGoogleClientId || null },
+            { onSettled: resolve }
+          )
+        })
+      )
+    }
+
+    if (localGoogleClientSecret !== googleClientSecret) {
+      promises.push(
+        new Promise((resolve) => {
+          updateConfig.mutate(
+            { key: CONFIG_KEYS.GOOGLE_CLIENT_SECRET, value: localGoogleClientSecret || null },
             { onSettled: resolve }
           )
         })
@@ -1483,6 +1517,17 @@ function SettingsPage() {
                         Required for Cloudflare Tunnel. Find in your dashboard URL: dash.cloudflare.com/{'<account_id>'}/...
                       </p>
                     </div>
+
+                    {/* Google */}
+                    <GoogleAccountManager
+                      clientId={localGoogleClientId}
+                      onClientIdChange={setLocalGoogleClientId}
+                      clientIdSaved={!!googleClientId}
+                      clientSecret={localGoogleClientSecret}
+                      onClientSecretChange={setLocalGoogleClientSecret}
+                      clientSecretSaved={!!googleClientSecret}
+                      isLoading={isLoading}
+                    />
                   </div>
                 </SettingsSection>
               </div>
@@ -2541,11 +2586,11 @@ function SettingsPage() {
               {/* Messaging Channels */}
               <SettingsSection title="Channels">
                 <div className="space-y-8">
+                  <EmailSettings isLoading={isLoading} />
                   <WhatsAppSetup isLoading={isLoading} />
                   <DiscordSetup isLoading={isLoading} />
                   <TelegramSetup isLoading={isLoading} />
                   <SlackSetup isLoading={isLoading} />
-                  <EmailSetup isLoading={isLoading} />
                 </div>
               </SettingsSection>
             </div>
@@ -2553,6 +2598,10 @@ function SettingsPage() {
 
           <TabsContent value="calendar" className="flex-1 overflow-auto p-6">
             <div className="mx-auto max-w-5xl space-y-4">
+              {/* Google Calendar */}
+              <SettingsSection title={t('sections.googleCalendar', 'Google Calendar')}>
+                <GoogleCalendarSettings />
+              </SettingsSection>
               {/* CalDAV Calendar */}
               <SettingsSection title={t('sections.caldav')}>
                 <CaldavAccounts isLoading={isLoading} />

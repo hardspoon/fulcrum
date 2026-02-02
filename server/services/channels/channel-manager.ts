@@ -17,6 +17,7 @@ import { DiscordChannel } from './discord-channel'
 import { TelegramChannel } from './telegram-channel'
 import { SlackChannel } from './slack-channel'
 import { EmailChannel } from './email-channel'
+import { GmailBackend } from './gmail-backend'
 import type {
   MessagingChannel,
   ConnectionStatus,
@@ -108,6 +109,7 @@ let _activeSlackChannel: SlackChannel | null = null
 let _activeDiscordChannel: DiscordChannel | null = null
 let _activeTelegramChannel: TelegramChannel | null = null
 let _activeEmailChannel: EmailChannel | null = null
+let _activeGmailBackend: GmailBackend | null = null
 
 // Getter functions for active channels
 export function getActiveSlackChannel(): SlackChannel | null {
@@ -428,27 +430,48 @@ export async function startEmailChannel(): Promise<void> {
     return
   }
 
-  // Check if we have valid credentials
-  if (!emailConfig.smtp.host || !emailConfig.smtp.user || !emailConfig.smtp.password) {
-    log.messaging.warn('Email enabled but SMTP credentials incomplete')
+  if (!messageHandler) {
+    throw new Error('Message handler not initialized')
+  }
+
+  const channelEvents = {
+    onMessage: (msg: IncomingMessage) => messageHandler!(msg),
+    onConnectionChange: (status: ConnectionStatus) => handleConnectionChange(EMAIL_CONNECTION_ID, status),
+    onAuthRequired: (data: unknown) => handleAuthRequired(EMAIL_CONNECTION_ID, data),
+    onDisplayNameChange: (name: string) => handleDisplayNameChange(EMAIL_CONNECTION_ID, name),
+  }
+
+  // Check if Gmail API backend is configured
+  if (emailConfig.backend === 'gmail-api' && emailConfig.googleAccountId) {
+    const gmailBackend = new GmailBackend(EMAIL_CONNECTION_ID, emailConfig.googleAccountId)
+    await gmailBackend.initialize(channelEvents)
+    _activeGmailBackend = gmailBackend
+    // Store as a minimal channel wrapper (sendMessage is disabled)
+    activeChannels.set(EMAIL_CONNECTION_ID, {
+      type: 'email',
+      connectionId: EMAIL_CONNECTION_ID,
+      initialize: async () => {},
+      shutdown: () => gmailBackend.shutdown(),
+      sendMessage: () => Promise.resolve(false),
+      getStatus: () => gmailBackend.getStatus(),
+    })
+    log.messaging.info('Email channel started with Gmail API backend', {
+      googleAccountId: emailConfig.googleAccountId,
+    })
     return
   }
 
+  // IMAP backend
+  // Check if we have valid credentials
   if (!emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
     log.messaging.warn('Email enabled but IMAP credentials incomplete')
     return
   }
 
-  if (!messageHandler) {
-    throw new Error('Message handler not initialized')
-  }
-
   // Convert settings to EmailAuthState format
   const credentials: EmailAuthState = {
-    smtp: emailConfig.smtp,
     imap: emailConfig.imap,
     pollIntervalSeconds: emailConfig.pollIntervalSeconds,
-    sendAs: emailConfig.sendAs || undefined,
     allowedSenders: emailConfig.allowedSenders,
   }
 
@@ -456,18 +479,12 @@ export async function startEmailChannel(): Promise<void> {
   // Cast to EmailChannel for email-specific methods (getStoredEmails, searchImapEmails, etc.)
   const channel = channelFactory.createEmailChannel(EMAIL_CONNECTION_ID, credentials) as EmailChannel
 
-  await channel.initialize({
-    onMessage: (msg) => messageHandler!(msg),
-    onConnectionChange: (status) => handleConnectionChange(EMAIL_CONNECTION_ID, status),
-    onAuthRequired: (data) => handleAuthRequired(EMAIL_CONNECTION_ID, data),
-    onDisplayNameChange: (name) => handleDisplayNameChange(EMAIL_CONNECTION_ID, name),
-  })
+  await channel.initialize(channelEvents)
 
   _activeEmailChannel = channel
   activeChannels.set(EMAIL_CONNECTION_ID, channel)
 
   log.messaging.info('Email channel started from settings', {
-    smtpHost: emailConfig.smtp.host,
     imapHost: emailConfig.imap.host,
   })
 }
@@ -476,6 +493,12 @@ export async function startEmailChannel(): Promise<void> {
  * Stop the email channel.
  */
 export async function stopEmailChannel(): Promise<void> {
+  if (_activeGmailBackend) {
+    await _activeGmailBackend.shutdown()
+    _activeGmailBackend = null
+    activeChannels.delete(EMAIL_CONNECTION_ID)
+    log.messaging.info('Gmail backend stopped')
+  }
   if (_activeEmailChannel) {
     await _activeEmailChannel.shutdown()
     _activeEmailChannel = null
@@ -592,6 +615,7 @@ export async function stopMessagingChannels(): Promise<void> {
   _activeDiscordChannel = null
   _activeTelegramChannel = null
   _activeEmailChannel = null
+  _activeGmailBackend = null
 }
 
 /**

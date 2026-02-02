@@ -5,15 +5,15 @@ import { z } from 'zod'
 import type { ToolRegistrar } from './types'
 import { formatSuccess, handleToolError } from '../utils'
 
-const ChannelSchema = z.enum(['email', 'whatsapp', 'discord', 'telegram', 'slack', 'all'])
+const ChannelSchema = z.enum(['whatsapp', 'discord', 'telegram', 'slack', 'all'])
 
 export const registerAssistantTools: ToolRegistrar = (server, client) => {
   // message - Send a message to a channel
   server.tool(
     'message',
-    'Send a message to a messaging channel (email, WhatsApp, etc.). Use this to reply to messages or send proactive communications.',
+    'Send a message to a messaging channel (WhatsApp, Discord, Telegram, Slack). Use this to reply to messages or send proactive communications. For email, use create_gmail_draft instead.',
     {
-      channel: ChannelSchema.describe('Target channel: email, whatsapp, discord, telegram, slack, or all'),
+      channel: ChannelSchema.describe('Target channel: whatsapp, discord, telegram, slack, or all'),
       to: z.string().describe('Recipient (email address, phone number, or channel ID)'),
       body: z.string().describe('Message content'),
       subject: z.optional(z.string()).describe('Email subject (for email channel only)'),

@@ -397,9 +397,7 @@ You can read and modify all Fulcrum settings using the settings MCP tools. Setti
 
 **channels** - Messaging channel configuration
 - \`channels.email.enabled\` - Enable/disable email channel
-- \`channels.email.smtp.*\` - SMTP server settings (host, port, secure, user, password)
 - \`channels.email.imap.*\` - IMAP server settings (host, port, secure, user, password)
-- \`channels.email.sendAs\` - Email address to send from
 - \`channels.email.allowedSenders\` - Sender allowlist (controls AI responses, not collection)
 - \`channels.slack.enabled\` - Enable/disable Slack channel
 - \`channels.slack.botToken\` - Slack bot token (xoxb-...) [SENSITIVE]

@@ -629,7 +629,7 @@ describe('Config Routes', () => {
       const missing: string[] = []
 
       for (const path of VALID_SETTING_PATHS) {
-        if (!configValues.has(path as any) && !EXCLUDED_PATHS.has(path)) {
+        if (!configValues.has(path as string) && !EXCLUDED_PATHS.has(path)) {
           missing.push(path)
         }
       }

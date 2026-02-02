@@ -26,15 +26,6 @@ export interface RitualConfig {
   prompt: string
 }
 
-// Email SMTP configuration
-export interface SmtpConfig {
-  host: string
-  port: number
-  secure: boolean
-  user: string
-  password: string
-}
-
 // Email IMAP configuration
 export interface ImapConfig {
   host: string
@@ -45,27 +36,20 @@ export interface ImapConfig {
 }
 
 // Email messaging settings
+// Email backend type
+export type EmailBackend = 'imap' | 'gmail-api'
+
 export interface EmailSettings {
   enabled: boolean
-  smtp: SmtpConfig
+  backend: EmailBackend
+  googleAccountId: string | null
   imap: ImapConfig
   pollIntervalSeconds: number
-  /**
-   * The email address to send from (appears in From header).
-   * Required when SMTP user is not an email address (e.g., AWS SES access key).
-   * Defaults to smtp.user if not specified.
-   */
-  sendAs: string | null
   /**
    * List of email addresses or domain patterns that can always interact with the assistant.
    * Supports exact matches (user@example.com) and wildcard domains (*@example.com).
    */
   allowedSenders: string[]
-  /**
-   * BCC address that will be copied on all outgoing emails from the assistant.
-   * Useful for compliance, archiving, or monitoring purposes.
-   */
-  bcc: string | null
 }
 
 // Slack messaging settings
@@ -136,6 +120,8 @@ export interface Settings {
     githubPat: string | null
     cloudflareApiToken: string | null
     cloudflareAccountId: string | null
+    googleClientId: string | null
+    googleClientSecret: string | null
   }
   agent: {
     defaultAgent: AgentType
@@ -193,6 +179,8 @@ export const DEFAULT_SETTINGS: Settings = {
     githubPat: null,
     cloudflareApiToken: null,
     cloudflareAccountId: null,
+    googleClientId: null,
+    googleClientSecret: null,
   },
   agent: {
     defaultAgent: 'claude',
@@ -249,13 +237,8 @@ Then store the action plan as a memory tagged with: ritual, plan, evening-ritual
   channels: {
     email: {
       enabled: false,
-      smtp: {
-        host: '',
-        port: 587,
-        secure: false,
-        user: '',
-        password: '',
-      },
+      backend: 'imap' as const,
+      googleAccountId: null,
       imap: {
         host: '',
         port: 993,
@@ -264,9 +247,7 @@ Then store the action plan as a memory tagged with: ritual, plan, evening-ritual
         password: '',
       },
       pollIntervalSeconds: 30,
-      sendAs: null,
       allowedSenders: [],
-      bcc: null,
     },
     slack: {
       enabled: false,
@@ -309,6 +290,8 @@ export const VALID_SETTING_PATHS = new Set([
   'integrations.githubPat',
   'integrations.cloudflareApiToken',
   'integrations.cloudflareAccountId',
+  'integrations.googleClientId',
+  'integrations.googleClientSecret',
   'agent.defaultAgent',
   'agent.opencodeModel',
   'agent.opencodeDefaultAgent',
@@ -336,20 +319,15 @@ export const VALID_SETTING_PATHS = new Set([
   'assistant.eveningRitual.time',
   'assistant.eveningRitual.prompt',
   'channels.email.enabled',
-  'channels.email.smtp.host',
-  'channels.email.smtp.port',
-  'channels.email.smtp.secure',
-  'channels.email.smtp.user',
-  'channels.email.smtp.password',
+  'channels.email.backend',
+  'channels.email.googleAccountId',
   'channels.email.imap.host',
   'channels.email.imap.port',
   'channels.email.imap.secure',
   'channels.email.imap.user',
   'channels.email.imap.password',
   'channels.email.pollIntervalSeconds',
-  'channels.email.sendAs',
   'channels.email.allowedSenders',
-  'channels.email.bcc',
   'channels.slack.enabled',
   'channels.slack.botToken',
   'channels.slack.appToken',

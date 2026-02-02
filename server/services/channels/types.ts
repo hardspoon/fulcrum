@@ -111,16 +111,9 @@ export interface SlackAuthState {
 }
 
 /**
- * Email-specific auth state stored in database (SMTP/IMAP credentials)
+ * Email-specific auth state (IMAP credentials for receiving)
  */
 export interface EmailAuthState {
-  smtp: {
-    host: string
-    port: number
-    secure: boolean
-    user: string
-    password: string
-  }
   imap: {
     host: string
     port: number
@@ -130,23 +123,12 @@ export interface EmailAuthState {
   }
   pollIntervalSeconds: number
   /**
-   * The email address to send from (appears in From header).
-   * Required when SMTP user is not an email address (e.g., AWS SES access key).
-   * Defaults to smtp.user if not specified.
-   */
-  sendAs?: string
-  /**
    * List of email addresses or domain patterns that can always interact with the assistant.
    * Supports exact matches (user@example.com) and wildcard domains (*@example.com).
    * Emails from non-allowlisted senders are only processed if they're part of a thread
    * that was initialized by an allowlisted sender CCing the assistant.
    */
   allowedSenders?: string[]
-  /**
-   * BCC address that will be copied on all outgoing emails from the assistant.
-   * Useful for compliance, archiving, or monitoring purposes.
-   */
-  bcc?: string
 }
 
 /**

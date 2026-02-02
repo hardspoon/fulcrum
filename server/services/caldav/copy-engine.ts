@@ -11,6 +11,7 @@ import { db, caldavCopyRules, caldavCopiedEvents, caldavEvents, caldavCalendars 
 import { createLogger } from '../../lib/logger'
 import { generateIcalEvent, updateIcalEvent } from './ical-helpers'
 import { accountManager } from './caldav-account-manager'
+import { googleCalendarManager } from '../google/google-calendar-manager'
 
 const logger = createLogger('CalDAV:CopyEngine')
 
@@ -63,11 +64,13 @@ export async function executeSingleRule(
     return { created: 0, updated: 0 }
   }
 
+  // Determine destination type: Google API or CalDAV
+  const isGoogleDest = !!destCal.googleAccountId
   const destClient = destCal.accountId
     ? accountManager.getClient(destCal.accountId)
     : null
 
-  if (!destClient) {
+  if (!isGoogleDest && !destClient) {
     logger.warn('Destination account not connected', {
       ruleId,
       destCalendarId: destCal.id,
@@ -114,52 +117,74 @@ export async function executeSingleRule(
     if (!existingCopy) {
       // New event - create on destination
       try {
-        const uid = `${crypto.randomUUID()}@fulcrum-copy`
-        const ical = generateIcalEvent({
-          uid,
-          summary: sourceEvent.summary ?? 'Untitled',
-          dtstart: sourceEvent.dtstart ?? now,
-          dtend: sourceEvent.dtend ?? undefined,
-          duration: sourceEvent.duration ?? undefined,
-          description: sourceEvent.description ?? undefined,
-          location: sourceEvent.location ?? undefined,
-          allDay: sourceEvent.allDay ?? false,
-          recurrenceRule: sourceEvent.recurrenceRule ?? undefined,
-          status: sourceEvent.status ?? undefined,
-        })
+        let destEventId: string
+        let eventUrl: string
 
-        const eventUrl = `${destCal.remoteUrl}${uid}.ics`
-        await destClient.createCalendarObject({
-          calendar: { url: destCal.remoteUrl },
-          filename: `${uid}.ics`,
-          iCalString: ical,
-        })
-
-        // Insert local copy of event
-        const destEventId = crypto.randomUUID()
-        db.insert(caldavEvents)
-          .values({
-            id: destEventId,
-            calendarId: rule.destCalendarId,
-            remoteUrl: eventUrl,
-            uid,
-            etag: null,
-            summary: sourceEvent.summary,
-            description: sourceEvent.description,
-            location: sourceEvent.location,
-            dtstart: sourceEvent.dtstart,
-            dtend: sourceEvent.dtend,
-            duration: sourceEvent.duration,
-            allDay: sourceEvent.allDay,
-            recurrenceRule: sourceEvent.recurrenceRule,
-            status: sourceEvent.status,
-            organizer: null,
-            attendees: null,
-            rawIcal: ical,
-            createdAt: now,
-            updatedAt: now,
+        if (isGoogleDest) {
+          // Create via Google Calendar API
+          eventUrl = await googleCalendarManager.createEvent(destCal.id, {
+            summary: sourceEvent.summary ?? 'Untitled',
+            dtstart: sourceEvent.dtstart ?? now,
+            dtend: sourceEvent.dtend ?? undefined,
+            description: sourceEvent.description ?? undefined,
+            location: sourceEvent.location ?? undefined,
+            allDay: sourceEvent.allDay ?? false,
           })
-          .run()
+
+          // Find the newly created local event by remoteUrl
+          const newLocalEvent = db.select().from(caldavEvents)
+            .where(eq(caldavEvents.remoteUrl, eventUrl))
+            .get()
+          destEventId = newLocalEvent?.id ?? crypto.randomUUID()
+        } else {
+          // Create via CalDAV
+          const uid = `${crypto.randomUUID()}@fulcrum-copy`
+          const ical = generateIcalEvent({
+            uid,
+            summary: sourceEvent.summary ?? 'Untitled',
+            dtstart: sourceEvent.dtstart ?? now,
+            dtend: sourceEvent.dtend ?? undefined,
+            duration: sourceEvent.duration ?? undefined,
+            description: sourceEvent.description ?? undefined,
+            location: sourceEvent.location ?? undefined,
+            allDay: sourceEvent.allDay ?? false,
+            recurrenceRule: sourceEvent.recurrenceRule ?? undefined,
+            status: sourceEvent.status ?? undefined,
+          })
+
+          eventUrl = `${destCal.remoteUrl}${uid}.ics`
+          await destClient!.createCalendarObject({
+            calendar: { url: destCal.remoteUrl },
+            filename: `${uid}.ics`,
+            iCalString: ical,
+          })
+
+          // Insert local copy of event
+          destEventId = crypto.randomUUID()
+          db.insert(caldavEvents)
+            .values({
+              id: destEventId,
+              calendarId: rule.destCalendarId,
+              remoteUrl: eventUrl,
+              uid,
+              etag: null,
+              summary: sourceEvent.summary,
+              description: sourceEvent.description,
+              location: sourceEvent.location,
+              dtstart: sourceEvent.dtstart,
+              dtend: sourceEvent.dtend,
+              duration: sourceEvent.duration,
+              allDay: sourceEvent.allDay,
+              recurrenceRule: sourceEvent.recurrenceRule,
+              status: sourceEvent.status,
+              organizer: null,
+              attendees: null,
+              rawIcal: ical,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .run()
+        }
 
         // Track the copy
         db.insert(caldavCopiedEvents)
@@ -185,61 +210,74 @@ export async function executeSingleRule(
     } else if (sourceEvent.etag && sourceEvent.etag !== existingCopy.sourceEtag) {
       // Source event changed - update destination
       try {
-        const destEvent = db
-          .select()
-          .from(caldavEvents)
-          .where(eq(caldavEvents.id, existingCopy.destEventId))
-          .get()
-
-        if (!destEvent) continue
-
-        const updatedIcal = destEvent.rawIcal
-          ? updateIcalEvent(destEvent.rawIcal, {
-              summary: sourceEvent.summary ?? undefined,
-              dtstart: sourceEvent.dtstart ?? undefined,
-              dtend: sourceEvent.dtend ?? undefined,
-              duration: sourceEvent.duration ?? undefined,
-              description: sourceEvent.description ?? undefined,
-              location: sourceEvent.location ?? undefined,
-              allDay: sourceEvent.allDay ?? undefined,
-              status: sourceEvent.status ?? undefined,
-            })
-          : generateIcalEvent({
-              uid: destEvent.uid || crypto.randomUUID(),
-              summary: sourceEvent.summary ?? 'Untitled',
-              dtstart: sourceEvent.dtstart ?? now,
-              dtend: sourceEvent.dtend ?? undefined,
-              duration: sourceEvent.duration ?? undefined,
-              description: sourceEvent.description ?? undefined,
-              location: sourceEvent.location ?? undefined,
-              allDay: sourceEvent.allDay ?? false,
-              status: sourceEvent.status ?? undefined,
-            })
-
-        await destClient.updateCalendarObject({
-          calendarObject: {
-            url: destEvent.remoteUrl,
-            etag: destEvent.etag ?? undefined,
-          },
-          iCalString: updatedIcal,
-        })
-
-        // Update local dest event
-        db.update(caldavEvents)
-          .set({
-            summary: sourceEvent.summary,
-            description: sourceEvent.description,
-            location: sourceEvent.location,
-            dtstart: sourceEvent.dtstart,
-            dtend: sourceEvent.dtend,
-            duration: sourceEvent.duration,
-            allDay: sourceEvent.allDay,
-            status: sourceEvent.status,
-            rawIcal: updatedIcal,
-            updatedAt: now,
+        if (isGoogleDest) {
+          // Update via Google Calendar API
+          await googleCalendarManager.updateEvent(existingCopy.destEventId, {
+            summary: sourceEvent.summary ?? undefined,
+            dtstart: sourceEvent.dtstart ?? undefined,
+            dtend: sourceEvent.dtend ?? undefined,
+            description: sourceEvent.description ?? undefined,
+            location: sourceEvent.location ?? undefined,
+            allDay: sourceEvent.allDay ?? undefined,
           })
-          .where(eq(caldavEvents.id, existingCopy.destEventId))
-          .run()
+        } else {
+          // Update via CalDAV
+          const destEvent = db
+            .select()
+            .from(caldavEvents)
+            .where(eq(caldavEvents.id, existingCopy.destEventId))
+            .get()
+
+          if (!destEvent) continue
+
+          const updatedIcal = destEvent.rawIcal
+            ? updateIcalEvent(destEvent.rawIcal, {
+                summary: sourceEvent.summary ?? undefined,
+                dtstart: sourceEvent.dtstart ?? undefined,
+                dtend: sourceEvent.dtend ?? undefined,
+                duration: sourceEvent.duration ?? undefined,
+                description: sourceEvent.description ?? undefined,
+                location: sourceEvent.location ?? undefined,
+                allDay: sourceEvent.allDay ?? undefined,
+                status: sourceEvent.status ?? undefined,
+              })
+            : generateIcalEvent({
+                uid: destEvent.uid || crypto.randomUUID(),
+                summary: sourceEvent.summary ?? 'Untitled',
+                dtstart: sourceEvent.dtstart ?? now,
+                dtend: sourceEvent.dtend ?? undefined,
+                duration: sourceEvent.duration ?? undefined,
+                description: sourceEvent.description ?? undefined,
+                location: sourceEvent.location ?? undefined,
+                allDay: sourceEvent.allDay ?? false,
+                status: sourceEvent.status ?? undefined,
+              })
+
+          await destClient!.updateCalendarObject({
+            calendarObject: {
+              url: destEvent.remoteUrl,
+              etag: destEvent.etag ?? undefined,
+            },
+            iCalString: updatedIcal,
+          })
+
+          // Update local dest event
+          db.update(caldavEvents)
+            .set({
+              summary: sourceEvent.summary,
+              description: sourceEvent.description,
+              location: sourceEvent.location,
+              dtstart: sourceEvent.dtstart,
+              dtend: sourceEvent.dtend,
+              duration: sourceEvent.duration,
+              allDay: sourceEvent.allDay,
+              status: sourceEvent.status,
+              rawIcal: updatedIcal,
+              updatedAt: now,
+            })
+            .where(eq(caldavEvents.id, existingCopy.destEventId))
+            .run()
+        }
 
         // Update tracking record
         db.update(caldavCopiedEvents)

@@ -883,17 +883,7 @@ describe('Settings', () => {
 
     test('write-then-read roundtrip preserves value for all VALID_SETTING_PATHS', async () => {
       const { updateSettingByPath, getSettings, ensureFulcrumDir } = await import('./')
-      const { VALID_SETTING_PATHS } = await import('./types')
-
       ensureFulcrumDir()
-
-      // For each valid path, write a sentinel value and verify getSettings returns it
-      // Skip paths where the value type is complex (objects/arrays) - focus on scalar settings
-      const scalarTestValue: Record<string, unknown> = {
-        string: '__test_sentinel__',
-        number: 99999,
-        boolean: true,
-      }
 
       // Pick a few representative paths from different sections to test the roundtrip
       const testPaths: Record<string, unknown> = {

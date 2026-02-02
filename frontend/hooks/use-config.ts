@@ -106,6 +106,26 @@ export function useGitHubPat() {
   }
 }
 
+export function useGoogleClientId() {
+  const query = useConfig(CONFIG_KEYS.GOOGLE_CLIENT_ID)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
+export function useGoogleClientSecret() {
+  const query = useConfig(CONFIG_KEYS.GOOGLE_CLIENT_SECRET)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '',
+    isDefault: query.data?.isDefault ?? true,
+  }
+}
+
 import type { AgentType } from '@/types'
 
 export function useDefaultAgent() {

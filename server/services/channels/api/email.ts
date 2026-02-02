@@ -35,26 +35,18 @@ export async function configureEmail(credentials: EmailAuthState): Promise<{
   const settings = getSettings()
   const stored = settings.channels.email
 
-  // Determine final passwords (use stored if masked)
-  const smtpPassword = credentials.smtp.password === MASKED ? stored.smtp.password : credentials.smtp.password
+  // Determine final password (use stored if masked)
   const imapPassword = credentials.imap.password === MASKED ? stored.imap.password : credentials.imap.password
 
   // Save credentials to settings
   updateSettingByPath('channels.email.enabled', true)
-  updateSettingByPath('channels.email.smtp.host', credentials.smtp.host)
-  updateSettingByPath('channels.email.smtp.port', credentials.smtp.port)
-  updateSettingByPath('channels.email.smtp.secure', credentials.smtp.secure)
-  updateSettingByPath('channels.email.smtp.user', credentials.smtp.user)
-  updateSettingByPath('channels.email.smtp.password', smtpPassword)
   updateSettingByPath('channels.email.imap.host', credentials.imap.host)
   updateSettingByPath('channels.email.imap.port', credentials.imap.port)
   updateSettingByPath('channels.email.imap.secure', credentials.imap.secure)
   updateSettingByPath('channels.email.imap.user', credentials.imap.user)
   updateSettingByPath('channels.email.imap.password', imapPassword)
   updateSettingByPath('channels.email.pollIntervalSeconds', credentials.pollIntervalSeconds)
-  updateSettingByPath('channels.email.sendAs', credentials.sendAs || null)
   updateSettingByPath('channels.email.allowedSenders', credentials.allowedSenders || [])
-  updateSettingByPath('channels.email.bcc', credentials.bcc || null)
 
   // Start the channel
   await startEmailChannel()
@@ -74,36 +66,30 @@ export async function configureEmail(credentials: EmailAuthState): Promise<{
  */
 export async function testEmailCredentials(credentials: EmailAuthState): Promise<{
   success: boolean
-  smtpOk: boolean
   imapOk: boolean
   error?: string
 }> {
   const MASKED = '••••••••'
 
-  // If passwords are masked, substitute with stored credentials
+  // If password is masked, substitute with stored credentials
   let finalCreds = credentials
-  if (credentials.smtp.password === MASKED || credentials.imap.password === MASKED) {
+  if (credentials.imap.password === MASKED) {
     const settings = getSettings()
     const stored = settings.channels.email
 
-    if (!stored.smtp.password || !stored.imap.password) {
+    if (!stored.imap.password) {
       return {
         success: false,
-        smtpOk: false,
         imapOk: false,
-        error: 'No stored credentials found. Please enter passwords.',
+        error: 'No stored credentials found. Please enter password.',
       }
     }
 
     finalCreds = {
       ...credentials,
-      smtp: {
-        ...credentials.smtp,
-        password: credentials.smtp.password === MASKED ? stored.smtp.password : credentials.smtp.password,
-      },
       imap: {
         ...credentials.imap,
-        password: credentials.imap.password === MASKED ? stored.imap.password : credentials.imap.password,
+        password: stored.imap.password,
       },
     }
   }
@@ -123,13 +109,12 @@ export async function enableEmail(): Promise<{
   const settings = getSettings()
   const emailConfig = settings.channels.email
 
-  // Check if we have valid credentials
-  if (!emailConfig.smtp.host || !emailConfig.smtp.user || !emailConfig.smtp.password ||
-      !emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
+  // Check if we have valid IMAP credentials
+  if (!emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
     return {
       enabled: false,
       status: 'credentials_required',
-      error: 'Email credentials not configured. Please configure SMTP and IMAP settings first.',
+      error: 'Email credentials not configured. Please configure IMAP settings first.',
     }
   }
 
@@ -183,9 +168,8 @@ export function getEmailStatus(): {
     return { enabled: false, status: 'disconnected' }
   }
 
-  // Check if we have valid credentials
-  if (!emailConfig.smtp.host || !emailConfig.smtp.user || !emailConfig.smtp.password ||
-      !emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
+  // Check if we have valid IMAP credentials
+  if (!emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
     return { enabled: true, status: 'credentials_required' }
   }
 
@@ -201,28 +185,18 @@ export function getEmailStatus(): {
  * Get email configuration (passwords masked with ********).
  */
 export function getEmailConfig(): {
-  smtp: { host: string; port: number; secure: boolean; user: string; password: string } | null
   imap: { host: string; port: number; secure: boolean; user: string; password: string } | null
   pollIntervalSeconds: number
-  sendAs: string | null
   allowedSenders: string[]
-  bcc: string | null
 } | null {
   const settings = getSettings()
   const emailConfig = settings.channels.email
 
-  if (!emailConfig.smtp.host && !emailConfig.imap.host) {
+  if (!emailConfig.imap.host) {
     return null
   }
 
   return {
-    smtp: emailConfig.smtp.host ? {
-      host: emailConfig.smtp.host,
-      port: emailConfig.smtp.port,
-      secure: emailConfig.smtp.secure,
-      user: emailConfig.smtp.user,
-      password: emailConfig.smtp.password ? '••••••••' : '',
-    } : null,
     imap: emailConfig.imap.host ? {
       host: emailConfig.imap.host,
       port: emailConfig.imap.port,
@@ -231,9 +205,7 @@ export function getEmailConfig(): {
       password: emailConfig.imap.password ? '••••••••' : '',
     } : null,
     pollIntervalSeconds: emailConfig.pollIntervalSeconds,
-    sendAs: emailConfig.sendAs,
     allowedSenders: emailConfig.allowedSenders,
-    bcc: emailConfig.bcc,
   }
 }
 
@@ -290,30 +262,3 @@ export async function fetchAndStoreEmails(uids: number[], options?: { limit?: nu
   return activeEmailChannel.fetchAndStoreEmails(uids, options)
 }
 
-/**
- * Send an email message directly.
- * Used by the assistant scheduler for proactive messaging.
- */
-export async function sendEmailMessage(
-  to: string,
-  body: string,
-  subject?: string,
-  replyToMessageId?: string
-): Promise<string | undefined> {
-  const activeEmailChannel = getActiveEmailChannel()
-  if (!activeEmailChannel) {
-    throw new Error('Email channel not configured or not connected')
-  }
-
-  const success = await activeEmailChannel.sendMessage(to, body, {
-    subject,
-    messageId: replyToMessageId,
-  })
-
-  if (!success) {
-    throw new Error('Failed to send email')
-  }
-
-  // Return a placeholder message ID (actual ID is in the sent email)
-  return `sent-${Date.now()}`
-}

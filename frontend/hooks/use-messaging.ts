@@ -433,13 +433,6 @@ export interface EmailStatus extends Partial<MessagingConnection> {
 }
 
 export interface EmailCredentials {
-  smtp: {
-    host: string
-    port: number
-    secure: boolean
-    user: string
-    password: string
-  }
   imap: {
     host: string
     port: number
@@ -448,13 +441,11 @@ export interface EmailCredentials {
     password: string
   }
   pollIntervalSeconds: number
-  sendAs?: string
   allowedSenders?: string[]
 }
 
 export interface EmailTestResult {
   success: boolean
-  smtpOk: boolean
   imapOk: boolean
   error?: string
 }

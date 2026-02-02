@@ -25,11 +25,6 @@ import {
 import {
   getSlackStatus,
 } from './api/slack'
-import {
-  getEmailStatus,
-  sendEmailMessage,
-} from './api/email'
-
 // Import message-handler to register the handler with channel-manager
 import './message-handler'
 
@@ -108,7 +103,6 @@ export {
   getStoredEmails,
   searchImapEmails,
   fetchAndStoreEmails,
-  sendEmailMessage,
 } from './api/email'
 
 /**
@@ -127,19 +121,7 @@ export async function sendMessageToChannel(
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   switch (channel) {
     case 'email': {
-      const emailStatus = getEmailStatus()
-      if (!emailStatus.enabled || emailStatus.status !== 'connected') {
-        return { success: false, error: 'Email channel not connected' }
-      }
-
-      try {
-        const messageId = await sendEmailMessage(to, body, options?.subject, options?.replyToMessageId)
-        log.messaging.info('Sent email message', { to, subject: options?.subject, messageId })
-        return { success: true, messageId }
-      } catch (err) {
-        log.messaging.error('Failed to send email', { to, error: String(err) })
-        return { success: false, error: String(err) }
-      }
+      return { success: false, error: 'Email sending disabled. Use Gmail drafts instead.' }
     }
 
     case 'whatsapp': {

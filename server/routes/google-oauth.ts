@@ -1,0 +1,244 @@
+/**
+ * Google OAuth Routes
+ *
+ * Handles OAuth2 authorization flow for Google accounts.
+ * Supports both new account creation and re-authorization of existing accounts.
+ */
+
+import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
+import { db, googleAccounts } from '../db'
+import { getSettings } from '../lib/settings'
+import {
+  createOAuth2Client,
+  generateAuthUrl,
+  exchangeCodeForTokens,
+  getAccountEmail,
+} from '../services/google-oauth'
+import { createLogger } from '../lib/logger'
+
+const logger = createLogger('GoogleOAuth:Routes')
+
+const app = new Hono()
+
+/**
+ * GET /api/google/oauth/authorize
+ *
+ * Generate Google OAuth authorization URL.
+ * Query params:
+ *   - accountName: Display name for new account (required for new accounts)
+ *   - accountId: Existing account ID (for re-authorization)
+ *   - origin: Browser's window.location.origin (used to build redirect URI)
+ */
+app.get('/authorize', (c) => {
+  const accountName = c.req.query('accountName')
+  const accountId = c.req.query('accountId')
+  const clientOrigin = c.req.query('origin')
+
+  logger.info('OAuth authorize request', {
+    accountName,
+    accountId,
+    clientOrigin,
+    hostHeader: c.req.header('host'),
+    originHeader: c.req.header('origin'),
+    refererHeader: c.req.header('referer'),
+  })
+
+  try {
+    const client = createOAuth2Client()
+
+    // Prefer explicit origin from the browser (immune to proxy rewrites)
+    let baseUrl: string
+    if (clientOrigin) {
+      baseUrl = clientOrigin
+    } else {
+      const settings = getSettings()
+      const host = c.req.header('host') ?? `localhost:${settings.server.port}`
+      baseUrl = `http://${host}`
+    }
+    const redirectUri = `${baseUrl}/api/google/oauth/callback`
+
+    // Encode state as JSON with account info + redirect URI for callback matching
+    const state = JSON.stringify({
+      accountId: accountId || null,
+      accountName: accountName || 'Google Account',
+      redirectUri,
+    })
+
+    logger.info('OAuth authorize: generating auth URL', {
+      baseUrl,
+      redirectUri,
+      stateJson: state,
+      clientId: client._clientId,
+    })
+
+    const authUrl = generateAuthUrl(client, redirectUri, state)
+
+    // Parse the generated URL to verify redirect_uri
+    try {
+      const parsed = new URL(authUrl)
+      logger.info('OAuth authorize: generated auth URL', {
+        authUrl,
+        redirect_uri_in_url: parsed.searchParams.get('redirect_uri'),
+        client_id_in_url: parsed.searchParams.get('client_id'),
+        scope_in_url: parsed.searchParams.get('scope'),
+      })
+    } catch {
+      logger.info('OAuth authorize: generated auth URL (unparseable)', { authUrl })
+    }
+
+    return c.json({ authUrl })
+  } catch (err) {
+    logger.error('OAuth authorize failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return c.json(
+      { error: err instanceof Error ? err.message : 'Failed to generate auth URL' },
+      400
+    )
+  }
+})
+
+/**
+ * GET /api/google/oauth/callback
+ *
+ * OAuth2 callback handler. Exchanges code for tokens, creates/updates account.
+ * Returns auto-close HTML page.
+ */
+app.get('/callback', async (c) => {
+  const code = c.req.query('code')
+  const error = c.req.query('error')
+  const stateParam = c.req.query('state')
+  const fullUrl = c.req.url
+
+  logger.info('OAuth callback received', {
+    hasCode: !!code,
+    codePrefix: code?.slice(0, 20) + '...',
+    error,
+    stateParam,
+    fullUrl,
+    hostHeader: c.req.header('host'),
+    originHeader: c.req.header('origin'),
+    refererHeader: c.req.header('referer'),
+  })
+
+  if (error) {
+    logger.warn('OAuth callback: Google returned error', { error })
+    return c.html(
+      `<html><body><h2>Authorization Failed</h2><p>${error}</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`
+    )
+  }
+
+  if (!code) {
+    logger.warn('OAuth callback: missing authorization code')
+    return c.html(
+      '<html><body><h2>Missing authorization code</h2><script>setTimeout(()=>window.close(),3000)</script></body></html>',
+      400
+    )
+  }
+
+  let state: { accountId: string | null; accountName: string; redirectUri?: string } = {
+    accountId: null,
+    accountName: 'Google Account',
+  }
+  try {
+    if (stateParam) {
+      state = JSON.parse(stateParam)
+    }
+  } catch {
+    logger.warn('OAuth callback: failed to parse state param', { stateParam })
+  }
+
+  logger.info('OAuth callback: parsed state', {
+    accountId: state.accountId,
+    accountName: state.accountName,
+    redirectUri: state.redirectUri,
+  })
+
+  try {
+    // Use the redirect URI from state (set during authorize) to guarantee it matches
+    const redirectUri = state.redirectUri
+    if (!redirectUri) {
+      throw new Error('Missing redirect URI in state — cannot match token exchange')
+    }
+
+    const client = createOAuth2Client()
+
+    logger.info('OAuth callback: exchanging code for tokens', {
+      redirectUri,
+      clientId: client._clientId,
+      codePrefix: code.slice(0, 20) + '...',
+    })
+
+    const tokens = await exchangeCodeForTokens(client, code, redirectUri)
+
+    // Set credentials to fetch account email
+    client.setCredentials({
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+      expiry_date: tokens.expiry,
+    })
+    const email = await getAccountEmail(client)
+
+    const now = new Date().toISOString()
+
+    if (state.accountId) {
+      // Re-authorization of existing account
+      db.update(googleAccounts)
+        .set({
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          tokenExpiry: tokens.expiry,
+          scopes: tokens.scopes,
+          email: email ?? undefined,
+          updatedAt: now,
+        })
+        .where(eq(googleAccounts.id, state.accountId))
+        .run()
+
+      logger.info('Re-authorized Google account', {
+        accountId: state.accountId,
+        email,
+      })
+    } else {
+      // New account
+      const accountId = crypto.randomUUID()
+      db.insert(googleAccounts)
+        .values({
+          id: accountId,
+          name: state.accountName,
+          email,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          tokenExpiry: tokens.expiry,
+          scopes: tokens.scopes,
+          calendarEnabled: false,
+          gmailEnabled: false,
+          syncIntervalMinutes: 15,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run()
+
+      logger.info('Created Google account', {
+        accountId,
+        name: state.accountName,
+        email,
+      })
+    }
+
+    return c.html(
+      '<html><body><h2>Authorization Successful</h2><p>You can close this window.</p><script>setTimeout(()=>window.close(),2000)</script></body></html>'
+    )
+  } catch (err) {
+    logger.error('OAuth callback failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return c.html(
+      `<html><body><h2>Authorization Failed</h2><p>${err instanceof Error ? err.message : String(err)}</p><script>setTimeout(()=>window.close(),5000)</script></body></html>`,
+      500
+    )
+  }
+})
+
+export default app

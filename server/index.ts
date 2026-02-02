@@ -14,6 +14,7 @@ import { startGitWatcher, stopGitWatcher } from './services/git-watcher'
 import { startMessagingChannels, stopMessagingChannels } from './services/channels'
 import { startAssistantScheduler, stopAssistantScheduler } from './services/assistant-scheduler'
 import { startCaldavSync, stopCaldavSync } from './services/caldav'
+import { startGoogleCalendarSync, stopGoogleCalendarSync } from './services/google/google-calendar-service'
 import { log } from './lib/logger'
 import { clearSensitiveEnvVars } from './lib/env'
 
@@ -166,6 +167,9 @@ startAssistantScheduler()
 // Start CalDAV calendar sync
 startCaldavSync()
 
+// Start Google Calendar sync
+startGoogleCalendarSync()
+
 // Graceful shutdown - detach PTYs but keep dtach sessions running for persistence
 process.on('SIGINT', async () => {
   log.server.info('Shutting down (terminals will persist)')
@@ -174,6 +178,7 @@ process.on('SIGINT', async () => {
   stopGitWatcher()
   stopAssistantScheduler()
   stopCaldavSync()
+  stopGoogleCalendarSync()
   await stopMessagingChannels()
   ptyManager.detachAll()
   server.close()
@@ -187,6 +192,7 @@ process.on('SIGTERM', async () => {
   stopGitWatcher()
   stopAssistantScheduler()
   stopCaldavSync()
+  stopGoogleCalendarSync()
   await stopMessagingChannels()
   ptyManager.detachAll()
   server.close()

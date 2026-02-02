@@ -405,6 +405,44 @@ export const sweepRuns = sqliteTable('sweep_runs', {
   status: text('status').notNull(), // 'running' | 'completed' | 'failed'
 })
 
+// Google accounts - unified Google API accounts (Calendar + Gmail)
+export const googleAccounts = sqliteTable('google_accounts', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email'), // Google account email
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  tokenExpiry: integer('token_expiry'), // Unix timestamp in milliseconds
+  scopes: text('scopes', { mode: 'json' }).$type<string[]>(), // Granted scopes
+  calendarEnabled: integer('calendar_enabled', { mode: 'boolean' }).default(false),
+  gmailEnabled: integer('gmail_enabled', { mode: 'boolean' }).default(false),
+  syncIntervalMinutes: integer('sync_interval_minutes').default(15),
+  lastCalendarSyncAt: text('last_calendar_sync_at'),
+  lastCalendarSyncError: text('last_calendar_sync_error'),
+  lastGmailSyncAt: text('last_gmail_sync_at'),
+  lastGmailSyncError: text('last_gmail_sync_error'),
+  sendAsEmail: text('send_as_email'), // Selected "From:" address for drafts (from Gmail send-as aliases)
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// Gmail drafts - cached Gmail draft metadata
+export const gmailDrafts = sqliteTable('gmail_drafts', {
+  id: text('id').primaryKey(),
+  googleAccountId: text('google_account_id').notNull(),
+  gmailDraftId: text('gmail_draft_id').notNull(),
+  gmailMessageId: text('gmail_message_id'),
+  threadId: text('thread_id'),
+  to: text('to', { mode: 'json' }).$type<string[]>(),
+  cc: text('cc', { mode: 'json' }).$type<string[]>(),
+  bcc: text('bcc', { mode: 'json' }).$type<string[]>(),
+  subject: text('subject'),
+  body: text('body'),
+  htmlBody: text('html_body'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 // CalDAV accounts - per-account CalDAV credentials and configuration
 export const caldavAccounts = sqliteTable('caldav_accounts', {
   id: text('id').primaryKey(),
@@ -428,6 +466,7 @@ export const caldavAccounts = sqliteTable('caldav_accounts', {
 export const caldavCalendars = sqliteTable('caldav_calendars', {
   id: text('id').primaryKey(),
   accountId: text('account_id'), // FK to caldavAccounts (nullable for migration)
+  googleAccountId: text('google_account_id'), // FK to googleAccounts (nullable - set for Google API calendars)
   remoteUrl: text('remote_url').notNull().unique(),
   displayName: text('display_name'),
   color: text('color'),
@@ -568,3 +607,7 @@ export type CaldavCopiedEvent = typeof caldavCopiedEvents.$inferSelect
 export type NewCaldavCopiedEvent = typeof caldavCopiedEvents.$inferInsert
 export type Memory = typeof memories.$inferSelect
 export type NewMemory = typeof memories.$inferInsert
+export type GoogleAccount = typeof googleAccounts.$inferSelect
+export type NewGoogleAccount = typeof googleAccounts.$inferInsert
+export type GmailDraft = typeof gmailDrafts.$inferSelect
+export type NewGmailDraft = typeof gmailDrafts.$inferInsert

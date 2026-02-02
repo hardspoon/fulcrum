@@ -393,6 +393,20 @@
       "when": 1770893600000,
       "tag": "0055_caldav_multi_account",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "6",
+      "when": 1770980000000,
+      "tag": "0056_google_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "6",
+      "when": 1771066400000,
+      "tag": "0057_add_send_as_email",
+      "breakpoints": true
     }
   ]
 }

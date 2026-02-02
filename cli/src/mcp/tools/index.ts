@@ -19,6 +19,7 @@ import { registerBackupTools } from './backup'
 import { registerEmailTools } from './email'
 import { registerAssistantTools } from './assistant'
 import { registerCaldavTools } from './caldav'
+import { registerGmailTools } from './gmail'
 import { registerMemoryTools } from './memory'
 
 export function registerTools(server: McpServer, client: FulcrumClient) {
@@ -35,6 +36,7 @@ export function registerTools(server: McpServer, client: FulcrumClient) {
   registerEmailTools(server, client)
   registerAssistantTools(server, client)
   registerCaldavTools(server, client)
+  registerGmailTools(server, client)
   registerMemoryTools(server, client)
 }
 

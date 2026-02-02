@@ -269,6 +269,15 @@ async function sendResponse(
   content: string,
   metadata?: Record<string, unknown>
 ): Promise<void> {
+  // Email sending is disabled — use Gmail drafts instead
+  if (originalMsg.channelType === 'email') {
+    log.messaging.info('Skipping email response — sending disabled, use Gmail drafts', {
+      connectionId: originalMsg.connectionId,
+      senderId: originalMsg.senderId,
+    })
+    return
+  }
+
   const channel = activeChannels.get(originalMsg.connectionId)
   if (!channel) {
     log.messaging.warn('No active channel to send response', {

@@ -1,11 +1,13 @@
 /**
- * Email Setup Component - Configure IMAP for email receiving channel
+ * Unified Email Settings — IMAP and Gmail API backends under one roof.
  *
- * Email sending is disabled. Use Gmail drafts instead.
+ * Replaces the old standalone EmailSetup (IMAP-only) and GoogleGmailSettings
+ * components with a single section that lets users pick their email backend.
  */
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,16 +27,27 @@ import {
   useEnableEmail,
   useDisableEmail,
 } from '@/hooks/use-messaging'
+import {
+  useGoogleAccounts,
+  useEnableGmail,
+  useDisableGmail,
+  useUpdateGoogleAccount,
+} from '@/hooks/use-google'
+import type { GoogleAccount } from '@/hooks/use-google'
+import { Link } from '@tanstack/react-router'
 
-interface EmailSetupProps {
+interface EmailSettingsProps {
   isLoading?: boolean
 }
 
 // Well-known email provider IMAP settings (auto-detected from email domain)
-const KNOWN_PROVIDERS: Record<string, {
-  imap: { host: string; port: number; secure: boolean }
-  note?: string
-}> = {
+const KNOWN_PROVIDERS: Record<
+  string,
+  {
+    imap: { host: string; port: number; secure: boolean }
+    note?: string
+  }
+> = {
   'gmail.com': {
     imap: { host: 'imap.gmail.com', port: 993, secure: true },
     note: 'Requires an App Password. Go to Google Account > Security > 2-Step Verification > App passwords.',
@@ -61,33 +74,79 @@ const KNOWN_PROVIDERS: Record<string, {
   },
 }
 
-// Get provider settings from email domain, or generate defaults
 function getProviderSettings(email: string) {
   const domain = email.split('@')[1]?.toLowerCase()
   if (domain && KNOWN_PROVIDERS[domain]) {
     return { ...KNOWN_PROVIDERS[domain], isKnown: true }
   }
-  // Default: try common patterns for unknown domains
   return {
     imap: { host: `imap.${domain || 'example.com'}`, port: 993, secure: true },
     isKnown: false,
   }
 }
 
-export function EmailSetup({ isLoading = false }: EmailSetupProps) {
+type EmailBackend = 'imap' | 'gmail'
+
+export function EmailSettings({ isLoading = false }: EmailSettingsProps) {
+  const { t } = useTranslation('settings')
+  const [backend, setBackend] = useState<EmailBackend>('gmail')
+
+  return (
+    <div className="space-y-4">
+      {/* Backend selector */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label className="text-sm text-muted-foreground sm:w-40 sm:shrink-0">
+          {t('imap.emailBackend', 'Email Backend')}
+        </label>
+        <div className="flex gap-1 rounded-lg border p-0.5">
+          <button
+            type="button"
+            onClick={() => setBackend('gmail')}
+            className={`rounded-md px-3 py-1 text-sm transition-colors ${
+              backend === 'gmail'
+                ? 'bg-destructive text-destructive-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {t('google.gmail', 'Gmail API')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setBackend('imap')}
+            className={`rounded-md px-3 py-1 text-sm transition-colors ${
+              backend === 'imap'
+                ? 'bg-destructive text-destructive-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            IMAP
+          </button>
+        </div>
+      </div>
+
+      {backend === 'imap' ? (
+        <ImapSettings isLoading={isLoading} />
+      ) : (
+        <GmailSettings />
+      )}
+    </div>
+  )
+}
+
+// ─── IMAP Settings ──────────────────────────────────────────────────────────
+
+function ImapSettings({ isLoading = false }: { isLoading?: boolean }) {
+  const { t } = useTranslation('settings')
   const { data: status, refetch: refetchStatus } = useEmailStatus()
   const configureEmail = useConfigureEmail()
   const testCredentials = useTestEmailCredentials()
   const enableEmailMutation = useEnableEmail()
   const disableEmailMutation = useDisableEmail()
 
-  // Check if credentials are already configured (have host values)
   const hasCredentials = !!status?.config?.imap?.host
 
-  // Form state - simplified to just email + password
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [allowedSenders, setAllowedSenders] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [imapHost, setImapHost] = useState('')
   const [imapPort, setImapPort] = useState(993)
@@ -96,7 +155,6 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
   const [imapPassword, setImapPassword] = useState('')
   const [pollInterval, setPollInterval] = useState(30)
 
-  // Test results
   const [testResult, setTestResult] = useState<{
     success: boolean
     imapOk: boolean
@@ -107,10 +165,8 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
   const isConnecting = status?.status === 'connecting'
   const isEnabled = status?.enabled ?? false
 
-  // Get provider info for current email
   const providerInfo = getProviderSettings(email)
 
-  // Initialize form from existing config
   useEffect(() => {
     if (status?.config) {
       const config = status.config
@@ -120,10 +176,8 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
       setImapPort(config.imap?.port || 993)
       setImapSecure(config.imap?.secure ?? true)
       setImapUser(config.imap?.user || '')
-      setImapPassword(config.imap?.password || '')  // Will be '••••••••' if set
+      setImapPassword(config.imap?.password || '')
       setPollInterval(config.pollIntervalSeconds || 30)
-      setAllowedSenders(config.allowedSenders?.join(', ') || '')
-      // Show advanced if custom settings were used
       const detected = getProviderSettings(config.imap?.user || '')
       if (config.imap?.host && config.imap.host !== detected.imap.host) {
         setShowAdvanced(true)
@@ -132,14 +186,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
   }, [status?.config])
 
   const buildCredentials = () => {
-    // Parse allowed senders (comma or newline separated)
-    const parsedAllowedSenders = allowedSenders
-      .split(/[,\n]/)
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
-
     if (showAdvanced) {
-      // Advanced mode: use custom IMAP credentials
       return {
         imap: {
           host: imapHost,
@@ -149,11 +196,9 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
           password: imapPassword,
         },
         pollIntervalSeconds: pollInterval,
-        allowedSenders: parsedAllowedSenders.length > 0 ? parsedAllowedSenders : undefined,
       }
     }
 
-    // Simple mode: same email/password, auto-detected servers
     return {
       imap: {
         ...providerInfo.imap,
@@ -161,7 +206,6 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
         password,
       },
       pollIntervalSeconds: pollInterval,
-      allowedSenders: parsedAllowedSenders.length > 0 ? parsedAllowedSenders : undefined,
     }
   }
 
@@ -186,7 +230,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
     try {
       await configureEmail.mutateAsync(creds)
       toast.success('Email configured successfully')
-      setPassword('') // Clear password from form
+      setPassword('')
       refetchStatus()
     } catch {
       toast.error('Failed to configure email')
@@ -218,10 +262,8 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
   const handleToggle = async (enabled: boolean) => {
     if (enabled) {
       if (hasCredentials) {
-        // Use existing credentials
         await handleEnable()
       }
-      // If no credentials, the form will be shown for user to fill
     } else {
       await handleDisable()
     }
@@ -236,12 +278,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
   const getStatusIcon = () => {
     if (isConnected) {
       return (
-        <HugeiconsIcon
-          icon={Tick02Icon}
-          size={14}
-          strokeWidth={2}
-          className="text-green-500"
-        />
+        <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} className="text-green-500" />
       )
     }
     if (isConnecting) {
@@ -255,12 +292,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
       )
     }
     return (
-      <HugeiconsIcon
-        icon={Cancel01Icon}
-        size={14}
-        strokeWidth={2}
-        className="text-muted-foreground"
-      />
+      <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} className="text-muted-foreground" />
     )
   }
 
@@ -278,14 +310,10 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
       {/* Enable toggle and status */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <label className="text-sm text-muted-foreground sm:w-40 sm:shrink-0">
-          Email (Receive Only)
+          {t('imap.label', 'IMAP Feed')}
         </label>
         <div className="flex items-center gap-3">
-          <Switch
-            checked={isEnabled}
-            onCheckedChange={handleToggle}
-            disabled={isLoading || isPending}
-          />
+          <Switch checked={isEnabled} onCheckedChange={handleToggle} disabled={isLoading || isPending} />
           <span className="flex items-center gap-2 text-sm">
             {getStatusIcon()}
             <span className="text-muted-foreground">{getStatusText()}</span>
@@ -296,7 +324,6 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
       {/* Configuration form (shown when not connected) */}
       {!isConnected && (
         <div className="ml-4 sm:ml-44 space-y-4 max-w-md">
-          {/* Simple mode: Email address and password (hidden in advanced mode) */}
           {!showAdvanced && (
             <>
               <div className="space-y-2">
@@ -323,7 +350,9 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="password">
-                  {email.includes('@gmail.com') || email.includes('@icloud.com') ? 'App Password' : 'Password'}
+                  {email.includes('@gmail.com') || email.includes('@icloud.com')
+                    ? 'App Password'
+                    : 'Password'}
                 </Label>
                 <Input
                   id="password"
@@ -334,10 +363,11 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
                 />
               </div>
 
-              {/* Server info (auto-detected) */}
               {email.includes('@') && (
                 <div className="text-xs text-muted-foreground">
-                  <span>IMAP: {providerInfo.imap.host}:{providerInfo.imap.port}</span>
+                  <span>
+                    IMAP: {providerInfo.imap.host}:{providerInfo.imap.port}
+                  </span>
                   {!providerInfo.isKnown && (
                     <span className="ml-2 text-yellow-600">(auto-detected)</span>
                   )}
@@ -345,22 +375,6 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
               )}
             </>
           )}
-
-          {/* Allowed Senders (shown in both modes) */}
-          <div className="space-y-2">
-            <Label htmlFor="allowedSenders">Allowed Senders</Label>
-            <Input
-              id="allowedSenders"
-              placeholder="you@example.com, *@company.com"
-              value={allowedSenders}
-              onChange={(e) => setAllowedSenders(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Email addresses that can interact with the assistant. Use *@domain.com for wildcards.
-              Others will receive a polite rejection. You can CC the assistant into threads to allow
-              all participants.
-            </p>
-          </div>
 
           {/* Advanced settings toggle */}
           <div className="pt-2">
@@ -373,7 +387,6 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
             </button>
           </div>
 
-          {/* Advanced: Custom IMAP server settings */}
           {showAdvanced && (
             <>
               <div className="border-t border-border pt-4">
@@ -399,11 +412,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
                       />
                     </div>
                     <div className="flex items-end gap-2 pb-1">
-                      <Switch
-                        id="imapSecure"
-                        checked={imapSecure}
-                        onCheckedChange={setImapSecure}
-                      />
+                      <Switch id="imapSecure" checked={imapSecure} onCheckedChange={setImapSecure} />
                       <Label htmlFor="imapSecure">SSL/TLS</Label>
                     </div>
                   </div>
@@ -429,7 +438,6 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
                 </div>
               </div>
 
-              {/* Poll interval */}
               <div className="space-y-2">
                 <Label htmlFor="pollInterval">Check for new emails every</Label>
                 <div className="flex items-center gap-2">
@@ -452,9 +460,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
           {testResult && (
             <div
               className={`p-3 rounded-lg text-sm ${
-                testResult.success
-                  ? 'bg-green-500/10 text-green-600'
-                  : 'bg-red-500/10 text-red-600'
+                testResult.success ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -469,9 +475,7 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
                 <p className="mt-1 text-xs">{testResult.error}</p>
               )}
               <div className="mt-2 text-xs space-y-1">
-                <p>
-                  IMAP: {testResult.imapOk ? 'OK' : 'Failed'}
-                </p>
+                <p>IMAP: {testResult.imapOk ? 'OK' : 'Failed'}</p>
               </div>
             </div>
           )}
@@ -482,9 +486,10 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
               variant="outline"
               size="sm"
               onClick={handleTest}
-              disabled={isPending || (showAdvanced
-                ? !imapHost || !imapUser || !imapPassword
-                : !email || !password)}
+              disabled={
+                isPending ||
+                (showAdvanced ? !imapHost || !imapUser || !imapPassword : !email || !password)
+              }
             >
               {testCredentials.isPending ? (
                 <HugeiconsIcon
@@ -494,21 +499,17 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
                   className="mr-2 animate-spin"
                 />
               ) : (
-                <HugeiconsIcon
-                  icon={TestTube01Icon}
-                  size={14}
-                  strokeWidth={2}
-                  className="mr-2"
-                />
+                <HugeiconsIcon icon={TestTube01Icon} size={14} strokeWidth={2} className="mr-2" />
               )}
               Test Connection
             </Button>
             <Button
               size="sm"
               onClick={handleConfigure}
-              disabled={isPending || (showAdvanced
-                ? !imapHost || !imapUser || !imapPassword
-                : !email || !password)}
+              disabled={
+                isPending ||
+                (showAdvanced ? !imapHost || !imapUser || !imapPassword : !email || !password)
+              }
             >
               {configureEmail.isPending ? (
                 <HugeiconsIcon
@@ -524,40 +525,142 @@ export function EmailSetup({ isLoading = false }: EmailSetupProps) {
         </div>
       )}
 
-      {/* Connected state - show sessions and disable button */}
+      {/* Connected state */}
       {isEnabled && isConnected && (
         <div className="ml-4 sm:ml-44 space-y-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDisable}
-            disabled={isPending}
-          >
-            Disable Email
+          <Button variant="outline" size="sm" onClick={handleDisable} disabled={isPending}>
+            {t('imap.disableButton', 'Disable Email')}
           </Button>
-
-          {/* Allowed senders */}
-          {status?.config?.allowedSenders && status.config.allowedSenders.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                Allowed Senders
-              </h4>
-              <div className="text-xs text-muted-foreground font-mono">
-                {status.config.allowedSenders.join(', ')}
-              </div>
-            </div>
-          )}
-
         </div>
       )}
 
-      {/* Help text */}
       <p className="ml-4 sm:ml-44 text-xs text-muted-foreground">
-        Receive emails at your configured address to chat with the AI assistant.
-        Only allowed senders can interact directly. CC the assistant into threads to allow all
-        participants. Use /reset in the email body to start a fresh conversation.
-        Email sending is disabled — use Gmail drafts instead.
+        {t('imap.description', 'Monitor an IMAP mailbox as a read-only feed. Incoming emails appear in the messaging timeline but no replies are sent.')}
       </p>
+    </div>
+  )
+}
+
+// ─── Gmail API Settings ─────────────────────────────────────────────────────
+
+function GmailSettings() {
+  const { t } = useTranslation('settings')
+  const { data: accounts } = useGoogleAccounts()
+  const enableGmail = useEnableGmail()
+  const disableGmail = useDisableGmail()
+
+  const handleToggleGmail = async (id: string, enabled: boolean) => {
+    try {
+      if (enabled) {
+        await enableGmail.mutateAsync(id)
+        toast.success(t('google.gmailEnabled', 'Gmail enabled'))
+      } else {
+        await disableGmail.mutateAsync(id)
+        toast.success(t('google.gmailDisabled', 'Gmail disabled'))
+      }
+    } catch (err) {
+      toast.error(String(err))
+    }
+  }
+
+  if (!accounts || accounts.length === 0) {
+    return (
+      <div className="space-y-2 ml-4 sm:ml-44">
+        <p className="text-sm text-muted-foreground">
+          {t('google.noAccountsGmail', 'No Google accounts connected.')}{' '}
+          <Link
+            to="/settings"
+            search={{ tab: undefined }}
+            className="text-accent underline underline-offset-2"
+          >
+            {t('google.addInGeneral', 'Add one in General settings')}
+          </Link>
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {accounts.map((account) => (
+        <GmailAccountCard
+          key={account.id}
+          account={account}
+          onToggle={handleToggleGmail}
+        />
+      ))}
+      <p className="text-xs text-muted-foreground">
+        {t('google.gmailDescription', 'Gmail API uses OAuth2 — no app passwords needed. Drafts are created for human review before sending.')}
+      </p>
+    </div>
+  )
+}
+
+function GmailAccountCard({
+  account,
+  onToggle,
+}: {
+  account: GoogleAccount
+  onToggle: (id: string, enabled: boolean) => void
+}) {
+  const { t } = useTranslation('settings')
+  const updateAccount = useUpdateGoogleAccount()
+  const [sendAs, setSendAs] = useState(account.sendAsEmail ?? account.email ?? '')
+
+  const handleSendAsBlur = async () => {
+    const value = sendAs.trim()
+    const current = account.sendAsEmail ?? account.email ?? ''
+    if (value === current) return
+    try {
+      await updateAccount.mutateAsync({
+        id: account.id,
+        sendAsEmail: value || null,
+      })
+      toast.success(t('google.sendAsUpdated', 'Send-as address updated'))
+    } catch (err) {
+      toast.error(String(err))
+    }
+  }
+
+  return (
+    <div className="border rounded-lg p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="font-medium text-sm">{account.name}</span>
+          {account.email && (
+            <span className="text-xs text-muted-foreground ml-2">{account.email}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t('google.monitorInbox', 'Monitor inbox')}</span>
+          <Switch
+            checked={account.gmailEnabled ?? false}
+            onCheckedChange={(checked) => onToggle(account.id, checked)}
+          />
+        </div>
+      </div>
+
+      {account.gmailEnabled && (
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-muted-foreground shrink-0">{t('google.sendAs', 'Send as')}</label>
+          <Input
+            value={sendAs}
+            onChange={(e) => setSendAs(e.target.value)}
+            onBlur={handleSendAsBlur}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            placeholder={account.email ?? t('google.sendAsPlaceholder', 'you@gmail.com')}
+            className="h-8 text-xs max-w-xs"
+          />
+          <span className="text-xs text-muted-foreground">{t('google.draftsOnly', '(drafts only)')}</span>
+        </div>
+      )}
+
+      {account.lastGmailSyncError && (
+        <div className="flex items-start gap-1.5">
+          <HugeiconsIcon icon={Alert02Icon} className="h-3.5 w-3.5 text-destructive mt-0.5" />
+          <p className="text-xs text-destructive">{account.lastGmailSyncError}</p>
+        </div>
+      )}
     </div>
   )
 }

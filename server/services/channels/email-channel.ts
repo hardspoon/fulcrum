@@ -1,6 +1,6 @@
 /**
- * Email channel implementation using nodemailer (SMTP) and imapflow (IMAP).
- * Handles sending via SMTP and receiving via IMAP polling.
+ * Email channel implementation using imapflow (IMAP) for receiving.
+ * Sending is disabled — use Gmail drafts for human-in-the-loop email.
  *
  * Collection model: Collect everything, respond selectively.
  * All non-automated emails are stored in the DB and shown in the UI.
@@ -13,7 +13,6 @@
  * 4. Otherwise -> observe only (stored, shown in UI, no AI response)
  */
 
-import { createTransport, type Transporter } from 'nodemailer'
 import { ImapFlow } from 'imapflow'
 import { log } from '../../lib/logger'
 import { getSettings } from '../../lib/settings'
@@ -29,14 +28,12 @@ import type {
 import { parseEmailHeaders, parseEmailContent } from './email-parser'
 import { checkAuthorization } from './email-auth'
 import { storeEmail, getStoredEmails as getStoredEmailsFromDb, getStoredEmailByMessageId, type StoredEmail } from './email-storage'
-import { sendEmail } from './email-sender'
 import { isAutomatedEmail } from './email-types'
 
 export class EmailChannel implements MessagingChannel {
   readonly type = 'email' as const
   readonly connectionId: string
 
-  private transporter: Transporter | null = null
   private imapClient: ImapFlow | null = null
   private events: ChannelEvents | null = null
   private status: ConnectionStatus = 'disconnected'
@@ -85,19 +82,15 @@ export class EmailChannel implements MessagingChannel {
       const settings = getSettings()
       const emailConfig = settings.channels.email
 
-      if (!emailConfig.smtp.host || !emailConfig.smtp.user || !emailConfig.smtp.password ||
-          !emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
+      if (!emailConfig.imap.host || !emailConfig.imap.user || !emailConfig.imap.password) {
         this.updateStatus('credentials_required')
         return
       }
 
       this.credentials = {
-        smtp: emailConfig.smtp,
         imap: emailConfig.imap,
         pollIntervalSeconds: emailConfig.pollIntervalSeconds,
-        sendAs: emailConfig.sendAs || undefined,
         allowedSenders: emailConfig.allowedSenders,
-        bcc: emailConfig.bcc || undefined,
       }
     }
 
@@ -109,25 +102,6 @@ export class EmailChannel implements MessagingChannel {
 
     try {
       this.updateStatus('connecting')
-
-      // Setup SMTP transport
-      this.transporter = createTransport({
-        host: this.credentials.smtp.host,
-        port: this.credentials.smtp.port,
-        secure: this.credentials.smtp.secure,
-        auth: {
-          user: this.credentials.smtp.user,
-          pass: this.credentials.smtp.password,
-        },
-      })
-
-      // Verify SMTP connection
-      await this.transporter.verify()
-
-      log.messaging.info('SMTP connection verified', {
-        connectionId: this.connectionId,
-        host: this.credentials.smtp.host,
-      })
 
       // Setup IMAP client
       this.imapClient = this.createImapClient()
@@ -230,7 +204,7 @@ export class EmailChannel implements MessagingChannel {
           if (!headers.from) continue
 
           // Skip emails from ourselves (to avoid loops)
-          const fromAddress = this.getFromAddress().toLowerCase()
+          const fromAddress = this.credentials!.imap.user.toLowerCase()
           if (headers.from.toLowerCase() === fromAddress) {
             continue
           }
@@ -256,7 +230,7 @@ export class EmailChannel implements MessagingChannel {
             this.connectionId,
             headers,
             this.credentials?.allowedSenders || [],
-            this.credentials?.smtp.user.toLowerCase()
+            this.credentials?.imap.user.toLowerCase() ?? ''
           )
 
           // Store ALL non-automated emails locally
@@ -385,47 +359,18 @@ export class EmailChannel implements MessagingChannel {
       this.imapClient = null
     }
 
-    if (this.transporter) {
-      this.transporter.close()
-      this.transporter = null
-    }
-
     this.updateStatus('disconnected')
     log.messaging.info('Email channel shutdown', {
       connectionId: this.connectionId,
     })
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async sendMessage(recipientId: string, content: string, metadata?: Record<string, unknown>): Promise<boolean> {
-    if (!this.transporter || !this.credentials) {
-      log.messaging.warn('Cannot send email - not connected', {
-        connectionId: this.connectionId,
-        status: this.status,
-      })
-      return false
-    }
-
-    return sendEmail(
-      this.transporter,
-      this.connectionId,
-      this.getFromAddress(),
-      recipientId,
-      content,
-      metadata,
-      this.credentials?.bcc
-    )
-  }
-
-  /**
-   * Get the email address to use in the From header.
-   * Uses sendAs if configured (e.g., for AWS SES where SMTP user is an access key),
-   * otherwise falls back to the SMTP user.
-   */
-  private getFromAddress(): string {
-    if (!this.credentials) {
-      throw new Error('Not connected - no credentials available')
-    }
-    return this.credentials.sendAs || this.credentials.smtp.user
+    log.messaging.warn('Email sending disabled — use Gmail drafts instead', {
+      connectionId: this.connectionId,
+    })
+    return false
   }
 
   getStatus(): ConnectionStatus {
@@ -578,37 +523,13 @@ export class EmailChannel implements MessagingChannel {
 
 /**
  * Test email credentials without saving them.
- * Returns true if both SMTP and IMAP connections succeed.
+ * Tests IMAP connection only (sending is disabled).
  */
 export async function testEmailCredentials(credentials: EmailAuthState): Promise<{
   success: boolean
-  smtpOk: boolean
   imapOk: boolean
   error?: string
 }> {
-  // Test SMTP
-  try {
-    const transporter = createTransport({
-      host: credentials.smtp.host,
-      port: credentials.smtp.port,
-      secure: credentials.smtp.secure,
-      auth: {
-        user: credentials.smtp.user,
-        pass: credentials.smtp.password,
-      },
-    })
-
-    await transporter.verify()
-    transporter.close()
-  } catch (err) {
-    return {
-      success: false,
-      smtpOk: false,
-      imapOk: false,
-      error: `SMTP error: ${String(err)}`,
-    }
-  }
-
   // Test IMAP
   try {
     const client = new ImapFlow({
@@ -628,7 +549,6 @@ export async function testEmailCredentials(credentials: EmailAuthState): Promise
   } catch (err) {
     return {
       success: false,
-      smtpOk: true,
       imapOk: false,
       error: `IMAP error: ${String(err)}`,
     }
@@ -636,7 +556,6 @@ export async function testEmailCredentials(credentials: EmailAuthState): Promise
 
   return {
     success: true,
-    smtpOk: true,
     imapOk: true,
   }
 }

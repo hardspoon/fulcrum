@@ -34,6 +34,8 @@ import assistantRoutes from './routes/assistant'
 import messagingRoutes from './routes/messaging'
 import backupRoutes from './routes/backup'
 import caldavRoutes from './routes/caldav'
+import googleOauthRoutes from './routes/google-oauth'
+import googleRoutes from './routes/google'
 import memoryRoutes from './routes/memory'
 import { writeEntry } from './lib/logger'
 import type { LogEntry } from '../shared/logger'
@@ -105,6 +107,10 @@ export function createApp() {
 
   // CalDAV calendar integration
   app.route('/api/caldav', caldavRoutes)
+
+  // Google OAuth and API integration
+  app.route('/api/google/oauth', googleOauthRoutes)
+  app.route('/api/google', googleRoutes)
 
   // Agent memory system
   app.route('/api/memory', memoryRoutes)

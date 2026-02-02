@@ -89,6 +89,8 @@ export function getSettings(): Settings {
       githubPat: ((parsed.integrations as Record<string, unknown>)?.githubPat as string | null) ?? null,
       cloudflareApiToken: ((parsed.integrations as Record<string, unknown>)?.cloudflareApiToken as string | null) ?? null,
       cloudflareAccountId: ((parsed.integrations as Record<string, unknown>)?.cloudflareAccountId as string | null) ?? null,
+      googleClientId: ((parsed.integrations as Record<string, unknown>)?.googleClientId as string | null) ?? null,
+      googleClientSecret: ((parsed.integrations as Record<string, unknown>)?.googleClientSecret as string | null) ?? null,
     },
     agent: {
       defaultAgent: ((parsed.agent as Record<string, unknown>)?.defaultAgent as AgentType) ?? DEFAULT_SETTINGS.agent.defaultAgent,
@@ -164,6 +166,8 @@ export function getSettings(): Settings {
       githubPat: process.env.GITHUB_PAT ?? fileSettings.integrations.githubPat,
       cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN ?? fileSettings.integrations.cloudflareApiToken,
       cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? fileSettings.integrations.cloudflareAccountId,
+      googleClientId: process.env.GOOGLE_CLIENT_ID ?? fileSettings.integrations.googleClientId,
+      googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? fileSettings.integrations.googleClientSecret,
     },
     agent: fileSettings.agent,
     tasks: fileSettings.tasks,
