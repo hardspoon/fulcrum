@@ -587,6 +587,31 @@ function DayDetailDialog({
   )
 }
 
+function Linkify({ children }: { children: string }) {
+  const urlRegex = /(https?:\/\/[^\s<]+)/g
+  const parts = children.split(urlRegex)
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        urlRegex.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline underline-offset-2 hover:text-primary/80 break-all"
+          >
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  )
+}
+
 function CaldavEventDialog({ event, open, onOpenChange, calendarName, calendarColor }: CaldavEventDialogProps) {
   const dateTimeStr = formatEventDateTime(event.dtstart, event.dtend, event.allDay)
 
@@ -606,7 +631,7 @@ function CaldavEventDialog({ event, open, onOpenChange, calendarName, calendarCo
           {event.location && (
             <div className="flex items-start gap-2 text-muted-foreground">
               <HugeiconsIcon icon={Location01Icon} size={16} className="mt-0.5 shrink-0" />
-              <span>{event.location}</span>
+              <span><Linkify>{event.location}</Linkify></span>
             </div>
           )}
           {calendarName && (
@@ -624,7 +649,7 @@ function CaldavEventDialog({ event, open, onOpenChange, calendarName, calendarCo
           {event.description && (
             <div className="flex items-start gap-2 text-muted-foreground">
               <HugeiconsIcon icon={TextIcon} size={16} className="mt-0.5 shrink-0" />
-              <p className="whitespace-pre-wrap">{event.description}</p>
+              <p className="whitespace-pre-wrap"><Linkify>{event.description}</Linkify></p>
             </div>
           )}
         </div>
