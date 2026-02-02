@@ -40,6 +40,7 @@ Fulcrum is the Vibe Engineer's Cockpit. A terminal-first tool for orchestrating 
 - Messaging channels → `server/services/channels/`, `server/routes/messaging.ts`
 - App deployment → `server/routes/apps.ts`, `server/services/` (docker/cloudflare/traefik)
 - Calendar integration → `server/services/caldav/`, `server/routes/caldav.ts`, `frontend/components/caldav/`
+- Google integration → `server/services/google/`, `server/services/google-oauth.ts`, `server/routes/google.ts`, `server/routes/google-oauth.ts`
 - Agent memory → `server/routes/memory.ts`, `server/services/memory-service.ts`
 - Settings → `server/lib/settings/`, `frontend/routes/settings/`
 
@@ -118,6 +119,9 @@ fulcrum notify <title> <message>  # Send notification
 ### Key Services (`server/services/`)
 - `caldav/` - Multi-account CalDAV calendar sync with event copy rules (Google Calendar OAuth2, generic CalDAV)
 - `channels/` - Chat with AI via external channels (WhatsApp, Discord, Telegram, Slack, Email)
+- `google/` - Google API integration (Calendar sync via googleapis, Gmail draft management)
+- `google-oauth.ts` - Shared Google OAuth2 client management, token refresh
+- `opencode-channel-service.ts` - OpenCode observer for channel message processing (structured JSON output, no direct tool access)
 - `memory-service.ts` - Persistent agent memory with SQLite FTS5 full-text search
 - `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
 - `pr-monitor.ts` - GitHub PR status polling, auto-close tasks on merge
@@ -136,11 +140,17 @@ fulcrum notify <title> <message>  # Send notification
 - `/api/repositories/*` - Repository management
 - `/api/memory/*` - Agent memory CRUD and FTS5 search
 - `/api/messaging/*` - Messaging channel management (WhatsApp, Discord, Telegram, Slack)
+- `/api/assistant/*` - Unified assistant API (Claude and OpenCode providers)
 - `/api/caldav/*` - CalDAV calendar integration (accounts, sync, OAuth, copy rules)
+- `/api/google/*` - Google account CRUD, calendar/Gmail enable/disable, Gmail drafts
+- `/api/google/oauth/*` - Google OAuth2 authorization flow and callback
+- `/mcp` - MCP HTTP transport (full tool access)
+- `/mcp/observer` - MCP HTTP transport (restricted tools for observer processing)
 - `/ws/terminal` - Terminal I/O multiplexing
 
 ### Frontend Pages
 - `/tasks`, `/tasks/$taskId` - Task management
+- `/calendar` - Calendar view with project/tag filters (Cmd+7)
 - `/apps`, `/apps/new`, `/apps/$appId` - App deployment
 - `/monitoring` - System metrics dashboard
 - `/repositories`, `/repositories/$repoId` - Repository management
@@ -168,6 +178,8 @@ fulcrum notify <title> <message>  # Send notification
 | `messagingConnections` | Messaging channel runtime state (connection status, display names) |
 | `messagingSessionMappings` | Maps channel users to AI chat sessions |
 | `channelMessages` | Unified storage for all channel messages (WhatsApp, Discord, Telegram, Slack, Email) |
+| `googleAccounts` | Unified Google API accounts (Calendar + Gmail) with OAuth2 tokens and scopes |
+| `gmailDrafts` | Cached Gmail draft metadata (recipients, subject, body) |
 | `caldavAccounts` | CalDAV account credentials and sync state (supports multiple accounts) |
 | `caldavCalendars` | Synced CalDAV calendars with account association |
 | `caldavEvents` | Calendar events (summary, start/end, location, all-day flag) |
@@ -203,11 +215,11 @@ Settings stored in `~/.fulcrum/settings.json`. See `server/lib/settings/types.ts
 - `server` - Port configuration
 - `paths` - Default directories
 - `editor` - Editor integration (VS Code, Cursor, Windsurf, Zed, Antigravity)
-- `integrations` - Third-party APIs (GitHub, Cloudflare)
+- `integrations` - Third-party APIs (GitHub, Cloudflare, Google OAuth client ID/secret)
 - `agent` - AI agent defaults (Claude Code, OpenCode)
 - `tasks` - Task creation defaults
 - `appearance` - UI theme and language
-- `assistant` - Built-in assistant settings (model, observerModel for cost-effective observe-only processing)
+- `assistant` - Built-in assistant settings (model, provider, observerModel/observerProvider for cost-effective observe-only processing)
 - `caldav` - CalDAV calendar integration (global enable/sync interval; account credentials stored in DB)
 
 **Separate config files:**
@@ -240,7 +252,7 @@ Chat with the AI assistant via external messaging platforms:
 - **Discord**: Bot token auth, slash commands (`/reset`, `/help`, `/status`)
 - **Telegram**: Bot token from @BotFather, handles private chats
 - **Slack**: Socket Mode with bot + app tokens, Block Kit formatting, slash commands
-- **Email**: SMTP/IMAP, collects all non-automated emails (allowlist controls AI responses only)
+- **Email**: Gmail API or IMAP/SMTP backends, collects all non-automated emails (allowlist controls AI responses only)
 - **Session persistence**: Conversations map to `chatSessions` table, one session per user
 
 **Configuration storage:**
@@ -248,7 +260,7 @@ Chat with the AI assistant via external messaging platforms:
 - **WhatsApp**: Database (QR auth generates credentials dynamically)
 - **Runtime state**: Database (connection status, bot display names)
 
-Enable in Settings → Messaging and follow the setup instructions for each platform.
+Enable in Settings → Email & Messaging and follow the setup instructions for each platform.
 
 ## Desktop App
 
@@ -290,6 +302,7 @@ server/
   routes/          # REST API handlers
   services/        # Business logic
     channels/      # External chat channels (WhatsApp, Discord, Telegram, Slack, Email)
+    google/        # Google API services (Calendar, Gmail)
   terminal/        # PTY management
   websocket/       # Terminal WebSocket protocol
   db/              # Drizzle schema

@@ -172,6 +172,13 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`memory_store\` - Store a piece of knowledge in persistent memory with optional tags
 - \`memory_search\` - Search memories using FTS5 full-text search (supports AND, OR, NOT, "phrases", prefix*)
 
+**Google Account & Gmail Tools:**
+- \`list_google_accounts\` - List all Google accounts with calendar/Gmail status
+- \`list_gmail_drafts\` - List Gmail drafts for a Google account
+- \`create_gmail_draft\` - Create a new Gmail draft (to, cc, bcc, subject, body, htmlBody)
+- \`update_gmail_draft\` - Update an existing Gmail draft
+- \`delete_gmail_draft\` - Delete a Gmail draft
+
 **Calendar Management:**
 - \`list_caldav_accounts\` - List all CalDAV accounts
 - \`create_caldav_account\` - Add a new CalDAV account (basic or Google OAuth)
@@ -249,9 +256,9 @@ Fulcrum is a local orchestration tool. Some capabilities require external servic
 
 | User Need | What Fulcrum Does | What User Provides |
 |-----------|-------------------|--------------------|
-| Calendar sync | Built-in multi-account CalDAV integration | Google OAuth credentials (Client ID/Secret) or CalDAV server credentials per account |
-| Chat via email | Built-in Email messaging channel | SMTP/IMAP credentials (or Gmail app password) |
-| Email automation | Task worktree + scheduling | Same SMTP/IMAP credentials |
+| Calendar sync | Built-in Google Calendar API + CalDAV integration | Google OAuth credentials (Client ID/Secret) or CalDAV server credentials per account |
+| Chat via email | Built-in Email messaging channel | Gmail API (Google OAuth) or IMAP/SMTP credentials |
+| Email automation | Task worktree + scheduling | Same email backend credentials |
 | Cloud deployment | Docker Compose + execute_command | Cloud provider credentials (AWS, GCP, Azure) |
 | External APIs | Script execution | API keys (OpenAI, Stripe, etc.) |
 | Team notifications | send_notification to Slack/Discord | Webhook URLs (configured in settings) |

@@ -156,16 +156,17 @@ Create documents with live preview. Generate charts and visualizations. The assi
 
 ### Calendar Integration
 
-Connect multiple calendar accounts via CalDAV so the AI assistant knows your schedule. Copy events between calendars across accounts.
+Connect multiple calendar accounts so the AI assistant knows your schedule. Calendar has its own top-level page (`/calendar`, Cmd+7) with project and tag filters.
 
-- **Multiple accounts** — Add as many CalDAV accounts as you need
-- **Google Calendar** — OAuth2 flow, no password needed
+- **Google Calendar** — Direct Google API integration via OAuth2 (recommended)
 - **Any CalDAV server** — Nextcloud, Radicale, Baikal, iCloud
+- **Multiple accounts** — Add as many accounts as you need
 - **Automatic sync** — Each account syncs independently on a configurable interval
 - **One-way event copying** — Copy events between calendars across accounts via configurable rules
+- **Due date colors** — Red (overdue), orange (today), yellow (tomorrow) visual indicators
 - **Assistant awareness** — The AI assistant uses your calendar context for planning and scheduling
 
-Enable in Settings → Calendar Integration.
+Enable in Settings → Calendar.
 
 ### Messaging Integrations
 
@@ -173,7 +174,7 @@ Chat with the AI assistant from anywhere via your favorite messaging platform.
 
 | Platform | Auth Method |
 |----------|-------------|
-| **Email** | SMTP/IMAP credentials, collects all emails, allowlist controls AI responses |
+| **Email** | Gmail API (OAuth2) or IMAP/SMTP credentials; collects all emails, allowlist controls AI responses |
 | **WhatsApp** | QR code scan, monitors all messages, replies only to "Message yourself" |
 | **Discord** | Bot token from Developer Portal |
 | **Telegram** | Bot token from @BotFather |
@@ -184,7 +185,7 @@ Chat with the AI assistant from anywhere via your favorite messaging platform.
 - **Observe-first** — Email and WhatsApp collect all messages but only respond to authorized senders
 - **Commands** — `/reset` (new conversation), `/help`, `/status`
 
-Enable in Settings → Messaging and follow the setup instructions for each platform.
+Enable in Settings → Email & Messaging and follow the setup instructions for each platform.
 
 ### Agent Memory
 
@@ -250,6 +251,7 @@ Both plugins include an MCP server with 60+ tools:
 | **Settings** | View and update configuration; manage notification channels |
 | **Memory** | Store and search persistent knowledge with FTS5 full-text search |
 | **Calendar** | Manage CalDAV accounts, sync calendars, configure event copy rules |
+| **Gmail** | List Google accounts, manage Gmail drafts (create, update, delete) |
 | **Assistant** | Send messages via channels; query sweep history |
 
 Use `search_tools` to discover available tools by keyword or category.
