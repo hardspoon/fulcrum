@@ -163,7 +163,7 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`fetch_emails\` - Fetch specific emails by IMAP UID
 
 **Assistant Tools (Proactive Agent):**
-- \`message\` - Send a message to a channel (email, whatsapp)
+- \`message\` - Send a message to a channel (whatsapp, discord, telegram, slack). The \`to\` param is optional — omit it and the recipient auto-resolves to the channel's primary user
 - \`get_last_sweep\` - Check when last sweep ran
 - Use \`memory_store\` with tag \`actionable\` to track things that need attention
 - Use \`search\` with \`memoryTags: ["actionable"]\` to review tracked items

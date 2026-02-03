@@ -14,7 +14,7 @@ export const registerAssistantTools: ToolRegistrar = (server, client) => {
     'Send a message to a messaging channel (WhatsApp, Discord, Telegram, Slack). Use this to reply to messages or send proactive communications. For email, use create_gmail_draft instead.',
     {
       channel: ChannelSchema.describe('Target channel: whatsapp, discord, telegram, slack, or all'),
-      to: z.string().describe('Recipient (email address, phone number, or channel ID)'),
+      to: z.optional(z.string()).describe('Recipient identifier. Optional — if omitted, auto-resolves to the channel\'s primary user.'),
       body: z.string().describe('Message content'),
       subject: z.optional(z.string()).describe('Email subject (for email channel only)'),
       replyToMessageId: z.optional(z.string()).describe('Message ID to reply to (for threading)'),

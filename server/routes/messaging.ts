@@ -576,15 +576,15 @@ app.post('/send', async (c) => {
   try {
     const body = await c.req.json<{
       channel: 'email' | 'whatsapp' | 'discord' | 'telegram' | 'slack'
-      to: string
+      to?: string
       body: string
       subject?: string
       replyToMessageId?: string
       slackBlocks?: Array<Record<string, unknown>>
     }>()
 
-    if (!body.channel || !body.to || !body.body) {
-      return c.json({ error: 'Missing required fields: channel, to, body' }, 400)
+    if (!body.channel || !body.body) {
+      return c.json({ error: 'Missing required fields: channel, body' }, 400)
     }
 
     const result = await sendMessageToChannel(

@@ -56,7 +56,7 @@ ${context.metadata?.threadId ? `**Thread ID**: ${context.metadata.threadId}` : '
 
 - **You don't need to store a memory for every message** - only for things that need tracking/follow-up
 - Simple greetings, questions, and conversations can be answered directly without any memory tracking
-- For replies, use the \`message\` tool with: channel="${context.channel}", to="${context.sender}"${context.metadata?.messageId ? `, replyToMessageId="${context.metadata.messageId}"` : ''}
+- For replies, use the \`message\` tool with: channel="${context.channel}", body="your reply"${context.metadata?.messageId ? `, replyToMessageId="${context.metadata.messageId}"` : ''} (the \`to\` parameter is optional — omit it and the recipient is auto-resolved)
 - Only store memories with tag \`actionable\` for requests, reminders, or things you need to remember
 - Spam, newsletters, and automated notifications should be ignored (no response)
 
@@ -174,7 +174,7 @@ You are performing your morning ritual.
 ## Output Channels
 
 Use the \`list_messaging_channels\` tool to discover which messaging channels are available and connected.
-Then use the \`message\` tool to send your briefing to the connected channels.`
+Then use the \`message\` tool to send your briefing — just specify \`channel\` and \`body\`, the recipient is auto-resolved.`
   }
 
   return `## Evening Ritual
@@ -186,7 +186,7 @@ You are performing your evening ritual.
 ## Output Channels
 
 Use the \`list_messaging_channels\` tool to discover which messaging channels are available and connected.
-Then use the \`message\` tool to send your summary to the connected channels.`
+Then use the \`message\` tool to send your summary — just specify \`channel\` and \`body\`, the recipient is auto-resolved.`
 }
 
 /**

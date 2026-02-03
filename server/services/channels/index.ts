@@ -10,6 +10,9 @@
  */
 
 import { log } from '../../lib/logger'
+import { db } from '../../db'
+import { messagingConnections, messagingSessionMappings } from '../../db/schema'
+import { eq, desc } from 'drizzle-orm'
 import { activeChannels, DISCORD_CONNECTION_ID, TELEGRAM_CONNECTION_ID, SLACK_CONNECTION_ID } from './channel-manager'
 import { storeChannelMessage } from './message-storage'
 import {
@@ -111,19 +114,85 @@ export {
 } from './api/email'
 
 /**
+ * Resolve the recipient identifier for a channel by looking up stored state.
+ * WhatsApp: user's own phone number from connection displayName (self-chat).
+ * Slack/Discord/Telegram: most recent inbound user from session mappings.
+ */
+export function resolveRecipient(channel: string): string | null {
+  switch (channel) {
+    case 'whatsapp': {
+      const row = db
+        .select({ displayName: messagingConnections.displayName })
+        .from(messagingConnections)
+        .where(eq(messagingConnections.channelType, 'whatsapp'))
+        .get()
+      return row?.displayName || null
+    }
+    case 'slack': {
+      const row = db
+        .select({ channelUserId: messagingSessionMappings.channelUserId })
+        .from(messagingSessionMappings)
+        .where(eq(messagingSessionMappings.connectionId, SLACK_CONNECTION_ID))
+        .orderBy(desc(messagingSessionMappings.lastMessageAt))
+        .limit(1)
+        .get()
+      return row?.channelUserId || null
+    }
+    case 'discord': {
+      const row = db
+        .select({ channelUserId: messagingSessionMappings.channelUserId })
+        .from(messagingSessionMappings)
+        .where(eq(messagingSessionMappings.connectionId, DISCORD_CONNECTION_ID))
+        .orderBy(desc(messagingSessionMappings.lastMessageAt))
+        .limit(1)
+        .get()
+      return row?.channelUserId || null
+    }
+    case 'telegram': {
+      const row = db
+        .select({ channelUserId: messagingSessionMappings.channelUserId })
+        .from(messagingSessionMappings)
+        .where(eq(messagingSessionMappings.connectionId, TELEGRAM_CONNECTION_ID))
+        .orderBy(desc(messagingSessionMappings.lastMessageAt))
+        .limit(1)
+        .get()
+      return row?.channelUserId || null
+    }
+    default:
+      return null
+  }
+}
+
+/**
  * Send a message to a channel.
  * Unified interface for sending messages across all supported channels.
+ * If `to` is omitted, the recipient is auto-resolved from stored channel state.
  */
 export async function sendMessageToChannel(
   channel: 'email' | 'whatsapp' | 'discord' | 'telegram' | 'slack',
-  to: string,
-  body: string,
+  to?: string,
+  body?: string,
   options?: {
     subject?: string
     replyToMessageId?: string
     slackBlocks?: Array<Record<string, unknown>>
   }
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  if (!body) {
+    return { success: false, error: 'Message body is required' }
+  }
+
+  // Auto-resolve recipient if not provided
+  let resolvedTo = to
+  if (!resolvedTo) {
+    resolvedTo = resolveRecipient(channel) ?? undefined
+    if (!resolvedTo) {
+      const channelName = channel.charAt(0).toUpperCase() + channel.slice(1)
+      return { success: false, error: `No ${channelName} recipient found — no user has messaged via ${channelName} yet` }
+    }
+    log.messaging.debug('Auto-resolved recipient', { channel, to: resolvedTo })
+  }
+
   switch (channel) {
     case 'email': {
       return { success: false, error: 'Email sending disabled. Use Gmail drafts instead.' }
@@ -136,8 +205,8 @@ export async function sendMessageToChannel(
       }
 
       try {
-        await sendWhatsAppMessage(to, body)
-        log.messaging.info('Sent WhatsApp message', { to })
+        await sendWhatsAppMessage(resolvedTo, body)
+        log.messaging.info('Sent WhatsApp message', { to: resolvedTo })
 
         // Store outgoing message
         storeChannelMessage({
@@ -145,14 +214,14 @@ export async function sendMessageToChannel(
           connectionId: waStatus.id,
           direction: 'outgoing',
           senderId: waStatus.displayName || 'self',
-          recipientId: to,
+          recipientId: resolvedTo,
           content: body,
           messageTimestamp: new Date(),
         })
 
         return { success: true }
       } catch (err) {
-        log.messaging.error('Failed to send WhatsApp message', { to, error: String(err) })
+        log.messaging.error('Failed to send WhatsApp message', { to: resolvedTo, error: String(err) })
         return { success: false, error: String(err) }
       }
     }
@@ -172,9 +241,9 @@ export async function sendMessageToChannel(
       }
 
       try {
-        const success = await discordChannel.sendMessage(to, body)
+        const success = await discordChannel.sendMessage(resolvedTo, body)
         if (success) {
-          log.messaging.info('Sent Discord message', { to })
+          log.messaging.info('Sent Discord message', { to: resolvedTo })
 
           // Store outgoing message
           storeChannelMessage({
@@ -182,7 +251,7 @@ export async function sendMessageToChannel(
             connectionId: DISCORD_CONNECTION_ID,
             direction: 'outgoing',
             senderId: discordStatus.displayName || 'bot',
-            recipientId: to,
+            recipientId: resolvedTo,
             content: body,
             messageTimestamp: new Date(),
           })
@@ -192,7 +261,7 @@ export async function sendMessageToChannel(
           return { success: false, error: 'Failed to send Discord message' }
         }
       } catch (err) {
-        log.messaging.error('Failed to send Discord message', { to, error: String(err) })
+        log.messaging.error('Failed to send Discord message', { to: resolvedTo, error: String(err) })
         return { success: false, error: String(err) }
       }
     }
@@ -212,9 +281,9 @@ export async function sendMessageToChannel(
       }
 
       try {
-        const success = await telegramChannel.sendMessage(to, body)
+        const success = await telegramChannel.sendMessage(resolvedTo, body)
         if (success) {
-          log.messaging.info('Sent Telegram message', { to })
+          log.messaging.info('Sent Telegram message', { to: resolvedTo })
 
           // Store outgoing message
           storeChannelMessage({
@@ -222,7 +291,7 @@ export async function sendMessageToChannel(
             connectionId: TELEGRAM_CONNECTION_ID,
             direction: 'outgoing',
             senderId: telegramStatus.displayName || 'bot',
-            recipientId: to,
+            recipientId: resolvedTo,
             content: body,
             messageTimestamp: new Date(),
           })
@@ -232,7 +301,7 @@ export async function sendMessageToChannel(
           return { success: false, error: 'Failed to send Telegram message' }
         }
       } catch (err) {
-        log.messaging.error('Failed to send Telegram message', { to, error: String(err) })
+        log.messaging.error('Failed to send Telegram message', { to: resolvedTo, error: String(err) })
         return { success: false, error: String(err) }
       }
     }
@@ -254,9 +323,9 @@ export async function sendMessageToChannel(
       try {
         // Pass blocks metadata for Block Kit formatting
         const msgMetadata = options?.slackBlocks ? { blocks: options.slackBlocks } : undefined
-        const success = await slackChannel.sendMessage(to, body, msgMetadata)
+        const success = await slackChannel.sendMessage(resolvedTo, body, msgMetadata)
         if (success) {
-          log.messaging.info('Sent Slack message', { to, hasBlocks: !!options?.slackBlocks })
+          log.messaging.info('Sent Slack message', { to: resolvedTo, hasBlocks: !!options?.slackBlocks })
 
           // Store outgoing message
           storeChannelMessage({
@@ -264,7 +333,7 @@ export async function sendMessageToChannel(
             connectionId: SLACK_CONNECTION_ID,
             direction: 'outgoing',
             senderId: slackStatus.displayName || 'bot',
-            recipientId: to,
+            recipientId: resolvedTo,
             content: body,
             metadata: msgMetadata,
             messageTimestamp: new Date(),
@@ -275,7 +344,7 @@ export async function sendMessageToChannel(
           return { success: false, error: 'Failed to send Slack message' }
         }
       } catch (err) {
-        log.messaging.error('Failed to send Slack message', { to, error: String(err) })
+        log.messaging.error('Failed to send Slack message', { to: resolvedTo, error: String(err) })
         return { success: false, error: String(err) }
       }
     }
