@@ -321,7 +321,10 @@ export function ChatPanel({
             {/* Current session actions */}
             {session && (
               <>
-                <DropdownMenuItem onClick={handleStartEditTitle}>
+                <DropdownMenuItem onSelect={() => {
+                  // Delay to let Radix finish focus restoration after menu close
+                  setTimeout(handleStartEditTitle, 0)
+                }}>
                   <Pencil className="size-4 mr-2" />
                   {t('chat.rename')}
                 </DropdownMenuItem>

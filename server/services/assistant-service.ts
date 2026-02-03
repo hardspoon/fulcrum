@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { eq, desc, and, sql, like, notInArray } from 'drizzle-orm'
+import { eq, desc, and, sql, like, notInArray, isNotNull } from 'drizzle-orm'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { db, chatSessions, chatMessages, artifacts, tasks, projects, repositories, apps, projectRepositories, messagingSessionMappings } from '../db'
 import type { ChatSession, NewChatSession, ChatMessage, NewChatMessage, Artifact, NewArtifact } from '../db/schema'

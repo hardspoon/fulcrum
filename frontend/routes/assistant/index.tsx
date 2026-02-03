@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { AssistantLayout, type ClaudeModelId } from '@/components/assistant'
+import type { EditorSaveStatus } from '@/components/assistant/canvas-panel'
 import type { ChatSession, ChatMessage, Artifact, Document } from '@/components/assistant'
 import type { ImageAttachment } from '@/components/assistant/chat-panel'
 import type { AgentType } from '../../../shared/types'
@@ -46,6 +47,7 @@ function AssistantView() {
   const [opencodeModel, setOpencodeModel] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState('')
   const [canvasContent, setCanvasContent] = useState<string | null>(null)
+  const [editorSaveStatus, setEditorSaveStatus] = useState<EditorSaveStatus>('saved')
   const editorSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
@@ -142,6 +144,7 @@ function AssistantView() {
     setSelectedArtifact(null)
     setEditorContent('') // Clear editor immediately when switching sessions
     setCanvasContent(null) // Clear canvas when switching sessions
+    setEditorSaveStatus('saved') // Reset save status
   }, [chatId])
 
   // Load editor content from session once it's loaded
@@ -154,6 +157,7 @@ function AssistantView() {
   // Save editor content mutation
   const saveEditorContentMutation = useMutation({
     mutationFn: async ({ sessionId, content }: { sessionId: string; content: string }) => {
+      setEditorSaveStatus('saving')
       const res = await fetch(`/api/assistant/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -163,14 +167,20 @@ function AssistantView() {
       return res.json()
     },
     onSuccess: () => {
+      setEditorSaveStatus('saved')
       // Refresh documents list when editor content is saved
       queryClient.invalidateQueries({ queryKey: ['assistant-documents'] })
+      queryClient.invalidateQueries({ queryKey: ['assistant-session', chatId] })
+    },
+    onError: () => {
+      setEditorSaveStatus('unsaved')
     },
   })
 
   // Debounced save for editor content
   const handleEditorContentChange = useCallback((content: string) => {
     setEditorContent(content)
+    setEditorSaveStatus('unsaved')
 
     // Clear existing timeout
     if (editorSaveTimeoutRef.current) {
@@ -184,6 +194,17 @@ function AssistantView() {
       }, 1000) // Save after 1 second of inactivity
     }
   }, [chatId, saveEditorContentMutation])
+
+  // Explicit save (for save button / Ctrl+S)
+  const handleSaveEditor = useCallback(() => {
+    if (!chatId || !editorContent) return
+    // Cancel any pending debounced save
+    if (editorSaveTimeoutRef.current) {
+      clearTimeout(editorSaveTimeoutRef.current)
+      editorSaveTimeoutRef.current = null
+    }
+    saveEditorContentMutation.mutate({ sessionId: chatId, content: editorContent })
+  }, [chatId, editorContent, saveEditorContentMutation])
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -296,8 +317,15 @@ function AssistantView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assistant-documents'] })
+      queryClient.invalidateQueries({ queryKey: ['assistant-session', chatId] })
     },
   })
+
+  // Rename current document (for editor tab inline rename)
+  const handleRenameCurrentDocument = useCallback((newFilename: string) => {
+    if (!chatId) return
+    renameDocumentMutation.mutate({ sessionId: chatId, filename: newFilename })
+  }, [chatId, renameDocumentMutation])
 
   // Handle document selection - navigate to chat and switch to editor tab
   const handleSelectDocument = useCallback((doc: Document) => {
@@ -596,6 +624,10 @@ function AssistantView() {
         onStarDocument={(sessionId, starred) => starDocumentMutation.mutate({ sessionId, starred })}
         onRenameDocument={(sessionId, filename) => renameDocumentMutation.mutate({ sessionId, filename })}
         onStopStreaming={handleStopStreaming}
+        documentPath={selectedSession?.documentPath || null}
+        onRenameCurrentDocument={handleRenameCurrentDocument}
+        onSaveEditor={handleSaveEditor}
+        editorSaveStatus={editorSaveStatus}
       />
     </div>
   )

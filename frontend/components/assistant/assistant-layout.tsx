@@ -1,6 +1,6 @@
 import { MessageSquare, Layout } from 'lucide-react'
 import { ChatPanel, type ImageAttachment } from './chat-panel'
-import { CanvasPanel } from './canvas-panel'
+import { CanvasPanel, type EditorSaveStatus } from './canvas-panel'
 import type { ChatSession, Artifact, Document } from './types'
 import type { AgentType } from '../../../shared/types'
 
@@ -44,6 +44,10 @@ interface AssistantLayoutProps {
   onStarDocument: (sessionId: string, starred: boolean) => void
   onRenameDocument: (sessionId: string, newFilename: string) => void
   onStopStreaming?: () => void
+  documentPath?: string | null
+  onRenameCurrentDocument?: (newFilename: string) => void
+  onSaveEditor?: () => void
+  editorSaveStatus?: EditorSaveStatus
 }
 
 export function AssistantLayout({
@@ -78,6 +82,10 @@ export function AssistantLayout({
   onStarDocument,
   onRenameDocument,
   onStopStreaming,
+  documentPath,
+  onRenameCurrentDocument,
+  onSaveEditor,
+  editorSaveStatus,
 }: AssistantLayoutProps) {
   return (
     <div className="h-full w-full flex flex-col">
@@ -152,6 +160,10 @@ export function AssistantLayout({
             onRenameDocument={onRenameDocument}
             activeTab={canvasActiveTab}
             onTabChange={onCanvasTabChange}
+            documentPath={documentPath}
+            onRenameCurrentDocument={onRenameCurrentDocument}
+            onSaveEditor={onSaveEditor}
+            editorSaveStatus={editorSaveStatus}
           />
         </div>
       </div>
