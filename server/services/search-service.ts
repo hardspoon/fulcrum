@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 
 export interface SearchOptions {
   query: string
-  entities?: ('tasks' | 'projects' | 'messages' | 'events' | 'memories')[]
+  entities?: ('tasks' | 'projects' | 'messages' | 'events' | 'memories' | 'conversations')[]
   limit?: number
   // Entity-specific filters
   taskStatus?: string[]
@@ -13,10 +13,13 @@ export interface SearchOptions {
   eventFrom?: string
   eventTo?: string
   memoryTags?: string[]
+  conversationRole?: string
+  conversationProvider?: string
+  conversationProjectId?: string
 }
 
 export interface SearchResult {
-  entityType: 'task' | 'project' | 'message' | 'event' | 'memory'
+  entityType: 'task' | 'project' | 'message' | 'event' | 'memory' | 'conversation'
   id: string
   title: string
   snippet: string
@@ -24,7 +27,7 @@ export interface SearchResult {
   metadata: Record<string, unknown>
 }
 
-const ALL_ENTITIES: SearchOptions['entities'] = ['tasks', 'projects', 'messages', 'events', 'memories']
+const ALL_ENTITIES: SearchOptions['entities'] = ['tasks', 'projects', 'messages', 'events', 'memories', 'conversations']
 
 export async function search(options: SearchOptions): Promise<SearchResult[]> {
   const entities = options.entities?.length ? options.entities : ALL_ENTITIES
@@ -42,6 +45,8 @@ export async function search(options: SearchOptions): Promise<SearchResult[]> {
         return searchEvents(options.query, { from: options.eventFrom, to: options.eventTo }, limit)
       case 'memories':
         return searchMemories(options.query, { tags: options.memoryTags }, limit)
+      case 'conversations':
+        return searchConversations(options.query, { role: options.conversationRole, provider: options.conversationProvider, projectId: options.conversationProjectId }, limit)
     }
   })
 
@@ -322,6 +327,71 @@ export async function searchMemories(
     metadata: {
       tags: parseTags(r.tags) || undefined,
       source: r.source || undefined,
+      createdAt: r.createdAt,
+    },
+  }))
+}
+
+interface ConversationRow {
+  id: string
+  content: string
+  role: string
+  sessionId: string
+  sessionTitle: string
+  provider: string
+  projectId: string | null
+  createdAt: string
+  rank: number
+}
+
+export async function searchConversations(
+  query: string,
+  filters: { role?: string; provider?: string; projectId?: string },
+  limit: number
+): Promise<SearchResult[]> {
+  const roleFilter = filters.role
+    ? sql`AND m.role = ${filters.role}`
+    : sql`AND m.role != 'system'`
+  const providerFilter = filters.provider
+    ? sql`AND s.provider = ${filters.provider}`
+    : sql``
+  const projectFilter = filters.projectId
+    ? sql`AND s.project_id = ${filters.projectId}`
+    : sql``
+
+  const rows = db.all(
+    sql`SELECT m.id, m.content, m.role, m.session_id as "sessionId",
+        s.title as "sessionTitle", s.provider, s.project_id as "projectId",
+        m.created_at as "createdAt",
+        bm25(chat_messages_fts, 5.0, 2.0) as rank
+        FROM chat_messages_fts fts
+        JOIN chat_messages m ON m.rowid = fts.rowid
+        JOIN chat_sessions s ON s.id = m.session_id
+        WHERE chat_messages_fts MATCH ${query}
+          ${roleFilter}
+          ${providerFilter}
+          ${projectFilter}
+        ORDER BY bm25(chat_messages_fts, 5.0, 2.0)
+        LIMIT ${limit}`
+  ) as ConversationRow[]
+
+  if (!rows.length) return []
+
+  const minRank = Math.min(...rows.map((r) => r.rank))
+  const maxRank = Math.max(...rows.map((r) => r.rank))
+  const range = maxRank - minRank || 1
+
+  return rows.map((r) => ({
+    entityType: 'conversation' as const,
+    id: r.id,
+    title: r.sessionTitle || 'Untitled conversation',
+    snippet: r.content.slice(0, 200),
+    score: 1 - (r.rank - minRank) / range,
+    metadata: {
+      sessionId: r.sessionId,
+      role: r.role,
+      provider: r.provider,
+      projectId: r.projectId || undefined,
       createdAt: r.createdAt,
     },
   }))

@@ -5,16 +5,16 @@ import { z } from 'zod'
 import type { ToolRegistrar } from './types'
 import { formatSuccess, handleToolError } from '../utils'
 
-const EntityTypeSchema = z.enum(['tasks', 'projects', 'messages', 'events', 'memories'])
+const EntityTypeSchema = z.enum(['tasks', 'projects', 'messages', 'events', 'memories', 'conversations'])
 
 export const registerSearchTools: ToolRegistrar = (server, client) => {
   // search - Unified full-text search across tasks, projects, messages, events, and memories
   server.tool(
     'search',
-    'Search across all Fulcrum entities (tasks, projects, messages, calendar events, memories) using full-text search. Supports boolean operators (AND, OR, NOT), phrase matching ("quoted phrases"), and prefix matching (term*). Returns results ranked by relevance.',
+    'Search across all Fulcrum entities (tasks, projects, messages, calendar events, memories, conversations) using full-text search. Supports boolean operators (AND, OR, NOT), phrase matching ("quoted phrases"), and prefix matching (term*). Returns results ranked by relevance.',
     {
       query: z.string().describe('FTS5 search query. Supports: AND, OR, NOT operators, "quoted phrases", prefix* matching. Example: "kubernetes deployment" OR k8s'),
-      entities: z.optional(z.array(EntityTypeSchema)).describe('Entity types to search. Defaults to all: tasks, projects, messages, events, memories'),
+      entities: z.optional(z.array(EntityTypeSchema)).describe('Entity types to search. Defaults to all: tasks, projects, messages, events, memories, conversations'),
       limit: z.optional(z.number()).describe('Maximum results per entity type (default: 10)'),
       taskStatus: z.optional(z.array(z.string())).describe('Filter tasks by status (e.g., ["IN_PROGRESS", "TO_DO"])'),
       projectStatus: z.optional(z.enum(['active', 'archived'])).describe('Filter projects by status'),
@@ -23,8 +23,11 @@ export const registerSearchTools: ToolRegistrar = (server, client) => {
       eventFrom: z.optional(z.string()).describe('Filter calendar events starting from this date (ISO 8601)'),
       eventTo: z.optional(z.string()).describe('Filter calendar events up to this date (ISO 8601)'),
       memoryTags: z.optional(z.array(z.string())).describe('Filter memories by tags'),
+      conversationRole: z.optional(z.string()).describe('Filter conversations by role (e.g., "user", "assistant")'),
+      conversationProvider: z.optional(z.string()).describe('Filter conversations by provider (e.g., "claude", "opencode")'),
+      conversationProjectId: z.optional(z.string()).describe('Filter conversations by project ID'),
     },
-    async ({ query, entities, limit, taskStatus, projectStatus, messageChannel, messageDirection, eventFrom, eventTo, memoryTags }) => {
+    async ({ query, entities, limit, taskStatus, projectStatus, messageChannel, messageDirection, eventFrom, eventTo, memoryTags, conversationRole, conversationProvider, conversationProjectId }) => {
       try {
         const results = await client.search({
           query,
@@ -37,6 +40,9 @@ export const registerSearchTools: ToolRegistrar = (server, client) => {
           eventFrom,
           eventTo,
           memoryTags,
+          conversationRole,
+          conversationProvider,
+          conversationProjectId,
         })
         return formatSuccess(results)
       } catch (err) {

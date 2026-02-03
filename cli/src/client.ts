@@ -1428,6 +1428,9 @@ export class FulcrumClient {
     eventFrom?: string
     eventTo?: string
     memoryTags?: string[]
+    conversationRole?: string
+    conversationProvider?: string
+    conversationProjectId?: string
   }): Promise<Array<{
     entityType: string
     id: string
@@ -1446,6 +1449,9 @@ export class FulcrumClient {
     if (input.eventFrom) params.set('eventFrom', input.eventFrom)
     if (input.eventTo) params.set('eventTo', input.eventTo)
     if (input.memoryTags?.length) params.set('memoryTags', input.memoryTags.join(','))
+    if (input.conversationRole) params.set('conversationRole', input.conversationRole)
+    if (input.conversationProvider) params.set('conversationProvider', input.conversationProvider)
+    if (input.conversationProjectId) params.set('conversationProjectId', input.conversationProjectId)
     return this.fetch(`/api/search?${params.toString()}`)
   }
 

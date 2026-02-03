@@ -253,7 +253,7 @@ Both plugins include an MCP server with 60+ tools:
 | **Notifications** | Send notifications to enabled channels |
 | **Backup & Restore** | Snapshot database and settings; auto-safety-backup on restore |
 | **Settings** | View and update configuration; manage notification channels |
-| **Search** | Unified full-text search across tasks, projects, messages, events, and memories |
+| **Search** | Unified full-text search across tasks, projects, messages, events, memories, and conversations |
 | **Memory** | Read/update master memory file; store ephemeral knowledge with tags |
 | **Calendar** | Manage CalDAV accounts, sync calendars, configure event copy rules |
 | **Gmail** | List Google accounts, manage Gmail drafts (create, update, delete) |

@@ -123,7 +123,7 @@ fulcrum notify <title> <message>  # Send notification
 - `google/` - Google API integration (Calendar sync via googleapis, Gmail draft management)
 - `google-oauth.ts` - Shared Google OAuth2 client management, token refresh
 - `opencode-channel-service.ts` - OpenCode observer for channel message processing (structured JSON output, no direct tool access)
-- `search-service.ts` - Unified FTS5 full-text search across tasks, projects, messages, events, and memories
+- `search-service.ts` - Unified FTS5 full-text search across tasks, projects, messages, events, memories, and conversations
 - `memory-service.ts` - Persistent agent memory with SQLite FTS5 full-text search
 - `memory-file-service.ts` - Master memory file (MEMORY.md) read/write/section-update, injected into every system prompt
 - `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
@@ -141,7 +141,7 @@ fulcrum notify <title> <message>  # Send notification
 - `/api/monitoring/*` - System and Claude instance monitoring, channel messages
 - `/api/deployments/*` - Deployment history
 - `/api/repositories/*` - Repository management
-- `/api/search` - Unified full-text search across all entity types
+- `/api/search` - Unified full-text search across all entity types (incl. conversations)
 - `/api/memory/*` - Agent memory CRUD and FTS5 search
 - `/api/memory-file` - Master memory file read/write/section-update
 - `/api/messaging/*` - Messaging channel management (WhatsApp, Discord, Telegram, Slack)

@@ -414,6 +414,13 @@
       "when": 1771152800000,
       "tag": "0058_unified_search_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1771239200000,
+      "tag": "0059_chat_messages_fts",
+      "breakpoints": true
     }
   ]
 }

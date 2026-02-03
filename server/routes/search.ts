@@ -12,7 +12,7 @@ app.get('/', async (c) => {
 
   const entitiesParam = c.req.query('entities')
   const entities = entitiesParam
-    ? (entitiesParam.split(',').map((e) => e.trim()) as ('tasks' | 'projects' | 'messages' | 'events' | 'memories')[])
+    ? (entitiesParam.split(',').map((e) => e.trim()) as ('tasks' | 'projects' | 'messages' | 'events' | 'memories' | 'conversations')[])
     : undefined
 
   const limitParam = c.req.query('limit')
@@ -30,6 +30,10 @@ app.get('/', async (c) => {
   const memoryTagsParam = c.req.query('memoryTags')
   const memoryTags = memoryTagsParam ? memoryTagsParam.split(',').map((t) => t.trim()) : undefined
 
+  const conversationRole = c.req.query('conversationRole') || undefined
+  const conversationProvider = c.req.query('conversationProvider') || undefined
+  const conversationProjectId = c.req.query('conversationProjectId') || undefined
+
   try {
     const results = await search({
       query: query.trim(),
@@ -42,6 +46,9 @@ app.get('/', async (c) => {
       eventFrom,
       eventTo,
       memoryTags,
+      conversationRole,
+      conversationProvider,
+      conversationProjectId,
     })
 
     return c.json(results)
