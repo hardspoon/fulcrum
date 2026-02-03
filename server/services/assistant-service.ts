@@ -680,6 +680,7 @@ User message: ${userMessage}`
         systemPrompt,
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
+        settingSources: ['user'],
       },
     })
 
