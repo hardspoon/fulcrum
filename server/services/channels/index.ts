@@ -28,6 +28,11 @@ import {
 // Import message-handler to register the handler with channel-manager
 import './message-handler'
 
+import { migrateSessionTitles } from './session-mapper'
+
+// Rename existing channel sessions from "Chat with X" to "{Channel} Chat"
+migrateSessionTitles()
+
 // Re-export types
 export * from './types'
 

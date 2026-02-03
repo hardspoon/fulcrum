@@ -62,12 +62,15 @@ async function checkDatabaseAvailable(): Promise<{ available: boolean; error?: s
     }).trim()
 
     if (result) {
-      // Database is in use - get the first PID
-      const pid = parseInt(result.split('\n')[0], 10)
-      return {
-        available: false,
-        error: `Database is already in use by process ${pid}: ${dbPath}`,
-        pid,
+      // Filter out our own PID — Drizzle opens the DB at import time
+      const myPid = process.pid
+      const otherPids = result.split('\n').map(Number).filter(pid => pid !== myPid)
+      if (otherPids.length > 0) {
+        return {
+          available: false,
+          error: `Database is already in use by process ${otherPids[0]}: ${dbPath}`,
+          pid: otherPids[0],
+        }
       }
     }
   } catch {

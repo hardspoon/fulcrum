@@ -76,7 +76,8 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
     msg.connectionId,
     msg.senderId,
     msg.senderName,
-    emailThreadId
+    emailThreadId,
+    msg.channelType
   )
 
   log.messaging.info('Routing message to assistant', {
@@ -127,7 +128,7 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
  * Handle /reset command - start fresh conversation.
  */
 async function handleResetCommand(msg: IncomingMessage): Promise<void> {
-  resetSession(msg.connectionId, msg.senderId, msg.senderName)
+  resetSession(msg.connectionId, msg.senderId, msg.senderName, undefined, msg.channelType)
 
   // Use Block Kit for Slack
   if (msg.channelType === 'slack') {
@@ -228,7 +229,8 @@ async function handleStatusCommand(msg: IncomingMessage): Promise<void> {
     msg.connectionId,
     msg.senderId,
     msg.senderName,
-    emailThreadId
+    emailThreadId,
+    msg.channelType
   )
 
   // Use Block Kit for Slack
@@ -363,7 +365,9 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
   const { session } = getOrCreateSession(
     msg.connectionId,
     observeSessionKey,
-    'Observer'
+    'Observer',
+    undefined,
+    msg.channelType
   )
 
   const settings = getSettings()

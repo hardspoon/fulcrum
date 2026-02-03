@@ -4,8 +4,8 @@
  */
 
 import { nanoid } from 'nanoid'
-import { eq, and } from 'drizzle-orm'
-import { db, messagingSessionMappings, chatSessions } from '../../db'
+import { eq, and, like, or } from 'drizzle-orm'
+import { db, messagingSessionMappings, messagingConnections, chatSessions } from '../../db'
 import type { MessagingSessionMapping, ChatSession } from '../../db/schema'
 import { log } from '../../lib/logger'
 
@@ -26,7 +26,8 @@ export function getOrCreateSession(
   connectionId: string,
   channelUserId: string,
   channelUserName?: string,
-  sessionKey?: string
+  sessionKey?: string,
+  channelType?: string
 ): SessionMapperResult {
   // Use sessionKey if provided (e.g., threadId for email), otherwise use channelUserId
   const lookupKey = sessionKey ?? channelUserId
@@ -76,11 +77,11 @@ export function getOrCreateSession(
 
   // Create new chat session
   const sessionId = nanoid()
-  // Use channelUserName if available, otherwise use channelUserId for the title
-  // (even if lookupKey is different, like a threadId)
-  const sessionTitle = channelUserName
-    ? `Chat with ${channelUserName}`
-    : `Chat ${channelUserId}`
+  const sessionTitle = channelType
+    ? `${channelType.charAt(0).toUpperCase() + channelType.slice(1)} Chat`
+    : channelUserName
+      ? `Chat with ${channelUserName}`
+      : `Chat ${channelUserId}`
 
   const newSession = {
     id: sessionId,
@@ -150,7 +151,8 @@ export function resetSession(
   connectionId: string,
   channelUserId: string,
   channelUserName?: string,
-  sessionKey?: string
+  sessionKey?: string,
+  channelType?: string
 ): SessionMapperResult {
   const now = new Date().toISOString()
   const lookupKey = sessionKey ?? channelUserId
@@ -169,9 +171,11 @@ export function resetSession(
 
   // Create new chat session
   const sessionId = nanoid()
-  const sessionTitle = channelUserName
-    ? `Chat with ${channelUserName}`
-    : `Chat ${channelUserId}`
+  const sessionTitle = channelType
+    ? `${channelType.charAt(0).toUpperCase() + channelType.slice(1)} Chat`
+    : channelUserName
+      ? `Chat with ${channelUserName}`
+      : `Chat ${channelUserId}`
 
   const newSession = {
     id: sessionId,
@@ -253,4 +257,66 @@ export function deleteSessionMapping(mappingId: string): boolean {
     .where(eq(messagingSessionMappings.id, mappingId))
     .run()
   return result.changes > 0
+}
+
+/**
+ * Map from hardcoded connection IDs to channel types.
+ * Most channels use fixed IDs (e.g., "slack-channel") rather than DB-stored connections.
+ */
+const CONNECTION_ID_TO_CHANNEL: Record<string, string> = {
+  'slack-channel': 'slack',
+  'discord-channel': 'discord',
+  'telegram-channel': 'telegram',
+  'email-channel': 'email',
+}
+
+/**
+ * Migrate existing channel session titles from "Chat with X" / "Chat X" to "{Channel} Chat".
+ * Handles both DB-stored connections (WhatsApp) and hardcoded connection IDs (Slack, Discord, etc.).
+ * Skips non-channel sessions (e.g., assistant-ritual, assistant-sweep).
+ */
+export function migrateSessionTitles(): void {
+  const rows = db
+    .select({
+      sessionId: messagingSessionMappings.sessionId,
+      connectionId: messagingSessionMappings.connectionId,
+      sessionTitle: chatSessions.title,
+    })
+    .from(messagingSessionMappings)
+    .innerJoin(chatSessions, eq(messagingSessionMappings.sessionId, chatSessions.id))
+    .where(
+      or(
+        like(chatSessions.title, 'Chat with %'),
+        like(chatSessions.title, 'Chat %'),
+      )
+    )
+    .all()
+
+  if (rows.length === 0) return
+
+  // Build a map of DB connection IDs to channel types
+  const dbConnections = db.select({ id: messagingConnections.id, channelType: messagingConnections.channelType })
+    .from(messagingConnections)
+    .all()
+  const dbConnectionMap = new Map(dbConnections.map(c => [c.id, c.channelType]))
+
+  let updated = 0
+  for (const row of rows) {
+    // Resolve channel type: check hardcoded IDs first, then DB connections
+    const channelType = CONNECTION_ID_TO_CHANNEL[row.connectionId] ?? dbConnectionMap.get(row.connectionId)
+    if (!channelType) continue // Skip non-channel sessions (e.g., assistant-ritual)
+
+    const newTitle = `${channelType.charAt(0).toUpperCase() + channelType.slice(1)} Chat`
+    if (row.sessionTitle !== newTitle) {
+      db.update(chatSessions)
+        .set({ title: newTitle })
+        .where(eq(chatSessions.id, row.sessionId))
+        .run()
+      updated++
+    }
+  }
+
+  if (updated > 0) {
+    log.messaging.info('Migrated channel session titles', { updated, total: rows.length })
+  }
 }
