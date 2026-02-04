@@ -24,9 +24,13 @@ export class SlackChannel implements MessagingChannel {
   private events: ChannelEvents | null = null
   private status: ConnectionStatus = 'disconnected'
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private healthCheckTimer: ReturnType<typeof setInterval> | null = null
   private isShuttingDown = false
   private botToken: string | null = null
   private appToken: string | null = null
+
+  /** How often to verify the connection is alive (ms) */
+  private static HEALTH_CHECK_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
   constructor(connectionId: string) {
     this.connectionId = connectionId
@@ -87,6 +91,9 @@ export class SlackChannel implements MessagingChannel {
       // Start the app
       await this.app.start()
 
+      // Listen for Socket Mode connection state changes
+      this.setupSocketModeListeners()
+
       // Get bot info
       const authTest = await this.app.client.auth.test()
 
@@ -96,6 +103,9 @@ export class SlackChannel implements MessagingChannel {
         userId: authTest.user_id,
       })
       this.updateStatus('connected')
+
+      // Start periodic health checks
+      this.startHealthCheck()
 
       // Store display name (bot name or workspace)
       const displayName = (authTest.user as string) || 'Slack Bot'
@@ -114,6 +124,87 @@ export class SlackChannel implements MessagingChannel {
       })
       this.updateStatus('disconnected')
       this.scheduleReconnect()
+    }
+  }
+
+  /**
+   * Listen for Socket Mode client state changes so we detect silent disconnects.
+   * The SocketModeClient (on the receiver) emits: connected, disconnected, reconnecting, etc.
+   */
+  private setupSocketModeListeners(): void {
+    // Access the SocketModeClient from the Bolt receiver
+    const receiver = (this.app as unknown as { receiver: { client: import('eventemitter3').EventEmitter } })?.receiver
+    const socketClient = receiver?.client
+    if (!socketClient) {
+      log.messaging.warn('Could not access Socket Mode client for health monitoring', {
+        connectionId: this.connectionId,
+      })
+      return
+    }
+
+    socketClient.on('disconnected', () => {
+      if (this.isShuttingDown) return
+      log.messaging.warn('Slack Socket Mode disconnected', {
+        connectionId: this.connectionId,
+      })
+      this.updateStatus('disconnected')
+    })
+
+    socketClient.on('reconnecting', () => {
+      if (this.isShuttingDown) return
+      log.messaging.info('Slack Socket Mode reconnecting', {
+        connectionId: this.connectionId,
+      })
+      this.updateStatus('connecting')
+    })
+
+    socketClient.on('connected', () => {
+      if (this.isShuttingDown) return
+      log.messaging.info('Slack Socket Mode reconnected', {
+        connectionId: this.connectionId,
+      })
+      this.updateStatus('connected')
+    })
+
+    log.messaging.debug('Socket Mode event listeners attached', {
+      connectionId: this.connectionId,
+    })
+  }
+
+  /**
+   * Periodic health check: call auth.test to verify the connection is truly alive.
+   * Catches cases where the socket silently dies without emitting disconnect events.
+   */
+  private startHealthCheck(): void {
+    this.stopHealthCheck()
+    this.healthCheckTimer = setInterval(async () => {
+      if (this.isShuttingDown || !this.app || this.status !== 'connected') return
+
+      try {
+        await this.app.client.auth.test()
+      } catch (err) {
+        log.messaging.warn('Slack health check failed, triggering reconnect', {
+          connectionId: this.connectionId,
+          error: String(err),
+        })
+        this.updateStatus('disconnected')
+
+        // Tear down and reconnect
+        try {
+          await this.app?.stop()
+        } catch {
+          // ignore stop errors
+        }
+        this.app = null
+        this.scheduleReconnect()
+      }
+    }, SlackChannel.HEALTH_CHECK_INTERVAL)
+  }
+
+  private stopHealthCheck(): void {
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer)
+      this.healthCheckTimer = null
     }
   }
 
@@ -212,6 +303,7 @@ export class SlackChannel implements MessagingChannel {
 
   async shutdown(): Promise<void> {
     this.isShuttingDown = true
+    this.stopHealthCheck()
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
@@ -338,6 +430,8 @@ export class SlackChannel implements MessagingChannel {
   // Auth is handled via setTokens method before initialize
 
   async logout(): Promise<void> {
+    this.stopHealthCheck()
+
     if (this.app) {
       await this.app.stop()
       this.app = null
