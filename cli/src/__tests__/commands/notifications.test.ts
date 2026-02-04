@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
 import { handleNotificationsCommand } from '../../commands/notifications'
 import { CliError, ExitCodes } from '../../utils/errors'
 
@@ -81,31 +81,38 @@ describe('notifications command', () => {
         expect((err as CliError).message).toContain('Setting value is required')
       }
     })
+  })
 
-    test('status: shows current settings (no action required)', async () => {
-      // undefined action defaults to status
-      try {
-        await handleNotificationsCommand(undefined, [], {})
-      } catch (err) {
-        // Expected API error, not validation error
-        expect((err as Error).message).not.toContain('is required')
-      }
+  describe('commands that pass validation', () => {
+    const originalFetch = global.fetch
+
+    beforeEach(() => {
+      // Mock fetch to prevent real HTTP requests to production server
+      global.fetch = mock(() =>
+        Promise.resolve(new Response(JSON.stringify({ enabled: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      ) as typeof fetch
     })
 
-    test('enable: does not require any arguments', async () => {
-      try {
-        await handleNotificationsCommand('enable', [], {})
-      } catch (err) {
-        expect((err as Error).message).not.toContain('is required')
-      }
+    afterEach(() => {
+      global.fetch = originalFetch
     })
 
-    test('disable: does not require any arguments', async () => {
-      try {
-        await handleNotificationsCommand('disable', [], {})
-      } catch (err) {
-        expect((err as Error).message).not.toContain('is required')
-      }
+    test('status: passes validation (no action required)', async () => {
+      await handleNotificationsCommand(undefined, [], {})
+      expect(global.fetch).toHaveBeenCalled()
+    })
+
+    test('enable: passes validation (no arguments required)', async () => {
+      await handleNotificationsCommand('enable', [], {})
+      expect(global.fetch).toHaveBeenCalled()
+    })
+
+    test('disable: passes validation (no arguments required)', async () => {
+      await handleNotificationsCommand('disable', [], {})
+      expect(global.fetch).toHaveBeenCalled()
     })
   })
 })

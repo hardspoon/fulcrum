@@ -8,11 +8,11 @@ export async function handleNotifyCommand(
   positional: string[],
   flags: Record<string, string>
 ) {
-  const client = new FulcrumClient(flags.url, flags.port)
-
   const title = flags.title || positional[0]
   const message = flags.message || positional.slice(1).join(' ') || positional[0]
 
+  // Validate before creating the HTTP client to avoid making real
+  // network requests during validation-only test scenarios
   if (!title) {
     throw new CliError(
       'MISSING_TITLE',
@@ -21,6 +21,7 @@ export async function handleNotifyCommand(
     )
   }
 
+  const client = new FulcrumClient(flags.url, flags.port)
   const result = await client.sendNotification(title, message || title)
   if (isJsonOutput()) {
     output(result)

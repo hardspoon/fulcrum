@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
 import { handleNotifyCommand } from '../../commands/notify'
 import { CliError, ExitCodes } from '../../utils/errors'
 
@@ -15,41 +15,43 @@ describe('notify command', () => {
         expect((err as CliError).message).toContain('Title is required')
       }
     })
+  })
+
+  describe('commands that pass validation', () => {
+    const originalFetch = global.fetch
+
+    beforeEach(() => {
+      // Mock fetch to prevent real HTTP requests to production server
+      global.fetch = mock(() =>
+        Promise.resolve(new Response(JSON.stringify({ results: [{ success: true }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      ) as typeof fetch
+    })
+
+    afterEach(() => {
+      global.fetch = originalFetch
+    })
 
     test('accepts title from positional argument', async () => {
-      try {
-        await handleNotifyCommand(['Test Title'], {})
-      } catch (err) {
-        // Expected API error, not validation error
-        expect((err as Error).message).not.toContain('Title is required')
-      }
+      await handleNotifyCommand(['Test Title'], {})
+      expect(global.fetch).toHaveBeenCalled()
     })
 
     test('accepts title from --title flag', async () => {
-      try {
-        await handleNotifyCommand([], { title: 'Test Title' })
-      } catch (err) {
-        // Expected API error, not validation error
-        expect((err as Error).message).not.toContain('Title is required')
-      }
+      await handleNotifyCommand([], { title: 'Test Title' })
+      expect(global.fetch).toHaveBeenCalled()
     })
 
     test('accepts title and message from positional arguments', async () => {
-      try {
-        await handleNotifyCommand(['Test Title', 'with', 'message'], {})
-      } catch (err) {
-        // Expected API error, not validation error
-        expect((err as Error).message).not.toContain('is required')
-      }
+      await handleNotifyCommand(['Test Title', 'with', 'message'], {})
+      expect(global.fetch).toHaveBeenCalled()
     })
 
     test('accepts title and message from flags', async () => {
-      try {
-        await handleNotifyCommand([], { title: 'Title', message: 'Message' })
-      } catch (err) {
-        // Expected API error, not validation error
-        expect((err as Error).message).not.toContain('is required')
-      }
+      await handleNotifyCommand([], { title: 'Title', message: 'Message' })
+      expect(global.fetch).toHaveBeenCalled()
     })
   })
 })

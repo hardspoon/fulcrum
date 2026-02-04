@@ -12,6 +12,54 @@ export async function handleNotificationsCommand(
   positional: string[],
   flags: Record<string, string>
 ) {
+  // Validate arguments before creating the HTTP client to avoid
+  // making real network requests during validation-only test scenarios
+  if (action === 'test') {
+    const [channel] = positional
+    if (!channel) {
+      throw new CliError(
+        'MISSING_CHANNEL',
+        `Channel is required. Valid: ${VALID_CHANNELS.join(', ')}`,
+        ExitCodes.INVALID_ARGS
+      )
+    }
+    if (!VALID_CHANNELS.includes(channel as NotificationChannel)) {
+      throw new CliError(
+        'INVALID_CHANNEL',
+        `Invalid channel: ${channel}. Valid: ${VALID_CHANNELS.join(', ')}`,
+        ExitCodes.INVALID_ARGS
+      )
+    }
+  } else if (action === 'set') {
+    const [channel, key, value] = positional
+    if (!channel) {
+      throw new CliError(
+        'MISSING_CHANNEL',
+        `Channel is required. Valid: ${VALID_CHANNELS.join(', ')}`,
+        ExitCodes.INVALID_ARGS
+      )
+    }
+    if (!VALID_CHANNELS.includes(channel as NotificationChannel)) {
+      throw new CliError(
+        'INVALID_CHANNEL',
+        `Invalid channel: ${channel}. Valid: ${VALID_CHANNELS.join(', ')}`,
+        ExitCodes.INVALID_ARGS
+      )
+    }
+    if (!key) {
+      throw new CliError('MISSING_KEY', 'Setting key is required', ExitCodes.INVALID_ARGS)
+    }
+    if (value === undefined) {
+      throw new CliError('MISSING_VALUE', 'Setting value is required', ExitCodes.INVALID_ARGS)
+    }
+  } else if (action !== 'status' && action !== 'enable' && action !== 'disable' && action !== undefined) {
+    throw new CliError(
+      'UNKNOWN_ACTION',
+      `Unknown action: ${action}. Valid: status, enable, disable, test, set`,
+      ExitCodes.INVALID_ARGS
+    )
+  }
+
   const client = new FulcrumClient(flags.url, flags.port)
 
   switch (action) {
@@ -62,20 +110,6 @@ export async function handleNotificationsCommand(
 
     case 'test': {
       const [channel] = positional
-      if (!channel) {
-        throw new CliError(
-          'MISSING_CHANNEL',
-          `Channel is required. Valid: ${VALID_CHANNELS.join(', ')}`,
-          ExitCodes.INVALID_ARGS
-        )
-      }
-      if (!VALID_CHANNELS.includes(channel as NotificationChannel)) {
-        throw new CliError(
-          'INVALID_CHANNEL',
-          `Invalid channel: ${channel}. Valid: ${VALID_CHANNELS.join(', ')}`,
-          ExitCodes.INVALID_ARGS
-        )
-      }
       const result = await client.testNotification(channel as NotificationChannel)
       if (isJsonOutput()) {
         output(result)
@@ -91,28 +125,6 @@ export async function handleNotificationsCommand(
 
     case 'set': {
       const [channel, key, value] = positional
-      if (!channel) {
-        throw new CliError(
-          'MISSING_CHANNEL',
-          `Channel is required. Valid: ${VALID_CHANNELS.join(', ')}`,
-          ExitCodes.INVALID_ARGS
-        )
-      }
-      if (!VALID_CHANNELS.includes(channel as NotificationChannel)) {
-        throw new CliError(
-          'INVALID_CHANNEL',
-          `Invalid channel: ${channel}. Valid: ${VALID_CHANNELS.join(', ')}`,
-          ExitCodes.INVALID_ARGS
-        )
-      }
-      if (!key) {
-        throw new CliError('MISSING_KEY', 'Setting key is required', ExitCodes.INVALID_ARGS)
-      }
-      if (value === undefined) {
-        throw new CliError('MISSING_VALUE', 'Setting value is required', ExitCodes.INVALID_ARGS)
-      }
-
-      // Build the update object for the specific channel
       const update = buildChannelUpdate(channel as NotificationChannel, key, value)
       const updated = await client.updateNotifications(update)
       if (isJsonOutput()) {
@@ -122,13 +134,6 @@ export async function handleNotificationsCommand(
       }
       break
     }
-
-    default:
-      throw new CliError(
-        'UNKNOWN_ACTION',
-        `Unknown action: ${action}. Valid: status, enable, disable, test, set`,
-        ExitCodes.INVALID_ARGS
-      )
   }
 }
 
