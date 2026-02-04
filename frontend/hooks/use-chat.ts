@@ -2,7 +2,7 @@ import { useMemo, useCallback, useEffect, useRef } from 'react'
 import { ChatStore, type IChatStore, type ClaudeModelId, type ProviderId } from '@/stores/chat-store'
 import { createLogger } from '@/lib/logger'
 import type { PageContext } from '../../shared/types'
-import type { ImageAttachment } from '@/components/chat/chat-input'
+import type { FileAttachment } from '@/components/chat/chat-input'
 
 // Legacy export for backwards compatibility
 export type ModelId = ClaudeModelId
@@ -54,8 +54,8 @@ export function useChat() {
   const open = useCallback(() => store.setOpen(true), [store])
   const close = useCallback(() => store.setOpen(false), [store])
   const sendMessage = useCallback(
-    (message: string, context?: PageContext, images?: ImageAttachment[]) =>
-      store.sendMessage(message, context, images),
+    (message: string, context?: PageContext, attachments?: FileAttachment[]) =>
+      store.sendMessage(message, context, attachments),
     [store]
   )
   const clearMessages = useCallback(() => store.clearMessages(), [store])

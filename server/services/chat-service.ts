@@ -5,7 +5,7 @@ import { getInstanceContext } from '../lib/settings/paths'
 import { log } from '../lib/logger'
 import { db, tasks, projects, repositories, apps, projectRepositories } from '../db'
 import { eq } from 'drizzle-orm'
-import type { PageContext, ImageData } from '../../shared/types'
+import type { PageContext, AttachmentData } from '../../shared/types'
 import { getFullKnowledge } from './assistant-knowledge'
 
 type ModelId = 'opus' | 'sonnet' | 'haiku'
@@ -230,43 +230,63 @@ async function buildSystemPrompt(context?: PageContext): Promise<string> {
 }
 
 type ImageBlock = { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+type DocumentBlock = { type: 'document'; source: { type: 'base64'; media_type: string; data: string }; title?: string }
 type TextBlock = { type: 'text'; text: string }
-type UserMessageContent = string | Array<ImageBlock | TextBlock>
+type ContentBlock = ImageBlock | DocumentBlock | TextBlock
+type UserMessageContent = string | ContentBlock[]
 type UserMessageParam = { role: 'user'; content: UserMessageContent }
 
 /**
- * Build MessageParam content with optional images for the Anthropic SDK
+ * Build MessageParam content with optional attachments for the Anthropic SDK
  */
 function buildMessageParam(
   message: string,
-  images?: ImageData[]
+  attachments?: AttachmentData[]
 ): UserMessageParam {
-  if (!images || images.length === 0) {
+  if (!attachments || attachments.length === 0) {
     return {
       role: 'user',
       content: message,
     }
   }
 
-  // Build content array with images first, then text
-  const content: Array<ImageBlock | TextBlock> = []
+  const content: ContentBlock[] = []
 
-  // Add images
-  for (const img of images) {
-    content.push({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: img.mediaType,
-        data: img.data,
-      },
-    })
+  for (const attachment of attachments) {
+    switch (attachment.type) {
+      case 'image':
+        content.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: attachment.mediaType,
+            data: attachment.data,
+          },
+        })
+        break
+      case 'document':
+        content.push({
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: attachment.mediaType,
+            data: attachment.data,
+          },
+          title: attachment.filename,
+        })
+        break
+      case 'text':
+        content.push({
+          type: 'text',
+          text: `--- ${attachment.filename} ---\n${attachment.data}`,
+        })
+        break
+    }
   }
 
-  // Add text (even if empty, to ensure the message has content)
   content.push({
     type: 'text',
-    text: message || 'What is in this image?',
+    text: message || 'What is in this attachment?',
   })
 
   return {
@@ -281,11 +301,11 @@ function buildMessageParam(
 async function* createPromptIterable(
   sessionId: string,
   message: string,
-  images?: ImageData[]
+  attachments?: AttachmentData[]
 ): AsyncIterable<SDKUserMessage> {
   yield {
     type: 'user',
-    message: buildMessageParam(message, images),
+    message: buildMessageParam(message, attachments),
     parent_tool_use_id: null,
     session_id: sessionId,
   }
@@ -299,7 +319,7 @@ export async function* streamMessage(
   userMessage: string,
   modelId: ModelId = 'sonnet',
   context?: PageContext,
-  images?: ImageData[]
+  attachments?: AttachmentData[]
 ): AsyncGenerator<{ type: string; data: unknown }> {
   const session = sessions.get(sessionId)
   if (!session) {
@@ -315,16 +335,16 @@ export async function* streamMessage(
       sessionId,
       hasResume: !!session.claudeSessionId,
       pageType: context?.pageType,
-      hasImages: images && images.length > 0,
+      hasAttachments: attachments && attachments.length > 0,
     })
 
     // Build system prompt with page context
     const systemPrompt = await buildSystemPrompt(context)
 
-    // Use async iterable for images, simple string otherwise
-    const hasImages = images && images.length > 0
-    const prompt = hasImages
-      ? createPromptIterable(sessionId, userMessage, images)
+    // Use async iterable for attachments, simple string otherwise
+    const hasAttachments = attachments && attachments.length > 0
+    const prompt = hasAttachments
+      ? createPromptIterable(sessionId, userMessage, attachments)
       : userMessage
 
     // Create query with Claude Agent SDK

@@ -703,10 +703,18 @@ export interface PageContext {
   searchParams?: Record<string, string>
 }
 
-// Image data for chat attachments
+// Image data for chat attachments (legacy, used by messaging channels)
 export interface ImageData {
   mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
   data: string // base64
+}
+
+// Attachment data for assistant chat (supports images, PDFs, and text files)
+export interface AttachmentData {
+  mediaType: string
+  data: string // base64 for images/PDFs, raw text content for text files
+  filename: string
+  type: 'image' | 'document' | 'text'
 }
 
 // Messaging channel types

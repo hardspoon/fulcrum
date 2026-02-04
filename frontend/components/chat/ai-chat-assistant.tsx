@@ -7,7 +7,7 @@ import { useTheme } from 'next-themes'
 import { Bot, X, Trash2, Info, ChevronDown, Check } from 'lucide-react'
 import MarkdownPreview from '@uiw/react-markdown-preview'
 import { ChatMessage } from './chat-message'
-import { ChatInput, type ChatInputHandle, type ImageAttachment } from './chat-input'
+import { ChatInput, type ChatInputHandle, type FileAttachment } from './chat-input'
 import { useChat } from '@/hooks/use-chat'
 import { usePageContext } from '@/hooks/use-page-context'
 import { useOpencodeModels } from '@/hooks/use-opencode-models'
@@ -191,8 +191,8 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
   }, [isDropdownOpen, provider])
 
   const handleSend = useCallback(
-    (message: string, images?: ImageAttachment[]) => {
-      sendMessage(message, pageContext, images)
+    (message: string, attachments?: FileAttachment[]) => {
+      sendMessage(message, pageContext, attachments)
     },
     [sendMessage, pageContext]
   )

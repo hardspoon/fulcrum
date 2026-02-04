@@ -1,13 +1,13 @@
 import { nanoid } from 'nanoid'
 import { eq, desc, and, sql, like, notInArray, isNotNull } from 'drizzle-orm'
-import { query } from '@anthropic-ai/claude-agent-sdk'
+import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { db, chatSessions, chatMessages, artifacts, tasks, projects, repositories, apps, projectRepositories, messagingSessionMappings } from '../db'
 import type { ChatSession, NewChatSession, ChatMessage, NewChatMessage, Artifact, NewArtifact } from '../db/schema'
 import { getSettings } from '../lib/settings'
 import { getClaudeCodePathForSdk } from '../lib/claude-code-path'
 import { getInstanceContext } from '../lib/settings/paths'
 import { log } from '../lib/logger'
-import type { PageContext, ImageData } from '../../shared/types'
+import type { PageContext, AttachmentData } from '../../shared/types'
 import { saveDocument, readDocument, deleteDocument, renameDocument, generateDocumentFilename } from './document-service'
 import { getFullKnowledge, getCondensedKnowledge } from './assistant-knowledge'
 import { readMemoryFile } from './memory-file-service'
@@ -360,7 +360,7 @@ export interface StreamMessageOptions {
   systemPromptAdditions?: string
   /** Use condensed knowledge instead of full knowledge (for channels) */
   condensedKnowledge?: boolean
-  images?: ImageData[]
+  attachments?: AttachmentData[]
   /** Page context for UI assistant (used when no systemPromptAdditions) */
   context?: PageContext
   /** UI mode: 'full' includes canvas/editor/chart instructions, 'compact' uses inline markdown only */
@@ -618,32 +618,63 @@ ${options.editorContent}
 User message: ${userMessage}`
     }
 
-    // Build the prompt - either simple string or content array with images
-    let fullPrompt: string | Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }>
+    // Build the prompt - either simple string or async iterable with attachments
+    type ContentBlock =
+      | { type: 'text'; text: string }
+      | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+      | { type: 'document'; source: { type: 'base64'; media_type: string; data: string }; title?: string }
+    let fullPrompt: string | AsyncIterable<SDKUserMessage>
 
-    if (options.images && options.images.length > 0) {
-      // Build content array with images first, then text
-      const content: Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }> = []
+    if (options.attachments && options.attachments.length > 0) {
+      const content: ContentBlock[] = []
 
-      // Add images
-      for (const img of options.images) {
-        content.push({
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: img.mediaType,
-            data: img.data,
-          },
-        })
+      for (const attachment of options.attachments) {
+        switch (attachment.type) {
+          case 'image':
+            content.push({
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: attachment.mediaType,
+                data: attachment.data,
+              },
+            })
+            break
+          case 'document':
+            content.push({
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: attachment.mediaType,
+                data: attachment.data,
+              },
+              title: attachment.filename,
+            })
+            break
+          case 'text':
+            content.push({
+              type: 'text',
+              text: `--- ${attachment.filename} ---\n${attachment.data}`,
+            })
+            break
+        }
       }
 
-      // Add text (even if empty, to ensure the message has content)
+      // Add user text (even if empty, to ensure the message has content)
       content.push({
         type: 'text',
-        text: textMessage || 'What is in this image?',
+        text: textMessage || 'What is in this attachment?',
       })
 
-      fullPrompt = content
+      // Wrap in async iterable as required by the SDK
+      fullPrompt = (async function* () {
+        yield {
+          type: 'user' as const,
+          message: { role: 'user' as const, content },
+          parent_tool_use_id: null,
+          session_id: sessionId,
+        }
+      })()
     } else {
       fullPrompt = textMessage
     }

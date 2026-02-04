@@ -1,5 +1,5 @@
 import { MessageSquare, Layout } from 'lucide-react'
-import { ChatPanel, type ImageAttachment } from './chat-panel'
+import { ChatPanel, type FileAttachment } from './chat-panel'
 import { CanvasPanel, type EditorSaveStatus } from './canvas-panel'
 import type { ChatSession, Artifact, Document } from './types'
 import type { AgentType } from '../../../shared/types'
@@ -38,7 +38,7 @@ interface AssistantLayoutProps {
   onUpdateSessionTitle: (id: string, title: string) => void
   onSelectArtifact: (artifact: Artifact | null) => void
   onEditorContentChange: (content: string) => void
-  onSendMessage: (message: string, images?: ImageAttachment[]) => void
+  onSendMessage: (message: string, attachments?: FileAttachment[]) => void
   onCreateSession: () => void
   onSelectDocument: (doc: Document) => void
   onStarDocument: (sessionId: string, starred: boolean) => void

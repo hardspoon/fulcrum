@@ -5,7 +5,7 @@ import { sweepRuns } from '../db/schema'
 import { eq, desc } from 'drizzle-orm'
 import * as assistantService from '../services/assistant-service'
 import { streamOpencodeMessage } from '../services/opencode-chat-service'
-import type { PageContext, ImageData } from '../../shared/types'
+import type { PageContext, ImageData, AttachmentData } from '../../shared/types'
 
 const assistantRoutes = new Hono()
 
@@ -113,18 +113,30 @@ assistantRoutes.delete('/sessions/:id', async (c) => {
  */
 assistantRoutes.post('/sessions/:id/messages', async (c) => {
   const sessionId = c.req.param('id')
-  const { message, model, editorContent, images, context, uiMode } = await c.req.json<{
+  const { message, model, editorContent, images, attachments, context, uiMode } = await c.req.json<{
     message: string
     model?: string
     editorContent?: string
     images?: ImageData[]
+    attachments?: AttachmentData[]
     context?: PageContext
     uiMode?: 'full' | 'compact'
   }>()
 
-  // Allow empty message if images are present
-  if ((!message || typeof message !== 'string') && (!images || images.length === 0)) {
-    return c.json({ error: 'Message or images required' }, 400)
+  // Merge legacy `images` field into `attachments` for backwards compatibility
+  const mergedAttachments: AttachmentData[] = [
+    ...(attachments || []),
+    ...(images || []).map((img) => ({
+      mediaType: img.mediaType,
+      data: img.data,
+      filename: 'image',
+      type: 'image' as const,
+    })),
+  ]
+
+  // Allow empty message if attachments are present
+  if ((!message || typeof message !== 'string') && mergedAttachments.length === 0) {
+    return c.json({ error: 'Message or attachments required' }, 400)
   }
 
   const session = assistantService.getSession(sessionId)
@@ -138,7 +150,7 @@ assistantRoutes.post('/sessions/:id/messages', async (c) => {
 
     return streamSSE(c, async (stream) => {
       let fullResponse = ''
-      for await (const event of streamOpencodeMessage(sessionId, message || '', model, context, images)) {
+      for await (const event of streamOpencodeMessage(sessionId, message || '', model, context, mergedAttachments.length > 0 ? mergedAttachments : undefined)) {
         if (event.type === 'content:delta' && (event.data as { text?: string })?.text) {
           fullResponse += (event.data as { text: string }).text
         }
@@ -159,7 +171,7 @@ assistantRoutes.post('/sessions/:id/messages', async (c) => {
     for await (const event of assistantService.streamMessage(sessionId, message || '', {
       modelId: model as 'opus' | 'sonnet' | 'haiku' | undefined,
       editorContent,
-      images,
+      attachments: mergedAttachments.length > 0 ? mergedAttachments : undefined,
       context,
       uiMode,
     })) {

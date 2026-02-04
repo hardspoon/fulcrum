@@ -3,7 +3,7 @@ import type { Instance } from 'mobx-state-tree'
 import { API_BASE } from '@/hooks/use-apps'
 import type { Logger } from '../../shared/logger'
 import type { PageContext } from '../../shared/types'
-import type { ImageAttachment } from '@/components/chat/chat-input'
+import type { FileAttachment } from '@/components/chat/chat-input'
 
 const STORAGE_KEY = 'fulcrum-chat-session'
 
@@ -218,7 +218,7 @@ export const ChatStore = types
       sendMessage: flow(function* sendMessage(
         message: string,
         context?: PageContext,
-        images?: ImageAttachment[]
+        attachments?: FileAttachment[]
       ) {
         const log = getLog()
 
@@ -260,11 +260,12 @@ export const ChatStore = types
         // Create abort controller for this request
         self.abortController = new AbortController()
 
-        // Build display content (show [image] placeholders for attached images)
+        // Build display content (show attachment indicators)
         let displayContent = message
-        if (images && images.length > 0) {
-          const imageIndicator = images.length === 1 ? '[image]' : `[${images.length} images]`
-          displayContent = message ? `${imageIndicator} ${message}` : imageIndicator
+        if (attachments && attachments.length > 0) {
+          const names = attachments.map((a) => a.type === 'image' ? '[image]' : `[${a.filename}]`)
+          const indicator = names.join(' ')
+          displayContent = message ? `${indicator} ${message}` : indicator
         }
 
         // Add user message
@@ -330,10 +331,13 @@ export const ChatStore = types
           // Use the appropriate model and API based on provider
           const modelToSend = self.provider === 'opencode' ? self.opencodeModel : self.model
 
-          // Prepare images for the API (extract base64 data without the data URL prefix)
-          const imageData = images?.map((img) => ({
-            mediaType: img.mediaType,
-            data: img.dataUrl.split(',')[1], // Remove "data:image/png;base64," prefix
+          // Prepare attachments for the API
+          const attachmentData = attachments?.map((a) => ({
+            mediaType: a.mediaType,
+            // For text files, dataUrl is the raw text content; for images/PDFs it's a data URL
+            data: a.type === 'text' ? a.dataUrl : a.dataUrl.split(',')[1],
+            filename: a.filename,
+            type: a.type,
           }))
 
           const response: Response = yield fetch(`${API_BASE}/api/assistant/sessions/${self.sessionId}/messages`, {
@@ -344,7 +348,7 @@ export const ChatStore = types
               model: modelToSend,
               context,
               provider: self.provider,
-              images: imageData,
+              attachments: attachmentData,
               // Sticky widget uses compact mode (no canvas/editor/chart instructions)
               ...(self.provider === 'claude' && { uiMode: 'compact' as const }),
             }),

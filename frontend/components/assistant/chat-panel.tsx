@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bot, User, Send, Loader2, Plus, ChevronDown, Trash2, Check, Pencil, Paperclip, X, Square } from 'lucide-react'
+import { Bot, User, Send, Loader2, Plus, ChevronDown, Trash2, Check, Pencil, Paperclip, X, Square, FileText } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import MarkdownPreview from '@uiw/react-markdown-preview'
 import { Button } from '@/components/ui/button'
@@ -192,12 +192,17 @@ function ModelDropdown({
   )
 }
 
-export interface ImageAttachment {
+export interface FileAttachment {
   id: string
   file: File
-  dataUrl: string
-  mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+  dataUrl: string // data URL for images/binary files, text content for text files
+  mediaType: string
+  filename: string
+  type: 'image' | 'document' | 'text'
 }
+
+/** @deprecated Use FileAttachment instead */
+export type ImageAttachment = FileAttachment
 
 interface ChatPanelProps {
   sessions: ChatSession[]
@@ -211,7 +216,7 @@ interface ChatPanelProps {
   onProviderChange: (provider: AgentType) => void
   onModelChange: (model: ClaudeModelId) => void
   onOpencodeModelChange: (model: string) => void
-  onSendMessage: (message: string, images?: ImageAttachment[]) => void
+  onSendMessage: (message: string, attachments?: FileAttachment[]) => void
   onSelectSession: (session: ChatSession) => void
   onCreateSession: () => void
   onDeleteSession: (id: string) => void
@@ -561,11 +566,22 @@ function MessageItem({ message }: MessageItemProps) {
   )
 }
 
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB
-const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+function classifyFile(file: File): FileAttachment['type'] {
+  if (file.type.startsWith('image/')) return 'image'
+  if (file.type === 'application/pdf') return 'document'
+  return 'text'
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 interface ChatInputProps {
-  onSend: (message: string, images?: ImageAttachment[]) => void
+  onSend: (message: string, attachments?: FileAttachment[]) => void
   isLoading: boolean
   onCancel?: () => void
 }
@@ -573,7 +589,7 @@ interface ChatInputProps {
 function ChatInput({ onSend, isLoading, onCancel }: ChatInputProps) {
   const { t } = useTranslation('assistant')
   const [value, setValue] = useState('')
-  const [images, setImages] = useState<ImageAttachment[]>([])
+  const [attachments, setAttachments] = useState<FileAttachment[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -581,37 +597,45 @@ function ChatInput({ onSend, isLoading, onCancel }: ChatInputProps) {
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files) return
 
-    const newImages: ImageAttachment[] = []
+    const newAttachments: FileAttachment[] = []
 
     for (const file of Array.from(files)) {
-      // Validate file type
-      if (!ALLOWED_IMAGE_TYPES.includes(file.type as typeof ALLOWED_IMAGE_TYPES[number])) {
-        continue
-      }
-
       // Validate file size
-      if (file.size > MAX_IMAGE_SIZE) {
+      if (file.size > MAX_FILE_SIZE) {
         continue
       }
 
-      // Read as data URL
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      const fileType = classifyFile(file)
 
-      newImages.push({
+      let dataUrl: string
+      if (fileType === 'text') {
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsText(file)
+        })
+      } else {
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        })
+      }
+
+      newAttachments.push({
         id: crypto.randomUUID(),
         file,
         dataUrl,
-        mediaType: file.type as ImageAttachment['mediaType'],
+        mediaType: file.type || 'application/octet-stream',
+        filename: file.name,
+        type: fileType,
       })
     }
 
-    if (newImages.length > 0) {
-      setImages((prev) => [...prev, ...newImages])
+    if (newAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...newAttachments])
     }
   }, [])
 
@@ -621,30 +645,30 @@ function ChatInput({ onSend, isLoading, onCancel }: ChatInputProps) {
       const items = e.clipboardData?.items
       if (!items) return
 
-      const imageFiles: File[] = []
+      const pastedFiles: File[] = []
 
       for (const item of Array.from(items)) {
-        if (item.type.startsWith('image/')) {
+        if (item.kind === 'file') {
           const file = item.getAsFile()
           if (file) {
-            imageFiles.push(file)
+            pastedFiles.push(file)
           }
         }
       }
 
-      if (imageFiles.length > 0) {
+      if (pastedFiles.length > 0) {
         e.preventDefault()
         const fileList = new DataTransfer()
-        imageFiles.forEach((f) => fileList.items.add(f))
+        pastedFiles.forEach((f) => fileList.items.add(f))
         await handleFiles(fileList.files)
       }
     },
     [handleFiles]
   )
 
-  // Remove an image
-  const removeImage = useCallback((id: string) => {
-    setImages((prev) => prev.filter((img) => img.id !== id))
+  // Remove an attachment
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id))
   }, [])
 
   // Auto-resize textarea
@@ -662,16 +686,16 @@ function ChatInput({ onSend, isLoading, onCancel }: ChatInputProps) {
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim()
-    const hasContent = trimmed || images.length > 0
+    const hasContent = trimmed || attachments.length > 0
     if (hasContent && !isLoading) {
-      onSend(trimmed, images.length > 0 ? images : undefined)
+      onSend(trimmed, attachments.length > 0 ? attachments : undefined)
       setValue('')
-      setImages([])
+      setAttachments([])
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto'
       }
     }
-  }, [value, images, isLoading, onSend])
+  }, [value, attachments, isLoading, onSend])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -683,22 +707,32 @@ function ChatInput({ onSend, isLoading, onCancel }: ChatInputProps) {
     [handleSubmit]
   )
 
-  const hasContent = value.trim() || images.length > 0
+  const hasContent = value.trim() || attachments.length > 0
 
   return (
     <div className="border-t border-border p-4">
-      {/* Image Previews */}
-      {images.length > 0 && (
+      {/* Attachment Previews */}
+      {attachments.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
-          {images.map((img) => (
-            <div key={img.id} className="relative group">
-              <img
-                src={img.dataUrl}
-                alt="Attachment"
-                className="h-16 w-16 object-cover rounded-lg border border-border"
-              />
+          {attachments.map((attachment) => (
+            <div key={attachment.id} className="relative group">
+              {attachment.type === 'image' ? (
+                <img
+                  src={attachment.dataUrl}
+                  alt={attachment.filename}
+                  className="h-16 w-16 object-cover rounded-lg border border-border"
+                />
+              ) : (
+                <div className="h-16 px-3 flex items-center gap-2 rounded-lg border border-border bg-muted/50 max-w-[200px]">
+                  <FileText className="w-5 h-5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate">{attachment.filename}</p>
+                    <p className="text-[10px] text-muted-foreground">{formatFileSize(attachment.file.size)}</p>
+                  </div>
+                </div>
+              )}
               <button
-                onClick={() => removeImage(img.id)}
+                onClick={() => removeAttachment(attachment.id)}
                 className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <X className="w-3 h-3" />
@@ -712,7 +746,6 @@ function ChatInput({ onSend, isLoading, onCancel }: ChatInputProps) {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp"
         multiple
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
@@ -728,7 +761,7 @@ function ChatInput({ onSend, isLoading, onCancel }: ChatInputProps) {
             'text-muted-foreground hover:text-foreground hover:bg-muted/50',
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
-          title="Attach image"
+          title="Attach file"
         >
           <Paperclip className="w-5 h-5" />
         </button>

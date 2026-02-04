@@ -2,7 +2,7 @@ import { createOpencode, createOpencodeClient, type OpencodeClient } from '@open
 import { log } from '../lib/logger'
 import { db, tasks, projects, repositories, apps, projectRepositories } from '../db'
 import { eq } from 'drizzle-orm'
-import type { PageContext, ImageData } from '../../shared/types'
+import type { PageContext, AttachmentData } from '../../shared/types'
 
 // Default OpenCode server port
 const OPENCODE_DEFAULT_PORT = 4096
@@ -201,7 +201,7 @@ export async function* streamOpencodeMessage(
   userMessage: string,
   model?: string,
   context?: PageContext,
-  images?: ImageData[]
+  attachments?: AttachmentData[]
 ): AsyncGenerator<{ type: string; data: unknown }> {
   try {
     log.chat.debug('Starting OpenCode SDK query', {
@@ -209,7 +209,7 @@ export async function* streamOpencodeMessage(
       hasResume: !!opencodeSessionIds.get(sessionId),
       pageType: context?.pageType,
       model,
-      hasImages: images && images.length > 0,
+      hasAttachments: attachments && attachments.length > 0,
     })
 
     const client = await getClient()
@@ -271,17 +271,30 @@ export async function* streamOpencodeMessage(
       }
     }
 
-    // Build parts array with images (if any) followed by text
+    // Build parts array with attachments (if any) followed by text
     const parts: Array<{ type: 'text'; text: string } | { type: 'image'; media_type: string; data: string }> = []
 
-    // Add images first
-    if (images && images.length > 0) {
-      for (const img of images) {
-        parts.push({
-          type: 'image',
-          media_type: img.mediaType,
-          data: img.data,
-        })
+    // Add attachments
+    if (attachments && attachments.length > 0) {
+      for (const attachment of attachments) {
+        if (attachment.type === 'image') {
+          parts.push({
+            type: 'image',
+            media_type: attachment.mediaType,
+            data: attachment.data,
+          })
+        } else if (attachment.type === 'text') {
+          parts.push({
+            type: 'text',
+            text: `--- ${attachment.filename} ---\n${attachment.data}`,
+          })
+        } else {
+          // document (PDF) - send as text description since OpenCode may not support document blocks
+          parts.push({
+            type: 'text',
+            text: `[Attached PDF: ${attachment.filename}]`,
+          })
+        }
       }
     }
 
@@ -289,7 +302,7 @@ export async function* streamOpencodeMessage(
     parts.push({ type: 'text', text: fullMessage })
 
     // Send the prompt asynchronously - include model to ensure it's used
-    log.chat.debug('Sending prompt to OpenCode', { opencodeSessionId, model, promptModelConfig, messageLength: fullMessage.length, imageCount: images?.length || 0 })
+    log.chat.debug('Sending prompt to OpenCode', { opencodeSessionId, model, promptModelConfig, messageLength: fullMessage.length, attachmentCount: attachments?.length || 0 })
     const promptPromise = client.session.prompt({
       path: { id: opencodeSessionId },
       body: {

@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { AssistantLayout, type ClaudeModelId } from '@/components/assistant'
 import type { EditorSaveStatus } from '@/components/assistant/canvas-panel'
 import type { ChatSession, ChatMessage, Artifact, Document } from '@/components/assistant'
-import type { ImageAttachment } from '@/components/assistant/chat-panel'
+import type { FileAttachment } from '@/components/assistant/chat-panel'
 import type { AgentType } from '../../../shared/types'
 import { log } from '@/lib/logger'
 import { useOpencodeModels } from '@/hooks/use-opencode-models'
@@ -338,7 +338,7 @@ function AssistantView() {
 
   // Send message handler
   const handleSendMessage = useCallback(
-    async (message: string, images?: ImageAttachment[]) => {
+    async (message: string, attachments?: FileAttachment[]) => {
       if (!chatId || isStreaming) return
 
       setIsStreaming(true)
@@ -346,11 +346,12 @@ function AssistantView() {
       // Create abort controller for this request
       abortControllerRef.current = new AbortController()
 
-      // Build display content (show [image] placeholders for attached images)
+      // Build display content (show attachment indicators)
       let displayContent = message
-      if (images && images.length > 0) {
-        const imageIndicator = images.length === 1 ? '[image]' : `[${images.length} images]`
-        displayContent = message ? `${imageIndicator} ${message}` : imageIndicator
+      if (attachments && attachments.length > 0) {
+        const names = attachments.map((a) => a.type === 'image' ? '[image]' : `[${a.filename}]`)
+        const indicator = names.join(' ')
+        displayContent = message ? `${indicator} ${message}` : indicator
       }
 
       // Optimistically add user message
@@ -378,10 +379,12 @@ function AssistantView() {
       // Use correct model based on provider
       const currentModel = provider === 'opencode' ? opencodeModel : model
 
-      // Prepare images for the API (extract base64 data without the data URL prefix)
-      const imageData = images?.map((img) => ({
-        mediaType: img.mediaType,
-        data: img.dataUrl.split(',')[1], // Remove "data:image/png;base64," prefix
+      // Prepare attachments for the API
+      const attachmentData = attachments?.map((a) => ({
+        mediaType: a.mediaType,
+        data: a.type === 'text' ? a.dataUrl : a.dataUrl.split(',')[1],
+        filename: a.filename,
+        type: a.type,
       }))
 
       try {
@@ -392,7 +395,7 @@ function AssistantView() {
             message,
             model: currentModel,
             editorContent: editorContent || undefined,
-            images: imageData,
+            attachments: attachmentData,
           }),
           signal: abortControllerRef.current?.signal,
         })
