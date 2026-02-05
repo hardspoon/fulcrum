@@ -8,6 +8,17 @@ mock.module('../websocket/terminal-ws', () => ({
   broadcast: () => {},
 }))
 
+// Track calls to sendNotificationViaMessaging for messaging-based notification tests
+let messagingSendCalls: Array<{ channel: string; body: string }> = []
+let messagingSendResult: { success: boolean; error?: string } = { success: true }
+
+mock.module('./notification-messaging', () => ({
+  sendNotificationViaMessaging: async (channel: string, body: string) => {
+    messagingSendCalls.push({ channel, body })
+    return messagingSendResult
+  },
+}))
+
 describe('Notification Service', () => {
   let testEnv: TestEnv
 
@@ -282,6 +293,185 @@ describe('Notification Service', () => {
       const result = await testNotificationChannel('unknown')
       expect(result.success).toBe(false)
       expect(result.error).toContain('Unknown channel')
+    })
+
+    describe('whatsapp channel', () => {
+      test('sends via messaging channel', async () => {
+        messagingSendCalls = []
+        messagingSendResult = { success: true }
+
+        const result = await testNotificationChannel('whatsapp')
+        expect(result.channel).toBe('whatsapp')
+        expect(result.success).toBe(true)
+        expect(messagingSendCalls).toHaveLength(1)
+        expect(messagingSendCalls[0].channel).toBe('whatsapp')
+        expect(messagingSendCalls[0].body).toContain('Test Notification')
+      })
+
+      test('returns error when messaging channel fails', async () => {
+        messagingSendCalls = []
+        messagingSendResult = { success: false, error: 'WhatsApp not connected' }
+
+        const result = await testNotificationChannel('whatsapp')
+        expect(result.channel).toBe('whatsapp')
+        expect(result.success).toBe(false)
+        expect(result.error).toContain('WhatsApp not connected')
+      })
+    })
+
+    describe('telegram channel', () => {
+      test('sends via messaging channel', async () => {
+        messagingSendCalls = []
+        messagingSendResult = { success: true }
+
+        const result = await testNotificationChannel('telegram')
+        expect(result.channel).toBe('telegram')
+        expect(result.success).toBe(true)
+        expect(messagingSendCalls).toHaveLength(1)
+        expect(messagingSendCalls[0].channel).toBe('telegram')
+      })
+    })
+
+    describe('slack with useMessagingChannel', () => {
+      test('uses messaging channel when useMessagingChannel is true', async () => {
+        messagingSendCalls = []
+        messagingSendResult = { success: true }
+
+        await updateNotificationSettings({
+          slack: { enabled: true, webhookUrl: '', useMessagingChannel: true },
+        })
+
+        const result = await testNotificationChannel('slack')
+        expect(result.channel).toBe('slack')
+        expect(result.success).toBe(true)
+        expect(messagingSendCalls).toHaveLength(1)
+        expect(messagingSendCalls[0].channel).toBe('slack')
+      })
+    })
+
+    describe('discord with useMessagingChannel', () => {
+      test('uses messaging channel when useMessagingChannel is true', async () => {
+        messagingSendCalls = []
+        messagingSendResult = { success: true }
+
+        await updateNotificationSettings({
+          discord: { enabled: true, webhookUrl: '', useMessagingChannel: true },
+        })
+
+        const result = await testNotificationChannel('discord')
+        expect(result.channel).toBe('discord')
+        expect(result.success).toBe(true)
+        expect(messagingSendCalls).toHaveLength(1)
+        expect(messagingSendCalls[0].channel).toBe('discord')
+      })
+    })
+
+    describe('gmail channel', () => {
+      test('returns error when no account configured', async () => {
+        const result = await testNotificationChannel('gmail')
+        expect(result.channel).toBe('gmail')
+        expect(result.success).toBe(false)
+        expect(result.error).toContain('Google account not configured')
+      })
+    })
+  })
+
+  describe('sendNotification with messaging channels', () => {
+    test('sends to whatsapp when enabled', async () => {
+      messagingSendCalls = []
+      messagingSendResult = { success: true }
+
+      await updateNotificationSettings({
+        enabled: true,
+        sound: { enabled: false },
+        slack: { enabled: false },
+        discord: { enabled: false },
+        pushover: { enabled: false },
+        whatsapp: { enabled: true },
+        telegram: { enabled: false },
+      })
+
+      const payload: NotificationPayload = {
+        title: 'Deploy Done',
+        message: 'App deployed successfully',
+        type: 'deployment_success',
+      }
+
+      const results = await sendNotification(payload)
+      expect(results.some(r => r.channel === 'whatsapp' && r.success)).toBe(true)
+      expect(messagingSendCalls.some(c => c.channel === 'whatsapp')).toBe(true)
+    })
+
+    test('sends to telegram when enabled', async () => {
+      messagingSendCalls = []
+      messagingSendResult = { success: true }
+
+      await updateNotificationSettings({
+        enabled: true,
+        sound: { enabled: false },
+        slack: { enabled: false },
+        discord: { enabled: false },
+        pushover: { enabled: false },
+        whatsapp: { enabled: false },
+        telegram: { enabled: true },
+      })
+
+      const payload: NotificationPayload = {
+        title: 'PR Merged',
+        message: 'Pull request was merged',
+        type: 'pr_merged',
+      }
+
+      const results = await sendNotification(payload)
+      expect(results.some(r => r.channel === 'telegram' && r.success)).toBe(true)
+      expect(messagingSendCalls.some(c => c.channel === 'telegram')).toBe(true)
+    })
+
+    test('gmail notification returns error when no account configured', async () => {
+      await updateNotificationSettings({
+        enabled: true,
+        sound: { enabled: false },
+        slack: { enabled: false },
+        discord: { enabled: false },
+        pushover: { enabled: false },
+        whatsapp: { enabled: false },
+        telegram: { enabled: false },
+        gmail: { enabled: true },
+      })
+
+      const payload: NotificationPayload = {
+        title: 'Test Gmail',
+        message: 'Gmail notification test',
+        type: 'task_status_change',
+      }
+
+      const results = await sendNotification(payload)
+      expect(results.some(r => r.channel === 'gmail' && !r.success)).toBe(true)
+    })
+
+    test('sends slack via messaging when useMessagingChannel is true', async () => {
+      messagingSendCalls = []
+      messagingSendResult = { success: true }
+
+      await updateNotificationSettings({
+        enabled: true,
+        sound: { enabled: false },
+        slack: { enabled: true, useMessagingChannel: true },
+        discord: { enabled: false },
+        pushover: { enabled: false },
+        whatsapp: { enabled: false },
+        telegram: { enabled: false },
+      })
+
+      const payload: NotificationPayload = {
+        title: 'Test',
+        message: 'Test message',
+        type: 'task_status_change',
+      }
+
+      const results = await sendNotification(payload)
+      expect(results.some(r => r.channel === 'slack' && r.success)).toBe(true)
+      expect(messagingSendCalls.some(c => c.channel === 'slack')).toBe(true)
     })
   })
 })

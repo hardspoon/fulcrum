@@ -4,9 +4,13 @@ import {
   type SlackNotificationConfig,
   type DiscordNotificationConfig,
   type PushoverNotificationConfig,
+  type GmailNotificationConfig,
 } from '../lib/settings'
 import { broadcast } from '../websocket/terminal-ws'
 import { log } from '../lib/logger'
+import { sendNotificationViaMessaging } from './notification-messaging'
+import { eq } from 'drizzle-orm'
+import { db, googleAccounts } from '../db'
 
 export interface NotificationPayload {
   title: string
@@ -148,6 +152,57 @@ async function sendPushoverNotification(
   }
 }
 
+// Send notification via a messaging channel (WhatsApp, Telegram, Slack, Discord)
+async function sendViaMessagingChannel(
+  channel: 'whatsapp' | 'discord' | 'telegram' | 'slack',
+  payload: NotificationPayload
+): Promise<NotificationResult> {
+  const text = `*${payload.title}*\n${payload.message}${payload.url ? `\n${payload.url}` : ''}`
+  try {
+    const result = await sendNotificationViaMessaging(channel, text)
+    if (result.success) {
+      return { channel, success: true }
+    }
+    return { channel, success: false, error: result.error }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { channel, success: false, error: message }
+  }
+}
+
+// Auto-resolve Gmail account: if no accountId configured, use the only Gmail-enabled account
+function autoResolveGmailAccountId(): string | null {
+  const accounts = db
+    .select({ id: googleAccounts.id })
+    .from(googleAccounts)
+    .where(eq(googleAccounts.gmailEnabled, true))
+    .all()
+  if (accounts.length === 1) return accounts[0].id
+  return null
+}
+
+// Send Gmail notification via Gmail API
+async function sendGmailNotification(
+  config: GmailNotificationConfig,
+  payload: NotificationPayload
+): Promise<NotificationResult> {
+  const accountId = config.googleAccountId || autoResolveGmailAccountId()
+  if (!accountId) {
+    return { channel: 'gmail', success: false, error: 'Google account not configured' }
+  }
+
+  try {
+    const { sendEmail } = await import('./google/gmail-service')
+    const subject = `Fulcrum: ${payload.title}`
+    const body = `${payload.title}\n\n${payload.message}${payload.url ? `\n\n${payload.url}` : ''}`
+    await sendEmail(accountId, { subject, body })
+    return { channel: 'gmail', success: true }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { channel: 'gmail', success: false, error: message }
+  }
+}
+
 // Broadcast notification to UI via WebSocket
 function broadcastUINotification(
   payload: NotificationPayload,
@@ -210,22 +265,38 @@ export async function sendNotification(payload: NotificationPayload): Promise<No
     )
   }
 
-  // Slack
+  // Slack (webhook or messaging channel)
   if (settings.slack?.enabled) {
-    promises.push(
-      sendSlackNotification(settings.slack, payload)
-        .then((r) => results.push(r))
-        .catch((e) => results.push({ channel: 'slack', success: false, error: e.message }))
-    )
+    if (settings.slack.useMessagingChannel) {
+      promises.push(
+        sendViaMessagingChannel('slack', payload)
+          .then((r) => results.push(r))
+          .catch((e) => results.push({ channel: 'slack', success: false, error: e.message }))
+      )
+    } else {
+      promises.push(
+        sendSlackNotification(settings.slack, payload)
+          .then((r) => results.push(r))
+          .catch((e) => results.push({ channel: 'slack', success: false, error: e.message }))
+      )
+    }
   }
 
-  // Discord
+  // Discord (webhook or messaging channel)
   if (settings.discord?.enabled) {
-    promises.push(
-      sendDiscordNotification(settings.discord, payload)
-        .then((r) => results.push(r))
-        .catch((e) => results.push({ channel: 'discord', success: false, error: e.message }))
-    )
+    if (settings.discord.useMessagingChannel) {
+      promises.push(
+        sendViaMessagingChannel('discord', payload)
+          .then((r) => results.push(r))
+          .catch((e) => results.push({ channel: 'discord', success: false, error: e.message }))
+      )
+    } else {
+      promises.push(
+        sendDiscordNotification(settings.discord, payload)
+          .then((r) => results.push(r))
+          .catch((e) => results.push({ channel: 'discord', success: false, error: e.message }))
+      )
+    }
   }
 
   // Pushover
@@ -234,6 +305,33 @@ export async function sendNotification(payload: NotificationPayload): Promise<No
       sendPushoverNotification(settings.pushover, payload)
         .then((r) => results.push(r))
         .catch((e) => results.push({ channel: 'pushover', success: false, error: e.message }))
+    )
+  }
+
+  // WhatsApp (via messaging channel)
+  if (settings.whatsapp?.enabled) {
+    promises.push(
+      sendViaMessagingChannel('whatsapp', payload)
+        .then((r) => results.push(r))
+        .catch((e) => results.push({ channel: 'whatsapp', success: false, error: e.message }))
+    )
+  }
+
+  // Telegram (via messaging channel)
+  if (settings.telegram?.enabled) {
+    promises.push(
+      sendViaMessagingChannel('telegram', payload)
+        .then((r) => results.push(r))
+        .catch((e) => results.push({ channel: 'telegram', success: false, error: e.message }))
+    )
+  }
+
+  // Gmail (via Gmail API)
+  if (settings.gmail?.enabled) {
+    promises.push(
+      sendGmailNotification(settings.gmail, payload)
+        .then((r) => results.push(r))
+        .catch((e) => results.push({ channel: 'gmail', success: false, error: e.message }))
     )
   }
 
@@ -251,7 +349,7 @@ export async function sendNotification(payload: NotificationPayload): Promise<No
 
 // Test a specific notification channel
 export async function testNotificationChannel(
-  channel: 'sound' | 'slack' | 'discord' | 'pushover',
+  channel: 'sound' | 'slack' | 'discord' | 'pushover' | 'whatsapp' | 'telegram' | 'gmail',
   settings?: NotificationSettings
 ): Promise<NotificationResult> {
   const config = settings ?? getNotificationSettings()
@@ -272,11 +370,23 @@ export async function testNotificationChannel(
       })
       return { channel: 'sound', success: true }
     case 'slack':
+      if (config.slack?.useMessagingChannel) {
+        return sendViaMessagingChannel('slack', testPayload)
+      }
       return sendSlackNotification(config.slack, testPayload)
     case 'discord':
+      if (config.discord?.useMessagingChannel) {
+        return sendViaMessagingChannel('discord', testPayload)
+      }
       return sendDiscordNotification(config.discord, testPayload)
     case 'pushover':
       return sendPushoverNotification(config.pushover, testPayload)
+    case 'whatsapp':
+      return sendViaMessagingChannel('whatsapp', testPayload)
+    case 'telegram':
+      return sendViaMessagingChannel('telegram', testPayload)
+    case 'gmail':
+      return sendGmailNotification(config.gmail, testPayload)
     default:
       return { channel, success: false, error: 'Unknown channel' }
   }

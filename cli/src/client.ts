@@ -585,7 +585,7 @@ export class FulcrumClient {
   }
 
   async testNotification(
-    channel: 'sound' | 'slack' | 'discord' | 'pushover'
+    channel: 'sound' | 'slack' | 'discord' | 'pushover' | 'whatsapp' | 'telegram' | 'gmail'
   ): Promise<NotificationTestResult> {
     return this.fetch(`/api/config/notifications/test/${channel}`, {
       method: 'POST',
@@ -1123,7 +1123,6 @@ export class FulcrumClient {
   // Messaging - Send Message
   async sendMessage(data: {
     channel: 'whatsapp' | 'discord' | 'telegram' | 'slack'
-    to?: string
     body: string
     subject?: string
     replyToMessageId?: string
@@ -1395,6 +1394,17 @@ export class FulcrumClient {
 
   async deleteGmailDraft(accountId: string, draftId: string): Promise<{ success: boolean }> {
     return this.fetch(`/api/google/accounts/${accountId}/drafts/${draftId}`, { method: 'DELETE' })
+  }
+
+  async sendGmailMessage(
+    accountId: string,
+    body: string,
+    subject?: string
+  ): Promise<{ success: boolean; messageId: string }> {
+    return this.fetch(`/api/google/accounts/${accountId}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ body, subject }),
+    })
   }
 
   // Memory File

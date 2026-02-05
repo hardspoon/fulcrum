@@ -29,6 +29,9 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   slack: { enabled: false },
   discord: { enabled: false },
   pushover: { enabled: false },
+  whatsapp: { enabled: false },
+  telegram: { enabled: false },
+  gmail: { enabled: false },
 }
 
 // Get notification settings from settings.json
@@ -72,6 +75,9 @@ export function getNotificationSettings(): NotificationSettings {
       slack: { enabled: false, ...notifications.slack },
       discord: { enabled: false, ...notifications.discord },
       pushover: { enabled: false, ...notifications.pushover },
+      whatsapp: { enabled: false, ...notifications.whatsapp },
+      telegram: { enabled: false, ...notifications.telegram },
+      gmail: { enabled: false, ...notifications.gmail },
       _updatedAt: notifications._updatedAt!,
     }
   } catch {
@@ -151,6 +157,9 @@ export function updateNotificationSettingsSync(
     slack: { ...current.slack, ...updates.slack },
     discord: { ...current.discord, ...updates.discord },
     pushover: { ...current.pushover, ...updates.pushover },
+    whatsapp: { ...current.whatsapp, ...updates.whatsapp },
+    telegram: { ...current.telegram, ...updates.telegram },
+    gmail: { ...current.gmail, ...updates.gmail },
     _updatedAt: Date.now(),
   }
 
@@ -187,6 +196,15 @@ export function updateNotificationSettingsSync(
   }
   if (updates.pushover?.enabled !== undefined && updates.pushover.enabled !== current.pushover.enabled) {
     changes['pushover.enabled'] = { from: current.pushover.enabled, to: updates.pushover.enabled }
+  }
+  if (updates.whatsapp?.enabled !== undefined && updates.whatsapp.enabled !== current.whatsapp.enabled) {
+    changes['whatsapp.enabled'] = { from: current.whatsapp.enabled, to: updates.whatsapp.enabled }
+  }
+  if (updates.telegram?.enabled !== undefined && updates.telegram.enabled !== current.telegram.enabled) {
+    changes['telegram.enabled'] = { from: current.telegram.enabled, to: updates.telegram.enabled }
+  }
+  if (updates.gmail?.enabled !== undefined && updates.gmail.enabled !== current.gmail.enabled) {
+    changes['gmail.enabled'] = { from: current.gmail.enabled, to: updates.gmail.enabled }
   }
   if (Object.keys(changes).length > 0) {
     log.settings.info('Notification settings updated', { changes })

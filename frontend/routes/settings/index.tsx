@@ -87,6 +87,7 @@ import { SlackSetup } from '@/components/messaging/slack-setup'
 import { EmailSettings } from '@/components/messaging/email-settings'
 import { CaldavAccounts } from '@/components/caldav/caldav-accounts'
 import { GoogleAccountManager } from '@/components/google/google-account-manager'
+import { useGoogleAccounts } from '@/hooks/use-google'
 import { GoogleCalendarSettings } from '@/components/google/google-calendar-settings'
 import { CaldavCopyRules } from '@/components/caldav/caldav-copy-rules'
 import {
@@ -182,6 +183,8 @@ function SettingsPage() {
   const updateNotifications = useUpdateNotificationSettings()
   const updateZAi = useUpdateZAiSettings()
   const testChannel = useTestNotificationChannel()
+  const googleAccountsQuery = useGoogleAccounts()
+  const gmailEnabledAccounts = (googleAccountsQuery.data ?? []).filter((a) => a.gmailEnabled)
   const queryClient = useQueryClient()
 
   const [localPort, setLocalPort] = useState('')
@@ -213,6 +216,12 @@ function SettingsPage() {
   const [pushoverEnabled, setPushoverEnabled] = useState(false)
   const [pushoverAppToken, setPushoverAppToken] = useState('')
   const [pushoverUserKey, setPushoverUserKey] = useState('')
+  const [whatsappNotifEnabled, setWhatsappNotifEnabled] = useState(false)
+  const [telegramNotifEnabled, setTelegramNotifEnabled] = useState(false)
+  const [gmailNotifEnabled, setGmailNotifEnabled] = useState(false)
+  const [gmailNotifAccountId, setGmailNotifAccountId] = useState('')
+  const [slackUseMessaging, setSlackUseMessaging] = useState(false)
+  const [discordUseMessaging, setDiscordUseMessaging] = useState(false)
 
   // z.ai settings local state
   const [zAiEnabled, setZAiEnabled] = useState(false)
@@ -293,6 +302,12 @@ function SettingsPage() {
       setPushoverEnabled(notificationSettings.pushover?.enabled ?? false)
       setPushoverAppToken(notificationSettings.pushover?.appToken ?? '')
       setPushoverUserKey(notificationSettings.pushover?.userKey ?? '')
+      setWhatsappNotifEnabled(notificationSettings.whatsapp?.enabled ?? false)
+      setTelegramNotifEnabled(notificationSettings.telegram?.enabled ?? false)
+      setGmailNotifEnabled(notificationSettings.gmail?.enabled ?? false)
+      setGmailNotifAccountId(notificationSettings.gmail?.googleAccountId ?? '')
+      setSlackUseMessaging(notificationSettings.slack?.useMessagingChannel ?? false)
+      setDiscordUseMessaging(notificationSettings.discord?.useMessagingChannel ?? false)
     }
   }, [notificationSettings])
 
@@ -420,11 +435,17 @@ function SettingsPage() {
     soundEnabled !== (notificationSettings.sound?.enabled ?? false) ||
     slackEnabled !== (notificationSettings.slack?.enabled ?? false) ||
     slackWebhook !== (notificationSettings.slack?.webhookUrl ?? '') ||
+    slackUseMessaging !== (notificationSettings.slack?.useMessagingChannel ?? false) ||
     discordEnabled !== (notificationSettings.discord?.enabled ?? false) ||
     discordWebhook !== (notificationSettings.discord?.webhookUrl ?? '') ||
+    discordUseMessaging !== (notificationSettings.discord?.useMessagingChannel ?? false) ||
     pushoverEnabled !== (notificationSettings.pushover?.enabled ?? false) ||
     pushoverAppToken !== (notificationSettings.pushover?.appToken ?? '') ||
-    pushoverUserKey !== (notificationSettings.pushover?.userKey ?? '')
+    pushoverUserKey !== (notificationSettings.pushover?.userKey ?? '') ||
+    whatsappNotifEnabled !== (notificationSettings.whatsapp?.enabled ?? false) ||
+    telegramNotifEnabled !== (notificationSettings.telegram?.enabled ?? false) ||
+    gmailNotifEnabled !== (notificationSettings.gmail?.enabled ?? false) ||
+    gmailNotifAccountId !== (notificationSettings.gmail?.googleAccountId ?? '')
   )
 
   const hasEditorChanges =
@@ -643,9 +664,12 @@ function SettingsPage() {
               toast: { enabled: toastEnabled },
               desktop: { enabled: desktopEnabled },
               sound: { enabled: soundEnabled },
-              slack: { enabled: slackEnabled, webhookUrl: slackWebhook },
-              discord: { enabled: discordEnabled, webhookUrl: discordWebhook },
+              slack: { enabled: slackEnabled, webhookUrl: slackWebhook, useMessagingChannel: slackUseMessaging },
+              discord: { enabled: discordEnabled, webhookUrl: discordWebhook, useMessagingChannel: discordUseMessaging },
               pushover: { enabled: pushoverEnabled, appToken: pushoverAppToken, userKey: pushoverUserKey },
+              whatsapp: { enabled: whatsappNotifEnabled },
+              telegram: { enabled: telegramNotifEnabled },
+              gmail: { enabled: gmailNotifEnabled, googleAccountId: gmailNotifAccountId || undefined },
               _updatedAt: notificationSettings?._updatedAt, // Include timestamp for conflict detection
             },
             {
@@ -982,7 +1006,7 @@ function SettingsPage() {
     })
   }
 
-  const handleTestChannel = async (channel: 'sound' | 'slack' | 'discord' | 'pushover') => {
+  const handleTestChannel = async (channel: 'sound' | 'slack' | 'discord' | 'pushover' | 'whatsapp' | 'telegram' | 'gmail') => {
     testChannel.mutate(channel, {
       onSuccess: (result) => {
         if (result.success) {
@@ -2447,7 +2471,7 @@ function SettingsPage() {
                         size="icon"
                         className="ml-auto h-8 w-8 text-muted-foreground hover:text-foreground"
                         onClick={() => handleTestChannel('slack')}
-                        disabled={isLoading || !notificationsEnabled || !slackEnabled || !slackWebhook || testChannel.isPending}
+                        disabled={isLoading || !notificationsEnabled || !slackEnabled || (!slackWebhook && !slackUseMessaging) || testChannel.isPending}
                         title={t('notifications.slack')}
                       >
                         {testChannel.isPending ? (
@@ -2458,19 +2482,38 @@ function SettingsPage() {
                       </Button>
                     </div>
                     {slackEnabled && (
-                      <div className="relative ml-6">
-                        <Input
-                          type="password"
-                          value={slackWebhook}
-                          onChange={(e) => setSlackWebhook(e.target.value)}
-                          placeholder="https://hooks.slack.com/services/..."
-                          disabled={isLoading || !notificationsEnabled}
-                          className="flex-1 pr-8 font-mono text-sm"
-                        />
-                        {!!notificationSettings?.slack?.webhookUrl && (
-                          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
-                            <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                      <div className="ml-6 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={slackUseMessaging}
+                            onCheckedChange={setSlackUseMessaging}
+                            disabled={isLoading || !notificationsEnabled || !slackEnabled}
+                          />
+                          <label className="text-xs text-muted-foreground">
+                            {t('notifications.useMessagingChannel') || 'Use messaging channel'}
+                          </label>
+                        </div>
+                        {!slackUseMessaging && (
+                          <div className="relative">
+                            <Input
+                              type="password"
+                              value={slackWebhook}
+                              onChange={(e) => setSlackWebhook(e.target.value)}
+                              placeholder="https://hooks.slack.com/services/..."
+                              disabled={isLoading || !notificationsEnabled}
+                              className="flex-1 pr-8 font-mono text-sm"
+                            />
+                            {!!notificationSettings?.slack?.webhookUrl && (
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                              </div>
+                            )}
                           </div>
+                        )}
+                        {slackUseMessaging && (
+                          <p className="text-xs text-muted-foreground">
+                            {t('notifications.messagingChannelNote') || 'Sends via connected Slack messaging channel'}
+                          </p>
                         )}
                       </div>
                     )}
@@ -2490,7 +2533,7 @@ function SettingsPage() {
                         size="icon"
                         className="ml-auto h-8 w-8 text-muted-foreground hover:text-foreground"
                         onClick={() => handleTestChannel('discord')}
-                        disabled={isLoading || !notificationsEnabled || !discordEnabled || !discordWebhook || testChannel.isPending}
+                        disabled={isLoading || !notificationsEnabled || !discordEnabled || (!discordWebhook && !discordUseMessaging) || testChannel.isPending}
                         title={t('notifications.discord')}
                       >
                         {testChannel.isPending ? (
@@ -2501,19 +2544,38 @@ function SettingsPage() {
                       </Button>
                     </div>
                     {discordEnabled && (
-                      <div className="relative ml-6">
-                        <Input
-                          type="password"
-                          value={discordWebhook}
-                          onChange={(e) => setDiscordWebhook(e.target.value)}
-                          placeholder="https://discord.com/api/webhooks/..."
-                          disabled={isLoading || !notificationsEnabled}
-                          className="flex-1 pr-8 font-mono text-sm"
-                        />
-                        {!!notificationSettings?.discord?.webhookUrl && (
-                          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
-                            <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                      <div className="ml-6 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={discordUseMessaging}
+                            onCheckedChange={setDiscordUseMessaging}
+                            disabled={isLoading || !notificationsEnabled || !discordEnabled}
+                          />
+                          <label className="text-xs text-muted-foreground">
+                            {t('notifications.useMessagingChannel') || 'Use messaging channel'}
+                          </label>
+                        </div>
+                        {!discordUseMessaging && (
+                          <div className="relative">
+                            <Input
+                              type="password"
+                              value={discordWebhook}
+                              onChange={(e) => setDiscordWebhook(e.target.value)}
+                              placeholder="https://discord.com/api/webhooks/..."
+                              disabled={isLoading || !notificationsEnabled}
+                              className="flex-1 pr-8 font-mono text-sm"
+                            />
+                            {!!notificationSettings?.discord?.webhookUrl && (
+                              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-500">
+                                <HugeiconsIcon icon={Tick02Icon} size={14} strokeWidth={2} />
+                              </div>
+                            )}
                           </div>
+                        )}
+                        {discordUseMessaging && (
+                          <p className="text-xs text-muted-foreground">
+                            {t('notifications.messagingChannelNote') || 'Sends via connected Discord messaging channel'}
+                          </p>
                         )}
                       </div>
                     )}
@@ -2575,6 +2637,119 @@ function SettingsPage() {
                             </div>
                           )}
                         </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* WhatsApp */}
+                  <div className="space-y-2 pl-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={whatsappNotifEnabled}
+                        onCheckedChange={setWhatsappNotifEnabled}
+                        disabled={isLoading || !notificationsEnabled}
+                      />
+                      <label className="text-sm text-muted-foreground">{t('notifications.whatsapp') || 'WhatsApp'}</label>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleTestChannel('whatsapp')}
+                        disabled={isLoading || !notificationsEnabled || !whatsappNotifEnabled || testChannel.isPending}
+                        title={t('notifications.whatsapp') || 'WhatsApp'}
+                      >
+                        {testChannel.isPending ? (
+                          <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+                        ) : (
+                          <HugeiconsIcon icon={TestTube01Icon} size={14} strokeWidth={2} />
+                        )}
+                      </Button>
+                    </div>
+                    {whatsappNotifEnabled && (
+                      <p className="ml-10 text-xs text-muted-foreground">
+                        {t('notifications.messagingChannelRequired') || 'Requires connected WhatsApp messaging channel'}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Telegram */}
+                  <div className="space-y-2 pl-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={telegramNotifEnabled}
+                        onCheckedChange={setTelegramNotifEnabled}
+                        disabled={isLoading || !notificationsEnabled}
+                      />
+                      <label className="text-sm text-muted-foreground">{t('notifications.telegram') || 'Telegram'}</label>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleTestChannel('telegram')}
+                        disabled={isLoading || !notificationsEnabled || !telegramNotifEnabled || testChannel.isPending}
+                        title={t('notifications.telegram') || 'Telegram'}
+                      >
+                        {testChannel.isPending ? (
+                          <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+                        ) : (
+                          <HugeiconsIcon icon={TestTube01Icon} size={14} strokeWidth={2} />
+                        )}
+                      </Button>
+                    </div>
+                    {telegramNotifEnabled && (
+                      <p className="ml-10 text-xs text-muted-foreground">
+                        {t('notifications.messagingChannelRequired') || 'Requires connected Telegram messaging channel'}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Gmail */}
+                  <div className="space-y-2 pl-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={gmailNotifEnabled}
+                        onCheckedChange={setGmailNotifEnabled}
+                        disabled={isLoading || !notificationsEnabled}
+                      />
+                      <label className="text-sm text-muted-foreground">{t('notifications.gmail')}</label>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleTestChannel('gmail')}
+                        disabled={isLoading || !notificationsEnabled || !gmailNotifEnabled || testChannel.isPending}
+                        title={t('notifications.gmail')}
+                      >
+                        {testChannel.isPending ? (
+                          <HugeiconsIcon icon={Loading03Icon} size={14} strokeWidth={2} className="animate-spin" />
+                        ) : (
+                          <HugeiconsIcon icon={TestTube01Icon} size={14} strokeWidth={2} />
+                        )}
+                      </Button>
+                    </div>
+                    {gmailNotifEnabled && (
+                      <div className="ml-10 space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          {t('notifications.gmailDescription')}
+                        </p>
+                        {gmailEnabledAccounts.length > 1 && (
+                          <Select value={gmailNotifAccountId || 'auto'} onValueChange={(v) => setGmailNotifAccountId(!v || v === 'auto' ? '' : v)}>
+                            <SelectTrigger className="h-8 w-60">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">{t('notifications.gmailAutoResolve')}</SelectItem>
+                              {gmailEnabledAccounts.map((a) => (
+                                <SelectItem key={a.id} value={a.id}>{a.email || a.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {gmailEnabledAccounts.length === 0 && (
+                          <p className="text-xs text-destructive">
+                            {t('notifications.gmailNoAccounts')}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

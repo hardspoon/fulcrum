@@ -23,6 +23,7 @@ import {
   updateDraft,
   deleteDraft,
   listSendAsAliases,
+  sendEmail,
 } from '../services/google/gmail-service'
 const app = new Hono()
 
@@ -132,6 +133,26 @@ app.get('/accounts/:id/send-as', async (c) => {
     return c.json({ aliases })
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed' }, 500)
+  }
+})
+
+// ==========================================
+// Gmail Send
+// ==========================================
+
+// POST /api/google/accounts/:id/send
+app.post('/accounts/:id/send', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const account = getGoogleAccount(id)
+    if (!account) return c.json({ error: 'Account not found' }, 404)
+    if (!account.gmailEnabled) return c.json({ error: 'Gmail not enabled for this account' }, 400)
+
+    const body = await c.req.json<{ subject?: string; body?: string; htmlBody?: string }>()
+    const result = await sendEmail(id, body)
+    return c.json({ success: true, messageId: result.messageId })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to send email' }, 500)
   }
 })
 

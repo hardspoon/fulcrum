@@ -454,9 +454,12 @@ export interface NotificationSettings {
   toast: { enabled: boolean }
   desktop: { enabled: boolean }
   sound: { enabled: boolean; customSoundFile?: string }
-  slack: { enabled: boolean; webhookUrl: string }
-  discord: { enabled: boolean; webhookUrl: string }
+  slack: { enabled: boolean; webhookUrl: string; useMessagingChannel?: boolean }
+  discord: { enabled: boolean; webhookUrl: string; useMessagingChannel?: boolean }
   pushover: { enabled: boolean; appToken: string; userKey: string }
+  whatsapp: { enabled: boolean }
+  telegram: { enabled: boolean }
+  gmail: { enabled: boolean; googleAccountId?: string }
   _updatedAt?: number // Timestamp for optimistic locking
 }
 
@@ -519,7 +522,7 @@ export function useUpdateNotificationSettings() {
 
 export function useTestNotificationChannel() {
   return useMutation({
-    mutationFn: (channel: 'sound' | 'slack' | 'discord' | 'pushover') =>
+    mutationFn: (channel: 'sound' | 'slack' | 'discord' | 'pushover' | 'whatsapp' | 'telegram' | 'gmail') =>
       fetchJSON<NotificationTestResult>(`${API_BASE}/api/config/notifications/test/${channel}`, {
         method: 'POST',
       }),

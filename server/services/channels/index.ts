@@ -166,11 +166,10 @@ export function resolveRecipient(channel: string): string | null {
 /**
  * Send a message to a channel.
  * Unified interface for sending messages across all supported channels.
- * If `to` is omitted, the recipient is auto-resolved from stored channel state.
+ * The recipient is always auto-resolved from stored channel state (the user who configured the channel).
  */
 export async function sendMessageToChannel(
   channel: 'email' | 'whatsapp' | 'discord' | 'telegram' | 'slack',
-  to?: string,
   body?: string,
   options?: {
     subject?: string
@@ -182,16 +181,13 @@ export async function sendMessageToChannel(
     return { success: false, error: 'Message body is required' }
   }
 
-  // Auto-resolve recipient if not provided
-  let resolvedTo = to
+  // Always resolve recipient from stored channel state (user-only messaging)
+  const resolvedTo = resolveRecipient(channel) ?? undefined
   if (!resolvedTo) {
-    resolvedTo = resolveRecipient(channel) ?? undefined
-    if (!resolvedTo) {
-      const channelName = channel.charAt(0).toUpperCase() + channel.slice(1)
-      return { success: false, error: `No ${channelName} recipient found — no user has messaged via ${channelName} yet` }
-    }
-    log.messaging.debug('Auto-resolved recipient', { channel, to: resolvedTo })
+    const channelName = channel.charAt(0).toUpperCase() + channel.slice(1)
+    return { success: false, error: `No ${channelName} recipient found — no user has messaged via ${channelName} yet` }
   }
+  log.messaging.debug('Auto-resolved recipient', { channel, to: resolvedTo })
 
   switch (channel) {
     case 'email': {

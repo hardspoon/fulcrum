@@ -218,6 +218,7 @@ export const registerSettingsTools: ToolRegistrar = (server, client) => {
           z.object({
             enabled: z.boolean().describe('Enable or disable Slack notifications'),
             webhookUrl: z.optional(z.string()).describe('Slack webhook URL'),
+            useMessagingChannel: z.optional(z.boolean()).describe('Send via messaging channel instead of webhook'),
           })
         )
         .describe('Slack notification settings'),
@@ -226,6 +227,7 @@ export const registerSettingsTools: ToolRegistrar = (server, client) => {
           z.object({
             enabled: z.boolean().describe('Enable or disable Discord notifications'),
             webhookUrl: z.optional(z.string()).describe('Discord webhook URL'),
+            useMessagingChannel: z.optional(z.boolean()).describe('Send via messaging channel instead of webhook'),
           })
         )
         .describe('Discord notification settings'),
@@ -238,8 +240,30 @@ export const registerSettingsTools: ToolRegistrar = (server, client) => {
           })
         )
         .describe('Pushover notification settings'),
+      whatsapp: z
+        .optional(
+          z.object({
+            enabled: z.boolean().describe('Enable or disable WhatsApp notifications (requires connected messaging channel)'),
+          })
+        )
+        .describe('WhatsApp notification settings (uses messaging channel)'),
+      telegram: z
+        .optional(
+          z.object({
+            enabled: z.boolean().describe('Enable or disable Telegram notifications (requires connected messaging channel)'),
+          })
+        )
+        .describe('Telegram notification settings (uses messaging channel)'),
+      gmail: z
+        .optional(
+          z.object({
+            enabled: z.boolean().describe('Enable or disable Gmail notifications (sends email to your own Gmail address)'),
+            googleAccountId: z.optional(z.string()).describe('Google account ID to send notifications from'),
+          })
+        )
+        .describe('Gmail notification settings (sends email via Gmail API)'),
     },
-    async ({ enabled, toast, desktop, sound, slack, discord, pushover }) => {
+    async ({ enabled, toast, desktop, sound, slack, discord, pushover, whatsapp, telegram, gmail }) => {
       try {
         const updates: Record<string, unknown> = {}
         if (enabled !== undefined) updates.enabled = enabled
@@ -249,6 +273,9 @@ export const registerSettingsTools: ToolRegistrar = (server, client) => {
         if (slack !== undefined) updates.slack = slack
         if (discord !== undefined) updates.discord = discord
         if (pushover !== undefined) updates.pushover = pushover
+        if (whatsapp !== undefined) updates.whatsapp = whatsapp
+        if (telegram !== undefined) updates.telegram = telegram
+        if (gmail !== undefined) updates.gmail = gmail
 
         const result = await client.updateNotifications(updates)
         return formatSuccess({

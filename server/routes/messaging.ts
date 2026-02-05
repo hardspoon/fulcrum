@@ -576,7 +576,6 @@ app.post('/send', async (c) => {
   try {
     const body = await c.req.json<{
       channel: 'email' | 'whatsapp' | 'discord' | 'telegram' | 'slack'
-      to?: string
       body: string
       subject?: string
       replyToMessageId?: string
@@ -589,7 +588,6 @@ app.post('/send', async (c) => {
 
     const result = await sendMessageToChannel(
       body.channel,
-      body.to,
       body.body,
       {
         subject: body.subject,
@@ -601,14 +599,12 @@ app.post('/send', async (c) => {
     if (result.success) {
       log.messaging.info('Message sent via API', {
         channel: body.channel,
-        to: body.to,
         messageId: result.messageId,
       })
       return c.json(result)
     } else {
       log.messaging.warn('Failed to send message via API', {
         channel: body.channel,
-        to: body.to,
         error: result.error,
       })
       return c.json(result, 400)

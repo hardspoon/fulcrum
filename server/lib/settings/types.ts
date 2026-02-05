@@ -4,7 +4,7 @@ import type { AgentType } from '@shared/types'
 // Schema version for settings migration
 // IMPORTANT: This must match the major version in package.json
 // When bumping schema version, also bump major version with: mise run bump major
-export const CURRENT_SCHEMA_VERSION = 2
+export const CURRENT_SCHEMA_VERSION = 3
 
 // Editor app types
 export type EditorApp = 'vscode' | 'cursor' | 'windsurf' | 'zed' | 'antigravity'
@@ -369,17 +369,32 @@ export interface DesktopNotificationConfig {
 export interface SlackNotificationConfig {
   enabled: boolean
   webhookUrl?: string
+  useMessagingChannel?: boolean // Send via messaging channel instead of webhook
 }
 
 export interface DiscordNotificationConfig {
   enabled: boolean
   webhookUrl?: string
+  useMessagingChannel?: boolean // Send via messaging channel instead of webhook
 }
 
 export interface PushoverNotificationConfig {
   enabled: boolean
   appToken?: string
   userKey?: string
+}
+
+export interface WhatsAppNotificationConfig {
+  enabled: boolean
+}
+
+export interface TelegramNotificationConfig {
+  enabled: boolean
+}
+
+export interface GmailNotificationConfig {
+  enabled: boolean
+  googleAccountId?: string
 }
 
 export interface NotificationSettings {
@@ -390,6 +405,9 @@ export interface NotificationSettings {
   slack: SlackNotificationConfig
   discord: DiscordNotificationConfig
   pushover: PushoverNotificationConfig
+  whatsapp: WhatsAppNotificationConfig
+  telegram: TelegramNotificationConfig
+  gmail: GmailNotificationConfig
   _updatedAt?: number // Timestamp for optimistic locking - prevents stale tabs from overwriting settings
 }
 

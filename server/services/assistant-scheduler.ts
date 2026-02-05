@@ -356,88 +356,16 @@ function countOpenTasks(): number {
 
 /**
  * Send a message to a channel.
- * Used by the MCP `message` tool and internally by the assistant scheduler.
+ * Delegates to the channels module which auto-resolves the recipient to the user.
  */
 export async function sendMessageToChannel(
   channel: 'email' | 'whatsapp' | 'discord' | 'telegram' | 'slack',
-  to: string,
   body: string,
   options?: {
     subject?: string
     replyToMessageId?: string
   }
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  // Import the messaging module to access active channels
-  const { getEmailStatus, getWhatsAppStatus, getDiscordStatus } = await import('./channels')
-
-  // Channel-specific sending
-  switch (channel) {
-    case 'email': {
-      const emailStatus = getEmailStatus()
-      if (!emailStatus?.enabled || emailStatus.status !== 'connected') {
-        return { success: false, error: 'Email channel not connected' }
-      }
-
-      // Get the email channel and send
-      const { sendEmailMessage } = await import('./channels/email-channel')
-      try {
-        const messageId = await sendEmailMessage(to, body, options?.subject, options?.replyToMessageId)
-        log.assistant.info('Sent email message', { to, subject: options?.subject, messageId })
-        return { success: true, messageId }
-      } catch (err) {
-        log.assistant.error('Failed to send email', { to, error: String(err) })
-        return { success: false, error: String(err) }
-      }
-    }
-
-    case 'whatsapp': {
-      const waStatus = getWhatsAppStatus()
-      if (!waStatus?.enabled || waStatus.status !== 'connected') {
-        return { success: false, error: 'WhatsApp channel not connected' }
-      }
-
-      // Get the WhatsApp channel and send
-      const { sendWhatsAppMessage } = await import('./channels/whatsapp-channel')
-      try {
-        await sendWhatsAppMessage(to, body)
-        log.assistant.info('Sent WhatsApp message', { to })
-        return { success: true }
-      } catch (err) {
-        log.assistant.error('Failed to send WhatsApp message', { to, error: String(err) })
-        return { success: false, error: String(err) }
-      }
-    }
-
-    case 'discord': {
-      const discordStatus = getDiscordStatus()
-      if (!discordStatus?.enabled || discordStatus.status !== 'connected') {
-        return { success: false, error: 'Discord channel not connected' }
-      }
-
-      // Use the sendMessageToChannel from channels module
-      const { sendMessageToChannel: sendViaChannel } = await import('./channels')
-      return sendViaChannel('discord', to, body)
-    }
-
-    case 'telegram': {
-      const { getTelegramStatus, sendMessageToChannel: sendViaTelegram } = await import('./channels')
-      const telegramStatus = getTelegramStatus()
-      if (!telegramStatus?.enabled || telegramStatus.status !== 'connected') {
-        return { success: false, error: 'Telegram channel not connected' }
-      }
-      return sendViaTelegram('telegram', to, body)
-    }
-
-    case 'slack': {
-      const { getSlackStatus, sendMessageToChannel: sendViaSlack } = await import('./channels')
-      const slackStatus = getSlackStatus()
-      if (!slackStatus?.enabled || slackStatus.status !== 'connected') {
-        return { success: false, error: 'Slack channel not connected' }
-      }
-      return sendViaSlack('slack', to, body, options)
-    }
-
-    default:
-      return { success: false, error: `Unknown channel: ${channel}` }
-  }
+  const { sendMessageToChannel: sendViaChannel } = await import('./channels')
+  return sendViaChannel(channel, body, options)
 }

@@ -24,7 +24,7 @@ Fulcrum isn't just a task manager or an AI wrapper. It's the hub where you organ
 - Spin up AI agents to work on tasks (in isolated git worktrees for code work)
 - Deploy Docker apps with automatic tunnels for public access
 - Execute any command on the system - scheduling, automation, integrations
-- Get notified via Slack, Discord, Pushover, or desktop alerts
+- Get notified via Slack, Discord, Pushover, WhatsApp, Telegram, Gmail, or desktop alerts
 - Calendar integration via CalDAV with multiple accounts and event copy rules`
 }
 
@@ -139,7 +139,7 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`list_exec_sessions\`, \`destroy_exec_session\` - Manage sessions
 
 **Notifications:**
-- \`send_notification\` - Send notifications (Slack, Discord, Pushover, desktop, sound)
+- \`send_notification\` - Send notifications (Slack, Discord, Pushover, WhatsApp, Telegram, Gmail, desktop, sound)
 
 **Settings Management:**
 - \`list_settings\` - View all settings with current values
@@ -163,7 +163,7 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`fetch_emails\` - Fetch specific emails by IMAP UID
 
 **Assistant Tools (Proactive Agent):**
-- \`message\` - Send a message to a channel (whatsapp, discord, telegram, slack). The \`to\` param is optional — omit it and the recipient auto-resolves to the channel's primary user
+- \`message\` - Send a message to a channel (whatsapp, discord, telegram, slack, gmail). The \`to\` param is optional — omit it and the recipient auto-resolves to the channel's primary user. Messages are restricted to the user's own accounts only.
 - \`get_last_sweep\` - Check when last sweep ran
 - Use \`memory_store\` with tag \`actionable\` to track things that need attention
 - Use \`search\` with \`memoryTags: ["actionable"]\` to review tracked items
@@ -442,13 +442,22 @@ Notification settings are managed separately via \`get_notification_settings\` a
 - \`slack\` - Slack integration
   - \`enabled\` - Enable/disable Slack
   - \`webhookUrl\` - Slack incoming webhook URL [SENSITIVE]
+  - \`useMessagingChannel\` - Send via messaging channel instead of webhook
 - \`discord\` - Discord integration
   - \`enabled\` - Enable/disable Discord
   - \`webhookUrl\` - Discord webhook URL [SENSITIVE]
+  - \`useMessagingChannel\` - Send via messaging channel instead of webhook
 - \`pushover\` - Pushover notifications
   - \`enabled\` - Enable/disable Pushover
   - \`appToken\` - Pushover application token [SENSITIVE]
   - \`userKey\` - Pushover user key [SENSITIVE]
+- \`whatsapp\` - WhatsApp notifications (requires connected messaging channel)
+  - \`enabled\` - Enable/disable WhatsApp notifications
+- \`telegram\` - Telegram notifications (requires connected messaging channel)
+  - \`enabled\` - Enable/disable Telegram notifications
+- \`gmail\` - Gmail notifications (sends to user's own email via Gmail API)
+  - \`enabled\` - Enable/disable Gmail notifications
+  - \`googleAccountId\` - Which Google account to send from (auto-resolves if only one)
 
 ### Common Configuration Tasks
 
@@ -518,7 +527,7 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - Spinning up AI agents to do actual work
 - Scheduling and automation via system commands
 - Deploying apps with Docker Compose
-- Sending notifications to Slack, Discord, Pushover
+- Sending notifications to Slack, Discord, Pushover, WhatsApp, Telegram, Gmail
 - Calendar awareness via multi-account CalDAV sync with event copy rules
 - Persistent memory across conversations (memory file + ephemeral store)
 
@@ -530,7 +539,7 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - search (unified FTS5 search across tasks, projects, messages, events, memories, conversations)
 - memory_file_read, memory_file_update (master memory file - always in prompt)
 - memory_store (ephemeral knowledge snippets with tags)
-- message (send to email/WhatsApp - concierge mode)
+- message (send to WhatsApp/Discord/Telegram/Slack/Gmail - user-only, concierge mode)
 - memory_store with tag \`actionable\` (track things needing attention - concierge mode)
 - search with memoryTags filter (find tracked items by tag)
 

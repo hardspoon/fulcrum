@@ -4,7 +4,7 @@ import { output, isJsonOutput } from '../utils/output'
 import { CliError, ExitCodes } from '../utils/errors'
 import { globalArgs, toFlags, setupJsonOutput } from './shared'
 
-const VALID_CHANNELS = ['sound', 'slack', 'discord', 'pushover'] as const
+const VALID_CHANNELS = ['sound', 'slack', 'discord', 'pushover', 'whatsapp', 'telegram', 'gmail'] as const
 type NotificationChannel = (typeof VALID_CHANNELS)[number]
 
 export async function handleNotificationsCommand(
@@ -83,6 +83,17 @@ export async function handleNotificationsCommand(
         }
         if (settings.pushover) {
           console.log(`  pushover: ${settings.pushover.enabled ? 'enabled' : 'disabled'}`)
+        }
+        if (settings.whatsapp) {
+          console.log(`  whatsapp: ${settings.whatsapp.enabled ? 'enabled' : 'disabled'} (messaging channel)`)
+        }
+        if (settings.telegram) {
+          console.log(`  telegram: ${settings.telegram.enabled ? 'enabled' : 'disabled'} (messaging channel)`)
+        }
+        if ((settings as Record<string, unknown>).gmail) {
+          const gmail = (settings as Record<string, unknown>).gmail as { enabled: boolean; googleAccountId?: string }
+          const accountInfo = gmail.googleAccountId ? ` (account: ${gmail.googleAccountId})` : ' (auto-resolve)'
+          console.log(`  gmail: ${gmail.enabled ? 'enabled' : 'disabled'}${gmail.enabled ? accountInfo : ''}`)
         }
       }
       break
@@ -185,7 +196,7 @@ const notificationsTestCommand = defineCommand({
   meta: { name: 'test', description: 'Test a notification channel' },
   args: {
     ...globalArgs,
-    channel: { type: 'positional' as const, description: 'Channel to test (sound, slack, discord, pushover)', required: true },
+    channel: { type: 'positional' as const, description: 'Channel to test (sound, slack, discord, pushover, whatsapp, telegram)', required: true },
   },
   async run({ args }) {
     setupJsonOutput(args)
@@ -197,7 +208,7 @@ const notificationsSetCommand = defineCommand({
   meta: { name: 'set', description: 'Set a notification channel config' },
   args: {
     ...globalArgs,
-    channel: { type: 'positional' as const, description: 'Channel (sound, slack, discord, pushover)', required: true },
+    channel: { type: 'positional' as const, description: 'Channel (sound, slack, discord, pushover, whatsapp, telegram)', required: true },
     key: { type: 'positional' as const, description: 'Config key', required: true },
     value: { type: 'positional' as const, description: 'Config value', required: true },
   },

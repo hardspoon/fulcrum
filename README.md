@@ -179,7 +179,9 @@ Chat with the AI assistant from anywhere via your favorite messaging platform.
 | **Discord** | Bot token from Developer Portal |
 | **Telegram** | Bot token from @BotFather |
 | **Slack** | Bot + App tokens with Socket Mode |
+| **Gmail** | OAuth2, sends emails to your own address |
 
+- **User-only messaging** — Outbound messages restricted to user's own accounts (no third-party messaging)
 - **Persistent sessions** — Conversation context maintained across messages
 - **Email threading** — Each email thread is a separate conversation
 - **Observe-first** — Email and WhatsApp collect all messages but only respond to authorized senders
@@ -250,14 +252,14 @@ Both plugins include an MCP server with 60+ tools:
 | **Apps** | Deploy, stop, and monitor Docker Compose applications |
 | **Filesystem** | Browse directories, read/write files on the Fulcrum server |
 | **Execution** | Run shell commands with persistent session support |
-| **Notifications** | Send notifications to enabled channels |
+| **Notifications** | Send notifications to enabled channels (Slack, Discord, Pushover, WhatsApp, Telegram, Gmail) |
 | **Backup & Restore** | Snapshot database and settings; auto-safety-backup on restore |
 | **Settings** | View and update configuration; manage notification channels |
 | **Search** | Unified full-text search across tasks, projects, messages, events, memories, and conversations |
 | **Memory** | Read/update master memory file; store ephemeral knowledge with tags |
 | **Calendar** | Manage CalDAV accounts, sync calendars, configure event copy rules |
-| **Gmail** | List Google accounts, manage Gmail drafts (create, update, delete) |
-| **Assistant** | Send messages via channels; query sweep history |
+| **Gmail** | List Google accounts, manage Gmail drafts, send emails |
+| **Assistant** | Send messages via channels (WhatsApp, Discord, Telegram, Slack, Gmail); query sweep history |
 
 Use `search_tools` to discover available tools by keyword or category.
 
@@ -317,7 +319,7 @@ Settings are stored in `.fulcrum/settings.json`. The fulcrum directory is resolv
 | integrations.githubPat | `GITHUB_PAT` | null |
 | appearance.language | — | null (auto-detect) |
 
-Notification settings (sound, Slack, Discord, Pushover) are configured via Settings UI or CLI.
+Notification settings (sound, Slack, Discord, Pushover, WhatsApp, Telegram, Gmail) are configured via Settings UI or CLI.
 
 ### Linear Integration
 

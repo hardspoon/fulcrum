@@ -120,13 +120,13 @@ fulcrum notify <title> <message>  # Send notification
 ### Key Services (`server/services/`)
 - `caldav/` - Multi-account CalDAV calendar sync with event copy rules (Google Calendar OAuth2, generic CalDAV)
 - `channels/` - Chat with AI via external channels (WhatsApp, Discord, Telegram, Slack, Email)
-- `google/` - Google API integration (Calendar sync via googleapis, Gmail draft management)
+- `google/` - Google API integration (Calendar sync via googleapis, Gmail draft management, email sending)
 - `google-oauth.ts` - Shared Google OAuth2 client management, token refresh
 - `opencode-channel-service.ts` - OpenCode observer for channel message processing (structured JSON output, no direct tool access)
 - `search-service.ts` - Unified FTS5 full-text search across tasks, projects, messages, events, memories, and conversations
 - `memory-service.ts` - Persistent agent memory with SQLite FTS5 full-text search
 - `memory-file-service.ts` - Master memory file (MEMORY.md) read/write/section-update, injected into every system prompt
-- `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, desktop, sound)
+- `notification-service.ts` - Multi-channel notifications (Slack, Discord, Pushover, WhatsApp, Telegram, Gmail, desktop, sound)
 - `pr-monitor.ts` - GitHub PR status polling, auto-close tasks on merge
 - `metrics-collector.ts` - System metrics collection (CPU, memory, disk)
 - `git-watcher.ts` - Auto-deploy on git changes
@@ -246,7 +246,10 @@ Deploy Docker Compose applications with automatic routing:
 
 Multi-channel notification system:
 
-- **Channels**: Toast, desktop, sound, Slack, Discord, Pushover
+- **Channels**: Toast, desktop, sound, Slack, Discord, Pushover, WhatsApp, Telegram, Gmail
+- **Slack/Discord**: Can send via webhook URL or via connected messaging channel (`useMessagingChannel`)
+- **WhatsApp/Telegram**: Require connected messaging channel
+- **Gmail**: Sends notification emails to user's own Gmail address via Gmail API
 - **Events**: Task completion, PR merge, deployment success/failure
 
 ## Messaging
@@ -258,7 +261,10 @@ Chat with the AI assistant via external messaging platforms:
 - **Telegram**: Bot token from @BotFather, handles private chats
 - **Slack**: Socket Mode with bot + app tokens, Block Kit formatting, slash commands
 - **Email**: Gmail API or IMAP/SMTP backends, collects all non-automated emails (allowlist controls AI responses only)
+- **Gmail**: Send emails via Gmail API (OAuth2), always sends to user's own address
 - **Session persistence**: Conversations map to `chatSessions` table, one session per user
+- **User-only messaging**: Outbound messages are restricted to the user's own accounts (no third-party messaging)
+- **Auto-resolve recipients**: `to` parameter is optional; auto-resolves from channel state
 
 **Configuration storage:**
 - **Credentials**: `settings.json` under `channels.*` (Slack, Discord, Telegram, Email)

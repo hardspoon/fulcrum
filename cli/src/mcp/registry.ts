@@ -81,7 +81,7 @@ export const toolRegistry: ToolMetadata[] = [
     name: 'send_notification',
     description: 'Send a notification to all enabled channels',
     category: 'notifications',
-    keywords: ['notify', 'alert', 'message', 'slack', 'discord'],
+    keywords: ['notify', 'alert', 'message', 'slack', 'discord', 'gmail'],
     defer_loading: false,
   },
 
@@ -520,14 +520,14 @@ export const toolRegistry: ToolMetadata[] = [
     name: 'get_notification_settings',
     description: 'Get notification channel settings',
     category: 'settings',
-    keywords: ['settings', 'notifications', 'slack', 'discord', 'pushover', 'sound', 'alert'],
+    keywords: ['settings', 'notifications', 'slack', 'discord', 'pushover', 'gmail', 'sound', 'alert'],
     defer_loading: false,
   },
   {
     name: 'update_notification_settings',
     description: 'Update notification channel settings',
     category: 'settings',
-    keywords: ['settings', 'notifications', 'slack', 'discord', 'pushover', 'sound', 'update', 'enable', 'disable'],
+    keywords: ['settings', 'notifications', 'slack', 'discord', 'pushover', 'whatsapp', 'telegram', 'gmail', 'sound', 'update', 'enable', 'disable'],
     defer_loading: false,
   },
 
@@ -624,9 +624,9 @@ export const toolRegistry: ToolMetadata[] = [
   // Concierge tools - proactive digital concierge
   {
     name: 'message',
-    description: 'Send a message to a messaging channel (WhatsApp, Discord, Telegram, Slack)',
+    description: 'Send a message to a messaging channel (WhatsApp, Discord, Telegram, Slack, Gmail)',
     category: 'assistant',
-    keywords: ['message', 'send', 'reply', 'whatsapp', 'communicate', 'respond'],
+    keywords: ['message', 'send', 'reply', 'whatsapp', 'gmail', 'email', 'communicate', 'respond'],
     defer_loading: false,
   },
   {

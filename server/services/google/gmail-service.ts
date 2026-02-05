@@ -471,6 +471,32 @@ export async function updateDraft(
 }
 
 /**
+ * Send an email to the account's own email address.
+ * Used by the Gmail messaging channel and Gmail notification channel.
+ */
+export async function sendEmail(
+  accountId: string,
+  opts: { subject?: string; body?: string; htmlBody?: string }
+): Promise<{ messageId: string }> {
+  const gmail = await getGmailClient(accountId)
+  const account = db.select().from(googleAccounts).where(eq(googleAccounts.id, accountId)).get()
+  if (!account?.email) throw new Error('Google account has no email address')
+
+  const raw = base64urlEncode(
+    buildRawMessage({ to: [account.email], from: account.email, ...opts })
+  )
+
+  const res = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw },
+  })
+
+  logger.info('Sent Gmail message', { accountId, messageId: res.data.id })
+
+  return { messageId: res.data.id ?? '' }
+}
+
+/**
  * Delete a Gmail draft.
  */
 export async function deleteDraft(accountId: string, draftId: string): Promise<void> {

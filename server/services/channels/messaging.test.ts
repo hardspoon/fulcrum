@@ -1,7 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
-import { db, messagingConnections } from '../../db'
+import { db, messagingConnections, messagingSessionMappings, chatSessions } from '../../db'
+import { DISCORD_CONNECTION_ID, TELEGRAM_CONNECTION_ID, SLACK_CONNECTION_ID } from './channel-manager'
 import type { MessagingChannel, ChannelEvents, ConnectionStatus, ChannelFactory } from './types'
 import {
   getOrCreateWhatsAppConnection,
@@ -391,15 +392,49 @@ describe('sendMessageToChannel', () => {
     testEnv.cleanup()
   })
 
+  // Helper to set up recipient data so resolveRecipient() can find the user
+  function setupRecipient(channel: string, userId: string) {
+    if (channel === 'whatsapp') {
+      // WhatsApp resolves from connection displayName
+      db.update(messagingConnections)
+        .set({ displayName: userId })
+        .where(eq(messagingConnections.channelType, 'whatsapp'))
+        .run()
+    } else {
+      const connectionId =
+        channel === 'discord' ? DISCORD_CONNECTION_ID :
+        channel === 'telegram' ? TELEGRAM_CONNECTION_ID :
+        SLACK_CONNECTION_ID
+      // Create a chat session for the mapping
+      const sessionId = `test-session-${channel}`
+      db.insert(chatSessions).values({
+        id: sessionId,
+        title: `Test ${channel} session`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).onConflictDoNothing().run()
+      // Insert session mapping so resolveRecipient finds the user
+      db.insert(messagingSessionMappings).values({
+        id: `test-mapping-${channel}`,
+        connectionId,
+        channelUserId: userId,
+        channelUserName: 'Test User',
+        sessionId,
+        createdAt: new Date().toISOString(),
+        lastMessageAt: new Date().toISOString(),
+      }).onConflictDoNothing().run()
+    }
+  }
+
   // All channels that should be supported by sendMessageToChannel
   // This list should match the type union in the function signature
   const ALL_CHANNELS = ['email', 'whatsapp', 'discord', 'telegram', 'slack'] as const
 
   test('all channels are recognized (no "Unknown channel" error)', async () => {
-    // This test ensures that adding a new channel to the type union
-    // also requires adding a case to the switch statement
+    // Set up recipients so resolveRecipient works
+    // For this test we just need WhatsApp displayName since others will fail with "no recipient" not "unknown channel"
     for (const channel of ALL_CHANNELS) {
-      const result = await sendMessageToChannel(channel, 'test-recipient', 'test message')
+      const result = await sendMessageToChannel(channel, 'test message')
 
       // Should not get "Unknown channel" error - each channel should be handled
       expect(result.error).not.toBe(`Unknown channel: ${channel}`)
@@ -409,48 +444,63 @@ describe('sendMessageToChannel', () => {
   test('disconnected channels return appropriate errors', async () => {
     // When channels are not connected, they should return descriptive errors
     for (const channel of ALL_CHANNELS) {
-      const result = await sendMessageToChannel(channel, 'test-recipient', 'test message')
+      const result = await sendMessageToChannel(channel, 'test message')
 
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
-      // Error should mention the channel, "not connected", or "disabled"
+      // Error should mention the channel, "not connected", "disabled", or "no recipient"
       expect(
         result.error?.includes('not connected') ||
         result.error?.includes('not active') ||
-        result.error?.includes('disabled')
+        result.error?.includes('disabled') ||
+        result.error?.includes('recipient found')
       ).toBe(true)
     }
   })
 
   test('whatsapp sends message when connected', async () => {
     await enableWhatsApp()
+    setupRecipient('whatsapp', '+1234567890')
 
-    const result = await sendMessageToChannel('whatsapp', '+1234567890', 'Hello from test')
+    const result = await sendMessageToChannel('whatsapp', 'Hello from test')
 
     expect(result.success).toBe(true)
   })
 
   test('discord sends message when connected', async () => {
     await configureDiscord('fake-bot-token')
+    setupRecipient('discord', '123456789')
 
-    const result = await sendMessageToChannel('discord', '123456789', 'Hello from test')
+    const result = await sendMessageToChannel('discord', 'Hello from test')
 
     expect(result.success).toBe(true)
   })
 
   test('telegram sends message when connected', async () => {
     await configureTelegram('fake-bot-token')
+    setupRecipient('telegram', '123456789')
 
-    const result = await sendMessageToChannel('telegram', '123456789', 'Hello from test')
+    const result = await sendMessageToChannel('telegram', 'Hello from test')
 
     expect(result.success).toBe(true)
   })
 
   test('slack sends message when connected', async () => {
     await configureSlack('xoxb-fake-bot-token', 'xapp-fake-app-token')
+    setupRecipient('slack', 'U123456')
 
-    const result = await sendMessageToChannel('slack', 'U123456', 'Hello from test')
+    const result = await sendMessageToChannel('slack', 'Hello from test')
 
     expect(result.success).toBe(true)
+  })
+
+  test('rejects messaging when no recipient is configured', async () => {
+    await enableWhatsApp()
+    // Don't set up recipient - should fail with "no recipient found"
+
+    const result = await sendMessageToChannel('whatsapp', 'Hello')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('recipient found')
   })
 })

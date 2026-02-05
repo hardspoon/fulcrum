@@ -67,9 +67,9 @@ if [ -f "$neutralino_config" ]; then
 fi
 
 # Update settings schema version to match major version
-settings_file="server/lib/settings.ts"
+settings_file="server/lib/settings/types.ts"
 if [ -f "$settings_file" ]; then
-  current_schema=$(grep '^const CURRENT_SCHEMA_VERSION' "$settings_file" | sed 's/.*= //')
+  current_schema=$(grep 'CURRENT_SCHEMA_VERSION = ' "$settings_file" | sed 's/[^0-9]//g')
   if [ -n "$current_schema" ] && [ "$current_schema" != "$major" ]; then
     # Use perl for cross-platform compatibility (macOS sed -i differs from GNU sed)
     perl -i -pe "s/CURRENT_SCHEMA_VERSION = $current_schema/CURRENT_SCHEMA_VERSION = $major/" "$settings_file"
