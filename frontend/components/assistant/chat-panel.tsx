@@ -545,7 +545,23 @@ function MessageItem({ message }: MessageItemProps) {
         )}
       >
         {isUser ? (
-          <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+          <div>
+            {message.attachments && message.attachments.filter((a) => a.type === 'image' && a.dataUrl).length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {message.attachments
+                  .filter((a) => a.type === 'image' && a.dataUrl)
+                  .map((a, i) => (
+                    <img
+                      key={i}
+                      src={a.dataUrl}
+                      alt={a.filename}
+                      className="max-h-32 rounded-md border border-border/50 object-cover"
+                    />
+                  ))}
+              </div>
+            )}
+            {message.content && <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>}
+          </div>
         ) : (
           <div data-color-mode={isDark ? 'dark' : 'light'}>
             <MarkdownPreview

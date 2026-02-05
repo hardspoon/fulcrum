@@ -2,15 +2,17 @@ import { useMemo } from 'react'
 import MarkdownPreview from '@uiw/react-markdown-preview'
 import { Bot, User } from 'lucide-react'
 import { useTheme } from 'next-themes'
+import type { AttachmentDisplay } from '@/stores/chat-store'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'
   content: string
   isStreaming?: boolean
   onClick?: () => void
+  attachments?: AttachmentDisplay[]
 }
 
-export function ChatMessage({ role, content, isStreaming, onClick }: ChatMessageProps) {
+export function ChatMessage({ role, content, isStreaming, onClick, attachments }: ChatMessageProps) {
   const isUser = role === 'user'
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
@@ -63,7 +65,23 @@ export function ChatMessage({ role, content, isStreaming, onClick }: ChatMessage
         title={isClickable ? 'Click to expand' : undefined}
       >
         {isUser ? (
-          <p className="whitespace-pre-wrap leading-relaxed">{content}</p>
+          <div>
+            {attachments && attachments.filter((a) => a.type === 'image' && a.dataUrl).length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {attachments
+                  .filter((a) => a.type === 'image' && a.dataUrl)
+                  .map((a, i) => (
+                    <img
+                      key={i}
+                      src={a.dataUrl}
+                      alt={a.filename}
+                      className="max-h-20 rounded-md border border-border/50 object-cover"
+                    />
+                  ))}
+              </div>
+            )}
+            {content && <p className="whitespace-pre-wrap leading-relaxed">{content}</p>}
+          </div>
         ) : content ? (
           <div data-color-mode={isDark ? 'dark' : 'light'}>
             <MarkdownPreview

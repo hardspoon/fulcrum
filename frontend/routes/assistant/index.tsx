@@ -346,12 +346,16 @@ function AssistantView() {
       // Create abort controller for this request
       abortControllerRef.current = new AbortController()
 
-      // Build display content (show attachment indicators)
+      // Build display content - text only (images render as thumbnails)
       let displayContent = message
       if (attachments && attachments.length > 0) {
-        const names = attachments.map((a) => a.type === 'image' ? '[image]' : `[${a.filename}]`)
-        const indicator = names.join(' ')
-        displayContent = message ? `${indicator} ${message}` : indicator
+        const nonImageNames = attachments
+          .filter((a) => a.type !== 'image')
+          .map((a) => `[${a.filename}]`)
+        if (nonImageNames.length > 0) {
+          const indicator = nonImageNames.join(' ')
+          displayContent = message ? `${indicator} ${message}` : indicator
+        }
       }
 
       // Optimistically add user message
@@ -366,6 +370,11 @@ function AssistantView() {
         tokensIn: null,
         tokensOut: null,
         createdAt: new Date().toISOString(),
+        attachments: attachments?.map((a) => ({
+          type: a.type,
+          dataUrl: a.type === 'image' ? a.dataUrl : undefined,
+          filename: a.filename,
+        })),
       }
 
       queryClient.setQueryData<SessionWithMessages>(

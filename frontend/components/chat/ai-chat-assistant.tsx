@@ -483,6 +483,7 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
                   role={msg.role as 'user' | 'assistant'}
                   content={msg.content}
                   isStreaming={msg.isStreaming}
+                  attachments={msg.attachments}
                   onClick={msg.role === 'assistant' ? () => setExpandedMessageId(msg.id) : undefined}
                 />
               ))}

@@ -25,12 +25,19 @@ export const CLAUDE_MODEL_OPTIONS: { id: ClaudeModelId; label: string; descripti
 export type ModelId = ClaudeModelId
 export const MODEL_OPTIONS = CLAUDE_MODEL_OPTIONS
 
+export interface AttachmentDisplay {
+  type: 'image' | 'document' | 'text'
+  dataUrl?: string
+  filename: string
+}
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
   isStreaming?: boolean
+  attachments?: AttachmentDisplay[]
   toolCalls?: Array<{
     name: string
     status: 'pending' | 'running' | 'complete' | 'error'
@@ -54,6 +61,7 @@ const ChatMessageModel = types.model('ChatMessage', {
   content: types.string,
   timestamp: types.Date,
   isStreaming: types.optional(types.boolean, false),
+  attachments: types.optional(types.frozen<AttachmentDisplay[]>(), []),
 })
 
 /**
@@ -260,13 +268,26 @@ export const ChatStore = types
         // Create abort controller for this request
         self.abortController = new AbortController()
 
-        // Build display content (show attachment indicators)
+        // Build display content - text only (images render as thumbnails)
         let displayContent = message
         if (attachments && attachments.length > 0) {
-          const names = attachments.map((a) => a.type === 'image' ? '[image]' : `[${a.filename}]`)
-          const indicator = names.join(' ')
-          displayContent = message ? `${indicator} ${message}` : indicator
+          const nonImageNames = attachments
+            .filter((a) => a.type !== 'image')
+            .map((a) => `[${a.filename}]`)
+          if (nonImageNames.length > 0) {
+            const indicator = nonImageNames.join(' ')
+            displayContent = message ? `${indicator} ${message}` : indicator
+          }
         }
+
+        // Build attachment display data
+        const attachmentDisplays: AttachmentDisplay[] = attachments
+          ? attachments.map((a) => ({
+              type: a.type,
+              dataUrl: a.type === 'image' ? a.dataUrl : undefined,
+              filename: a.filename,
+            }))
+          : []
 
         // Add user message
         const userMessage = ChatMessageModel.create({
@@ -274,6 +295,7 @@ export const ChatStore = types
           role: 'user',
           content: displayContent,
           timestamp: new Date(),
+          attachments: attachmentDisplays,
         })
         self.messages.push(userMessage)
 

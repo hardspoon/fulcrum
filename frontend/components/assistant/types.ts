@@ -18,6 +18,12 @@ export interface ChatSession {
   messages?: ChatMessage[]
 }
 
+export interface AttachmentDisplay {
+  type: 'image' | 'document' | 'text'
+  dataUrl?: string
+  filename: string
+}
+
 export interface ChatMessage {
   id: string
   sessionId: string
@@ -29,6 +35,7 @@ export interface ChatMessage {
   tokensIn: number | null
   tokensOut: number | null
   createdAt: string
+  attachments?: AttachmentDisplay[]
 }
 
 export interface Artifact {

@@ -1,6 +1,9 @@
 import { nanoid } from 'nanoid'
 import { eq, desc, and, sql, like, notInArray, isNotNull } from 'drizzle-orm'
 import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import { writeFile, unlink, mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { db, chatSessions, chatMessages, artifacts, tasks, projects, repositories, apps, projectRepositories, messagingSessionMappings } from '../db'
 import type { ChatSession, NewChatSession, ChatMessage, NewChatMessage, Artifact, NewArtifact } from '../db/schema'
 import { getSettings } from '../lib/settings'
@@ -618,63 +621,46 @@ ${options.editorContent}
 User message: ${userMessage}`
     }
 
-    // Build the prompt - either simple string or async iterable with attachments
-    type ContentBlock =
-      | { type: 'text'; text: string }
-      | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
-      | { type: 'document'; source: { type: 'base64'; media_type: string; data: string }; title?: string }
-    let fullPrompt: string | AsyncIterable<SDKUserMessage>
+    // Build the prompt - save images to temp files since the SDK stdin protocol
+    // doesn't reliably handle base64 image content blocks (causes process exit code 1).
+    // Claude Code can then view the images via its Read tool.
+    const tempFiles: string[] = []
+    let fullPrompt: string
 
     if (options.attachments && options.attachments.length > 0) {
-      const content: ContentBlock[] = []
+      const parts: string[] = []
 
       for (const attachment of options.attachments) {
         switch (attachment.type) {
-          case 'image':
-            content.push({
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: attachment.mediaType,
-                data: attachment.data,
-              },
-            })
+          case 'image': {
+            // Write image to temp file so Claude Code can read it
+            const ext = attachment.mediaType.split('/')[1] || 'png'
+            const tempDir = await mkdtemp(join(tmpdir(), 'fulcrum-img-'))
+            const tempPath = join(tempDir, `${attachment.filename || `image.${ext}`}`)
+            await writeFile(tempPath, Buffer.from(attachment.data, 'base64'))
+            tempFiles.push(tempPath)
+            parts.push(`[Attached image: ${tempPath}]`)
             break
+          }
           case 'document':
-            content.push({
-              type: 'document',
-              source: {
-                type: 'base64',
-                media_type: attachment.mediaType,
-                data: attachment.data,
-              },
-              title: attachment.filename,
-            })
+            // PDF documents also need temp files
+            {
+              const tempDir = await mkdtemp(join(tmpdir(), 'fulcrum-doc-'))
+              const tempPath = join(tempDir, attachment.filename || 'document.pdf')
+              await writeFile(tempPath, Buffer.from(attachment.data, 'base64'))
+              tempFiles.push(tempPath)
+              parts.push(`[Attached document: ${tempPath}]`)
+            }
             break
           case 'text':
-            content.push({
-              type: 'text',
-              text: `--- ${attachment.filename} ---\n${attachment.data}`,
-            })
+            parts.push(`--- ${attachment.filename} ---\n${attachment.data}`)
             break
         }
       }
 
-      // Add user text (even if empty, to ensure the message has content)
-      content.push({
-        type: 'text',
-        text: textMessage || 'What is in this attachment?',
-      })
-
-      // Wrap in async iterable as required by the SDK
-      fullPrompt = (async function* () {
-        yield {
-          type: 'user' as const,
-          message: { role: 'user' as const, content },
-          parent_tool_use_id: null,
-          session_id: sessionId,
-        }
-      })()
+      // Add user text
+      parts.push(textMessage || 'What is in this attachment?')
+      fullPrompt = parts.join('\n\n')
     } else {
       fullPrompt = textMessage
     }
@@ -826,6 +812,11 @@ User message: ${userMessage}`
     const errorMsg = err instanceof Error ? err.message : String(err)
     log.assistant.error('Assistant stream error', { sessionId, error: errorMsg })
     yield { type: 'error', data: { message: errorMsg } }
+  } finally {
+    // Clean up temp files created for image/document attachments
+    for (const tempPath of tempFiles) {
+      unlink(tempPath).catch(() => {})
+    }
   }
 }
 
