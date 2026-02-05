@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { eq, desc, and, sql, like, notInArray, isNotNull } from 'drizzle-orm'
-import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import { query } from '@anthropic-ai/claude-agent-sdk'
 import { writeFile, unlink, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
