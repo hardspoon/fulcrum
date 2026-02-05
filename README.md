@@ -1,6 +1,6 @@
 # Project Fulcrum
 
-**Your AI-Powered Digital Concierge. Orchestrate Agents. Never Miss What Matters.**
+**Harness Attention. Orchestrate Agents. Leverage Your Time Wisely.**
 
 ![Fulcrum Kanban Board with AI Assistant](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/kanban-with-assistant-dark.png)
 
