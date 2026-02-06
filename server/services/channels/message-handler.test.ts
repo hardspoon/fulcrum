@@ -4,7 +4,7 @@ import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
 import { nanoid } from 'nanoid'
 import { db, messagingConnections } from '../../db'
 import { activeChannels } from './channel-manager'
-import { handleIncomingMessage, _deps } from './message-handler'
+import { handleIncomingMessage, _deps, getCircuitBreaker, resetCircuitBreaker } from './message-handler'
 
 // Track mock calls
 let streamMessageCalls: Array<{ sessionId: string; message: string; options?: Record<string, unknown> }> = []
@@ -23,6 +23,7 @@ describe('Message Handler', () => {
     streamMessageCalls = []
     opencodeObserverCalls = []
     activeChannels.clear()
+    resetCircuitBreaker()
 
     // Replace deps with mocks (avoids mock.module which is unreliable across test files)
     _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
@@ -421,6 +422,41 @@ describe('Message Handler', () => {
       expect(sendCalls.length).toBe(1)
     })
 
+    test('email /reset sends informational response instead of resetting', async () => {
+      const sendCalls: string[] = []
+      const emailConnectionId = nanoid()
+      db.insert(messagingConnections)
+        .values({
+          id: emailConnectionId,
+          channelType: 'email',
+          enabled: true,
+          status: 'connected',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .run()
+      activeChannels.set(emailConnectionId, {
+        connectionId: emailConnectionId,
+        type: 'email',
+        initialize: async () => {},
+        shutdown: async () => {},
+        sendMessage: async (_to: string, content: string) => { sendCalls.push(content); return true },
+        getStatus: () => 'connected' as const,
+        logout: async () => {},
+      })
+
+      await handleIncomingMessage({
+        connectionId: emailConnectionId,
+        channelType: 'email',
+        senderId: 'user@example.com',
+        content: '/reset',
+        metadata: {},
+      })
+
+      // Email sending is disabled, so no response sent, but should not reach AI either
+      expect(streamMessageCalls).toHaveLength(0)
+    })
+
     test('observe-only messages skip commands', async () => {
       const sendCalls: string[] = []
       activeChannels.set(connectionId, {
@@ -443,6 +479,160 @@ describe('Message Handler', () => {
 
       // Observe-only should not process commands
       expect(sendCalls).toHaveLength(0)
+    })
+  })
+
+  describe('Observer circuit breaker', () => {
+    const makeObserveMsg = () => ({
+      connectionId,
+      channelType: 'whatsapp' as const,
+      senderId: 'user123',
+      senderName: 'John',
+      content: 'Test message',
+      metadata: { observeOnly: true },
+    })
+
+    test('opens after consecutive failures', async () => {
+      // Make streamMessage yield an error every time
+      _deps.streamMessage = async function* () {
+        yield { type: 'error', data: { message: 'session corrupted' } }
+      } as typeof _deps.streamMessage
+
+      const cb = getCircuitBreaker()
+
+      // Send 3 messages (threshold)
+      for (let i = 0; i < 3; i++) {
+        await handleIncomingMessage(makeObserveMsg())
+      }
+
+      expect(cb.state).toBe('open')
+      expect(cb.failureCount).toBe(3)
+    })
+
+    test('skips processing while circuit is open', async () => {
+      _deps.streamMessage = async function* () {
+        yield { type: 'error', data: { message: 'session corrupted' } }
+      } as typeof _deps.streamMessage
+
+      // Trip the breaker
+      for (let i = 0; i < 3; i++) {
+        await handleIncomingMessage(makeObserveMsg())
+      }
+
+      // Reset mock to track new calls
+      streamMessageCalls = []
+      _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+        streamMessageCalls.push({ sessionId, message, options })
+        yield { type: 'done', data: {} }
+      } as typeof _deps.streamMessage
+
+      // This should be skipped — circuit is open
+      await handleIncomingMessage(makeObserveMsg())
+      expect(streamMessageCalls).toHaveLength(0)
+    })
+
+    test('allows probe after cooldown expires', async () => {
+      _deps.streamMessage = async function* () {
+        yield { type: 'error', data: { message: 'session corrupted' } }
+      } as typeof _deps.streamMessage
+
+      // Trip the breaker
+      for (let i = 0; i < 3; i++) {
+        await handleIncomingMessage(makeObserveMsg())
+      }
+
+      const cb = getCircuitBreaker()
+      // Simulate cooldown elapsed
+      cb.nextProbeAt = Date.now() - 1
+
+      // Replace with a working mock
+      streamMessageCalls = []
+      _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+        streamMessageCalls.push({ sessionId, message, options })
+        yield { type: 'done', data: {} }
+      } as typeof _deps.streamMessage
+
+      // Should be allowed through as a probe
+      await handleIncomingMessage(makeObserveMsg())
+      expect(streamMessageCalls).toHaveLength(1)
+    })
+
+    test('resets after a successful probe', async () => {
+      _deps.streamMessage = async function* () {
+        yield { type: 'error', data: { message: 'session corrupted' } }
+      } as typeof _deps.streamMessage
+
+      // Trip the breaker
+      for (let i = 0; i < 3; i++) {
+        await handleIncomingMessage(makeObserveMsg())
+      }
+
+      const cb = getCircuitBreaker()
+      expect(cb.state).toBe('open')
+
+      // Simulate cooldown elapsed
+      cb.nextProbeAt = Date.now() - 1
+
+      // Replace with a working mock
+      _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+        streamMessageCalls.push({ sessionId, message, options })
+        yield { type: 'done', data: {} }
+      } as typeof _deps.streamMessage
+
+      // Successful probe should close the circuit
+      await handleIncomingMessage(makeObserveMsg())
+      expect(cb.state).toBe('closed')
+      expect(cb.failureCount).toBe(0)
+    })
+
+    test('does not affect regular (non-observe) messages', async () => {
+      _deps.streamMessage = async function* () {
+        yield { type: 'error', data: { message: 'session corrupted' } }
+      } as typeof _deps.streamMessage
+
+      // Trip the breaker with observe-only messages
+      for (let i = 0; i < 3; i++) {
+        await handleIncomingMessage(makeObserveMsg())
+      }
+
+      // Replace with tracking mock
+      streamMessageCalls = []
+      _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+        streamMessageCalls.push({ sessionId, message, options })
+        yield { type: 'done', data: {} }
+      } as typeof _deps.streamMessage
+
+      // Regular message should still go through
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'whatsapp',
+        senderId: 'user123',
+        senderName: 'John',
+        content: 'Hello!',
+        metadata: {},
+      })
+      expect(streamMessageCalls).toHaveLength(1)
+    })
+
+    test('uses exponential backoff for cooldown', async () => {
+      _deps.streamMessage = async function* () {
+        yield { type: 'error', data: { message: 'session corrupted' } }
+      } as typeof _deps.streamMessage
+
+      // Trip the breaker
+      for (let i = 0; i < 3; i++) {
+        await handleIncomingMessage(makeObserveMsg())
+      }
+
+      const cb = getCircuitBreaker()
+      // After first trip: cooldown doubles from 60s to 120s
+      expect(cb.cooldownMs).toBe(120_000)
+
+      // Simulate another failure cycle (probe after cooldown, fails again)
+      cb.nextProbeAt = Date.now() - 1
+      await handleIncomingMessage(makeObserveMsg())
+      // Cooldown doubles again
+      expect(cb.cooldownMs).toBe(240_000)
     })
   })
 })

@@ -793,6 +793,8 @@ User message: ${userMessage}`
 
         if (resultMsg.subtype?.startsWith('error_')) {
           const errors = resultMsg.errors || ['Unknown error']
+          // Reset Claude session so next attempt starts fresh instead of resuming broken session
+          state.claudeSessionId = undefined
           yield { type: 'error', data: { message: errors.join(', ') } }
         }
 
@@ -808,20 +810,25 @@ User message: ${userMessage}`
       }
     }
 
-    // Save assistant message
-    addMessage(sessionId, {
-      role: 'assistant',
-      content: currentText,
-      model: MODEL_MAP[effectiveModelId],
-      tokensIn,
-      tokensOut,
-      sessionId,
-    })
+    // Save assistant message (skip empty responses — they provide no value
+    // and may contribute to session corruption on resume)
+    if (currentText.trim()) {
+      addMessage(sessionId, {
+        role: 'assistant',
+        content: currentText,
+        model: MODEL_MAP[effectiveModelId],
+        tokensIn,
+        tokensOut,
+        sessionId,
+      })
+    }
 
     yield { type: 'done', data: {} }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
     log.assistant.error('Assistant stream error', { sessionId, error: errorMsg })
+    // Reset Claude session so next attempt starts fresh instead of resuming broken session
+    state.claudeSessionId = undefined
     yield { type: 'error', data: { message: errorMsg } }
   } finally {
     // Clean up temp files created for image/document attachments

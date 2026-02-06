@@ -37,6 +37,68 @@ const SLACK_RESPONSE_SCHEMA = {
   required: ['body'],
 }
 
+// Circuit breaker for observer processing — prevents log flooding and wasted
+// Claude Code spawns when the session is corrupted. Opens after consecutive
+// failures, closes after a successful probe.
+const OBSERVER_CIRCUIT_BREAKER = {
+  failureCount: 0,
+  failureThreshold: 3,
+  state: 'closed' as 'closed' | 'open',
+  nextProbeAt: 0,
+  cooldownMs: 60_000, // starts at 1 min, doubles up to 10 min
+  maxCooldownMs: 600_000,
+}
+
+// Exported for testing
+export function getCircuitBreaker() {
+  return OBSERVER_CIRCUIT_BREAKER
+}
+
+export function resetCircuitBreaker() {
+  OBSERVER_CIRCUIT_BREAKER.failureCount = 0
+  OBSERVER_CIRCUIT_BREAKER.state = 'closed'
+  OBSERVER_CIRCUIT_BREAKER.nextProbeAt = 0
+  OBSERVER_CIRCUIT_BREAKER.cooldownMs = 60_000
+}
+
+function recordObserverFailure() {
+  OBSERVER_CIRCUIT_BREAKER.failureCount++
+  if (OBSERVER_CIRCUIT_BREAKER.failureCount >= OBSERVER_CIRCUIT_BREAKER.failureThreshold) {
+    if (OBSERVER_CIRCUIT_BREAKER.state !== 'open') {
+      log.messaging.warn('Observer circuit breaker OPEN — pausing observe-only processing', {
+        failures: OBSERVER_CIRCUIT_BREAKER.failureCount,
+        cooldownMs: OBSERVER_CIRCUIT_BREAKER.cooldownMs,
+      })
+    }
+    OBSERVER_CIRCUIT_BREAKER.state = 'open'
+    OBSERVER_CIRCUIT_BREAKER.nextProbeAt = Date.now() + OBSERVER_CIRCUIT_BREAKER.cooldownMs
+    // Exponential backoff, capped at max
+    OBSERVER_CIRCUIT_BREAKER.cooldownMs = Math.min(
+      OBSERVER_CIRCUIT_BREAKER.cooldownMs * 2,
+      OBSERVER_CIRCUIT_BREAKER.maxCooldownMs,
+    )
+  }
+}
+
+function recordObserverSuccess() {
+  if (OBSERVER_CIRCUIT_BREAKER.state === 'open') {
+    log.messaging.info('Observer circuit breaker CLOSED — resuming normal processing', {
+      previousFailures: OBSERVER_CIRCUIT_BREAKER.failureCount,
+    })
+  }
+  OBSERVER_CIRCUIT_BREAKER.failureCount = 0
+  OBSERVER_CIRCUIT_BREAKER.state = 'closed'
+  OBSERVER_CIRCUIT_BREAKER.nextProbeAt = 0
+  OBSERVER_CIRCUIT_BREAKER.cooldownMs = 60_000
+}
+
+function isObserverCircuitOpen(): boolean {
+  if (OBSERVER_CIRCUIT_BREAKER.state !== 'open') return false
+  // Allow a probe if cooldown has elapsed
+  if (Date.now() >= OBSERVER_CIRCUIT_BREAKER.nextProbeAt) return false
+  return true
+}
+
 // Special commands that don't go to the AI
 const COMMANDS = {
   RESET: ['/reset', '/new', '/clear'],
@@ -397,6 +459,11 @@ function splitMessage(content: string, maxLength: number): string[] {
  * Important information is stored as memories with appropriate tags.
  */
 async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
+  // Circuit breaker: skip processing if too many recent failures
+  if (isObserverCircuitOpen()) {
+    return
+  }
+
   // Use a shared session for observe-only messages (they don't need individual tracking)
   const observeSessionKey = `observe-${msg.connectionId}`
   const { session } = getOrCreateSession(
@@ -415,6 +482,7 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
   if (observerProvider === 'opencode') {
     // Route to OpenCode text-only observer (no direct tool access)
     try {
+      let hadError = false
       const stream = _deps.streamOpencodeObserverMessage(session.id, msg.content, {
         channelType: msg.channelType,
         senderId: msg.senderId,
@@ -423,15 +491,19 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
 
       for await (const event of stream) {
         if (event.type === 'error') {
+          hadError = true
           const errorMsg = (event.data as { message: string }).message
           log.messaging.error('Error in OpenCode observe-only processing', { error: errorMsg })
         }
       }
+      if (hadError) recordObserverFailure()
+      else recordObserverSuccess()
     } catch (err) {
       log.messaging.error('Error processing observe-only message via OpenCode', {
         connectionId: msg.connectionId,
         error: String(err),
       })
+      recordObserverFailure()
     }
     return
   }
@@ -450,6 +522,7 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
   const systemPrompt = getObserveOnlySystemPrompt(msg.channelType, context)
 
   try {
+    let hadError = false
     const observerModelId = settings.assistant.observerModel
 
     // Stream with observer security tier: no built-in tools, MCP restricted to memory only
@@ -462,15 +535,19 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
     // Consume stream
     for await (const event of stream) {
       if (event.type === 'error') {
+        hadError = true
         const errorMsg = (event.data as { message: string }).message
         log.messaging.error('Error in observe-only message processing', { error: errorMsg })
       }
     }
+    if (hadError) recordObserverFailure()
+    else recordObserverSuccess()
   } catch (err) {
     log.messaging.error('Error processing observe-only message', {
       connectionId: msg.connectionId,
       error: String(err),
     })
+    recordObserverFailure()
   }
 }
 
