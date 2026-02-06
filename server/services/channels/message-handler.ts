@@ -20,6 +20,23 @@ export const _deps = {
     streamOpencodeObserverMessage(...args),
 }
 
+// JSON schema for Slack Block Kit structured output
+const SLACK_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    body: {
+      type: 'string',
+      description: 'Plain text message (shown in notifications and as fallback)',
+    },
+    blocks: {
+      type: 'array',
+      description: 'Slack Block Kit blocks for rich formatting',
+      items: { type: 'object', additionalProperties: true },
+    },
+  },
+  required: ['body'],
+}
+
 // Special commands that don't go to the AI
 const COMMANDS = {
   RESET: ['/reset', '/new', '/clear'],
@@ -103,17 +120,37 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
     }
     const systemPrompt = getMessagingSystemPrompt(msg.channelType, context)
 
-    // Stream the response - assistant handles everything via MCP tools
+    // For Slack, use structured output to get Block Kit formatting
+    const isSlack = msg.channelType === 'slack'
     const stream = _deps.streamMessage(session.id, content, {
       systemPromptAdditions: systemPrompt,
+      ...(isSlack && { outputFormat: { type: 'json_schema' as const, schema: SLACK_RESPONSE_SCHEMA } }),
     })
 
-    // Consume stream - responses are sent via the message MCP tool
+    // Capture the assistant's response to send it directly
+    let responseText = ''
+    let structuredOutput: { body: string; blocks?: unknown[] } | null = null
+
     for await (const event of stream) {
       if (event.type === 'error') {
         const errorMsg = (event.data as { message: string }).message
         log.messaging.error('Assistant error handling message', { error: errorMsg })
+      } else if (event.type === 'message:complete') {
+        responseText = (event.data as { content: string }).content
+      } else if (event.type === 'structured_output') {
+        structuredOutput = event.data as { body: string; blocks?: unknown[] }
       }
+    }
+
+    // Send the response directly (no reliance on the assistant calling a tool)
+    if (isSlack && structuredOutput?.body?.trim()) {
+      await sendResponse(
+        msg,
+        structuredOutput.body,
+        structuredOutput.blocks ? { blocks: structuredOutput.blocks } : undefined
+      )
+    } else if (responseText.trim()) {
+      await sendResponse(msg, responseText)
     }
   } catch (err) {
     log.messaging.error('Error processing message through assistant', {

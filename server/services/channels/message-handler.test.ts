@@ -1,4 +1,4 @@
-// Tests for message handler - observe-only routing, command parsing, security tier selection
+// Tests for message handler - observe-only routing, command parsing, auto-send responses
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
 import { nanoid } from 'nanoid'
@@ -28,6 +28,7 @@ describe('Message Handler', () => {
     _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
       streamMessageCalls.push({ sessionId, message, options })
       yield { type: 'content:delta', data: { text: 'Mock response' } }
+      yield { type: 'message:complete', data: { content: 'Mock response' } }
       yield { type: 'done', data: {} }
     } as typeof _deps.streamMessage
 
@@ -87,7 +88,7 @@ describe('Message Handler', () => {
       expect((streamMessageCalls[0].options as Record<string, unknown>).securityTier).toBe('observer')
     })
 
-    test('observe-only message does not trigger normal chat flow', async () => {
+    test('observe-only message does not send a response', async () => {
       const sendCalls: string[] = []
       activeChannels.set(connectionId, {
         connectionId,
@@ -128,6 +129,194 @@ describe('Message Handler', () => {
       // Regular messages should NOT have securityTier: 'observer'
       const opts = streamMessageCalls[0].options as Record<string, unknown> | undefined
       expect(opts?.securityTier).toBeUndefined()
+    })
+
+    test('auto-sends assistant text response to channel', async () => {
+      const sendCalls: Array<{ to: string; content: string; metadata?: Record<string, unknown> }> = []
+      activeChannels.set(connectionId, {
+        connectionId,
+        type: 'whatsapp',
+        initialize: async () => {},
+        shutdown: async () => {},
+        sendMessage: async (to: string, content: string, metadata?: Record<string, unknown>) => {
+          sendCalls.push({ to, content, metadata })
+          return true
+        },
+        getStatus: () => 'connected' as const,
+        logout: async () => {},
+      })
+
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'whatsapp',
+        senderId: 'user123',
+        senderName: 'John',
+        content: 'Hello!',
+        metadata: {},
+      })
+
+      // The assistant's text response should be auto-sent
+      expect(sendCalls).toHaveLength(1)
+      expect(sendCalls[0].content).toBe('Mock response')
+      expect(sendCalls[0].to).toBe('user123')
+    })
+
+    test('does not send response when assistant produces no text', async () => {
+      // Override mock to produce no text
+      _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+        streamMessageCalls.push({ sessionId, message, options })
+        yield { type: 'done', data: {} }
+      } as typeof _deps.streamMessage
+
+      const sendCalls: string[] = []
+      activeChannels.set(connectionId, {
+        connectionId,
+        type: 'whatsapp',
+        initialize: async () => {},
+        shutdown: async () => {},
+        sendMessage: async (_to: string, content: string) => { sendCalls.push(content); return true },
+        getStatus: () => 'connected' as const,
+        logout: async () => {},
+      })
+
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'whatsapp',
+        senderId: 'user123',
+        content: 'spam newsletter',
+        metadata: {},
+      })
+
+      // No text produced = no response sent (spam/ignored)
+      expect(sendCalls).toHaveLength(0)
+    })
+  })
+
+  describe('Slack structured output', () => {
+    let slackConnectionId: string
+
+    beforeEach(() => {
+      slackConnectionId = nanoid()
+      db.insert(messagingConnections)
+        .values({
+          id: slackConnectionId,
+          channelType: 'slack',
+          enabled: true,
+          status: 'connected',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .run()
+    })
+
+    test('passes outputFormat for Slack messages', async () => {
+      activeChannels.set(slackConnectionId, {
+        connectionId: slackConnectionId,
+        type: 'slack',
+        initialize: async () => {},
+        shutdown: async () => {},
+        sendMessage: async () => true,
+        getStatus: () => 'connected' as const,
+        logout: async () => {},
+      })
+
+      await handleIncomingMessage({
+        connectionId: slackConnectionId,
+        channelType: 'slack',
+        senderId: 'U12345',
+        senderName: 'Alice',
+        content: 'What tasks are open?',
+        metadata: {},
+      })
+
+      expect(streamMessageCalls).toHaveLength(1)
+      const opts = streamMessageCalls[0].options as Record<string, unknown>
+      expect(opts.outputFormat).toBeDefined()
+      const outputFormat = opts.outputFormat as { type: string; schema: Record<string, unknown> }
+      expect(outputFormat.type).toBe('json_schema')
+      expect(outputFormat.schema).toHaveProperty('properties')
+    })
+
+    test('sends structured output with blocks for Slack', async () => {
+      const sendCalls: Array<{ to: string; content: string; metadata?: Record<string, unknown> }> = []
+
+      // Mock stream that yields structured output
+      _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+        streamMessageCalls.push({ sessionId, message, options })
+        yield { type: 'structured_output', data: {
+          body: 'Here are your open tasks',
+          blocks: [
+            { type: 'section', text: { type: 'mrkdwn', text: '*Open Tasks:*\n- Task 1\n- Task 2' } },
+          ],
+        }}
+        yield { type: 'done', data: {} }
+      } as typeof _deps.streamMessage
+
+      activeChannels.set(slackConnectionId, {
+        connectionId: slackConnectionId,
+        type: 'slack',
+        initialize: async () => {},
+        shutdown: async () => {},
+        sendMessage: async (to: string, content: string, metadata?: Record<string, unknown>) => {
+          sendCalls.push({ to, content, metadata })
+          return true
+        },
+        getStatus: () => 'connected' as const,
+        logout: async () => {},
+      })
+
+      await handleIncomingMessage({
+        connectionId: slackConnectionId,
+        channelType: 'slack',
+        senderId: 'U12345',
+        senderName: 'Alice',
+        content: 'What tasks are open?',
+        metadata: {},
+      })
+
+      expect(sendCalls).toHaveLength(1)
+      expect(sendCalls[0].content).toBe('Here are your open tasks')
+      expect(sendCalls[0].metadata).toBeDefined()
+      expect(sendCalls[0].metadata!.blocks).toBeDefined()
+      const blocks = sendCalls[0].metadata!.blocks as unknown[]
+      expect(blocks).toHaveLength(1)
+    })
+
+    test('falls back to text response if no structured output for Slack', async () => {
+      const sendCalls: Array<{ to: string; content: string }> = []
+
+      // Mock stream that yields only text (structured output failed)
+      _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+        streamMessageCalls.push({ sessionId, message, options })
+        yield { type: 'message:complete', data: { content: 'Fallback text response' } }
+        yield { type: 'done', data: {} }
+      } as typeof _deps.streamMessage
+
+      activeChannels.set(slackConnectionId, {
+        connectionId: slackConnectionId,
+        type: 'slack',
+        initialize: async () => {},
+        shutdown: async () => {},
+        sendMessage: async (to: string, content: string) => {
+          sendCalls.push({ to, content })
+          return true
+        },
+        getStatus: () => 'connected' as const,
+        logout: async () => {},
+      })
+
+      await handleIncomingMessage({
+        connectionId: slackConnectionId,
+        channelType: 'slack',
+        senderId: 'U12345',
+        senderName: 'Alice',
+        content: 'Hello',
+        metadata: {},
+      })
+
+      // Should fall back to text when no structured output
+      expect(sendCalls).toHaveLength(1)
+      expect(sendCalls[0].content).toBe('Fallback text response')
     })
   })
 

@@ -48,17 +48,18 @@ ${context.metadata?.threadId ? `**Thread ID**: ${context.metadata.threadId}` : '
    - Related to an existing task? → Link and potentially reply
 
 2. **Take appropriate action(s)**:
-   - **Simple conversations**: Just use \`message\` to reply - no tracking needed for "hi", "thanks", general questions
+   - **Simple conversations**: Just reply - no tracking needed for "hi", "thanks", general questions
    - **Actionable requests**: Store a memory (via \`memory_store\`) with tag \`actionable\`, optionally create a Fulcrum task
-   - **Spam/newsletters**: Silently ignore (no response)
+   - **Spam/newsletters**: Produce no output at all (empty response = no message sent)
 
-## Important
+## How Responses Work
 
-- **You don't need to store a memory for every message** - only for things that need tracking/follow-up
-- Simple greetings, questions, and conversations can be answered directly without any memory tracking
-- For replies, use the \`message\` tool with: channel="${context.channel}", body="your reply"${context.metadata?.messageId ? `, replyToMessageId="${context.metadata.messageId}"` : ''} (the \`to\` parameter is optional — omit it and the recipient is auto-resolved)
-- Only store memories with tag \`actionable\` for requests, reminders, or things you need to remember
-- Spam, newsletters, and automated notifications should be ignored (no response)
+Your text response is sent directly to the user on their channel — you do NOT need to call any tool to reply. Just write your response as your output.
+
+- **To reply**: Simply produce your response text. It will be delivered automatically.
+- **To stay silent** (spam, newsletters, automated notifications): Produce no text output at all.
+- You don't need to store a memory for every message — only for things that need tracking/follow-up.
+- Only store memories with tag \`actionable\` for requests, reminders, or things you need to remember.
 
 ${formattingGuide}`
 }
@@ -205,10 +206,10 @@ WhatsApp does NOT render full Markdown. Keep formatting simple:
     case 'slack':
       return `## Slack Formatting & Block Kit
 
-Your response will be sent using Slack Block Kit for rich formatting. Structure your response as JSON with:
+Your response will be structured as JSON with two fields:
 
-- **body**: Plain text message (required, shown in notifications and as fallback)
-- **blocks**: Array of Block Kit blocks for rich formatting (optional)
+- **body** (required): Plain text message shown in notifications and as fallback
+- **blocks** (optional): Array of Slack Block Kit blocks for rich formatting
 
 ### Block Kit Blocks
 
@@ -253,9 +254,7 @@ Your response will be sent using Slack Block Kit for rich formatting. Structure 
 - **Lists/Status**: Use section blocks with bullet points or fields
 - **Structured Data**: Use fields for key-value pairs side by side
 - **Headers**: Use header blocks for major sections
-- **Simple Responses**: Just use plain text body, no blocks needed
-
-Use the \`message\` tool with the \`slack_blocks\` parameter to send Block Kit formatted messages.`
+- **Simple Responses**: Just set body to your plain text reply, omit blocks`
 
     case 'discord':
       return `## Discord Formatting

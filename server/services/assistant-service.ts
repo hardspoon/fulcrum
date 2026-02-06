@@ -375,6 +375,8 @@ export interface StreamMessageOptions {
    * - 'trusted' (default): Full tool access (claude_code preset + all MCP tools).
    */
   securityTier?: 'observer' | 'trusted'
+  /** JSON schema for structured output from the agent SDK */
+  outputFormat?: { type: 'json_schema'; schema: Record<string, unknown> }
 }
 
 /**
@@ -698,6 +700,7 @@ User message: ${userMessage}`
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         settingSources: ['user'],
+        ...(options.outputFormat && { outputFormat: options.outputFormat }),
       },
     })
 
@@ -782,11 +785,16 @@ User message: ${userMessage}`
           is_error?: boolean
           errors?: string[]
           modelUsage?: Record<string, unknown>
+          structured_output?: unknown
         }
 
         if (resultMsg.subtype?.startsWith('error_')) {
           const errors = resultMsg.errors || ['Unknown error']
           yield { type: 'error', data: { message: errors.join(', ') } }
+        }
+
+        if (resultMsg.structured_output) {
+          yield { type: 'structured_output', data: resultMsg.structured_output }
         }
 
         log.assistant.debug('Query completed', {
