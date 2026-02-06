@@ -62,7 +62,7 @@ jobs:
 
       - name: Update SDK
         if: steps.check.outputs.has_update == 'true'
-        run: bun update @anthropic-ai/claude-agent-sdk
+        run: bun add @anthropic-ai/claude-agent-sdk@${{ steps.check.outputs.latest }}
 
       - name: Install dependencies
         if: steps.check.outputs.has_update == 'true'
