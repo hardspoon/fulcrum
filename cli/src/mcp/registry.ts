@@ -734,7 +734,7 @@ export const toolRegistry: ToolMetadata[] = [
   },
   {
     name: 'create_calendar_event',
-    description: 'Create a new calendar event on a CalDAV calendar',
+    description: 'Create a new calendar event on a CalDAV or Google calendar.',
     category: 'caldav',
     keywords: ['calendar', 'event', 'create', 'new', 'schedule', 'appointment', 'meeting'],
     defer_loading: true,

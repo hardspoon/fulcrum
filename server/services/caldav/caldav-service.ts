@@ -17,6 +17,7 @@ import { getSettings } from '../../lib/settings'
 import { createLogger } from '../../lib/logger'
 import { generateIcalEvent, updateIcalEvent } from './ical-helpers'
 import { accountManager, type AccountStatus } from './caldav-account-manager'
+import { googleCalendarManager } from '../google/google-calendar-manager'
 
 const logger = createLogger('CalDAV')
 
@@ -549,6 +550,28 @@ export async function createEvent(input: {
     throw new Error(`Calendar not found: ${input.calendarId}`)
   }
 
+  // Delegate to Google Calendar API for Google-backed calendars
+  if (calendar.googleAccountId) {
+    await googleCalendarManager.createEvent(calendar.id, {
+      summary: input.summary,
+      dtstart: input.dtstart,
+      dtend: input.dtend,
+      description: input.description,
+      location: input.location,
+      allDay: input.allDay,
+    })
+    // Return the newly inserted event from DB
+    const created = db
+      .select()
+      .from(caldavEvents)
+      .where(eq(caldavEvents.calendarId, input.calendarId))
+      .orderBy(desc(caldavEvents.createdAt))
+      .limit(1)
+      .get()
+    if (!created) throw new Error('Failed to retrieve created Google Calendar event')
+    return created
+  }
+
   const client = calendar.accountId ? accountManager.getClient(calendar.accountId) : null
   if (!client) {
     throw new Error('CalDAV account not connected for this calendar')
@@ -630,6 +653,12 @@ export async function updateEvent(
     .where(eq(caldavCalendars.id, event.calendarId))
     .get()
 
+  // Delegate to Google Calendar API for Google-backed calendars
+  if (calendar?.googleAccountId) {
+    await googleCalendarManager.updateEvent(id, updates)
+    return db.select().from(caldavEvents).where(eq(caldavEvents.id, id)).get()!
+  }
+
   const client = calendar?.accountId ? accountManager.getClient(calendar.accountId) : null
   if (!client) {
     throw new Error('CalDAV account not connected for this calendar')
@@ -692,6 +721,12 @@ export async function deleteEvent(id: string): Promise<void> {
     .from(caldavCalendars)
     .where(eq(caldavCalendars.id, event.calendarId))
     .get()
+
+  // Delegate to Google Calendar API for Google-backed calendars
+  if (calendar?.googleAccountId) {
+    await googleCalendarManager.deleteEvent(id)
+    return
+  }
 
   const client = calendar?.accountId ? accountManager.getClient(calendar.accountId) : null
   if (!client) {
