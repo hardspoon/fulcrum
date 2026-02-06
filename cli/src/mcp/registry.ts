@@ -621,6 +621,15 @@ export const toolRegistry: ToolMetadata[] = [
     defer_loading: false,
   },
 
+  // Messaging tools
+  {
+    name: 'get_message',
+    description: 'Get details of a specific message by ID, including full content and metadata',
+    category: 'messaging',
+    keywords: ['message', 'get', 'read', 'channel', 'whatsapp', 'discord', 'telegram', 'slack', 'chat'],
+    defer_loading: false,
+  },
+
   // Concierge tools - proactive digital concierge
   {
     name: 'message',

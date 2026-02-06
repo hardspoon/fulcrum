@@ -50,6 +50,7 @@ import {
   TELEGRAM_CONNECTION_ID,
 } from '../services/channels'
 import { getStoredEmailById, type StoredEmail } from '../services/channels/email-storage'
+import { getChannelMessageById } from '../services/channels/message-storage'
 import { log } from '../lib/logger'
 
 const app = new Hono()
@@ -567,6 +568,23 @@ app.post('/email/fetch', async (c) => {
     })
   } catch (err) {
     log.messaging.error('Failed to fetch emails', { error: String(err) })
+    return c.json({ error: String(err) }, 500)
+  }
+})
+
+// GET /api/messaging/messages/:id - Get a specific channel message
+app.get('/messages/:id', (c) => {
+  try {
+    const id = c.req.param('id')
+    const message = getChannelMessageById(id)
+
+    if (!message) {
+      return c.json({ error: 'Message not found' }, 404)
+    }
+
+    return c.json(message)
+  } catch (err) {
+    log.messaging.error('Failed to get message', { error: String(err) })
     return c.json({ error: String(err) }, 500)
   }
 })

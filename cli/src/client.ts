@@ -1071,6 +1071,10 @@ export class FulcrumClient {
     return this.fetch(`/api/messaging/email/emails/${id}`)
   }
 
+  async getMessage(id: string): Promise<Record<string, unknown>> {
+    return this.fetch(`/api/messaging/messages/${id}`)
+  }
+
   async searchEmails(criteria: {
     subject?: string
     from?: string
