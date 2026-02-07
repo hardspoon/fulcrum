@@ -169,8 +169,10 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - Use \`search\` with \`memoryTags: ["actionable"]\` to review tracked items
 
 **Unified Search:**
-- \`search\` - Cross-entity FTS5 full-text search across tasks, projects, messages, events, memories, and conversations
-  - Filter by entity type: \`entities: ["tasks", "projects", "messages", "events", "memories", "conversations"]\`
+- \`search\` - Cross-entity FTS5 full-text search across tasks, projects, messages, events, memories, conversations, and gmail
+  - Filter by entity type: \`entities: ["tasks", "projects", "messages", "events", "memories", "conversations", "gmail"]\`
+  - **Gmail is opt-in** — not included in default searches to avoid latency/rate-limit impact. Must be explicitly requested via \`entities: ["gmail"]\`
+  - Gmail-specific filters: \`gmailFrom\`, \`gmailTo\`, \`gmailAfter\`, \`gmailBefore\`
   - Entity-specific filters: \`taskStatus\`, \`projectStatus\`, \`messageChannel\`, \`messageDirection\`, \`eventFrom\`, \`eventTo\`, \`memoryTags\`, \`conversationRole\`, \`conversationProvider\`, \`conversationProjectId\`
   - Conversations search indexes AI assistant chat messages (excludes system prompts) with session context
   - Results sorted by relevance score with BM25 ranking
@@ -536,7 +538,7 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - list_projects, create_project
 - execute_command (run any CLI command)
 - send_notification
-- search (unified FTS5 search across tasks, projects, messages, events, memories, conversations)
+- search (unified FTS5 search across tasks, projects, messages, events, memories, conversations; gmail is opt-in via \`entities: ["gmail"]\`)
 - memory_file_read, memory_file_update (master memory file - always in prompt)
 - memory_store (ephemeral knowledge snippets with tags)
 - message (send to WhatsApp/Discord/Telegram/Slack/Gmail - user-only, concierge mode)

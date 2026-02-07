@@ -221,7 +221,7 @@ export function getMessages(sessionId: string): ChatMessage[] {
     .select()
     .from(chatMessages)
     .where(eq(chatMessages.sessionId, sessionId))
-    .orderBy(chatMessages.createdAt)
+    .orderBy(chatMessages.createdAt, sql`rowid`)
     .all()
 }
 
