@@ -99,6 +99,7 @@ export const AiChatAssistant = observer(function AiChatAssistant() {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
       queryClient.invalidateQueries({ queryKey: ['repositories'] })
       queryClient.invalidateQueries({ queryKey: ['apps'] })
+      queryClient.invalidateQueries({ queryKey: ['caldav'] })
       // Invalidate assistant sessions so /assistant page stays current
       queryClient.invalidateQueries({ queryKey: ['assistant-sessions'] })
     }
