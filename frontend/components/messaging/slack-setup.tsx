@@ -242,6 +242,8 @@ export function SlackSetup({ isLoading = false }: SlackSetupProps) {
             Under <strong>OAuth &amp; Permissions</strong>, add these <strong>Bot Token Scopes</strong>:{' '}
             <code className="bg-muted px-1 rounded text-xs">chat:write</code>,{' '}
             <code className="bg-muted px-1 rounded text-xs">commands</code>,{' '}
+            <code className="bg-muted px-1 rounded text-xs">files:read</code>,{' '}
+            <code className="bg-muted px-1 rounded text-xs">files:write</code>,{' '}
             <code className="bg-muted px-1 rounded text-xs">im:history</code>,{' '}
             <code className="bg-muted px-1 rounded text-xs">im:read</code>,{' '}
             <code className="bg-muted px-1 rounded text-xs">im:write</code>,{' '}
