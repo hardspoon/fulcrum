@@ -270,6 +270,7 @@ export const chatSessions = sqliteTable('chat_sessions', {
   isFavorite: integer('is_favorite', { mode: 'boolean' }).default(false),
   messageCount: integer('message_count').default(0),
   lastMessageAt: text('last_message_at'),
+  claudeSessionId: text('claude_session_id'), // Claude Agent SDK session ID for conversation resume
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

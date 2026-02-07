@@ -577,10 +577,10 @@ export async function* streamMessage(
   // Use provided model or fall back to default from settings
   const effectiveModelId: ModelId = options.modelId ?? settings.assistant.model
 
-  // Get or create session state
+  // Get or create session state (restore from DB on first access after restart)
   let state = sessionState.get(sessionId)
   if (!state) {
-    state = {}
+    state = { claudeSessionId: session.claudeSessionId ?? undefined }
     sessionState.set(sessionId, state)
   }
 
@@ -739,6 +739,11 @@ User message: ${userMessage}`
       } else if (message.type === 'assistant') {
         const assistantMsg = message as { type: 'assistant'; session_id: string; message: { content: Array<{ type: string; text?: string }> } }
         state.claudeSessionId = assistantMsg.session_id
+        // Persist to database for restart recovery
+        db.update(chatSessions)
+          .set({ claudeSessionId: assistantMsg.session_id })
+          .where(eq(chatSessions.id, sessionId))
+          .run()
 
         const textContent = assistantMsg.message.content
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
@@ -795,6 +800,10 @@ User message: ${userMessage}`
           const errors = resultMsg.errors || ['Unknown error']
           // Reset Claude session so next attempt starts fresh instead of resuming broken session
           state.claudeSessionId = undefined
+          db.update(chatSessions)
+            .set({ claudeSessionId: null })
+            .where(eq(chatSessions.id, sessionId))
+            .run()
           yield { type: 'error', data: { message: errors.join(', ') } }
         }
 
@@ -829,6 +838,10 @@ User message: ${userMessage}`
     log.assistant.error('Assistant stream error', { sessionId, error: errorMsg })
     // Reset Claude session so next attempt starts fresh instead of resuming broken session
     state.claudeSessionId = undefined
+    db.update(chatSessions)
+      .set({ claudeSessionId: null })
+      .where(eq(chatSessions.id, sessionId))
+      .run()
     yield { type: 'error', data: { message: errorMsg } }
   } finally {
     // Clean up temp files created for image/document attachments
