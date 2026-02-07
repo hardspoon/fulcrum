@@ -209,40 +209,29 @@ WhatsApp does NOT render full Markdown. Keep formatting simple:
     case 'slack':
       return `## Slack Formatting & Block Kit
 
-Your response will be structured as JSON with two fields:
+Wrap your entire response in \`<slack-response>\` XML tags containing a JSON object with:
 
 - **body** (required): Plain text message shown in notifications and as fallback
 - **blocks** (optional): Array of Slack Block Kit blocks for rich formatting
 
+Example:
+<slack-response>
+{"body": "Here are your open tasks", "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "*Open Tasks:*\\n• Task 1\\n• Task 2"}}]}
+</slack-response>
+
 ### Block Kit Blocks
 
 **Section Block** - Main content:
-\`\`\`json
-{ "type": "section", "text": { "type": "mrkdwn", "text": "*Bold* and _italic_" } }
-\`\`\`
+\`{"type": "section", "text": {"type": "mrkdwn", "text": "*Bold* and _italic_"}}\`
 
 **Section with Fields** - Multi-column layout:
-\`\`\`json
-{ "type": "section", "fields": [
-  { "type": "mrkdwn", "text": "*Status:*\\nIn Progress" },
-  { "type": "mrkdwn", "text": "*Due:*\\nToday" }
-] }
-\`\`\`
+\`{"type": "section", "fields": [{"type": "mrkdwn", "text": "*Status:*\\nIn Progress"}, {"type": "mrkdwn", "text": "*Due:*\\nToday"}]}\`
 
-**Header Block** - Large text headers:
-\`\`\`json
-{ "type": "header", "text": { "type": "plain_text", "text": "Task Summary", "emoji": true } }
-\`\`\`
+**Header Block**: \`{"type": "header", "text": {"type": "plain_text", "text": "Title", "emoji": true}}\`
 
-**Divider Block** - Horizontal rule:
-\`\`\`json
-{ "type": "divider" }
-\`\`\`
+**Divider Block**: \`{"type": "divider"}\`
 
-**Context Block** - Small muted text:
-\`\`\`json
-{ "type": "context", "elements": [{ "type": "mrkdwn", "text": "Last updated 5 min ago" }] }
-\`\`\`
+**Context Block**: \`{"type": "context", "elements": [{"type": "mrkdwn", "text": "Small muted text"}]}\`
 
 ### mrkdwn Syntax
 - *bold* with single asterisks
@@ -257,7 +246,9 @@ Your response will be structured as JSON with two fields:
 - **Lists/Status**: Use section blocks with bullet points or fields
 - **Structured Data**: Use fields for key-value pairs side by side
 - **Headers**: Use header blocks for major sections
-- **Simple Responses**: Just set body to your plain text reply, omit blocks`
+- **Simple Responses**: Just set body to your plain text, omit blocks
+
+**IMPORTANT**: Always wrap your response in \`<slack-response>\` tags with valid JSON inside.`
 
     case 'discord':
       return `## Discord Formatting

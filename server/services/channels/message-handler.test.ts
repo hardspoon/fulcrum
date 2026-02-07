@@ -4,7 +4,7 @@ import { setupTestEnv, type TestEnv } from '../../__tests__/utils/env'
 import { nanoid } from 'nanoid'
 import { db, messagingConnections } from '../../db'
 import { activeChannels } from './channel-manager'
-import { handleIncomingMessage, _deps, getCircuitBreaker, resetCircuitBreaker } from './message-handler'
+import { handleIncomingMessage, _deps, getCircuitBreaker, resetCircuitBreaker, parseSlackResponse } from './message-handler'
 
 // Track mock calls
 let streamMessageCalls: Array<{ sessionId: string; message: string; options?: Record<string, unknown> }> = []
@@ -193,7 +193,7 @@ describe('Message Handler', () => {
     })
   })
 
-  describe('Slack structured output', () => {
+  describe('Slack response parsing', () => {
     let slackConnectionId: string
 
     beforeEach(() => {
@@ -210,7 +210,7 @@ describe('Message Handler', () => {
         .run()
     })
 
-    test('passes outputFormat for Slack messages', async () => {
+    test('does not pass outputFormat for Slack messages', async () => {
       activeChannels.set(slackConnectionId, {
         connectionId: slackConnectionId,
         type: 'slack',
@@ -232,24 +232,17 @@ describe('Message Handler', () => {
 
       expect(streamMessageCalls).toHaveLength(1)
       const opts = streamMessageCalls[0].options as Record<string, unknown>
-      expect(opts.outputFormat).toBeDefined()
-      const outputFormat = opts.outputFormat as { type: string; schema: Record<string, unknown> }
-      expect(outputFormat.type).toBe('json_schema')
-      expect(outputFormat.schema).toHaveProperty('properties')
+      expect(opts.outputFormat).toBeUndefined()
     })
 
-    test('sends structured output with blocks for Slack', async () => {
+    test('extracts blocks from slack-response XML tags', async () => {
       const sendCalls: Array<{ to: string; content: string; metadata?: Record<string, unknown> }> = []
 
-      // Mock stream that yields structured output
+      // Mock stream that yields text with <slack-response> XML tags
       _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
         streamMessageCalls.push({ sessionId, message, options })
-        yield { type: 'structured_output', data: {
-          body: 'Here are your open tasks',
-          blocks: [
-            { type: 'section', text: { type: 'mrkdwn', text: '*Open Tasks:*\n- Task 1\n- Task 2' } },
-          ],
-        }}
+        const xmlResponse = '<slack-response>\n{"body": "Here are your open tasks", "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "*Open Tasks:*\\n- Task 1\\n- Task 2"}}]}\n</slack-response>'
+        yield { type: 'message:complete', data: { content: xmlResponse } }
         yield { type: 'done', data: {} }
       } as typeof _deps.streamMessage
 
@@ -283,10 +276,10 @@ describe('Message Handler', () => {
       expect(blocks).toHaveLength(1)
     })
 
-    test('falls back to text response if no structured output for Slack', async () => {
-      const sendCalls: Array<{ to: string; content: string }> = []
+    test('falls back to mrkdwn section block when no XML tags present', async () => {
+      const sendCalls: Array<{ to: string; content: string; metadata?: Record<string, unknown> }> = []
 
-      // Mock stream that yields only text (structured output failed)
+      // Mock stream that yields plain text (no XML tags)
       _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
         streamMessageCalls.push({ sessionId, message, options })
         yield { type: 'message:complete', data: { content: 'Fallback text response' } }
@@ -298,8 +291,8 @@ describe('Message Handler', () => {
         type: 'slack',
         initialize: async () => {},
         shutdown: async () => {},
-        sendMessage: async (to: string, content: string) => {
-          sendCalls.push({ to, content })
+        sendMessage: async (to: string, content: string, metadata?: Record<string, unknown>) => {
+          sendCalls.push({ to, content, metadata })
           return true
         },
         getStatus: () => 'connected' as const,
@@ -315,9 +308,49 @@ describe('Message Handler', () => {
         metadata: {},
       })
 
-      // Should fall back to text when no structured output
+      // Should fall back to wrapping raw text in a section block
       expect(sendCalls).toHaveLength(1)
       expect(sendCalls[0].content).toBe('Fallback text response')
+      expect(sendCalls[0].metadata).toBeDefined()
+      const blocks = sendCalls[0].metadata!.blocks as Array<{ type: string; text: { type: string; text: string } }>
+      expect(blocks).toHaveLength(1)
+      expect(blocks[0].type).toBe('section')
+      expect(blocks[0].text.type).toBe('mrkdwn')
+      expect(blocks[0].text.text).toBe('Fallback text response')
+    })
+  })
+
+  describe('parseSlackResponse', () => {
+    test('parses valid XML with body and blocks', () => {
+      const text = '<slack-response>\n{"body": "Hello", "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "Hello"}}]}\n</slack-response>'
+      const result = parseSlackResponse(text)
+      expect(result).not.toBeNull()
+      expect(result!.body).toBe('Hello')
+      expect(result!.blocks).toHaveLength(1)
+    })
+
+    test('parses valid XML with body only (no blocks)', () => {
+      const text = '<slack-response>{"body": "Simple reply"}</slack-response>'
+      const result = parseSlackResponse(text)
+      expect(result).not.toBeNull()
+      expect(result!.body).toBe('Simple reply')
+      expect(result!.blocks).toBeUndefined()
+    })
+
+    test('returns null for text without XML tags', () => {
+      expect(parseSlackResponse('Just plain text')).toBeNull()
+    })
+
+    test('returns null for invalid JSON inside tags', () => {
+      expect(parseSlackResponse('<slack-response>not json</slack-response>')).toBeNull()
+    })
+
+    test('returns null when body is empty', () => {
+      expect(parseSlackResponse('<slack-response>{"body": ""}</slack-response>')).toBeNull()
+    })
+
+    test('returns null when body is missing', () => {
+      expect(parseSlackResponse('<slack-response>{"blocks": []}</slack-response>')).toBeNull()
     })
   })
 

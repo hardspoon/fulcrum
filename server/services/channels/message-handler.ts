@@ -20,23 +20,6 @@ export const _deps = {
     streamOpencodeObserverMessage(...args),
 }
 
-// JSON schema for Slack Block Kit structured output
-const SLACK_RESPONSE_SCHEMA = {
-  type: 'object',
-  properties: {
-    body: {
-      type: 'string',
-      description: 'Plain text message (shown in notifications and as fallback)',
-    },
-    blocks: {
-      type: 'array',
-      description: 'Slack Block Kit blocks for rich formatting',
-      items: { type: 'object', additionalProperties: true },
-    },
-  },
-  required: ['body'],
-}
-
 // Circuit breaker for observer processing — prevents log flooding and wasted
 // Claude Code spawns when the session is corrupted. Opens after consecutive
 // failures, closes after a successful probe.
@@ -184,17 +167,14 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
     }
     const systemPrompt = getMessagingSystemPrompt(msg.channelType, context)
 
-    // For Slack, use structured output to get Block Kit formatting
     const isSlack = msg.channelType === 'slack'
     const stream = _deps.streamMessage(session.id, content || '(file attached)', {
       systemPromptAdditions: systemPrompt,
-      ...(isSlack && { outputFormat: { type: 'json_schema' as const, schema: SLACK_RESPONSE_SCHEMA } }),
       ...(msg.attachments?.length && { attachments: msg.attachments }),
     })
 
     // Capture the assistant's response to send it directly
     let responseText = ''
-    let structuredOutput: { body: string; blocks?: unknown[] } | null = null
 
     for await (const event of stream) {
       if (event.type === 'error') {
@@ -202,18 +182,24 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
         log.messaging.error('Assistant error handling message', { error: errorMsg })
       } else if (event.type === 'message:complete') {
         responseText = (event.data as { content: string }).content
-      } else if (event.type === 'structured_output') {
-        structuredOutput = event.data as { body: string; blocks?: unknown[] }
       }
     }
 
     // Send the response directly (no reliance on the assistant calling a tool)
-    if (isSlack && structuredOutput?.body?.trim()) {
-      await sendResponse(
-        msg,
-        structuredOutput.body,
-        structuredOutput.blocks ? { blocks: structuredOutput.blocks } : undefined
-      )
+    if (isSlack && responseText.trim()) {
+      const parsed = parseSlackResponse(responseText)
+      if (parsed) {
+        await sendResponse(
+          msg,
+          parsed.body,
+          parsed.blocks ? { blocks: parsed.blocks } : undefined
+        )
+      } else {
+        // No XML tags or parse failure — wrap raw text in a section block
+        await sendResponse(msg, responseText, {
+          blocks: [{ type: 'section', text: { type: 'mrkdwn', text: responseText } }],
+        })
+      }
     } else if (responseText.trim()) {
       await sendResponse(msg, responseText)
     }
@@ -371,6 +357,25 @@ Started: ${new Date(mapping.createdAt).toLocaleString()}
 Last active: ${new Date(mapping.lastMessageAt).toLocaleString()}`
 
   await sendResponse(msg, statusText)
+}
+
+/**
+ * Parse <slack-response> XML tags from assistant text output.
+ * Returns { body, blocks? } on success, null on failure or missing tags.
+ */
+export function parseSlackResponse(text: string): { body: string; blocks?: unknown[] } | null {
+  const match = text.match(/<slack-response>([\s\S]*?)<\/slack-response>/)
+  if (!match) return null
+
+  try {
+    const parsed = JSON.parse(match[1])
+    if (typeof parsed.body === 'string' && parsed.body.trim()) {
+      return { body: parsed.body, ...(Array.isArray(parsed.blocks) && { blocks: parsed.blocks }) }
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 /**
