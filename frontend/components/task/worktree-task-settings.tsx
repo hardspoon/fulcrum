@@ -7,7 +7,6 @@ import {
   ComboboxContent,
   ComboboxList,
   ComboboxItem,
-  ComboboxEmpty,
 } from '@/components/ui/combobox'
 import {
   Select,
@@ -164,6 +163,7 @@ export function WorktreeTaskSettings({ task, compact }: WorktreeTaskSettingsProp
               onValueChange={handleRepoSelect}
               inputValue={repoSearchQuery}
               onInputValueChange={setRepoSearchQuery}
+              filter={null}
               itemToStringLabel={(id) =>
                 repositories?.find((r) => r.id === id)?.displayName || ''
               }
@@ -174,7 +174,11 @@ export function WorktreeTaskSettings({ task, compact }: WorktreeTaskSettingsProp
               />
               <ComboboxContent>
                 <ComboboxList>
-                  <ComboboxEmpty>No repositories found</ComboboxEmpty>
+                  {filteredRepositories.length === 0 && (
+                    <div className="text-muted-foreground w-full flex justify-center py-2 text-center text-xs/relaxed">
+                      No repositories found
+                    </div>
+                  )}
                   {filteredRepositories.map((repo) => (
                     <ComboboxItem key={repo.id} value={repo.id}>
                       {repo.displayName}
