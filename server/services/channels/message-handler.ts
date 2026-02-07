@@ -175,14 +175,30 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
 
     // Capture the assistant's response to send it directly
     let responseText = ''
+    let hasError = false
 
     for await (const event of stream) {
       if (event.type === 'error') {
         const errorMsg = (event.data as { message: string }).message
         log.messaging.error('Assistant error handling message', { error: errorMsg })
+        hasError = true
       } else if (event.type === 'message:complete') {
-        responseText = (event.data as { content: string }).content
+        const text = (event.data as { content: string }).content
+        // Don't overwrite a good response with an API error message from a subsequent turn
+        if (!text.startsWith('API Error:') && !text.startsWith('Error:')) {
+          responseText = text
+        } else {
+          log.messaging.warn('Suppressed API error from assistant response', {
+            errorPreview: text.slice(0, 200),
+          })
+          hasError = true
+        }
       }
+    }
+
+    // If we got only errors and no valid response, send a friendly error message
+    if (hasError && !responseText.trim()) {
+      responseText = "Sorry, I ran into an issue processing that. Could you try again or rephrase your message?"
     }
 
     // Send the response directly (no reliance on the assistant calling a tool)
