@@ -213,10 +213,16 @@ Wrap your entire response in \`<slack-response>\` XML tags containing a JSON obj
 
 - **body** (required): Plain text message shown in notifications and as fallback
 - **blocks** (optional): Array of Slack Block Kit blocks for rich formatting
+- **filePath** (optional): Absolute path to a file on disk to upload as an attachment
 
 Example:
 <slack-response>
 {"body": "Here are your open tasks", "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": "*Open Tasks:*\\n• Task 1\\n• Task 2"}}]}
+</slack-response>
+
+To send a file (image, document, etc.) you created:
+<slack-response>
+{"body": "Here's the generated image", "filePath": "/absolute/path/to/file.png"}
 </slack-response>
 
 ### Block Kit Blocks

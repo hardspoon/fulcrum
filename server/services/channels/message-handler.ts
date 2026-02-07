@@ -189,10 +189,13 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
     if (isSlack && responseText.trim()) {
       const parsed = parseSlackResponse(responseText)
       if (parsed) {
+        const metadata: Record<string, unknown> = {}
+        if (parsed.blocks) metadata.blocks = parsed.blocks
+        if (parsed.filePath) metadata.filePath = parsed.filePath
         await sendResponse(
           msg,
           parsed.body,
-          parsed.blocks ? { blocks: parsed.blocks } : undefined
+          Object.keys(metadata).length > 0 ? metadata : undefined
         )
       } else {
         // No XML tags or parse failure — wrap raw text in a section block
@@ -363,14 +366,18 @@ Last active: ${new Date(mapping.lastMessageAt).toLocaleString()}`
  * Parse <slack-response> XML tags from assistant text output.
  * Returns { body, blocks? } on success, null on failure or missing tags.
  */
-export function parseSlackResponse(text: string): { body: string; blocks?: unknown[] } | null {
+export function parseSlackResponse(text: string): { body: string; blocks?: unknown[]; filePath?: string } | null {
   const match = text.match(/<slack-response>([\s\S]*?)<\/slack-response>/)
   if (!match) return null
 
   try {
     const parsed = JSON.parse(match[1])
     if (typeof parsed.body === 'string' && parsed.body.trim()) {
-      return { body: parsed.body, ...(Array.isArray(parsed.blocks) && { blocks: parsed.blocks }) }
+      return {
+        body: parsed.body,
+        ...(Array.isArray(parsed.blocks) && { blocks: parsed.blocks }),
+        ...(typeof parsed.filePath === 'string' && parsed.filePath.trim() && { filePath: parsed.filePath }),
+      }
     }
     return null
   } catch {

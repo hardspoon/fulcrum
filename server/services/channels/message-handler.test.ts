@@ -276,6 +276,44 @@ describe('Message Handler', () => {
       expect(blocks).toHaveLength(1)
     })
 
+    test('passes filePath through metadata for file uploads', async () => {
+      const sendCalls: Array<{ to: string; content: string; metadata?: Record<string, unknown> }> = []
+
+      _deps.streamMessage = async function* (sessionId: string, message: string, options?: Record<string, unknown>) {
+        streamMessageCalls.push({ sessionId, message, options })
+        const xmlResponse = '<slack-response>\n{"body": "Here is the inverted logo", "filePath": "/tmp/logo-inverted.png"}\n</slack-response>'
+        yield { type: 'message:complete', data: { content: xmlResponse } }
+        yield { type: 'done', data: {} }
+      } as typeof _deps.streamMessage
+
+      activeChannels.set(slackConnectionId, {
+        connectionId: slackConnectionId,
+        type: 'slack',
+        initialize: async () => {},
+        shutdown: async () => {},
+        sendMessage: async (to: string, content: string, metadata?: Record<string, unknown>) => {
+          sendCalls.push({ to, content, metadata })
+          return true
+        },
+        getStatus: () => 'connected' as const,
+        logout: async () => {},
+      })
+
+      await handleIncomingMessage({
+        connectionId: slackConnectionId,
+        channelType: 'slack',
+        senderId: 'U12345',
+        senderName: 'Alice',
+        content: 'Create an inverted version of the logo',
+        metadata: {},
+      })
+
+      expect(sendCalls).toHaveLength(1)
+      expect(sendCalls[0].content).toBe('Here is the inverted logo')
+      expect(sendCalls[0].metadata).toBeDefined()
+      expect(sendCalls[0].metadata!.filePath).toBe('/tmp/logo-inverted.png')
+    })
+
     test('falls back to mrkdwn section block when no XML tags present', async () => {
       const sendCalls: Array<{ to: string; content: string; metadata?: Record<string, unknown> }> = []
 
@@ -351,6 +389,28 @@ describe('Message Handler', () => {
 
     test('returns null when body is missing', () => {
       expect(parseSlackResponse('<slack-response>{"blocks": []}</slack-response>')).toBeNull()
+    })
+
+    test('extracts filePath when present', () => {
+      const text = '<slack-response>{"body": "Here is the file", "filePath": "/tmp/image.png"}</slack-response>'
+      const result = parseSlackResponse(text)
+      expect(result).not.toBeNull()
+      expect(result!.body).toBe('Here is the file')
+      expect(result!.filePath).toBe('/tmp/image.png')
+    })
+
+    test('omits filePath when not present', () => {
+      const text = '<slack-response>{"body": "No file"}</slack-response>'
+      const result = parseSlackResponse(text)
+      expect(result).not.toBeNull()
+      expect(result!.filePath).toBeUndefined()
+    })
+
+    test('omits filePath when empty string', () => {
+      const text = '<slack-response>{"body": "Empty path", "filePath": ""}</slack-response>'
+      const result = parseSlackResponse(text)
+      expect(result).not.toBeNull()
+      expect(result!.filePath).toBeUndefined()
     })
   })
 
