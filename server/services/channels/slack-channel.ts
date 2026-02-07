@@ -353,11 +353,23 @@ export class SlackChannel implements MessagingChannel {
       return null
     }
 
-    const response = await fetch(file.url_private_download, {
+    // Slack redirects file downloads to a CDN on a different origin.
+    // Per the Fetch spec, Authorization headers are stripped on cross-origin redirects,
+    // so we handle redirects manually to preserve the auth header.
+    let response = await fetch(file.url_private_download, {
       headers: {
         Authorization: `Bearer ${this.botToken}`,
       },
+      redirect: 'manual',
     })
+
+    // Follow redirect — the CDN URL contains auth in the query string, no header needed
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location')
+      if (location) {
+        response = await fetch(location)
+      }
+    }
 
     if (!response.ok) {
       log.messaging.warn('Failed to download Slack file', {
