@@ -15,6 +15,8 @@ export interface MessagingContext {
   sender: string
   senderName?: string
   content: string
+  hasAttachments?: boolean
+  attachmentNames?: string[]
   metadata?: {
     subject?: string
     threadId?: string
@@ -36,6 +38,7 @@ A message has arrived:
 **Channel**: ${context.channel}
 **From**: ${context.sender}${context.senderName ? ` (${context.senderName})` : ''}
 **Content**: ${context.content}
+${context.hasAttachments ? `**Attachments**: ${context.attachmentNames?.join(', ') || 'file(s) attached'}` : ''}
 ${context.metadata?.subject ? `**Subject**: ${context.metadata.subject}` : ''}
 ${context.metadata?.threadId ? `**Thread ID**: ${context.metadata.threadId}` : ''}
 

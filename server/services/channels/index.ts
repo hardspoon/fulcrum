@@ -175,6 +175,7 @@ export async function sendMessageToChannel(
     subject?: string
     replyToMessageId?: string
     slackBlocks?: Array<Record<string, unknown>>
+    filePath?: string
   }
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   if (!body) {
@@ -317,8 +318,14 @@ export async function sendMessageToChannel(
       }
 
       try {
-        // Pass blocks metadata for Block Kit formatting
-        const msgMetadata = options?.slackBlocks ? { blocks: options.slackBlocks } : undefined
+        // Pass blocks and filePath metadata for Block Kit formatting and file uploads
+        const msgMetadata: Record<string, unknown> | undefined =
+          (options?.slackBlocks || options?.filePath)
+            ? {
+                ...(options.slackBlocks && { blocks: options.slackBlocks }),
+                ...(options.filePath && { filePath: options.filePath }),
+              }
+            : undefined
         const success = await slackChannel.sendMessage(resolvedTo, body, msgMetadata)
         if (success) {
           log.messaging.info('Sent Slack message', { to: resolvedTo, hasBlocks: !!options?.slackBlocks })

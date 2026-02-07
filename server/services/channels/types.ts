@@ -3,6 +3,8 @@
  * Supports WhatsApp initially, with extensibility for Discord, Telegram, etc.
  */
 
+import type { AttachmentData } from '../../../shared/types'
+
 // Supported messaging channel types
 export type ChannelType = 'whatsapp' | 'discord' | 'telegram' | 'slack' | 'email'
 
@@ -18,6 +20,7 @@ export interface IncomingMessage {
   senderId: string      // Phone number, Discord user ID, etc.
   senderName?: string   // Display name if available
   content: string       // Message text content
+  attachments?: AttachmentData[]  // File/image attachments from the channel
   timestamp: Date
   metadata?: Record<string, unknown>  // Channel-specific metadata (e.g., email threading info)
 }

@@ -1131,6 +1131,7 @@ export class FulcrumClient {
     subject?: string
     replyToMessageId?: string
     slackBlocks?: Array<Record<string, unknown>>
+    filePath?: string
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     return this.fetch('/api/messaging/send', {
       method: 'POST',

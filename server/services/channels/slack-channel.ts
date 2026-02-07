@@ -6,15 +6,42 @@
 import { App, LogLevel, type SlashCommand, type RespondFn } from '@slack/bolt'
 import type { KnownBlock, ChatPostMessageArguments } from '@slack/web-api'
 import { eq } from 'drizzle-orm'
+import { readFileSync } from 'fs'
+import { basename } from 'path'
 import { db, messagingConnections } from '../../db'
 import { log } from '../../lib/logger'
 import { getSettings } from '../../lib/settings'
+import type { AttachmentData } from '../../../shared/types'
 import type {
   MessagingChannel,
   ChannelEvents,
   ConnectionStatus,
   IncomingMessage,
 } from './types'
+
+/** Shape of a Slack file object attached to a message */
+interface SlackFile {
+  id: string
+  name: string
+  mimetype: string
+  size: number
+  url_private_download?: string
+}
+
+/** MIME types we support downloading from Slack */
+const SUPPORTED_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'text/markdown',
+])
+
+/** Max file size we'll download (10 MB) */
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 export class SlackChannel implements MessagingChannel {
   readonly type = 'slack' as const
@@ -212,9 +239,11 @@ export class SlackChannel implements MessagingChannel {
     // Ignore bot messages (including self)
     if (message.bot_id || message.subtype === 'bot_message') return
 
-    // Only process text messages
-    const content = message.text as string | undefined
-    if (!content) return
+    const content = (message.text as string | undefined) || ''
+    const files = message.files as SlackFile[] | undefined
+
+    // Need either text or files
+    if (!content && (!files || files.length === 0)) return
 
     const userId = message.user as string
     if (!userId) return
@@ -230,19 +259,34 @@ export class SlackChannel implements MessagingChannel {
       // Ignore errors getting user info
     }
 
+    // Download any attached files
+    let attachments: AttachmentData[] | undefined
+    if (files && files.length > 0) {
+      const downloaded = await this.downloadSlackFiles(files)
+      if (downloaded.length > 0) {
+        attachments = downloaded
+      }
+    }
+
     const incomingMessage: IncomingMessage = {
       channelType: 'slack',
       connectionId: this.connectionId,
       senderId: userId,
       senderName,
       content,
+      attachments,
       timestamp: new Date(parseFloat(message.ts as string) * 1000),
+      metadata: files?.length ? {
+        files: files.map((f) => ({ name: f.name, type: f.mimetype, size: f.size })),
+      } : undefined,
     }
 
     log.messaging.info('Slack message received', {
       connectionId: this.connectionId,
       from: userId,
       contentLength: content.length,
+      fileCount: files?.length ?? 0,
+      attachmentCount: attachments?.length ?? 0,
     })
 
     try {
@@ -252,6 +296,100 @@ export class SlackChannel implements MessagingChannel {
         connectionId: this.connectionId,
         error: String(err),
       })
+    }
+  }
+
+  /**
+   * Download multiple Slack files, skipping unsupported/oversized ones.
+   */
+  private async downloadSlackFiles(files: SlackFile[]): Promise<AttachmentData[]> {
+    const results: AttachmentData[] = []
+
+    for (const file of files) {
+      try {
+        const attachment = await this.downloadSlackFile(file)
+        if (attachment) {
+          results.push(attachment)
+        }
+      } catch (err) {
+        log.messaging.warn('Failed to download Slack file', {
+          connectionId: this.connectionId,
+          fileName: file.name,
+          error: String(err),
+        })
+      }
+    }
+
+    return results
+  }
+
+  /**
+   * Download a single Slack file and return it as an AttachmentData.
+   * Returns null for unsupported/oversized files.
+   */
+  private async downloadSlackFile(file: SlackFile): Promise<AttachmentData | null> {
+    if (!file.url_private_download) {
+      log.messaging.warn('Slack file has no download URL', {
+        fileName: file.name,
+        fileId: file.id,
+      })
+      return null
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      log.messaging.warn('Slack file too large, skipping', {
+        fileName: file.name,
+        size: file.size,
+        maxSize: MAX_FILE_SIZE,
+      })
+      return null
+    }
+
+    if (!SUPPORTED_MIME_TYPES.has(file.mimetype)) {
+      log.messaging.warn('Unsupported Slack file type, skipping', {
+        fileName: file.name,
+        mimeType: file.mimetype,
+      })
+      return null
+    }
+
+    const response = await fetch(file.url_private_download, {
+      headers: {
+        Authorization: `Bearer ${this.botToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      log.messaging.warn('Failed to download Slack file', {
+        fileName: file.name,
+        status: response.status,
+      })
+      return null
+    }
+
+    const isText = file.mimetype.startsWith('text/')
+    const type: AttachmentData['type'] = file.mimetype.startsWith('image/')
+      ? 'image'
+      : isText
+        ? 'text'
+        : 'document'
+
+    if (isText) {
+      const text = await response.text()
+      return {
+        mediaType: file.mimetype,
+        data: text,
+        filename: file.name,
+        type,
+      }
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer())
+    return {
+      mediaType: file.mimetype,
+      data: buffer.toString('base64'),
+      filename: file.name,
+      type,
     }
   }
 
@@ -343,6 +481,34 @@ export class SlackChannel implements MessagingChannel {
       const channelId = conversation.channel?.id
       if (!channelId) {
         throw new Error('Failed to open DM channel')
+      }
+
+      // Upload file if provided
+      if (metadata?.filePath) {
+        const filePath = metadata.filePath as string
+        try {
+          const fileData = readFileSync(filePath)
+          const filename = basename(filePath)
+          await this.app.client.files.uploadV2({
+            channel_id: channelId,
+            file: fileData,
+            filename,
+            initial_comment: content || undefined,
+          })
+          log.messaging.info('Slack file uploaded', {
+            connectionId: this.connectionId,
+            to: recipientId,
+            filename,
+          })
+          return true
+        } catch (fileErr) {
+          log.messaging.error('Failed to upload Slack file', {
+            connectionId: this.connectionId,
+            filePath,
+            error: String(fileErr),
+          })
+          // Fall through to send text-only message
+        }
       }
 
       // Slack has a ~40000 character limit but best practice is to keep it shorter

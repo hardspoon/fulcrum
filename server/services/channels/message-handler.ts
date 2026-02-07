@@ -174,6 +174,8 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
       sender: msg.senderId,
       senderName: msg.senderName,
       content,
+      hasAttachments: (msg.attachments?.length ?? 0) > 0,
+      attachmentNames: msg.attachments?.map((a) => a.filename),
       metadata: {
         subject: msg.metadata?.subject as string | undefined,
         threadId: msg.metadata?.threadId as string | undefined,
@@ -184,9 +186,10 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
 
     // For Slack, use structured output to get Block Kit formatting
     const isSlack = msg.channelType === 'slack'
-    const stream = _deps.streamMessage(session.id, content, {
+    const stream = _deps.streamMessage(session.id, content || '(file attached)', {
       systemPromptAdditions: systemPrompt,
       ...(isSlack && { outputFormat: { type: 'json_schema' as const, schema: SLACK_RESPONSE_SCHEMA } }),
+      ...(msg.attachments?.length && { attachments: msg.attachments }),
     })
 
     // Capture the assistant's response to send it directly

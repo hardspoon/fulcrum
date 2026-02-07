@@ -20,11 +20,14 @@ export const registerAssistantTools: ToolRegistrar = (server, client) => {
       slack_blocks: z.optional(z.array(z.record(z.string(), z.any()))).describe(
         'Slack Block Kit blocks for rich formatting (Slack channel only). Array of block objects.'
       ),
+      filePath: z.optional(z.string()).describe(
+        'Absolute path to a local file to upload alongside the message (Slack only). Use for sending images, documents, etc.'
+      ),
       googleAccountId: z.optional(z.string()).describe(
         'Google account ID for Gmail channel. If omitted, auto-resolves when exactly one Gmail-enabled account exists.'
       ),
     },
-    async ({ channel, body, subject, replyToMessageId, slack_blocks, googleAccountId }) => {
+    async ({ channel, body, subject, replyToMessageId, slack_blocks, filePath, googleAccountId }) => {
       try {
         if (channel === 'gmail') {
           let accountId = googleAccountId
@@ -54,6 +57,7 @@ export const registerAssistantTools: ToolRegistrar = (server, client) => {
           subject,
           replyToMessageId,
           slackBlocks: slack_blocks,
+          filePath,
         })
         return formatSuccess(result)
       } catch (err) {
