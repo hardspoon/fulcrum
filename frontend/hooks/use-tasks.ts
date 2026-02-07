@@ -97,7 +97,7 @@ export function useUpdateTask() {
       updates,
     }: {
       taskId: string
-      updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'viewState' | 'prUrl' | 'tags' | 'dueDate' | 'repositoryId' | 'agent' | 'aiMode' | 'baseBranch'>>
+      updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'viewState' | 'prUrl' | 'tags' | 'dueDate' | 'repositoryId' | 'agent' | 'aiMode' | 'baseBranch' | 'projectId'>>
     }) =>
       fetchJSON<Task>(`${API_BASE}/api/tasks/${taskId}`, {
         method: 'PATCH',
@@ -106,6 +106,7 @@ export function useUpdateTask() {
     onSuccess: (_, { taskId }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 }

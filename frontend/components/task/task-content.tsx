@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DescriptionTextarea } from '@/components/ui/description-textarea'
@@ -14,6 +14,8 @@ import {
   GitPullRequestIcon,
   Link02Icon,
   Loading03Icon,
+  Tick01Icon,
+  Folder01Icon,
 } from '@hugeicons/core-free-icons'
 import {
   DropdownMenu,
@@ -24,9 +26,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useUpdateTask } from '@/hooks/use-tasks'
 import { useAddTaskTag, useRemoveTaskTag } from '@/hooks/use-tags'
+import { useProjects } from '@/hooks/use-projects'
 import { useIsOverdue } from '@/hooks/use-date-utils'
 import { DeleteTaskDialog } from '@/components/delete-task-dialog'
 import { openExternalUrl } from '@/lib/editor-url'
+import { cn } from '@/lib/utils'
 import type { Task, TaskStatus } from '@/types'
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -56,6 +60,7 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
   const updateTask = useUpdateTask()
   const addTaskTag = useAddTaskTag()
   const removeTaskTag = useRemoveTaskTag()
+  const { data: projects } = useProjects()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editedTitle, setEditedTitle] = useState(task.title)
@@ -67,6 +72,27 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
   const [deletingTags, setDeletingTags] = useState<Set<string>>(new Set())
   const [prUrlInput, setPrUrlInput] = useState(task.prUrl || '')
   const [isEditingPrUrl, setIsEditingPrUrl] = useState(false)
+  const [projectSearchQuery, setProjectSearchQuery] = useState('')
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false)
+  const projectContainerRef = useRef<HTMLDivElement>(null)
+
+  const filteredProjects = useMemo(() => {
+    if (!projects) return []
+    if (!projectSearchQuery.trim()) return projects
+    const query = projectSearchQuery.toLowerCase()
+    return projects.filter((p) => p.name.toLowerCase().includes(query))
+  }, [projects, projectSearchQuery])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (projectContainerRef.current && !projectContainerRef.current.contains(e.target as Node)) {
+        setShowProjectDropdown(false)
+        setProjectSearchQuery('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleStatusChange = (status: string) => {
     updateTask.mutate({
@@ -152,6 +178,17 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
       setIsEditingPrUrl(false)
     }
   }
+
+  const handleProjectChange = (projectId: string | null) => {
+    updateTask.mutate({
+      taskId: task.id,
+      updates: { projectId },
+    })
+    setShowProjectDropdown(false)
+    setProjectSearchQuery('')
+  }
+
+  const currentProject = projects?.find((p) => p.id === task.projectId)
 
   const isOverdue = useIsOverdue(task.dueDate, task.status)
 
@@ -326,6 +363,79 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
                 onChange={handleDueDateChange}
                 isOverdue={!!isOverdue}
               />
+            </div>
+
+            {/* Project */}
+            <div className={`rounded-lg border bg-card ${paddingClass} sm:col-span-2`}>
+              <h2 className={`${headingClass} font-medium text-muted-foreground ${marginClass}`}>Project</h2>
+              <div className="relative" ref={projectContainerRef}>
+                {showProjectDropdown ? (
+                  <input
+                    type="text"
+                    value={projectSearchQuery}
+                    onChange={(e) => setProjectSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setShowProjectDropdown(false)
+                        setProjectSearchQuery('')
+                      }
+                    }}
+                    placeholder="Search projects..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    autoFocus
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowProjectDropdown(true)}
+                    className="flex items-center gap-2 text-sm hover:text-primary"
+                  >
+                    <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={2} className="text-muted-foreground" />
+                    <span className={currentProject ? '' : 'text-muted-foreground italic'}>
+                      {currentProject?.name ?? 'No project'}
+                    </span>
+                  </button>
+                )}
+
+                {showProjectDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                    <button
+                      type="button"
+                      className={cn(
+                        'w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between',
+                        !task.projectId && 'bg-accent'
+                      )}
+                      onClick={() => handleProjectChange(null)}
+                    >
+                      <span className="text-muted-foreground">No project</span>
+                      {!task.projectId && (
+                        <HugeiconsIcon icon={Tick01Icon} size={14} className="text-primary" />
+                      )}
+                    </button>
+                    {filteredProjects.map((project) => (
+                      <button
+                        key={project.id}
+                        type="button"
+                        className={cn(
+                          'w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between',
+                          task.projectId === project.id && 'bg-accent'
+                        )}
+                        onClick={() => handleProjectChange(project.id)}
+                      >
+                        <span>{project.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {project.taskCount ?? 0} tasks
+                        </span>
+                      </button>
+                    ))}
+                    {filteredProjects.length === 0 && projectSearchQuery && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        No projects found
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
