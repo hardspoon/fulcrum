@@ -111,7 +111,6 @@ async function runHourlySweep(): Promise<void> {
       lastSweepTime: lastSweep?.completedAt ?? null,
       actionableMemoryCount,
       openTaskCount,
-      memoryFileLineCount,
     })
 
     // Invoke assistant

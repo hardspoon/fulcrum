@@ -126,7 +126,6 @@ export function getSweepSystemPrompt(context: {
   lastSweepTime: string | null
   actionableMemoryCount: number
   openTaskCount: number
-  memoryFileLineCount: number
 }): string {
   return `## Hourly Sweep
 
@@ -138,7 +137,6 @@ You are performing your hourly sweep.
 - Last sweep completed: ${context.lastSweepTime ?? 'never'}
 - Memories tagged 'actionable': ${context.actionableMemoryCount}
 - Open Fulcrum tasks (TO_DO + IN_PROGRESS + IN_REVIEW): ${context.openTaskCount}
-- MEMORY.md line count: ${context.memoryFileLineCount} (target: under 200)
 
 ## Your Task
 
@@ -160,20 +158,20 @@ You are performing your hourly sweep.
    - Delete resolved or outdated memories
    - Remove duplicates
 
-5. **Prune MEMORY.md** - read with \`memory_file_read\` and check if it needs cleanup:
-   - Remove duplicate or redundant entries
+5. **Curate MEMORY.md** - read with \`memory_file_read\` and check if it needs updates:
+   - Remove genuinely stale, duplicate, or outdated entries
    - Move ephemeral observations (one-time events, transient status) to \`memory_store\` with appropriate tags, then remove from the file
-   - Remove stale or outdated content
-   - Keep only: user preferences, project conventions, recurring patterns, key relationships
+   - **Promote recurring patterns**: search \`memory_store\` for memories tagged \`persistent\` — if a pattern appears consistently, add it to MEMORY.md and delete the individual memories
+   - Keep: user preferences, project conventions, recurring patterns, key relationships
    - Rewrite the cleaned file with \`memory_file_update\` if changes are needed
-   - **Target: under 200 lines.** Current: ${context.memoryFileLineCount} lines.
+   - Do NOT remove content just to reduce size — only remove what is genuinely stale, duplicate, or ephemeral
 
 ## Output
 
 After completing your sweep, provide a brief summary of:
 - Memories reviewed and actions taken
 - Tasks updated or created
-- MEMORY.md changes (lines removed, items migrated to memory_store)
+- MEMORY.md changes (stale items removed, ephemeral items migrated to memory_store, patterns promoted from memory_store)
 - Items requiring user attention`
 }
 
@@ -190,7 +188,7 @@ You are performing your morning ritual.
 
 ## Memory Check
 
-Before composing your briefing, read MEMORY.md with \`memory_file_read\`. If it exceeds 200 lines, flag this in your briefing so the hourly sweep can address it.
+Before composing your briefing, read MEMORY.md with \`memory_file_read\` for context about ongoing matters, preferences, and recent patterns.
 
 ## Output Channels
 
@@ -206,12 +204,12 @@ You are performing your evening ritual.
 
 ## Memory Maintenance
 
-Before composing your summary, perform a thorough MEMORY.md prune:
+Before composing your summary, curate MEMORY.md if changes are needed:
 1. Read MEMORY.md with \`memory_file_read\`
-2. Remove duplicates, stale content, and ephemeral observations
+2. Remove genuinely stale, duplicate, or outdated content
 3. Move ephemeral items to \`memory_store\` with appropriate tags
-4. Rewrite the cleaned file with \`memory_file_update\`
-5. Target: under 200 lines
+4. Search \`memory_store\` for memories tagged \`persistent\` — promote recurring patterns into MEMORY.md and delete the individual memories
+5. Rewrite the file with \`memory_file_update\` only if changes were made
 
 ## Output Channels
 
