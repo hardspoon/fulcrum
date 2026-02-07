@@ -375,6 +375,11 @@ export interface StreamMessageOptions {
    * - 'trusted' (default): Full tool access (claude_code preset + all MCP tools).
    */
   securityTier?: 'observer' | 'trusted'
+  /**
+   * Ephemeral mode: one-shot query with no message persistence or session resume.
+   * Used for observer sessions where each call should be independent.
+   */
+  ephemeral?: boolean
   /** JSON schema for structured output from the agent SDK */
   outputFormat?: { type: 'json_schema'; schema: Record<string, unknown> }
 }
@@ -564,12 +569,14 @@ export async function* streamMessage(
     return
   }
 
-  // Save user message
-  addMessage(sessionId, {
-    role: 'user',
-    content: userMessage,
-    sessionId,
-  })
+  // Save user message (skip for ephemeral sessions like observers)
+  if (!options.ephemeral) {
+    addMessage(sessionId, {
+      role: 'user',
+      content: userMessage,
+      sessionId,
+    })
+  }
 
   const settings = getSettings()
   const port = settings.server.port
@@ -578,11 +585,13 @@ export async function* streamMessage(
   const effectiveModelId: ModelId = options.modelId ?? settings.assistant.model
 
   // Get or create session state (restore from DB on first access after restart)
+  // Ephemeral sessions never resume — each call is independent
   let state = sessionState.get(sessionId)
   if (!state) {
-    state = { claudeSessionId: session.claudeSessionId ?? undefined }
+    state = { claudeSessionId: options.ephemeral ? undefined : (session.claudeSessionId ?? undefined) }
     sessionState.set(sessionId, state)
   }
+  const resumeSessionId = options.ephemeral ? undefined : state.claudeSessionId
 
   // Initialize temp files array before try block so it's always in scope
   // for the finally block cleanup, even if errors occur early
@@ -687,14 +696,15 @@ User message: ${userMessage}`
       sessionId,
       requestedModelId: effectiveModelId,
       resolvedModel: MODEL_MAP[effectiveModelId],
-      resumeSessionId: state.claudeSessionId ?? null,
+      resumeSessionId: resumeSessionId ?? null,
+      ephemeral: options.ephemeral ?? false,
     })
 
     const result = query({
       prompt: fullPrompt,
       options: {
         model: MODEL_MAP[effectiveModelId],
-        resume: state.claudeSessionId,
+        resume: resumeSessionId,
         includePartialMessages: true,
         pathToClaudeCodeExecutable: getClaudeCodePathForSdk(),
         mcpServers: {
@@ -710,6 +720,8 @@ User message: ${userMessage}`
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         settingSources: ['user'],
+        // Ephemeral sessions don't persist to disk — each call is independent
+        ...(options.ephemeral && { persistSession: false, maxTurns: 3 }),
         ...(options.outputFormat && { outputFormat: options.outputFormat }),
       },
     })
@@ -745,12 +757,15 @@ User message: ${userMessage}`
         }
       } else if (message.type === 'assistant') {
         const assistantMsg = message as { type: 'assistant'; session_id: string; message: { content: Array<{ type: string; text?: string }> } }
-        state.claudeSessionId = assistantMsg.session_id
-        // Persist to database for restart recovery
-        db.update(chatSessions)
-          .set({ claudeSessionId: assistantMsg.session_id })
-          .where(eq(chatSessions.id, sessionId))
-          .run()
+        // Ephemeral sessions don't track session IDs — each call is independent
+        if (!options.ephemeral) {
+          state.claudeSessionId = assistantMsg.session_id
+          // Persist to database for restart recovery
+          db.update(chatSessions)
+            .set({ claudeSessionId: assistantMsg.session_id })
+            .where(eq(chatSessions.id, sessionId))
+            .run()
+        }
 
         const textContent = assistantMsg.message.content
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
@@ -806,11 +821,13 @@ User message: ${userMessage}`
         if (resultMsg.subtype?.startsWith('error_')) {
           const errors = resultMsg.errors || ['Unknown error']
           // Reset Claude session so next attempt starts fresh instead of resuming broken session
-          state.claudeSessionId = undefined
-          db.update(chatSessions)
-            .set({ claudeSessionId: null })
-            .where(eq(chatSessions.id, sessionId))
-            .run()
+          if (!options.ephemeral) {
+            state.claudeSessionId = undefined
+            db.update(chatSessions)
+              .set({ claudeSessionId: null })
+              .where(eq(chatSessions.id, sessionId))
+              .run()
+          }
           yield { type: 'error', data: { message: errors.join(', ') } }
         }
 
@@ -826,9 +843,8 @@ User message: ${userMessage}`
       }
     }
 
-    // Save assistant message (skip empty responses — they provide no value
-    // and may contribute to session corruption on resume)
-    if (currentText.trim()) {
+    // Save assistant message (skip for ephemeral sessions and empty responses)
+    if (!options.ephemeral && currentText.trim()) {
       addMessage(sessionId, {
         role: 'assistant',
         content: currentText,
@@ -844,11 +860,13 @@ User message: ${userMessage}`
     const errorMsg = err instanceof Error ? err.message : String(err)
     log.assistant.error('Assistant stream error', { sessionId, error: errorMsg })
     // Reset Claude session so next attempt starts fresh instead of resuming broken session
-    state.claudeSessionId = undefined
-    db.update(chatSessions)
-      .set({ claudeSessionId: null })
-      .where(eq(chatSessions.id, sessionId))
-      .run()
+    if (!options.ephemeral) {
+      state.claudeSessionId = undefined
+      db.update(chatSessions)
+        .set({ claudeSessionId: null })
+        .where(eq(chatSessions.id, sessionId))
+        .run()
+    }
     yield { type: 'error', data: { message: errorMsg } }
   } finally {
     // Clean up temp files created for image/document attachments

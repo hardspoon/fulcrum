@@ -86,7 +86,10 @@ describe('Message Handler', () => {
       // The observe-only path uses assistantService.streamMessage with securityTier: 'observer'
       expect(streamMessageCalls.length).toBe(1)
       expect(streamMessageCalls[0].options).toBeDefined()
-      expect((streamMessageCalls[0].options as Record<string, unknown>).securityTier).toBe('observer')
+      const observerOpts = streamMessageCalls[0].options as Record<string, unknown>
+      expect(observerOpts.securityTier).toBe('observer')
+      // Observer sessions are ephemeral — no resume, no message persistence
+      expect(observerOpts.ephemeral).toBe(true)
     })
 
     test('observe-only message does not send a response', async () => {

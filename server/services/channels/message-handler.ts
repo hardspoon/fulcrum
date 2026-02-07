@@ -556,11 +556,13 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
     let hadError = false
     const observerModelId = settings.assistant.observerModel
 
-    // Stream with observer security tier: no built-in tools, MCP restricted to memory only
+    // Stream with observer security tier: no built-in tools, MCP restricted to memory only.
+    // Ephemeral: each observation is independent — no session resume, no message persistence.
     const stream = _deps.streamMessage(session.id, msg.content, {
       systemPromptAdditions: systemPrompt,
       modelId: observerModelId,
       securityTier: 'observer',
+      ephemeral: true,
     })
 
     // Consume stream
