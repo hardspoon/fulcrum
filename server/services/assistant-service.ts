@@ -246,7 +246,12 @@ ${knowledge}`
 
 ## Master Memory File
 
-This is your persistent memory. Update it with \`memory_file_update\` when you learn broadly useful information about the user, their preferences, projects, or recurring patterns.
+This is your persistent memory (MEMORY.md), injected into every conversation.
+
+**What belongs here:** user preferences, project conventions, recurring patterns, key relationships, important decisions.
+**What does NOT belong:** ephemeral observations, one-time events, transient status — use \`memory_store\` with appropriate tags instead.
+
+Update with \`memory_file_update\` only for broadly useful, long-term knowledge. The hourly sweep automatically prunes this file.
 
 ${memoryFileContent}`
   }

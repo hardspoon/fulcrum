@@ -181,8 +181,11 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 - \`memory_file_read\` - Read the master memory file (MEMORY.md)
 - \`memory_file_update\` - Update the file (whole or by section heading)
 
-**Ephemeral Memories:**
+**Memory Management:**
 - \`memory_store\` - Store individual knowledge snippets with optional tags
+- \`memory_search\` - Full-text search across memories (FTS5: AND, OR, NOT, "phrases", prefix*)
+- \`memory_list\` - List memories with optional tag filter and pagination
+- \`memory_delete\` - Delete a memory by ID (for cleanup of resolved/stale items)
 
 **Google Account & Gmail Tools:**
 - \`list_google_accounts\` - List all Google accounts with calendar/Gmail status
@@ -540,7 +543,7 @@ Fulcrum is your digital concierge - a personal command center where you track ev
 - send_notification
 - search (unified FTS5 search across tasks, projects, messages, events, memories, conversations; gmail is opt-in via \`entities: ["gmail"]\`)
 - memory_file_read, memory_file_update (master memory file - always in prompt)
-- memory_store (ephemeral knowledge snippets with tags)
+- memory_store, memory_search, memory_list, memory_delete (persistent knowledge with tags)
 - message (send to WhatsApp/Discord/Telegram/Slack/Gmail - user-only, concierge mode)
 - memory_store with tag \`actionable\` (track things needing attention - concierge mode)
 - search with memoryTags filter (find tracked items by tag)

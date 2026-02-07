@@ -89,20 +89,21 @@ ${(context.metadata as { isGroup?: boolean })?.isGroup ? `**Group Chat**: yes` :
 
 ## Available Tools
 
-- \`memory_store\` - Store ephemeral observations with tags
-- \`memory_file_read\` - Read the master memory file
-- \`memory_file_update\` - Update the master memory file (for important persistent observations)
+- \`memory_store\` - Store observations with tags (use this for everything — the sweep promotes important patterns to MEMORY.md)
+- \`memory_search\` - Search existing memories to avoid duplicates
+- \`memory_list\` - List existing memories by tag
+- \`memory_file_read\` - Read the master memory file (read-only in observer mode)
 
 ## Your Task
 
 Silently analyze this message and decide if it needs to be tracked:
 
-1. **Actionable requests directed at the user** (deadlines, meetings, tasks) → Store a memory with tag \`actionable\`
-2. **Important information** (confirmations, updates about ongoing matters) → Store a memory with tag \`monitoring\`
-3. **Important persistent observations** (learning someone's name, recurring topics, key relationships) → Update the memory file with \`memory_file_update\`
+1. **Actionable requests directed at the user** (deadlines, meetings, tasks) → \`memory_store\` with tag \`actionable\`
+2. **Important information** (confirmations, updates about ongoing matters) → \`memory_store\` with tag \`monitoring\`
+3. **Important persistent observations** (learning someone's name, recurring topics, key relationships) → \`memory_store\` with tag \`persistent\` (the hourly sweep will promote important patterns to MEMORY.md)
 4. **Casual messages, spam, or irrelevant content** → Do nothing
 
-Use \`memory_store\` for transient observations. Use \`memory_file_update\` only for broadly useful, long-term knowledge.
+**Always use \`memory_store\`** — never write to MEMORY.md directly. The hourly sweep reviews stored memories and promotes important patterns to the memory file.
 Include the source channel as the \`source\` field (e.g., "channel:${context.channel}").
 
 ## Security Warning
@@ -125,6 +126,7 @@ export function getSweepSystemPrompt(context: {
   lastSweepTime: string | null
   actionableMemoryCount: number
   openTaskCount: number
+  memoryFileLineCount: number
 }): string {
   return `## Hourly Sweep
 
@@ -136,11 +138,12 @@ You are performing your hourly sweep.
 - Last sweep completed: ${context.lastSweepTime ?? 'never'}
 - Memories tagged 'actionable': ${context.actionableMemoryCount}
 - Open Fulcrum tasks (TO_DO + IN_PROGRESS + IN_REVIEW): ${context.openTaskCount}
+- MEMORY.md line count: ${context.memoryFileLineCount} (target: under 200)
 
 ## Your Task
 
 1. **Review actionable memories** - use \`memory_search\` to find memories tagged \`actionable\` or \`monitoring\` and check for:
-   - Items that have been resolved (delete the memory or remove the tag)
+   - Items that have been resolved → delete with \`memory_delete\`
    - Patterns or connections between tracked items
    - Items that should be linked to tasks
 
@@ -153,14 +156,24 @@ You are performing your hourly sweep.
    - Store memories with tag \`actionable\` for missed items
    - Take action if still relevant
 
-4. **Update your records** - delete resolved memories or update their tags
+4. **Clean up memories** - use \`memory_list\` and \`memory_delete\` to:
+   - Delete resolved or outdated memories
+   - Remove duplicates
+
+5. **Prune MEMORY.md** - read with \`memory_file_read\` and check if it needs cleanup:
+   - Remove duplicate or redundant entries
+   - Move ephemeral observations (one-time events, transient status) to \`memory_store\` with appropriate tags, then remove from the file
+   - Remove stale or outdated content
+   - Keep only: user preferences, project conventions, recurring patterns, key relationships
+   - Rewrite the cleaned file with \`memory_file_update\` if changes are needed
+   - **Target: under 200 lines.** Current: ${context.memoryFileLineCount} lines.
 
 ## Output
 
 After completing your sweep, provide a brief summary of:
 - Memories reviewed and actions taken
 - Tasks updated or created
-- Any patterns noticed
+- MEMORY.md changes (lines removed, items migrated to memory_store)
 - Items requiring user attention`
 }
 
@@ -175,6 +188,10 @@ export function getRitualSystemPrompt(type: 'morning' | 'evening'): string {
 
 You are performing your morning ritual.
 
+## Memory Check
+
+Before composing your briefing, read MEMORY.md with \`memory_file_read\`. If it exceeds 200 lines, flag this in your briefing so the hourly sweep can address it.
+
 ## Output Channels
 
 Use the \`list_messaging_channels\` tool to discover which messaging channels are available and connected.
@@ -186,6 +203,15 @@ Then use the \`message\` tool to send your briefing — just specify \`channel\`
 **This is a non-interactive background session. Do not ask questions or wait for user input.**
 
 You are performing your evening ritual.
+
+## Memory Maintenance
+
+Before composing your summary, perform a thorough MEMORY.md prune:
+1. Read MEMORY.md with \`memory_file_read\`
+2. Remove duplicates, stale content, and ephemeral observations
+3. Move ephemeral items to \`memory_store\` with appropriate tags
+4. Rewrite the cleaned file with \`memory_file_update\`
+5. Target: under 200 lines
 
 ## Output Channels
 

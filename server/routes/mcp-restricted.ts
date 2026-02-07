@@ -1,15 +1,16 @@
 /**
  * Restricted MCP endpoints for untrusted contexts.
  *
- * /mcp/observer — only memory tools (memory_store, memory_search).
+ * /mcp/observer — observer-safe memory tools (store, search, list — no delete)
+ * and read-only memory file access (no write).
  * Used for observe-only channel messages where the input is untrusted
  * third-party content (non-self WhatsApp chats, unauthorized emails).
  */
 import { Hono } from 'hono'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import { registerMemoryTools } from '../../cli/src/mcp/tools/memory'
-import { registerMemoryFileTools } from '../../cli/src/mcp/tools/memory-file'
+import { registerMemoryObserverTools } from '../../cli/src/mcp/tools/memory'
+import { registerMemoryFileReadTool } from '../../cli/src/mcp/tools/memory-file'
 import { FulcrumClient } from '../../cli/src/client'
 import { getSettings } from '../lib/settings'
 
@@ -29,8 +30,8 @@ mcpObserverRoutes.all('/', async (c) => {
   })
 
   const client = new FulcrumClient(`http://localhost:${port}`)
-  registerMemoryTools(server, client)
-  registerMemoryFileTools(server, client)
+  registerMemoryObserverTools(server, client)
+  registerMemoryFileReadTool(server, client)
 
   await server.connect(transport)
 

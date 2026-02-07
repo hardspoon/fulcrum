@@ -12,6 +12,7 @@ import { getSettings } from '../lib/settings'
 import * as assistantService from './assistant-service'
 import { getOrCreateSession } from './channels/session-mapper'
 import { getSweepSystemPrompt, getRitualSystemPrompt } from './channels/system-prompts'
+import { readMemoryFile } from './memory-file-service'
 
 // Intervals
 const HOURLY_INTERVAL = 60 * 60 * 1000 // 1 hour
@@ -85,11 +86,14 @@ async function runHourlySweep(): Promise<void> {
     const lastSweep = getLastSweepRun('hourly')
     const actionableMemoryCount = countActionableMemories()
     const openTaskCount = countOpenTasks()
+    const memoryFileContent = readMemoryFile()
+    const memoryFileLineCount = memoryFileContent.trim() ? memoryFileContent.split('\n').length : 0
 
     log.assistant.info('Running hourly sweep', {
       runId: run.id,
       actionableMemories: actionableMemoryCount,
       openTasks: openTaskCount,
+      memoryFileLines: memoryFileLineCount,
     })
 
     // Get or create a session for sweep operations
@@ -107,6 +111,7 @@ async function runHourlySweep(): Promise<void> {
       lastSweepTime: lastSweep?.completedAt ?? null,
       actionableMemoryCount,
       openTaskCount,
+      memoryFileLineCount,
     })
 
     // Invoke assistant

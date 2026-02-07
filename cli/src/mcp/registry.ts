@@ -762,6 +762,27 @@ export const toolRegistry: ToolMetadata[] = [
     defer_loading: false,
   },
   {
+    name: 'memory_search',
+    description: 'Search persistent memories using full-text search (FTS5)',
+    category: 'memory',
+    keywords: ['memory', 'search', 'find', 'query', 'fts', 'recall', 'knowledge'],
+    defer_loading: false,
+  },
+  {
+    name: 'memory_list',
+    description: 'List persistent memories with optional tag filter',
+    category: 'memory',
+    keywords: ['memory', 'list', 'browse', 'tags', 'filter', 'all'],
+    defer_loading: false,
+  },
+  {
+    name: 'memory_delete',
+    description: 'Delete a persistent memory by ID',
+    category: 'memory',
+    keywords: ['memory', 'delete', 'remove', 'clean', 'resolved', 'outdated'],
+    defer_loading: false,
+  },
+  {
     name: 'memory_file_read',
     description: 'Read the master memory file (MEMORY.md)',
     category: 'memory',

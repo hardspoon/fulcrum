@@ -5,8 +5,10 @@ import { z } from 'zod'
 import type { ToolRegistrar } from './types'
 import { formatSuccess, handleToolError } from '../utils'
 
-export const registerMemoryFileTools: ToolRegistrar = (server, client) => {
-  // memory_file_read - Read the full memory file
+/**
+ * Register only the read tool (for observer/untrusted contexts)
+ */
+export const registerMemoryFileReadTool: ToolRegistrar = (server, client) => {
   server.tool(
     'memory_file_read',
     'Read the master memory file (MEMORY.md). This file contains persistent knowledge, user preferences, and instructions that are included in every conversation.',
@@ -20,6 +22,14 @@ export const registerMemoryFileTools: ToolRegistrar = (server, client) => {
       }
     }
   )
+}
+
+/**
+ * Register all memory file tools (read + write — for trusted contexts)
+ */
+export const registerMemoryFileTools: ToolRegistrar = (server, client) => {
+  // Register read tool
+  registerMemoryFileReadTool(server, client)
 
   // memory_file_update - Update the memory file (whole or by section)
   server.tool(
