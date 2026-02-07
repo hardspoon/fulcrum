@@ -12,7 +12,7 @@ app.get('/', async (c) => {
 
   const entitiesParam = c.req.query('entities')
   const entities = entitiesParam
-    ? (entitiesParam.split(',').map((e) => e.trim()) as ('tasks' | 'projects' | 'messages' | 'events' | 'memories' | 'conversations')[])
+    ? (entitiesParam.split(',').map((e) => e.trim()) as ('tasks' | 'projects' | 'messages' | 'events' | 'memories' | 'conversations' | 'gmail')[])
     : undefined
 
   const limitParam = c.req.query('limit')
@@ -34,6 +34,11 @@ app.get('/', async (c) => {
   const conversationProvider = c.req.query('conversationProvider') || undefined
   const conversationProjectId = c.req.query('conversationProjectId') || undefined
 
+  const gmailFrom = c.req.query('gmailFrom') || undefined
+  const gmailTo = c.req.query('gmailTo') || undefined
+  const gmailAfter = c.req.query('gmailAfter') || undefined
+  const gmailBefore = c.req.query('gmailBefore') || undefined
+
   try {
     const results = await search({
       query: query.trim(),
@@ -49,6 +54,10 @@ app.get('/', async (c) => {
       conversationRole,
       conversationProvider,
       conversationProjectId,
+      gmailFrom,
+      gmailTo,
+      gmailAfter,
+      gmailBefore,
     })
 
     return c.json(results)

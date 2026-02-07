@@ -1445,6 +1445,10 @@ export class FulcrumClient {
     conversationRole?: string
     conversationProvider?: string
     conversationProjectId?: string
+    gmailFrom?: string
+    gmailTo?: string
+    gmailAfter?: string
+    gmailBefore?: string
   }): Promise<Array<{
     entityType: string
     id: string
@@ -1466,6 +1470,10 @@ export class FulcrumClient {
     if (input.conversationRole) params.set('conversationRole', input.conversationRole)
     if (input.conversationProvider) params.set('conversationProvider', input.conversationProvider)
     if (input.conversationProjectId) params.set('conversationProjectId', input.conversationProjectId)
+    if (input.gmailFrom) params.set('gmailFrom', input.gmailFrom)
+    if (input.gmailTo) params.set('gmailTo', input.gmailTo)
+    if (input.gmailAfter) params.set('gmailAfter', input.gmailAfter)
+    if (input.gmailBefore) params.set('gmailBefore', input.gmailBefore)
     return this.fetch(`/api/search?${params.toString()}`)
   }
 

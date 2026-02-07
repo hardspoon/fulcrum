@@ -1,9 +1,11 @@
 import { db } from '../db'
-import { sql } from 'drizzle-orm'
+import { sql, eq } from 'drizzle-orm'
+import { googleAccounts } from '../db/schema'
+import { createLogger } from '../lib/logger'
 
 export interface SearchOptions {
   query: string
-  entities?: ('tasks' | 'projects' | 'messages' | 'events' | 'memories' | 'conversations')[]
+  entities?: ('tasks' | 'projects' | 'messages' | 'events' | 'memories' | 'conversations' | 'gmail')[]
   limit?: number
   // Entity-specific filters
   taskStatus?: string[]
@@ -16,10 +18,15 @@ export interface SearchOptions {
   conversationRole?: string
   conversationProvider?: string
   conversationProjectId?: string
+  // Gmail-specific filters
+  gmailFrom?: string
+  gmailTo?: string
+  gmailAfter?: string
+  gmailBefore?: string
 }
 
 export interface SearchResult {
-  entityType: 'task' | 'project' | 'message' | 'event' | 'memory' | 'conversation'
+  entityType: 'task' | 'project' | 'message' | 'event' | 'memory' | 'conversation' | 'gmail'
   id: string
   title: string
   snippet: string
@@ -27,6 +34,7 @@ export interface SearchResult {
   metadata: Record<string, unknown>
 }
 
+// Gmail is opt-in only — not included in default searches to avoid latency/rate-limit impact
 const ALL_ENTITIES: SearchOptions['entities'] = ['tasks', 'projects', 'messages', 'events', 'memories', 'conversations']
 
 export async function search(options: SearchOptions): Promise<SearchResult[]> {
@@ -47,6 +55,8 @@ export async function search(options: SearchOptions): Promise<SearchResult[]> {
         return searchMemories(options.query, { tags: options.memoryTags }, limit)
       case 'conversations':
         return searchConversations(options.query, { role: options.conversationRole, provider: options.conversationProvider, projectId: options.conversationProjectId }, limit)
+      case 'gmail':
+        return searchGmail(options.query, { from: options.gmailFrom, to: options.gmailTo, after: options.gmailAfter, before: options.gmailBefore }, limit)
     }
   })
 
@@ -395,6 +405,67 @@ export async function searchConversations(
       createdAt: r.createdAt,
     },
   }))
+}
+
+const logger = createLogger('SearchService')
+
+async function searchGmail(
+  query: string,
+  filters: { from?: string; to?: string; after?: string; before?: string },
+  limit: number
+): Promise<SearchResult[]> {
+  // Find all gmail-enabled accounts
+  const accounts = db.select().from(googleAccounts).where(eq(googleAccounts.gmailEnabled, true)).all()
+  if (!accounts.length) return []
+
+  // Build Gmail search query: combine FTS query with structured filters
+  const parts = [query]
+  if (filters.from) parts.push(`from:${filters.from}`)
+  if (filters.to) parts.push(`to:${filters.to}`)
+  if (filters.after) parts.push(`after:${filters.after}`)
+  if (filters.before) parts.push(`before:${filters.before}`)
+  const gmailQuery = parts.join(' ')
+
+  // Lazy-load Gmail service to avoid loading googleapis when not needed
+  const { listMessages } = await import('./google/gmail-service')
+
+  // Search all accounts in parallel, gracefully handling failures
+  const results = await Promise.allSettled(
+    accounts.map(async (account) => {
+      const messages = await listMessages(account.id, {
+        query: gmailQuery,
+        maxResults: limit,
+      })
+      return messages.map((msg) => ({
+        entityType: 'gmail' as const,
+        id: msg.id,
+        title: msg.subject || '(no subject)',
+        snippet: msg.snippet || '',
+        score: 0.9, // Fixed score — Gmail doesn't provide relevance ranking
+        metadata: {
+          threadId: msg.threadId,
+          from: msg.from,
+          to: msg.to,
+          date: msg.date,
+          labels: msg.labels,
+          accountId: account.id,
+          accountEmail: account.email,
+          gmailLink: `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
+        },
+      }))
+    })
+  )
+
+  const allResults: SearchResult[] = []
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      allResults.push(...result.value)
+    } else {
+      logger.warn('Gmail search failed for an account', { error: String(result.reason) })
+    }
+  }
+
+  return allResults.slice(0, limit)
 }
 
 /**

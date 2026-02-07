@@ -777,9 +777,9 @@ export const toolRegistry: ToolMetadata[] = [
   },
   {
     name: 'search',
-    description: 'Search across all Fulcrum entities (tasks, projects, messages, events, memories) using full-text search',
+    description: 'Search across all Fulcrum entities (tasks, projects, messages, events, memories, gmail) using full-text search',
     category: 'core',
-    keywords: ['search', 'find', 'query', 'fts', 'full-text', 'task', 'project', 'message', 'event', 'memory', 'recall', 'knowledge'],
+    keywords: ['search', 'find', 'query', 'fts', 'full-text', 'task', 'project', 'message', 'event', 'memory', 'recall', 'knowledge', 'gmail', 'email', 'google'],
     defer_loading: false,
   },
 

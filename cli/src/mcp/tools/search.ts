@@ -5,13 +5,13 @@ import { z } from 'zod'
 import type { ToolRegistrar } from './types'
 import { formatSuccess, handleToolError } from '../utils'
 
-const EntityTypeSchema = z.enum(['tasks', 'projects', 'messages', 'events', 'memories', 'conversations'])
+const EntityTypeSchema = z.enum(['tasks', 'projects', 'messages', 'events', 'memories', 'conversations', 'gmail'])
 
 export const registerSearchTools: ToolRegistrar = (server, client) => {
   // search - Unified full-text search across tasks, projects, messages, events, and memories
   server.tool(
     'search',
-    'Search across all Fulcrum entities (tasks, projects, messages, calendar events, memories, conversations) using full-text search. Supports boolean operators (AND, OR, NOT), phrase matching ("quoted phrases"), and prefix matching (term*). Returns results ranked by relevance.',
+    'Search across all Fulcrum entities (tasks, projects, messages, calendar events, memories, conversations) using full-text search. Supports boolean operators (AND, OR, NOT), phrase matching ("quoted phrases"), and prefix matching (term*). Returns results ranked by relevance. Gmail search is opt-in: include "gmail" in entities to search Gmail via API (not included in default searches).',
     {
       query: z.string().describe('FTS5 search query. Supports: AND, OR, NOT operators, "quoted phrases", prefix* matching. Example: "kubernetes deployment" OR k8s'),
       entities: z.optional(z.array(EntityTypeSchema)).describe('Entity types to search. Defaults to all: tasks, projects, messages, events, memories, conversations'),
@@ -26,8 +26,12 @@ export const registerSearchTools: ToolRegistrar = (server, client) => {
       conversationRole: z.optional(z.string()).describe('Filter conversations by role (e.g., "user", "assistant")'),
       conversationProvider: z.optional(z.string()).describe('Filter conversations by provider (e.g., "claude", "opencode")'),
       conversationProjectId: z.optional(z.string()).describe('Filter conversations by project ID'),
+      gmailFrom: z.optional(z.string()).describe('Filter Gmail results by sender (e.g., "user@example.com")'),
+      gmailTo: z.optional(z.string()).describe('Filter Gmail results by recipient (e.g., "user@example.com")'),
+      gmailAfter: z.optional(z.string()).describe('Filter Gmail results after this date (YYYY/MM/DD format)'),
+      gmailBefore: z.optional(z.string()).describe('Filter Gmail results before this date (YYYY/MM/DD format)'),
     },
-    async ({ query, entities, limit, taskStatus, projectStatus, messageChannel, messageDirection, eventFrom, eventTo, memoryTags, conversationRole, conversationProvider, conversationProjectId }) => {
+    async ({ query, entities, limit, taskStatus, projectStatus, messageChannel, messageDirection, eventFrom, eventTo, memoryTags, conversationRole, conversationProvider, conversationProjectId, gmailFrom, gmailTo, gmailAfter, gmailBefore }) => {
       try {
         const results = await client.search({
           query,
@@ -43,6 +47,10 @@ export const registerSearchTools: ToolRegistrar = (server, client) => {
           conversationRole,
           conversationProvider,
           conversationProjectId,
+          gmailFrom,
+          gmailTo,
+          gmailAfter,
+          gmailBefore,
         })
         return formatSuccess(results)
       } catch (err) {
