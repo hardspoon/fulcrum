@@ -652,8 +652,15 @@ User message: ${userMessage}`
             {
               const tempDir = await mkdtemp(join(tmpdir(), 'fulcrum-doc-'))
               const tempPath = join(tempDir, attachment.filename || 'document.pdf')
-              await writeFile(tempPath, Buffer.from(attachment.data, 'base64'))
+              const docBuffer = Buffer.from(attachment.data, 'base64')
+              await writeFile(tempPath, docBuffer)
               tempFiles.push(tempPath)
+              log.assistant.info('Wrote document attachment to temp file', {
+                sessionId,
+                path: tempPath,
+                size: docBuffer.length,
+                header: docBuffer.subarray(0, 8).toString('ascii'),
+              })
               parts.push(`[Attached document: ${tempPath}]`)
             }
             break

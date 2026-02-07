@@ -367,6 +367,16 @@ export class SlackChannel implements MessagingChannel {
       return null
     }
 
+    // Verify content type matches what Slack reported
+    const contentType = response.headers.get('content-type')?.split(';')[0]?.trim()
+    if (contentType && contentType !== file.mimetype) {
+      log.messaging.warn('Slack file content-type mismatch', {
+        fileName: file.name,
+        expected: file.mimetype,
+        actual: contentType,
+      })
+    }
+
     const isText = file.mimetype.startsWith('text/')
     const type: AttachmentData['type'] = file.mimetype.startsWith('image/')
       ? 'image'
@@ -385,6 +395,27 @@ export class SlackChannel implements MessagingChannel {
     }
 
     const buffer = Buffer.from(await response.arrayBuffer())
+
+    // Validate binary files have expected magic bytes
+    if (file.mimetype === 'application/pdf' && buffer.length >= 4) {
+      const header = buffer.subarray(0, 5).toString('ascii')
+      if (!header.startsWith('%PDF-')) {
+        log.messaging.warn('Downloaded file is not a valid PDF', {
+          fileName: file.name,
+          header: buffer.subarray(0, 16).toString('hex'),
+          size: buffer.length,
+        })
+        return null
+      }
+    }
+
+    log.messaging.info('Downloaded Slack file', {
+      fileName: file.name,
+      mimeType: file.mimetype,
+      size: buffer.length,
+      type,
+    })
+
     return {
       mediaType: file.mimetype,
       data: buffer.toString('base64'),
