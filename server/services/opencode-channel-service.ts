@@ -38,7 +38,7 @@ async function getClient(): Promise<OpencodeClient> {
   return opencodeClient
 }
 
-const OBSERVER_SYSTEM_PROMPT = `You are an observer processing messages from external channels. Your ONLY job is to identify important information worth remembering.
+const OBSERVER_SYSTEM_PROMPT = `You are the user's observer — your core job is to prevent things from falling through the cracks. When you see something actionable, create a task. Memories are secondary — useful for context that doesn't warrant a task.
 
 IMPORTANT: You have NO tools. Instead, respond with a JSON object describing what actions to take.
 
@@ -46,30 +46,51 @@ Response format (respond with ONLY this JSON, no other text):
 {
   "actions": [
     {
+      "type": "create_task",
+      "title": "Clear action item title",
+      "description": "Details including sender and context",
+      "tags": ["from:whatsapp", "errand"],
+      "dueDate": "2025-02-18"
+    },
+    {
       "type": "store_memory",
       "content": "The fact or information to store",
-      "tags": ["tag1", "tag2"],
+      "tags": ["persistent"],
       "source": "channel:whatsapp"
     }
   ]
 }
 
-If the message contains nothing worth remembering (casual chat, greetings, spam, etc.), respond with:
+If the message contains nothing worth tracking (casual chat, greetings, spam, etc.), respond with:
 {"actions": []}
 
-Guidelines for what to store:
-- Important dates, deadlines, appointments
-- Decisions or agreements
-- Contact information
-- Project updates or status changes
-- Action items or requests
-- Key facts or data points
+## Action types
 
-Do NOT store:
+### create_task (preferred for actionable items)
+Use for: deadlines, meetings, to-dos, follow-ups, requests directed at the user.
+Fields: title (required, imperative action item), description, tags (array), dueDate (YYYY-MM-DD if mentioned).
+Write titles as clear action items (e.g., "Arrange cow rental for parade" not "Message about cow rental").
+
+### store_memory (for non-task observations)
+Use for: learning someone's name, recurring patterns, key relationships, context updates.
+Fields: content (required), tags (array), source (e.g., "channel:whatsapp").
+
+## Guidelines
+
+Create a task for:
+- Deadlines, appointments, meetings
+- Action items or requests directed at the user
+- Follow-ups or reminders
+
+Store a memory for:
+- Contact details, names, relationships
+- Project context or status updates
+- Patterns worth remembering
+
+Do nothing for:
 - Casual greetings or small talk
 - Spam or promotional content
-- Messages you don't understand
-- Trivially obvious information`
+- Messages you don't understand`
 
 /**
  * Process an observe-only channel message via OpenCode without direct tool access.
@@ -234,12 +255,62 @@ ${contextualMessage}`
             content?: string
             tags?: string[]
             source?: string
+            title?: string
+            description?: string
+            dueDate?: string
           }>
         }
 
         if (parsed.actions && Array.isArray(parsed.actions)) {
+          const settings = getSettings()
+          const fulcrumPort = settings.server?.port ?? 7777
+
           for (const action of parsed.actions) {
-            if (action.type === 'store_memory' && action.content) {
+            if (action.type === 'create_task' && action.title) {
+              try {
+                const resp = await fetch(`http://localhost:${fulcrumPort}/api/tasks`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    title: action.title,
+                    description: action.description || null,
+                    status: 'TO_DO',
+                    tags: action.tags,
+                    dueDate: action.dueDate || null,
+                  }),
+                })
+                if (!resp.ok) {
+                  log.messaging.warn('Observer failed to create task via OpenCode', {
+                    sessionId,
+                    status: resp.status,
+                    title: action.title,
+                  })
+                } else {
+                  log.messaging.info('Observer created task via OpenCode', {
+                    sessionId,
+                    title: action.title,
+                  })
+                  // Notify the user about the new task
+                  try {
+                    await fetch(`http://localhost:${fulcrumPort}/api/config/notifications/send`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        title: `New task from ${options.channelType}`,
+                        message: action.title,
+                      }),
+                    })
+                  } catch {
+                    // Best-effort notification, don't fail the flow
+                  }
+                }
+              } catch (err) {
+                log.messaging.warn('Observer task creation error via OpenCode', {
+                  sessionId,
+                  error: err instanceof Error ? err.message : String(err),
+                })
+              }
+            } else if (action.type === 'store_memory' && action.content) {
               const source = action.source || `channel:${options.channelType}`
               await storeMemory({
                 content: action.content,

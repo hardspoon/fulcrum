@@ -8,8 +8,10 @@ import { TaskStatusSchema } from './types'
 import { formatSuccess, handleToolError } from '../utils'
 import { getTodayInTimezone } from '../../../../shared/date-utils'
 
-export const registerTaskTools: ToolRegistrar = (server, client) => {
-  // list_tasks
+type Server = Parameters<ToolRegistrar>[0]
+type Client = Parameters<ToolRegistrar>[1]
+
+function registerListTasks(server: Server, client: Client) {
   server.tool(
     'list_tasks',
     'List all Fulcrum tasks with flexible filtering. Supports text search across title/tags/project, multi-tag filtering (OR logic), multi-status filtering, date range, and overdue detection.',
@@ -140,29 +142,9 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
       }
     }
   )
+}
 
-  // get_task
-  server.tool(
-    'get_task',
-    'Get details of a specific task by ID, including dependencies and attachments',
-    {
-      id: z.string().describe('Task ID (UUID)'),
-    },
-    async ({ id }) => {
-      try {
-        const [task, dependencies, attachments] = await Promise.all([
-          client.getTask(id),
-          client.getTaskDependencies(id),
-          client.listTaskAttachments(id),
-        ])
-        return formatSuccess({ ...task, dependencies, attachments })
-      } catch (err) {
-        return handleToolError(err)
-      }
-    }
-  )
-
-  // create_task
+function registerCreateTask(server: Server, client: Client) {
   server.tool(
     'create_task',
     'Create a new task. For worktree tasks, provide repoPath to create a git worktree. For non-worktree tasks, omit repoPath. When tags are provided, returns all existing tags for reference.',
@@ -238,8 +220,9 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
       }
     }
   )
+}
 
-  // update_task
+function registerUpdateTask(server: Server, client: Client) {
   server.tool(
     'update_task',
     'Update task metadata (title or description)',
@@ -256,6 +239,115 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
 
         const task = await client.updateTask(id, updates)
         return formatSuccess(task)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+}
+
+function registerAddTaskLink(server: Server, client: Client) {
+  server.tool(
+    'add_task_link',
+    'Add a URL link to a task (for documentation, related PRs, design files, etc.)',
+    {
+      taskId: z.string().describe('Task ID'),
+      url: z.string().url().describe('URL to add'),
+      label: z.optional(z.string()).describe('Display label (auto-detected if not provided)'),
+    },
+    async ({ taskId, url, label }) => {
+      try {
+        const link = await client.addTaskLink(taskId, url, label)
+        return formatSuccess(link)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+}
+
+function registerAddTaskTag(server: Server, client: Client) {
+  server.tool(
+    'add_task_tag',
+    'Add a tag to a task for categorization. Returns similar existing tags to help catch typos.',
+    {
+      taskId: z.string().describe('Task ID'),
+      tag: z.string().describe('Tag to add'),
+    },
+    async ({ taskId, tag }) => {
+      try {
+        const result = await client.addTaskTag(taskId, tag)
+
+        const allTasks = await client.listTasks()
+        const existingTags = new Set<string>()
+        for (const t of allTasks) {
+          if (t.tags) {
+            for (const tg of t.tags) {
+              existingTags.add(tg)
+            }
+          }
+        }
+
+        const tagLower = tag.toLowerCase()
+        const similarTags = Array.from(existingTags).filter(
+          (tg) =>
+            tg !== tag &&
+            (tg.toLowerCase().includes(tagLower) || tagLower.includes(tg.toLowerCase()))
+        )
+
+        return formatSuccess({
+          ...result,
+          similarTags: similarTags.length > 0 ? similarTags : undefined,
+        })
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+}
+
+function registerSetTaskDueDate(server: Server, client: Client) {
+  server.tool(
+    'set_task_due_date',
+    'Set or clear the due date for a task',
+    {
+      taskId: z.string().describe('Task ID'),
+      dueDate: z.nullable(z.string()).describe('Due date in YYYY-MM-DD format, or null to clear'),
+    },
+    async ({ taskId, dueDate }) => {
+      try {
+        const result = await client.setTaskDueDate(taskId, dueDate)
+        return formatSuccess(result)
+      } catch (err) {
+        return handleToolError(err)
+      }
+    }
+  )
+}
+
+export const registerTaskTools: ToolRegistrar = (server, client) => {
+  registerListTasks(server, client)
+  registerCreateTask(server, client)
+  registerUpdateTask(server, client)
+  registerAddTaskLink(server, client)
+  registerAddTaskTag(server, client)
+  registerSetTaskDueDate(server, client)
+
+  // get_task
+  server.tool(
+    'get_task',
+    'Get details of a specific task by ID, including dependencies and attachments',
+    {
+      id: z.string().describe('Task ID (UUID)'),
+    },
+    async ({ id }) => {
+      try {
+        const [task, dependencies, attachments] = await Promise.all([
+          client.getTask(id),
+          client.getTaskDependencies(id),
+          client.listTaskAttachments(id),
+        ])
+        return formatSuccess({ ...task, dependencies, attachments })
       } catch (err) {
         return handleToolError(err)
       }
@@ -302,25 +394,6 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
     }
   )
 
-  // add_task_link
-  server.tool(
-    'add_task_link',
-    'Add a URL link to a task (for documentation, related PRs, design files, etc.)',
-    {
-      taskId: z.string().describe('Task ID'),
-      url: z.string().url().describe('URL to add'),
-      label: z.optional(z.string()).describe('Display label (auto-detected if not provided)'),
-    },
-    async ({ taskId, url, label }) => {
-      try {
-        const link = await client.addTaskLink(taskId, url, label)
-        return formatSuccess(link)
-      } catch (err) {
-        return handleToolError(err)
-      }
-    }
-  )
-
   // remove_task_link
   server.tool(
     'remove_task_link',
@@ -356,45 +429,6 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
     }
   )
 
-  // add_task_tag
-  server.tool(
-    'add_task_tag',
-    'Add a tag to a task for categorization. Returns similar existing tags to help catch typos.',
-    {
-      taskId: z.string().describe('Task ID'),
-      tag: z.string().describe('Tag to add'),
-    },
-    async ({ taskId, tag }) => {
-      try {
-        const result = await client.addTaskTag(taskId, tag)
-
-        const allTasks = await client.listTasks()
-        const existingTags = new Set<string>()
-        for (const t of allTasks) {
-          if (t.tags) {
-            for (const tg of t.tags) {
-              existingTags.add(tg)
-            }
-          }
-        }
-
-        const tagLower = tag.toLowerCase()
-        const similarTags = Array.from(existingTags).filter(
-          (tg) =>
-            tg !== tag &&
-            (tg.toLowerCase().includes(tagLower) || tagLower.includes(tg.toLowerCase()))
-        )
-
-        return formatSuccess({
-          ...result,
-          similarTags: similarTags.length > 0 ? similarTags : undefined,
-        })
-      } catch (err) {
-        return handleToolError(err)
-      }
-    }
-  )
-
   // remove_task_tag
   server.tool(
     'remove_task_tag',
@@ -406,24 +440,6 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
     async ({ taskId, tag }) => {
       try {
         const result = await client.removeTaskTag(taskId, tag)
-        return formatSuccess(result)
-      } catch (err) {
-        return handleToolError(err)
-      }
-    }
-  )
-
-  // set_task_due_date
-  server.tool(
-    'set_task_due_date',
-    'Set or clear the due date for a task',
-    {
-      taskId: z.string().describe('Task ID'),
-      dueDate: z.nullable(z.string()).describe('Due date in YYYY-MM-DD format, or null to clear'),
-    },
-    async ({ taskId, dueDate }) => {
-      try {
-        const result = await client.setTaskDueDate(taskId, dueDate)
         return formatSuccess(result)
       } catch (err) {
         return handleToolError(err)
@@ -685,4 +701,16 @@ export const registerTaskTools: ToolRegistrar = (server, client) => {
       }
     }
   )
+}
+
+/**
+ * Register observer-safe task tools (no delete, no filesystem — for untrusted contexts)
+ */
+export const registerTaskObserverTools: ToolRegistrar = (server, client) => {
+  registerListTasks(server, client)
+  registerCreateTask(server, client)
+  registerUpdateTask(server, client)
+  registerAddTaskLink(server, client)
+  registerAddTaskTag(server, client)
+  registerSetTaskDueDate(server, client)
 }
