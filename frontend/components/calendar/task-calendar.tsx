@@ -369,6 +369,10 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, vi
               calendarColorMap={calendarColorMap}
               onTaskClick={handleTaskClick}
               onEventClick={handleEventClick}
+              onDayClick={(dateKey) => {
+                setSelectedDay(dateKey)
+                setDayDialogOpen(true)
+              }}
             />
           </div>
           {sidebar?.(undefined)}
@@ -706,7 +710,7 @@ function DayDetailDialog({
                 key={task.id}
                 onClick={() => onTaskClick(task)}
                 className={cn(
-                  'w-full truncate rounded px-2 py-1.5 text-left text-sm border transition-opacity hover:opacity-80',
+                  'w-full truncate rounded px-2 py-1.5 text-left text-sm border transition-opacity hover:opacity-80 cursor-pointer',
                   colors.bg,
                   colors.text,
                   isOverdue ? 'border-red-500' : colors.border

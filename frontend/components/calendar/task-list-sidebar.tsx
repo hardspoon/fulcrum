@@ -196,5 +196,9 @@ function formatDueDate(dueDate: string, today: string): string {
   if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`
   if (diffDays < -1 && diffDays >= -7) return `${Math.abs(diffDays)} days ago`
 
-  return dueObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+  if (dueObj.getFullYear() !== parseDateKey(today).getFullYear()) {
+    options.year = 'numeric'
+  }
+  return dueObj.toLocaleDateString('en-US', options)
 }

@@ -10,7 +10,7 @@ import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 import { glob } from 'glob'
-import { calculateNextDueDate } from '../../shared/date-utils'
+import { calculateNextDueDate, getTodayInTimezone } from '../../shared/date-utils'
 import type { RecurrenceRule } from '../../shared/types'
 
 // Helper to create git worktree (copied from tasks.ts for use in status transitions)
@@ -104,7 +104,13 @@ function createNextRecurrence(completedTask: Task): void {
     const rule = completedTask.recurrenceRule as RecurrenceRule
     if (!rule) return
 
-    const nextDueDate = calculateNextDueDate(completedTask.dueDate, rule)
+    let nextDueDate = calculateNextDueDate(completedTask.dueDate, rule)
+
+    // If the base date was far in the past, advance until we reach today or later
+    const today = getTodayInTimezone(null)
+    while (nextDueDate < today) {
+      nextDueDate = calculateNextDueDate(nextDueDate, rule)
+    }
 
     // Check if next date is past the end date
     if (completedTask.recurrenceEndDate && nextDueDate > completedTask.recurrenceEndDate) {

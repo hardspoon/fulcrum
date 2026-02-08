@@ -28,6 +28,7 @@ interface WeekViewProps {
   calendarColorMap: Map<string, string>
   onTaskClick: (task: Task) => void
   onEventClick: (event: CaldavEvent) => void
+  onDayClick: (dateKey: string) => void
 }
 
 export function WeekView({
@@ -37,6 +38,7 @@ export function WeekView({
   calendarColorMap,
   onTaskClick,
   onEventClick,
+  onDayClick,
 }: WeekViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -122,14 +124,16 @@ export function WeekView({
                   <div className="text-[10px] font-medium text-muted-foreground uppercase">
                     {day.toLocaleDateString(i18n.language, { weekday: 'short' })}
                   </div>
-                  <div
+                  <button
+                    onClick={() => onDayClick(dateKey)}
                     className={cn(
                       'mx-auto flex h-6 w-6 items-center justify-center rounded-full text-sm font-semibold',
-                      isToday && 'bg-primary text-primary-foreground'
+                      isToday && 'bg-primary text-primary-foreground',
+                      'hover:bg-accent cursor-pointer'
                     )}
                   >
                     {day.getDate()}
-                  </div>
+                  </button>
                 </div>
               )
             })}
@@ -144,6 +148,7 @@ export function WeekView({
               todayString={todayString}
               onTaskClick={onTaskClick}
               onEventClick={onEventClick}
+              onDayClick={onDayClick}
             />
           )}
         </div>
@@ -208,6 +213,7 @@ interface AllDayRowProps {
   todayString: string
   onTaskClick: (task: Task) => void
   onEventClick: (event: CaldavEvent) => void
+  onDayClick: (dateKey: string) => void
 }
 
 function AllDayRow({
@@ -217,6 +223,7 @@ function AllDayRow({
   todayString,
   onTaskClick,
   onEventClick,
+  onDayClick,
 }: AllDayRowProps) {
   const maxVisible = 3
 
@@ -281,9 +288,12 @@ function AllDayRow({
               )
             })}
             {overflow > 0 && (
-              <div className="text-[10px] text-muted-foreground px-1">
+              <button
+                onClick={() => onDayClick(dateKey)}
+                className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer px-1 text-left"
+              >
                 +{overflow} more
-              </div>
+              </button>
             )}
           </div>
         )

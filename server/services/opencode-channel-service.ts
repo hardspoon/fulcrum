@@ -38,7 +38,14 @@ async function getClient(): Promise<OpencodeClient> {
   return opencodeClient
 }
 
-const OBSERVER_SYSTEM_PROMPT = `You are the user's observer. Only create a task when the user must take a specific action or fulfill a commitment they might otherwise forget. Default to storing a memory or doing nothing — only escalate to a task when doing nothing would cause the user to miss something important. A frivolous task is worse than no task: it wastes the user's time and erodes trust.
+function getObserverSystemPrompt(): string {
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+  const exampleDate = new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  return `You are the user's observer. Only create a task when the user must take a specific action or fulfill a commitment they might otherwise forget. Default to storing a memory or doing nothing — only escalate to a task when doing nothing would cause the user to miss something important. A frivolous task is worse than no task: it wastes the user's time and erodes trust.
+
+Today's date: ${todayStr}
 
 IMPORTANT: You have NO tools. Instead, respond with a JSON object describing what actions to take.
 
@@ -50,7 +57,7 @@ Response format (respond with ONLY this JSON, no other text):
       "title": "Clear action item title",
       "description": "Details including sender and context",
       "tags": ["from:whatsapp", "errand"],
-      "dueDate": "2025-02-18"
+      "dueDate": "${exampleDate}"
     },
     {
       "type": "store_memory",
@@ -114,6 +121,7 @@ Do NOT create a task:
 
 ## Decision test
 Before creating a task, ask: "Is the user being asked to DO something specific, or would they miss a commitment without this?" If no, do nothing.`
+}
 
 /**
  * Process an observe-only channel message via OpenCode without direct tool access.
@@ -140,7 +148,7 @@ export async function* streamOpencodeObserverMessage(
 
 ${userMessage}`
 
-    const fullPrompt = `${OBSERVER_SYSTEM_PROMPT}
+    const fullPrompt = `${getObserverSystemPrompt()}
 
 ---
 
