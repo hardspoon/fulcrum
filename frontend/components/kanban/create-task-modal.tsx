@@ -40,7 +40,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Switch } from '@/components/ui/switch'
 import { useCreateTask, useAddTaskLink } from '@/hooks/use-tasks'
 import { useSearchTags } from '@/hooks/use-tags'
-import type { TagWithUsage } from '@shared/types'
+import type { TagWithUsage, RecurrenceRule } from '@shared/types'
 import { useBranches, checkIsGitRepo } from '@/hooks/use-filesystem'
 import { useWorktreeBasePath, useDefaultGitReposDir, useDefaultAgent, useOpencodeModel, useDefaultTaskType, useStartWorktreeTasksImmediately } from '@/hooks/use-config'
 import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
@@ -106,6 +106,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule | ''>('')
   const [notes, setNotes] = useState('')
   const [repoPath, setRepoPath] = useState('')
   const [baseBranch, setBaseBranch] = useState('')
@@ -369,6 +370,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
         // Generalized task fields
         tags: tags.length > 0 ? tags : undefined,
         dueDate: dueDate || null,
+        recurrenceRule: recurrenceRule || null,
         notes: notes.trim() || null,
         projectId: isCodeTask ? selectedRepoProject?.id : selectedProjectId,
         prUrl: prUrl.trim() || null,
@@ -427,6 +429,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
     setTags([])
     setTagInput('')
     setDueDate('')
+    setRecurrenceRule('')
     setNotes('')
     setPendingFiles([])
     setPendingLinks([])
@@ -978,6 +981,27 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                     showClear
                     className="border border-input rounded-md px-3 py-2 w-full justify-start"
                   />
+                </Field>
+
+                <Field className="w-32">
+                  <FieldLabel>{t('createModal.fields.repeat')}</FieldLabel>
+                  <Select
+                    value={recurrenceRule || 'none'}
+                    onValueChange={(value) => setRecurrenceRule(value === 'none' ? '' : value as RecurrenceRule)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t('createModal.recurrence.none')}</SelectItem>
+                      <SelectItem value="daily">{t('createModal.recurrence.daily')}</SelectItem>
+                      <SelectItem value="weekly">{t('createModal.recurrence.weekly')}</SelectItem>
+                      <SelectItem value="biweekly">{t('createModal.recurrence.biweekly')}</SelectItem>
+                      <SelectItem value="monthly">{t('createModal.recurrence.monthly')}</SelectItem>
+                      <SelectItem value="quarterly">{t('createModal.recurrence.quarterly')}</SelectItem>
+                      <SelectItem value="yearly">{t('createModal.recurrence.yearly')}</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </Field>
               </div>
 

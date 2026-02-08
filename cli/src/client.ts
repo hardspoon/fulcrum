@@ -43,6 +43,8 @@ export interface CreateTaskInput {
   repositoryId?: string | null
   tags?: string[]
   dueDate?: string | null
+  recurrenceRule?: string | null
+  recurrenceEndDate?: string | null
 }
 
 export interface TaskTagsResponse {

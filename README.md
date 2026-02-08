@@ -17,7 +17,7 @@ Fulcrum doesn't replace your tools—it gives you leverage over them. You config
 - **Claude Code Ecosystem** — Deep integration with Claude Code. Connect via messaging channels, manage tasks, deploy from one dashboard.
 - **Proactive AI Concierge** — Your assistant monitors messages, stores important observations as memories, creates daily plans, and sends morning/evening briefings automatically.
 - **Work From Anywhere** — Run Fulcrum on a remote server. Close your laptop, agents keep working.
-- **Project Management** — Tasks with dependencies, due dates, labels, and attachments. Visual kanban boards.
+- **Project Management** — Tasks with dependencies, due dates, recurrence, labels, and attachments. Visual kanban boards.
 - **Production Deployment** — Docker Compose with automatic Traefik routing and Cloudflare DNS/tunnels.
 - **Agent Memory** — Persistent knowledge store with full-text search. Agents remember across sessions.
 - **MCP-First Architecture** — 60+ tools exposed via Model Context Protocol. Agents discover what they need.
@@ -42,7 +42,7 @@ Fulcrum's AI assistant doesn't just respond—it actively monitors and manages y
 
 When messages arrive via Email, WhatsApp, Discord, Telegram, or Slack:
 
-- **Actionable requests** (deadlines, meetings, tasks) → Stored as memories with `actionable` tag, optionally creates tasks
+- **Actionable requests** (deadlines, meetings, tasks) → Creates Fulcrum tasks and stores as memories with `actionable` tag
 - **Casual conversations** → Responded to naturally, no tracking overhead
 - **Spam/newsletters** → Silently ignored
 
@@ -120,7 +120,7 @@ claude plugin install fulcrum@fulcrum --scope user
 
 ### Kanban Board & AI Assistant
 
-Track tasks from planning to done. The built-in AI assistant has full context of everything you're tracking—tasks, projects, apps—and can help with planning, documentation, or running MCP tools.
+Track tasks from planning to done. Set up recurring tasks that auto-create the next occurrence when completed. The built-in AI assistant has full context of everything you're tracking—tasks, projects, apps—and can help with planning, documentation, or running MCP tools.
 
 ![Kanban Board with AI Assistant](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/kanban-with-assistant-dark.png)
 
@@ -156,12 +156,13 @@ Create documents with live preview. Generate charts and visualizations. The assi
 
 ### Calendar Integration
 
-Connect multiple calendar accounts so the AI assistant knows your schedule. Calendar has its own top-level page (`/calendar`, Cmd+7) with project and tag filters.
+Connect multiple calendar accounts so the AI assistant knows your schedule. Calendar has its own top-level page (`/calendar`, Cmd+7) with month and week views, project and tag filters.
 
 - **Google Calendar** — Direct Google API integration via OAuth2 (recommended)
 - **Any CalDAV server** — Nextcloud, Radicale, Baikal, iCloud
 - **Multiple accounts** — Add as many accounts as you need
 - **Automatic sync** — Each account syncs independently on a configurable interval
+- **Weekly view** — Google Calendar-style week view with time axis, overlapping event layout, and current time indicator
 - **One-way event copying** — Copy events between calendars across accounts via configurable rules
 - **Due date colors** — Red (overdue), orange (today), yellow (tomorrow) visual indicators
 - **Assistant awareness** — The AI assistant uses your calendar context for planning and scheduling
@@ -245,7 +246,7 @@ Both plugins include an MCP server with 60+ tools:
 
 | Category | Description |
 |----------|-------------|
-| **Tasks** | Create, update, move tasks; manage links, labels, attachments, due dates |
+| **Tasks** | Create, update, move tasks; manage links, labels, attachments, due dates, recurrence |
 | **Task Dependencies** | Define prerequisite tasks; visualize with dependency graph |
 | **Projects** | Manage projects with tags, notes, and file attachments |
 | **Repositories** | Add, configure, and link repositories to projects |

@@ -37,6 +37,8 @@ export type TaskStatus =
   | 'DONE'
   | 'CANCELED'
 
+export type RecurrenceRule = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
+
 export interface DiffOptions {
   wrap: boolean
   ignoreWhitespace: boolean
@@ -104,6 +106,9 @@ export interface Task {
   tags: string[] // Array of tag strings
   startedAt: string | null // Timestamp when moved out of TO_DO
   dueDate: string | null // YYYY-MM-DD format
+  recurrenceRule: RecurrenceRule | null
+  recurrenceEndDate: string | null
+  recurrenceSourceTaskId: string | null
   notes: string | null // Free-form notes/comments
   createdAt: string
   updatedAt: string

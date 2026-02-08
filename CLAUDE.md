@@ -36,7 +36,7 @@ Fulcrum is the Vibe Engineer's Cockpit. A terminal-first tool for orchestrating 
 - Database table → `server/db/schema.ts`
 
 **Modifying existing features:**
-- Tasks/worktrees → `server/routes/tasks.ts`, `server/services/task-service.ts`
+- Tasks/worktrees → `server/routes/tasks.ts`, `server/services/task-service.ts`, `server/services/task-status.ts` (status transitions, recurrence)
 - Messaging channels → `server/services/channels/`, `server/routes/messaging.ts`
 - App deployment → `server/routes/apps.ts`, `server/services/` (docker/cloudflare/traefik)
 - Calendar integration → `server/services/caldav/`, `server/routes/caldav.ts`, `frontend/components/caldav/`
@@ -155,7 +155,7 @@ fulcrum notify <title> <message>  # Send notification
 
 ### Frontend Pages
 - `/tasks`, `/tasks/$taskId` - Task management
-- `/calendar` - Calendar view with project/tag filters (Cmd+7)
+- `/calendar` - Calendar view with month/week views, project/tag filters (Cmd+7)
 - `/apps`, `/apps/new`, `/apps/$appId` - App deployment
 - `/monitoring` - System metrics dashboard
 - `/repositories`, `/repositories/$repoId` - Repository management
@@ -170,7 +170,7 @@ fulcrum notify <title> <message>  # Send notification
 
 | Table | Purpose |
 |-------|---------|
-| `tasks` | Task metadata, git worktree paths, status, PR integration |
+| `tasks` | Task metadata, git worktree paths, status, PR integration, recurrence (rule, end date, source task) |
 | `repositories` | Git repositories with startupScript, copyFiles, agent, agentOptions |
 | `terminalTabs` | Tab entities for terminal organization |
 | `terminals` | Terminal instances with tmux session backing |
@@ -192,7 +192,9 @@ fulcrum notify <title> <message>  # Send notification
 | `caldavCopiedEvents` | Tracks copied events to avoid duplicates and detect changes |
 | `memories` | Persistent agent knowledge store with FTS5 full-text search |
 
-Task statuses: `IN_PROGRESS`, `IN_REVIEW`, `DONE`, `CANCELED`
+Task statuses: `TO_DO`, `IN_PROGRESS`, `IN_REVIEW`, `DONE`, `CANCELED`
+
+Recurrence rules: `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` (null = no recurrence). When a repeating task is marked DONE, a new TO_DO task is automatically created with the next due date. CANCELED tasks don't spawn new ones. Logic lives in `server/services/task-status.ts`.
 
 ### Migrations
 

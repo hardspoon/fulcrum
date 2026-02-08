@@ -5,6 +5,7 @@ import { useProjects } from '@/hooks/use-projects'
 import { useToday } from '@/hooks/use-date-utils'
 import type { Task, TaskStatus } from '@/types'
 import { cn } from '@/lib/utils'
+import { localDateToDateKey, parseDateKey } from '../../../shared/date-utils'
 
 const STATUS_ORDER: Record<TaskStatus, number> = {
   IN_REVIEW: 0,
@@ -132,9 +133,9 @@ export function TaskListSidebar({ projectFilter, tagsFilter, onTaskClick }: Task
                 task.status !== 'DONE' &&
                 task.status !== 'CANCELED'
               const isToday = dueDateStr === todayString
-              const tomorrow = new Date(todayString + 'T00:00:00')
+              const tomorrow = parseDateKey(todayString)
               tomorrow.setDate(tomorrow.getDate() + 1)
-              const tomorrowString = tomorrow.toISOString().split('T')[0]
+              const tomorrowString = localDateToDateKey(tomorrow)
               const isTomorrow = dueDateStr === tomorrowString
 
               return (
@@ -186,8 +187,8 @@ function formatDueDate(dueDate: string, today: string): string {
   const due = dueDate.split('T')[0]
   if (due === today) return 'Today'
 
-  const todayDate = new Date(today + 'T00:00:00')
-  const dueObj = new Date(due + 'T00:00:00')
+  const todayDate = parseDateKey(today)
+  const dueObj = parseDateKey(due)
   const diffDays = Math.round((dueObj.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
 
   if (diffDays === 1) return 'Tomorrow'

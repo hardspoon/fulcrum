@@ -1,5 +1,5 @@
 import { db, type Task, repositories } from '../db'
-import { tasks, terminalViewState } from '../db/schema'
+import { tasks, taskTags, terminalViewState } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { broadcast } from '../websocket/terminal-ws'
 import { sendNotification } from './notification-service'
@@ -10,6 +10,8 @@ import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 import { glob } from 'glob'
+import { calculateNextDueDate } from '../../shared/date-utils'
+import type { RecurrenceRule } from '../../shared/types'
 
 // Helper to create git worktree (copied from tasks.ts for use in status transitions)
 function createGitWorktree(
@@ -91,6 +93,92 @@ function generateWorktreeInfo(
   const worktreePath = path.join(worktreesDir, repoName, worktreeName)
 
   return { worktreePath, branch }
+}
+
+/**
+ * Create the next recurrence of a completed repeating task.
+ * Copies key fields from the completed task and sets a new due date.
+ */
+function createNextRecurrence(completedTask: Task): void {
+  try {
+    const rule = completedTask.recurrenceRule as RecurrenceRule
+    if (!rule) return
+
+    const nextDueDate = calculateNextDueDate(completedTask.dueDate, rule)
+
+    // Check if next date is past the end date
+    if (completedTask.recurrenceEndDate && nextDueDate > completedTask.recurrenceEndDate) {
+      log.api.info('Recurrence end date reached, not creating next task', {
+        taskId: completedTask.id,
+        nextDueDate,
+        endDate: completedTask.recurrenceEndDate,
+      })
+      return
+    }
+
+    const now = new Date().toISOString()
+    const newTaskId = crypto.randomUUID()
+
+    // Get max position for TO_DO column
+    const existingTasks = db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.status, 'TO_DO'))
+      .all()
+    const maxPosition = existingTasks.reduce((max, t) => Math.max(max, t.position), -1)
+
+    // Create the new task
+    db.insert(tasks)
+      .values({
+        id: newTaskId,
+        title: completedTask.title,
+        description: completedTask.description,
+        status: 'TO_DO',
+        position: maxPosition + 1,
+        projectId: completedTask.projectId,
+        notes: completedTask.notes,
+        dueDate: nextDueDate,
+        recurrenceRule: completedTask.recurrenceRule,
+        recurrenceEndDate: completedTask.recurrenceEndDate,
+        recurrenceSourceTaskId: completedTask.id,
+        agent: completedTask.agent || 'claude',
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run()
+
+    // Copy tags from completed task
+    const completedTaskTags = db
+      .select()
+      .from(taskTags)
+      .where(eq(taskTags.taskId, completedTask.id))
+      .all()
+
+    for (const tt of completedTaskTags) {
+      db.insert(taskTags)
+        .values({
+          id: crypto.randomUUID(),
+          taskId: newTaskId,
+          tagId: tt.tagId,
+          createdAt: now,
+        })
+        .run()
+    }
+
+    broadcast({ type: 'task:updated', payload: { taskId: newTaskId } })
+
+    log.api.info('Created next recurrence', {
+      completedTaskId: completedTask.id,
+      newTaskId,
+      nextDueDate,
+      rule,
+    })
+  } catch (err) {
+    log.api.error('Failed to create next recurrence', {
+      taskId: completedTask.id,
+      error: String(err),
+    })
+  }
 }
 
 /**
@@ -224,6 +312,11 @@ export async function updateTaskStatus(
           error: String(err),
         })
       }
+    }
+
+    // Create next recurrence when a repeating task is completed
+    if (newStatus === 'DONE' && updated.recurrenceRule) {
+      createNextRecurrence(updated)
     }
   }
 

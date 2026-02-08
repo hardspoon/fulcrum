@@ -7,13 +7,20 @@ import { DatePickerPopover } from '@/components/ui/date-picker-popover'
 import { LinksManager } from '@/components/task/links-manager'
 import { DependencyManager } from '@/components/task/dependency-manager'
 import { AttachmentsManager } from '@/components/task/attachments-manager'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon, GitPullRequestIcon, Link02Icon, Loading03Icon } from '@hugeicons/core-free-icons'
 import { useUpdateTask } from '@/hooks/use-tasks'
 import { useAddTaskTag, useRemoveTaskTag } from '@/hooks/use-tags'
 import { useIsOverdue } from '@/hooks/use-date-utils'
 import { openExternalUrl } from '@/lib/editor-url'
-import type { Task } from '@/types'
+import type { Task, RecurrenceRule } from '@/types'
 
 interface TaskDetailsPanelProps {
   task: Task
@@ -60,6 +67,13 @@ export function TaskDetailsPanel({ task }: TaskDetailsPanelProps) {
     updateTask.mutate({
       taskId: task.id,
       updates: { dueDate: date } as Partial<Task>,
+    })
+  }
+
+  const handleRecurrenceChange = (value: string | null) => {
+    updateTask.mutate({
+      taskId: task.id,
+      updates: { recurrenceRule: (!value || value === 'none' ? null : value) as RecurrenceRule | null },
     })
   }
 
@@ -290,6 +304,31 @@ export function TaskDetailsPanel({ task }: TaskDetailsPanelProps) {
               onChange={handleDueDateChange}
               isOverdue={!!isOverdue}
             />
+          </div>
+
+          {/* Repeat */}
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Repeat</h3>
+            <Select
+              value={task.recurrenceRule || 'none'}
+              onValueChange={handleRecurrenceChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="biweekly">Biweekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="quarterly">Quarterly</SelectItem>
+                <SelectItem value="yearly">Yearly</SelectItem>
+              </SelectContent>
+            </Select>
+            {task.recurrenceSourceTaskId && (
+              <p className="text-sm text-muted-foreground italic mt-2">Part of a recurring series</p>
+            )}
           </div>
         </div>
 

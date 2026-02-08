@@ -9,6 +9,7 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Calendar03Icon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
+import { localDateToDateKey, parseDateKey } from '../../../shared/date-utils'
 
 interface DatePickerPopoverProps {
   value: string | null // YYYY-MM-DD format or null
@@ -30,12 +31,12 @@ export function DatePickerPopover({
   const [open, setOpen] = useState(false)
 
   // Parse the string date to Date object for the Calendar
-  const selectedDate = value ? new Date(value + 'T00:00:00') : undefined
+  const selectedDate = value ? parseDateKey(value) : undefined
 
   const handleSelect = (date: Date | undefined) => {
     if (date) {
-      // Format as YYYY-MM-DD
-      const formatted = date.toISOString().split('T')[0]
+      // Format as YYYY-MM-DD using local date components
+      const formatted = localDateToDateKey(date)
       onChange(formatted)
     }
     setOpen(false)
@@ -48,7 +49,7 @@ export function DatePickerPopover({
   }
 
   const formatDisplayDate = (dateStr: string) => {
-    const date = new Date(dateStr + 'T00:00:00')
+    const date = parseDateKey(dateStr)
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',

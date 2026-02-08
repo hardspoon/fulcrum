@@ -428,6 +428,13 @@
       "when": 1771325600000,
       "tag": "0060_add_claude_session_id",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "6",
+      "when": 1771412000000,
+      "tag": "0061_task_recurrence",
+      "breakpoints": true
     }
   ]
 }

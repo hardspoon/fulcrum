@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useTasks } from '@/hooks/use-tasks'
 import { useProjects } from '@/hooks/use-projects'
 import { useToday } from '@/hooks/use-date-utils'
+import { localDateToDateKey, parseDateKey, formatDateString } from '../../../shared/date-utils'
 import { useCaldavEvents, useCaldavCalendars } from '@/hooks/use-caldav'
 import type { CaldavEvent } from '@/hooks/use-caldav'
 import type { Task, TaskStatus } from '@/types'
@@ -185,16 +186,16 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, vi
     if (viewMode === 'week') {
       if (weekDays.length === 0) return { from: undefined, to: undefined }
       return {
-        from: weekDays[0].toISOString().split('T')[0],
-        to: weekDays[weekDays.length - 1].toISOString().split('T')[0],
+        from: localDateToDateKey(weekDays[0]),
+        to: localDateToDateKey(weekDays[weekDays.length - 1]),
       }
     }
     if (calendarDays.length === 0) return { from: undefined, to: undefined }
     const first = calendarDays[0]
     const last = calendarDays[calendarDays.length - 1]
     return {
-      from: first.toISOString().split('T')[0],
-      to: last.toISOString().split('T')[0],
+      from: localDateToDateKey(first),
+      to: localDateToDateKey(last),
     }
   }, [viewMode, calendarDays, weekDays])
 
@@ -229,10 +230,10 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, vi
       if (event.allDay && event.dtend) {
         // Multi-day all-day events: add to each day in range (dtend is exclusive)
         const endDate = event.dtend.split('T')[0]
-        const cur = new Date(startDate + 'T00:00:00')
-        const end = new Date(endDate + 'T00:00:00')
+        const cur = parseDateKey(startDate)
+        const end = parseDateKey(endDate)
         while (cur < end) {
-          addEvent(cur.toISOString().split('T')[0], event)
+          addEvent(localDateToDateKey(cur), event)
           cur.setDate(cur.getDate() + 1)
         }
       } else {
@@ -290,7 +291,7 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, vi
   // Get today's date string in configured timezone
   const todayString = useToday()
   // Create Date object from today string for visual highlighting
-  const today = new Date(todayString + 'T00:00:00')
+  const today = parseDateKey(todayString)
 
   const headerTitle = useMemo(() => {
     const locale = i18n.language
@@ -394,7 +395,7 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, vi
 
             {/* Calendar days */}
             {calendarDays.map((date, index) => {
-              const dateKey = date.toISOString().split('T')[0]
+              const dateKey = localDateToDateKey(date)
               const dayTasks = tasksByDate.get(dateKey) || []
               const dayEvents = eventsByDate.get(dateKey) || []
               const isCurrentMonth = date.getMonth() === currentDate.getMonth()
@@ -617,7 +618,7 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, vi
 function formatEventDateTime(dtstart: string | null, dtend: string | null, allDay: boolean | null): string {
   if (!dtstart) return ''
   const startDate = dtstart.split('T')[0]
-  const dateStr = new Date(startDate + 'T00:00:00').toLocaleDateString('en-US', {
+  const dateStr = formatDateString(startDate, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -627,9 +628,9 @@ function formatEventDateTime(dtstart: string | null, dtend: string | null, allDa
     if (dtend) {
       const endDate = dtend.split('T')[0]
       // dtend is exclusive for all-day events, so subtract one day for display
-      const endDisplay = new Date(endDate + 'T00:00:00')
+      const endDisplay = parseDateKey(endDate)
       endDisplay.setDate(endDisplay.getDate() - 1)
-      if (endDisplay.toISOString().split('T')[0] !== startDate) {
+      if (localDateToDateKey(endDisplay) !== startDate) {
         const endStr = endDisplay.toLocaleDateString('en-US', {
           weekday: 'long',
           month: 'long',
@@ -681,7 +682,7 @@ function DayDetailDialog({
   onTaskClick,
   onEventClick,
 }: DayDetailDialogProps) {
-  const dateTitle = new Date(dateKey + 'T00:00:00').toLocaleDateString('en-US', {
+  const dateTitle = formatDateString(dateKey, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',

@@ -38,6 +38,7 @@ export function getDataModel(): string {
 - Optional git worktree for isolated development
 - Dependencies (blocks/blocked-by other tasks)
 - Tags, due dates, descriptions
+- Recurrence rules (daily/weekly/biweekly/monthly/quarterly/yearly) — on completion, a new TO_DO task is created with the next due date
 - File attachments and URL links
 - Agent assignment (Claude Code or OpenCode)
 
@@ -103,9 +104,9 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 **Task Management:**
 - \`list_tasks\` - List tasks with filtering (status, tags, due dates, search)
 - \`get_task\` - Get full task details
-- \`create_task\` - Create tasks (with optional git worktree)
-- \`update_task\` - Update task metadata
-- \`move_task\` - Change task status (TO_DO, IN_PROGRESS, IN_REVIEW, DONE, CANCELED)
+- \`create_task\` - Create tasks (with optional git worktree, recurrence rule, recurrence end date)
+- \`update_task\` - Update task metadata (including recurrence rule and end date)
+- \`move_task\` - Change task status (TO_DO, IN_PROGRESS, IN_REVIEW, DONE, CANCELED). Moving a repeating task to DONE auto-creates the next occurrence.
 - \`delete_task\` - Delete a task
 - \`add_task_tag\`, \`remove_task_tag\` - Manage task tags
 - \`set_task_due_date\` - Set or clear due dates
@@ -527,7 +528,7 @@ export function getCondensedKnowledge(): string {
 Fulcrum is your digital concierge - a personal command center where you track everything that matters and use AI to get it done.
 
 **What you can help with:**
-- Organizing life and work: tasks, projects, deadlines, dependencies
+- Organizing life and work: tasks, projects, deadlines, dependencies, recurring tasks
 - Breaking down big goals into trackable pieces
 - Spinning up AI agents to do actual work
 - Scheduling and automation via system commands

@@ -277,6 +277,9 @@ app.post('/', async (c) => {
       repositoryId: body.repositoryId || null,
       startedAt,
       dueDate: body.dueDate || null,
+      recurrenceRule: body.recurrenceRule || null,
+      recurrenceEndDate: body.recurrenceEndDate || null,
+      recurrenceSourceTaskId: null,
       createdAt: now,
       updatedAt: now,
     }

@@ -38,6 +38,7 @@
       "tagsPlaceholder": "Add tag...",
       "dueDate": "Due Date",
       "dueDatePlaceholder": "Set date",
+      "repeat": "Repeat",
       "notes": "Notes",
       "notesPlaceholder": "Add notes...",
       "links": "Links",
@@ -48,7 +49,18 @@
       "attachments": "Attachments",
       "addAttachments": "Add attachments...",
       "addMoreFiles": "Add more files...",
-      "blockedBy": "Blocked By"
+      "blockedBy": "Blocked By",
+      "recurrenceEndDate": "Repeat Until"
+    },
+    "recurrence": {
+      "none": "None",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "biweekly": "Biweekly",
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "yearly": "Yearly",
+      "recurringSeriesNote": "Part of a recurring series"
     },
     "aiModes": {
       "plan": "Plan",

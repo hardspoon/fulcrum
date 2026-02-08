@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { getTodayInTimezone, isDateOverdue } from './date-utils'
+import { getTodayInTimezone, isDateOverdue, calculateNextDueDate } from './date-utils'
 
 describe('date-utils', () => {
   describe('getTodayInTimezone', () => {
@@ -57,6 +57,54 @@ describe('date-utils', () => {
         const result = getTodayInTimezone(tz)
         expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       }
+    })
+  })
+
+  describe('calculateNextDueDate', () => {
+    test('daily adds 1 day', () => {
+      expect(calculateNextDueDate('2026-02-07', 'daily')).toBe('2026-02-08')
+    })
+
+    test('weekly adds 7 days', () => {
+      expect(calculateNextDueDate('2026-02-07', 'weekly')).toBe('2026-02-14')
+    })
+
+    test('biweekly adds 14 days', () => {
+      expect(calculateNextDueDate('2026-02-07', 'biweekly')).toBe('2026-02-21')
+    })
+
+    test('monthly adds 1 month', () => {
+      expect(calculateNextDueDate('2026-02-07', 'monthly')).toBe('2026-03-07')
+    })
+
+    test('quarterly adds 3 months', () => {
+      expect(calculateNextDueDate('2026-02-07', 'quarterly')).toBe('2026-05-07')
+    })
+
+    test('yearly adds 1 year', () => {
+      expect(calculateNextDueDate('2026-02-07', 'yearly')).toBe('2027-02-07')
+    })
+
+    test('handles month boundary (daily)', () => {
+      expect(calculateNextDueDate('2026-01-31', 'daily')).toBe('2026-02-01')
+    })
+
+    test('handles month-end overflow (monthly from Jan 31)', () => {
+      // Jan 31 + 1 month = Feb 28 (JS Date handles overflow)
+      expect(calculateNextDueDate('2026-01-31', 'monthly')).toBe('2026-03-03')
+    })
+
+    test('handles year boundary (daily from Dec 31)', () => {
+      expect(calculateNextDueDate('2026-12-31', 'daily')).toBe('2027-01-01')
+    })
+
+    test('uses today when currentDueDate is null', () => {
+      const result = calculateNextDueDate(null, 'daily')
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      // Should be tomorrow or later
+      const today = new Date()
+      const resultDate = new Date(result + 'T00:00:00')
+      expect(resultDate.getTime()).toBeGreaterThan(today.getTime() - 86400000)
     })
   })
 

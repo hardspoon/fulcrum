@@ -7,6 +7,7 @@ import { useCaldavEvents, useCaldavCalendars } from '@/hooks/use-caldav'
 import type { CaldavEvent } from '@/hooks/use-caldav'
 import type { Task, TaskStatus } from '@/types'
 import { cn } from '@/lib/utils'
+import { localDateToDateKey, parseDateKey } from '../../../shared/date-utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -104,8 +105,8 @@ export function MobileCalendarList({ className, projectFilter, tagsFilter }: Mob
     const first = new Date(year, month, 1)
     const last = new Date(year, month + 1, 0)
     return {
-      from: first.toISOString().split('T')[0],
-      to: last.toISOString().split('T')[0],
+      from: localDateToDateKey(first),
+      to: localDateToDateKey(last),
     }
   }, [currentDate])
 
@@ -158,10 +159,10 @@ export function MobileCalendarList({ className, projectFilter, tagsFilter }: Mob
 
       if (event.allDay && event.dtend) {
         const endDate = event.dtend.split('T')[0]
-        const cur = new Date(dateKey + 'T00:00:00')
-        const end = new Date(endDate + 'T00:00:00')
+        const cur = parseDateKey(dateKey)
+        const end = parseDateKey(endDate)
         while (cur < end) {
-          const key = cur.toISOString().split('T')[0]
+          const key = localDateToDateKey(cur)
           if (!byDate.has(key)) byDate.set(key, [])
           byDate.get(key)!.push({ type: 'event', event, calendarColor: calendarColorMap.get(event.calendarId) })
           cur.setDate(cur.getDate() + 1)
@@ -368,9 +369,9 @@ function TaskItem({
     task.status !== 'DONE' &&
     task.status !== 'CANCELED'
   const isToday = dueDateStr === todayString
-  const tomorrow = new Date(todayString + 'T00:00:00')
+  const tomorrow = parseDateKey(todayString)
   tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowString = tomorrow.toISOString().split('T')[0]
+  const tomorrowString = localDateToDateKey(tomorrow)
   const isTomorrow = dueDateStr === tomorrowString
 
   return (
@@ -445,12 +446,12 @@ function EventItem({
 }
 
 function formatDateHeader(dateKey: string, today: string): string {
-  const date = new Date(dateKey + 'T00:00:00')
+  const date = parseDateKey(dateKey)
   const dayName = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
   if (dateKey === today) return `Today · ${dayName}`
 
-  const todayDate = new Date(today + 'T00:00:00')
+  const todayDate = parseDateKey(today)
   const diffDays = Math.round((date.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
   if (diffDays === 1) return `Tomorrow · ${dayName}`
 
@@ -461,8 +462,8 @@ function formatDueDate(dueDate: string, today: string): string {
   const due = dueDate.split('T')[0]
   if (due === today) return 'Today'
 
-  const todayDate = new Date(today + 'T00:00:00')
-  const dueObj = new Date(due + 'T00:00:00')
+  const todayDate = parseDateKey(today)
+  const dueObj = parseDateKey(due)
   const diffDays = Math.round((dueObj.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
 
   if (diffDays === 1) return 'Tomorrow'

@@ -25,6 +25,9 @@ export const tasks = sqliteTable('tasks', {
   // NOTE: tags are now stored in task_tags join table, not here
   startedAt: text('started_at'), // Timestamp when moved out of TO_DO
   dueDate: text('due_date'), // YYYY-MM-DD format
+  recurrenceRule: text('recurrence_rule'), // 'daily'|'weekly'|'biweekly'|'monthly'|'quarterly'|'yearly'|null
+  recurrenceEndDate: text('recurrence_end_date'), // YYYY-MM-DD or null = forever
+  recurrenceSourceTaskId: text('recurrence_source_task_id'), // FK to parent task (lineage chain)
   notes: text('notes'), // Free-form notes/comments
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),

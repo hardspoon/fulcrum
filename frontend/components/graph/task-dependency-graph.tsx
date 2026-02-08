@@ -18,6 +18,7 @@ import { useTaskDependencyGraph, useTasks, type TaskGraphNode } from '@/hooks/us
 import { useProjects } from '@/hooks/use-projects'
 import { useIsOverdue, useIsDueToday } from '@/hooks/use-date-utils'
 import type { TaskStatus } from '@/types'
+import { parseDateKey } from '../../../shared/date-utils'
 import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
 import 'reactflow/dist/style.css'
 
@@ -114,7 +115,7 @@ function TaskNode({ data }: { data: TaskNodeData }) {
             className="text-[10px] mt-0.5"
             style={{ color: isOverdue ? '#dd403a' : isDueToday ? '#d97706' : '#6b7280' }}
           >
-            Due: {new Date(task.dueDate).toLocaleDateString()}
+            Due: {parseDateKey(task.dueDate).toLocaleDateString()}
           </div>
         )}
       </div>

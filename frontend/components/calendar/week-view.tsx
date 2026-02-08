@@ -4,6 +4,7 @@ import { useToday } from '@/hooks/use-date-utils'
 import type { CaldavEvent } from '@/hooks/use-caldav'
 import type { Task, TaskStatus } from '@/types'
 import { cn } from '@/lib/utils'
+import { localDateToDateKey } from '../../../shared/date-utils'
 import { layoutEvents, parseTimeToMinutes } from '@/lib/calendar-layout'
 
 const HOUR_HEIGHT = 48
@@ -49,7 +50,7 @@ export function WeekView({
     hasScrolled.current = true
     const now = new Date()
     const isThisWeek = weekDays.some(
-      (d) => d.toISOString().split('T')[0] === todayString
+      (d) => localDateToDateKey(d) === todayString
     )
     const scrollHour = isThisWeek ? Math.max(now.getHours() - 1, 0) : DEFAULT_SCROLL_HOUR
     // Account for sticky header height
@@ -63,7 +64,7 @@ export function WeekView({
     const timed = new Map<string, CaldavEvent[]>()
 
     for (const day of weekDays) {
-      const dateKey = day.toISOString().split('T')[0]
+      const dateKey = localDateToDateKey(day)
       const dayTasks = tasksByDate.get(dateKey) || []
       const dayEvents = eventsByDate.get(dateKey) || []
 
@@ -92,7 +93,7 @@ export function WeekView({
 
   const hasAllDayItems = useMemo(() => {
     for (const day of weekDays) {
-      const dateKey = day.toISOString().split('T')[0]
+      const dateKey = localDateToDateKey(day)
       if (allDayByDate.has(dateKey)) return true
     }
     return false
@@ -108,7 +109,7 @@ export function WeekView({
           <div className="grid border-b" style={{ gridTemplateColumns: '50px repeat(7, 1fr)' }}>
             <div className="border-r" />
             {weekDays.map((day) => {
-              const dateKey = day.toISOString().split('T')[0]
+              const dateKey = localDateToDateKey(day)
               const isToday = dateKey === todayString
               return (
                 <div
@@ -171,7 +172,7 @@ export function WeekView({
 
           {/* Day columns */}
           {weekDays.map((day) => {
-            const dateKey = day.toISOString().split('T')[0]
+            const dateKey = localDateToDateKey(day)
             const isToday = dateKey === todayString
             const timedEvents = timedByDate.get(dateKey) || []
 
@@ -228,7 +229,7 @@ function AllDayRow({
         all-day
       </div>
       {weekDays.map((day) => {
-        const dateKey = day.toISOString().split('T')[0]
+        const dateKey = localDateToDateKey(day)
         const isToday = dateKey === todayString
         const items = allDayByDate.get(dateKey) || []
         const visible = items.slice(0, maxVisible)

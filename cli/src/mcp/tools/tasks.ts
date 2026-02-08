@@ -167,6 +167,12 @@ function registerCreateTask(server: Server, client: Client) {
       repositoryId: z.optional(z.string()).describe('Repository ID (alternative to repoPath)'),
       tags: z.optional(z.array(z.string())).describe('Tags to add to the task'),
       dueDate: z.optional(z.string()).describe('Due date in YYYY-MM-DD format'),
+      recurrenceRule: z
+        .optional(z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']))
+        .describe('Recurrence frequency - creates a new TO_DO task when completed'),
+      recurrenceEndDate: z
+        .optional(z.string())
+        .describe('Stop recurring after this date (YYYY-MM-DD). Omit for no end date.'),
     },
     async ({
       title,
@@ -179,6 +185,8 @@ function registerCreateTask(server: Server, client: Client) {
       repositoryId,
       tags,
       dueDate,
+      recurrenceRule,
+      recurrenceEndDate,
     }) => {
       try {
         const repoName = repoPath ? basename(repoPath) : null
@@ -196,6 +204,8 @@ function registerCreateTask(server: Server, client: Client) {
           repositoryId: repositoryId ?? null,
           tags,
           dueDate: dueDate ?? null,
+          recurrenceRule: recurrenceRule ?? null,
+          recurrenceEndDate: recurrenceEndDate ?? null,
         })
 
         if (tags && tags.length > 0) {
@@ -225,17 +235,25 @@ function registerCreateTask(server: Server, client: Client) {
 function registerUpdateTask(server: Server, client: Client) {
   server.tool(
     'update_task',
-    'Update task metadata (title or description)',
+    'Update task metadata (title, description, recurrence)',
     {
       id: z.string().describe('Task ID'),
       title: z.optional(z.string()).describe('New title'),
       description: z.optional(z.string()).describe('New description'),
+      recurrenceRule: z
+        .optional(z.nullable(z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'])))
+        .describe('Recurrence frequency, or null to remove'),
+      recurrenceEndDate: z
+        .optional(z.nullable(z.string()))
+        .describe('Stop recurring after this date (YYYY-MM-DD), or null to remove'),
     },
-    async ({ id, title, description }) => {
+    async ({ id, title, description, recurrenceRule, recurrenceEndDate }) => {
       try {
-        const updates: Record<string, string> = {}
+        const updates: Record<string, string | null> = {}
         if (title !== undefined) updates.title = title
         if (description !== undefined) updates.description = description
+        if (recurrenceRule !== undefined) updates.recurrenceRule = recurrenceRule
+        if (recurrenceEndDate !== undefined) updates.recurrenceEndDate = recurrenceEndDate
 
         const task = await client.updateTask(id, updates)
         return formatSuccess(task)

@@ -13,8 +13,9 @@ import { useSelection } from './selection-context'
 import type { Task } from '@/types'
 import { cn } from '@/lib/utils'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { FolderLibraryIcon, GitPullRequestIcon, Calendar03Icon, AlertDiamondIcon, Alert02Icon } from '@hugeicons/core-free-icons'
+import { FolderLibraryIcon, GitPullRequestIcon, Calendar03Icon, AlertDiamondIcon, Alert02Icon, RepeatIcon } from '@hugeicons/core-free-icons'
 import { useRepositories } from '@/hooks/use-repositories'
+import { formatDateString } from '../../../shared/date-utils'
 import { useIsOverdue, useIsDueToday } from '@/hooks/use-date-utils'
 
 interface TaskCardProps {
@@ -272,12 +273,21 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
                 isOverdue ? 'text-destructive' : isDueToday ? 'text-amber-600 dark:text-amber-500' : ''
               )}>
                 <HugeiconsIcon icon={Calendar03Icon} size={12} strokeWidth={2} />
-                <span>{new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                <span>{formatDateString(task.dueDate)}</span>
+              </span>
+            </>
+          )}
+          {/* Recurrence indicator */}
+          {task.recurrenceRule && (
+            <>
+              {(isCodeTask || task.dueDate) && <span className="text-muted-foreground/30">•</span>}
+              <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
+                <HugeiconsIcon icon={RepeatIcon} size={12} strokeWidth={2} />
               </span>
             </>
           )}
           {/* Fallback for non-code tasks with no metadata */}
-          {!isCodeTask && !isBlocked && !isBlocking && task.tags.length === 0 && !task.dueDate && (
+          {!isCodeTask && !isBlocked && !isBlocking && task.tags.length === 0 && !task.dueDate && !task.recurrenceRule && (
             <span className="italic">Non-code task</span>
           )}
         </div>
