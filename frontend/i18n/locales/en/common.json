@@ -204,5 +204,9 @@
       "dockerUnavailable": "Docker stats not available",
       "serviceTotal": "Service Total"
     }
+  },
+  "calendar": {
+    "weekly": "Weekly",
+    "monthly": "Monthly"
   }
 }

@@ -204,5 +204,9 @@
       "dockerUnavailable": "Docker 统计不可用",
       "serviceTotal": "服务总计"
     }
+  },
+  "calendar": {
+    "weekly": "周视图",
+    "monthly": "月视图"
   }
 }

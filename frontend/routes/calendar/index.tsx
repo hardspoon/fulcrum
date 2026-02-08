@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useMemo, useCallback } from 'react'
 import { TaskCalendar } from '@/components/calendar/task-calendar'
+import type { ViewMode } from '@/components/calendar/task-calendar'
 import { TaskListSidebar } from '@/components/calendar/task-list-sidebar'
 import { MobileCalendarList } from '@/components/calendar/mobile-calendar-list'
 import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
@@ -12,6 +13,7 @@ import type { Task } from '@/types'
 interface CalendarSearch {
   project?: string
   tags?: string
+  calView?: 'month' | 'week'
 }
 
 export const Route = createFileRoute('/calendar/')({
@@ -19,15 +21,29 @@ export const Route = createFileRoute('/calendar/')({
   validateSearch: (search: Record<string, unknown>): CalendarSearch => ({
     project: typeof search.project === 'string' ? search.project : undefined,
     tags: typeof search.tags === 'string' ? search.tags : undefined,
+    calView: search.calView === 'month' ? 'month' : undefined,
   }),
 })
 
 function CalendarView() {
-  const { project: projectFilter, tags: tagsParam } = Route.useSearch()
+  const { project: projectFilter, tags: tagsParam, calView: viewParam } = Route.useSearch()
   const navigate = useNavigate()
   const { data: tasks } = useTasks()
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+
+  const viewMode: ViewMode = viewParam || 'week'
+
+  const setViewMode = useCallback(
+    (mode: ViewMode) => {
+      navigate({
+        to: '/calendar',
+        search: (prev) => ({ ...prev, calView: mode === 'week' ? undefined : mode }),
+        replace: true,
+      })
+    },
+    [navigate]
+  )
 
   const selectedTask = useMemo(
     () => (selectedTaskId ? tasks?.find((t) => t.id === selectedTaskId) ?? null : null),
@@ -96,6 +112,8 @@ function CalendarView() {
         <TaskCalendar
           projectFilter={projectFilter ?? null}
           tagsFilter={tagsFilter}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
           sidebar={(gridHeight) => (
             <div
               className="w-48 lg:w-64 xl:w-80 sticky top-0 self-start overflow-hidden"

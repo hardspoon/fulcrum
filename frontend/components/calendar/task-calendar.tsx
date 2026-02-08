@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from '@tanstack/react-router'
 import { useTasks } from '@/hooks/use-tasks'
 import { useProjects } from '@/hooks/use-projects'
@@ -8,9 +9,11 @@ import type { CaldavEvent } from '@/hooks/use-caldav'
 import type { Task, TaskStatus } from '@/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowLeft01Icon, ArrowRight01Icon, Calendar03Icon, Location01Icon, Clock01Icon, TextIcon } from '@hugeicons/core-free-icons'
 import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
+import { WeekView } from '@/components/calendar/week-view'
 import {
   Dialog,
   DialogContent,
@@ -26,16 +29,19 @@ const STATUS_COLORS: Record<TaskStatus, { bg: string; border: string; text: stri
   CANCELED: { bg: 'bg-red-100', border: 'border-red-500', text: 'text-red-800' },
 }
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+export type ViewMode = 'month' | 'week'
 
 interface TaskCalendarProps {
   className?: string
   projectFilter?: string | null
   tagsFilter?: string[]
   sidebar?: (gridHeight: number | undefined) => React.ReactNode
+  viewMode: ViewMode
+  onViewModeChange: (mode: ViewMode) => void
 }
 
-export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: TaskCalendarProps) {
+export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, viewMode, onViewModeChange }: TaskCalendarProps) {
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { data: tasks = [] } = useTasks()
   const { data: projects = [] } = useProjects()
@@ -157,8 +163,32 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
     return days
   }, [currentDate])
 
+  // Calculate week days for week view (Monday start)
+  const weekDays = useMemo(() => {
+    const d = new Date(currentDate)
+    const dayOfWeek = d.getDay()
+    // Start week on Monday: Sunday (0) maps to offset -6, Monday (1) to 0, etc.
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const monday = new Date(d)
+    monday.setDate(d.getDate() + mondayOffset)
+    const days: Date[] = []
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday)
+      date.setDate(monday.getDate() + i)
+      days.push(date)
+    }
+    return days
+  }, [currentDate])
+
   // CalDAV events for the visible date range
   const dateRange = useMemo(() => {
+    if (viewMode === 'week') {
+      if (weekDays.length === 0) return { from: undefined, to: undefined }
+      return {
+        from: weekDays[0].toISOString().split('T')[0],
+        to: weekDays[weekDays.length - 1].toISOString().split('T')[0],
+      }
+    }
     if (calendarDays.length === 0) return { from: undefined, to: undefined }
     const first = calendarDays[0]
     const last = calendarDays[calendarDays.length - 1]
@@ -166,7 +196,7 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
       from: first.toISOString().split('T')[0],
       to: last.toISOString().split('T')[0],
     }
-  }, [calendarDays])
+  }, [viewMode, calendarDays, weekDays])
 
   const { data: caldavEvents = [] } = useCaldavEvents(dateRange.from, dateRange.to)
   const { data: caldavCalendars = [] } = useCaldavCalendars()
@@ -212,12 +242,28 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
     return map
   }, [caldavEvents])
 
-  const goToPrevMonth = () => {
-    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+  const goToPrev = () => {
+    if (viewMode === 'week') {
+      setCurrentDate((prev) => {
+        const d = new Date(prev)
+        d.setDate(d.getDate() - 7)
+        return d
+      })
+    } else {
+      setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+    }
   }
 
-  const goToNextMonth = () => {
-    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+  const goToNext = () => {
+    if (viewMode === 'week') {
+      setCurrentDate((prev) => {
+        const d = new Date(prev)
+        d.setDate(d.getDate() + 7)
+        return d
+      })
+    } else {
+      setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+    }
   }
 
   const goToToday = () => {
@@ -225,8 +271,6 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
   }
 
   const handleTaskClick = (task: Task) => {
-    // For code tasks, navigate to detail page
-    // For non-code tasks, open the modal
     if (task.worktreePath) {
       navigate({
         to: '/tasks/$taskId',
@@ -238,15 +282,33 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
     }
   }
 
+  const handleEventClick = (event: CaldavEvent) => {
+    setSelectedEvent(event)
+    setEventModalOpen(true)
+  }
+
   // Get today's date string in configured timezone
   const todayString = useToday()
   // Create Date object from today string for visual highlighting
   const today = new Date(todayString + 'T00:00:00')
 
-  const monthYear = currentDate.toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  })
+  const headerTitle = useMemo(() => {
+    const locale = i18n.language
+    if (viewMode === 'week' && weekDays.length > 0) {
+      const first = weekDays[0]
+      const last = weekDays[weekDays.length - 1]
+      const sameMonth = first.getMonth() === last.getMonth()
+      if (sameMonth) {
+        return `${first.toLocaleDateString(locale, { month: 'short' })} ${first.getDate()} – ${last.getDate()}, ${first.getFullYear()}`
+      }
+      const sameYear = first.getFullYear() === last.getFullYear()
+      if (sameYear) {
+        return `${first.toLocaleDateString(locale, { month: 'short' })} ${first.getDate()} – ${last.toLocaleDateString(locale, { month: 'short' })} ${last.getDate()}, ${first.getFullYear()}`
+      }
+      return `${first.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' })} – ${last.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' })}`
+    }
+    return currentDate.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+  }, [viewMode, weekDays, currentDate, i18n.language])
 
   // Count filtered tasks with due dates
   const tasksWithDueDates = useMemo(() => {
@@ -260,144 +322,240 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar }: 
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-2">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={goToPrevMonth}>
+          <Button variant="outline" size="sm" onClick={goToPrev}>
             <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
           </Button>
-          <Button variant="outline" size="sm" onClick={goToNextMonth}>
+          <Button variant="outline" size="sm" onClick={goToNext}>
             <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
           </Button>
           <Button variant="ghost" size="sm" onClick={goToToday}>
             Today
           </Button>
         </div>
-        <h2 className="text-lg font-semibold">{monthYear}</h2>
-        <div className="hidden sm:block text-sm text-muted-foreground">
-          {tasksWithDueDates} tasks with due dates
-          {caldavEvents.length > 0 && ` · ${caldavEvents.length} events`}
+        <h2 className="text-lg font-semibold">{headerTitle}</h2>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:block text-sm text-muted-foreground">
+            {tasksWithDueDates} tasks
+            {caldavEvents.length > 0 && ` · ${caldavEvents.length} events`}
+          </div>
+          <ToggleGroup
+            value={[viewMode]}
+            onValueChange={(v) => {
+              const selected = Array.isArray(v) ? v[0] : v
+              if (selected) onViewModeChange(selected as ViewMode)
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <ToggleGroupItem value="week" aria-label={t('calendar.weekly')}>
+              {t('calendar.weekly')}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="month" aria-label={t('calendar.monthly')}>
+              {t('calendar.monthly')}
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
       </div>
 
       {/* Calendar Grid + Sidebar */}
-      <div className="flex-1 overflow-auto p-4">
-      <div className="flex gap-4">
-      <div className="flex-1">
-        <div ref={gridRef} className="grid grid-cols-7 gap-px rounded-lg border bg-border">
-          {/* Weekday headers */}
-          {WEEKDAYS.map((day) => (
-            <div
-              key={day}
-              className="bg-muted px-2 py-1 text-center text-xs font-medium text-muted-foreground"
-            >
-              {day}
-            </div>
-          ))}
+      {viewMode === 'week' ? (
+        <div className="flex-1 overflow-hidden flex gap-4">
+          <div className="flex-1 overflow-hidden rounded-lg border mx-4 my-4">
+            <WeekView
+              weekDays={weekDays}
+              tasksByDate={tasksByDate}
+              eventsByDate={eventsByDate}
+              calendarColorMap={calendarColorMap}
+              onTaskClick={handleTaskClick}
+              onEventClick={handleEventClick}
+            />
+          </div>
+          {sidebar?.(undefined)}
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto p-4">
+        <div className="flex gap-4">
+        <div className="flex-1">
+          <div ref={gridRef} className="grid grid-cols-7 gap-px rounded-lg border bg-border">
+            {/* Weekday headers */}
+            {Array.from({ length: 7 }, (_, i) => {
+              // Generate Sunday-Saturday localized weekday names
+              const d = new Date(2015, 0, 4 + i) // Jan 4, 2015 = Sunday
+              const name = d.toLocaleDateString(i18n.language, { weekday: 'short' })
+              return (
+                <div
+                  key={i}
+                  className="bg-muted px-2 py-1 text-center text-xs font-medium text-muted-foreground"
+                >
+                  {name}
+                </div>
+              )
+            })}
 
-          {/* Calendar days */}
-          {calendarDays.map((date, index) => {
-            const dateKey = date.toISOString().split('T')[0]
-            const dayTasks = tasksByDate.get(dateKey) || []
-            const dayEvents = eventsByDate.get(dateKey) || []
-            const isCurrentMonth = date.getMonth() === currentDate.getMonth()
-            const isToday = date.getTime() === today.getTime()
-            const totalItems = dayTasks.length + dayEvents.length
-            const maxVisible = 3
-            // Show tasks first, then events, up to maxVisible
-            const visibleTasks = dayTasks.slice(0, maxVisible)
-            const remainingSlots = maxVisible - visibleTasks.length
-            const visibleEvents = remainingSlots > 0 ? dayEvents.slice(0, remainingSlots) : []
-            const overflowCount = totalItems - visibleTasks.length - visibleEvents.length
+            {/* Calendar days */}
+            {calendarDays.map((date, index) => {
+              const dateKey = date.toISOString().split('T')[0]
+              const dayTasks = tasksByDate.get(dateKey) || []
+              const dayEvents = eventsByDate.get(dateKey) || []
+              const isCurrentMonth = date.getMonth() === currentDate.getMonth()
+              const isToday = date.getTime() === today.getTime()
+              const totalItems = dayTasks.length + dayEvents.length
 
-            return (
-              <div
-                key={index}
-                className={cn(
-                  'min-h-[100px] bg-background p-1',
-                  !isCurrentMonth && 'bg-muted/50'
-                )}
-              >
-                <button
-                  onClick={() => {
-                    if (totalItems > 0) {
-                      setSelectedDay(dateKey)
-                      setDayDialogOpen(true)
-                    }
-                  }}
+              // Group events by start time (HH:MM) for side-by-side display
+              // Tasks and all-day events get their own rows, timed events are grouped
+              type RowItem =
+                | { kind: 'task'; task: Task }
+                | { kind: 'event-group'; time: string; events: CaldavEvent[] }
+                | { kind: 'all-day-event'; event: CaldavEvent }
+              const rows: RowItem[] = []
+              for (const task of dayTasks) {
+                rows.push({ kind: 'task', task })
+              }
+              // Separate all-day from timed events, group timed by start time
+              const timedGroups = new Map<string, CaldavEvent[]>()
+              for (const event of dayEvents) {
+                const timeStr = !event.allDay && event.dtstart?.includes('T')
+                  ? event.dtstart.split('T')[1].slice(0, 5)
+                  : null
+                if (timeStr) {
+                  if (!timedGroups.has(timeStr)) timedGroups.set(timeStr, [])
+                  timedGroups.get(timeStr)!.push(event)
+                } else {
+                  rows.push({ kind: 'all-day-event', event })
+                }
+              }
+              // Sort time groups by time and add them
+              const sortedTimes = [...timedGroups.keys()].sort()
+              for (const time of sortedTimes) {
+                rows.push({ kind: 'event-group', time, events: timedGroups.get(time)! })
+              }
+
+              // Count visible rows vs total rows for overflow
+              const maxVisibleRows = 3
+              const visibleRows = rows.slice(0, maxVisibleRows)
+              const hiddenItems = rows.slice(maxVisibleRows).reduce((count, row) => {
+                if (row.kind === 'event-group') return count + row.events.length
+                return count + 1
+              }, 0)
+
+              return (
+                <div
+                  key={index}
                   className={cn(
-                    'mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs',
-                    isToday && 'bg-primary text-primary-foreground font-semibold',
-                    !isToday && !isCurrentMonth && 'text-muted-foreground',
-                    totalItems > 0 && 'hover:bg-accent cursor-pointer'
+                    'min-h-[100px] bg-background p-1',
+                    !isCurrentMonth && 'bg-muted/50'
                   )}
                 >
-                  {date.getDate()}
-                </button>
-                <div className="flex flex-col gap-0.5">
-                  {visibleTasks.map((task) => {
-                    const colors = STATUS_COLORS[task.status]
-                    const isOverdue =
-                      dateKey < todayString && task.status !== 'DONE' && task.status !== 'CANCELED'
-
-                    return (
-                      <button
-                        key={task.id}
-                        onClick={() => handleTaskClick(task)}
-                        className={cn(
-                          'w-full truncate rounded px-1 py-0.5 text-left text-[10px] border transition-opacity hover:opacity-80',
-                          colors.bg,
-                          colors.text,
-                          isOverdue ? 'border-red-500' : colors.border
-                        )}
-                        title={task.title}
-                      >
-                        {task.title}
-                      </button>
-                    )
-                  })}
-                  {visibleEvents.map((event) => {
-                    const calColor = calendarColorMap.get(event.calendarId) || '#6b7280'
-                    const timeStr =
-                      !event.allDay && event.dtstart?.includes('T')
-                        ? event.dtstart.split('T')[1].slice(0, 5)
-                        : null
-
-                    return (
-                      <button
-                        key={event.id}
-                        onClick={() => {
-                          setSelectedEvent(event)
-                          setEventModalOpen(true)
-                        }}
-                        className="w-full truncate rounded px-1 py-0.5 text-left text-[10px] bg-muted/60 text-muted-foreground transition-opacity hover:opacity-80 cursor-pointer"
-                        style={{ borderLeft: `2px solid ${calColor}` }}
-                        title={[event.summary, event.location].filter(Boolean).join(' · ')}
-                      >
-                        {timeStr && (
-                          <span className="font-medium mr-0.5">{timeStr}</span>
-                        )}
-                        {event.summary || 'Untitled'}
-                      </button>
-                    )
-                  })}
-                  {overflowCount > 0 && (
-                    <button
-                      onClick={() => {
+                  <button
+                    onClick={() => {
+                      if (totalItems > 0) {
                         setSelectedDay(dateKey)
                         setDayDialogOpen(true)
-                      }}
-                      className="px-1 text-[10px] text-muted-foreground hover:text-foreground cursor-pointer text-left"
-                    >
-                      +{overflowCount} more
-                    </button>
-                  )}
+                      }
+                    }}
+                    className={cn(
+                      'mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs',
+                      isToday && 'bg-primary text-primary-foreground font-semibold',
+                      !isToday && !isCurrentMonth && 'text-muted-foreground',
+                      totalItems > 0 && 'hover:bg-accent cursor-pointer'
+                    )}
+                  >
+                    {date.getDate()}
+                  </button>
+                  <div className="flex flex-col gap-0.5">
+                    {visibleRows.map((row) => {
+                      if (row.kind === 'task') {
+                        const colors = STATUS_COLORS[row.task.status]
+                        const isOverdue =
+                          dateKey < todayString && row.task.status !== 'DONE' && row.task.status !== 'CANCELED'
+                        return (
+                          <button
+                            key={`task-${row.task.id}`}
+                            onClick={() => handleTaskClick(row.task)}
+                            className={cn(
+                              'w-full truncate rounded px-1 py-0.5 text-left text-[10px] border transition-opacity hover:opacity-80',
+                              colors.bg,
+                              colors.text,
+                              isOverdue ? 'border-red-500' : colors.border
+                            )}
+                            title={row.task.title}
+                          >
+                            {row.task.title}
+                          </button>
+                        )
+                      }
+                      if (row.kind === 'all-day-event') {
+                        const calColor = calendarColorMap.get(row.event.calendarId) || '#6b7280'
+                        return (
+                          <button
+                            key={`event-${row.event.id}`}
+                            onClick={() => handleEventClick(row.event)}
+                            className="w-full truncate rounded px-1 py-0.5 text-left text-[10px] bg-muted/60 text-muted-foreground transition-opacity hover:opacity-80 cursor-pointer"
+                            style={{ borderLeft: `2px solid ${calColor}` }}
+                            title={[row.event.summary, row.event.location].filter(Boolean).join(' · ')}
+                          >
+                            {row.event.summary || 'Untitled'}
+                          </button>
+                        )
+                      }
+                      // event-group: same-time events side by side
+                      if (row.events.length === 1) {
+                        const event = row.events[0]
+                        const calColor = calendarColorMap.get(event.calendarId) || '#6b7280'
+                        return (
+                          <button
+                            key={`event-${event.id}`}
+                            onClick={() => handleEventClick(event)}
+                            className="w-full truncate rounded px-1 py-0.5 text-left text-[10px] bg-muted/60 text-muted-foreground transition-opacity hover:opacity-80 cursor-pointer"
+                            style={{ borderLeft: `2px solid ${calColor}` }}
+                            title={[event.summary, event.location].filter(Boolean).join(' · ')}
+                          >
+                            <span className="font-medium mr-0.5">{row.time}</span>
+                            {event.summary || 'Untitled'}
+                          </button>
+                        )
+                      }
+                      return (
+                        <div key={`group-${row.time}`} className="flex gap-0.5">
+                          {row.events.map((event) => {
+                            const calColor = calendarColorMap.get(event.calendarId) || '#6b7280'
+                            return (
+                              <button
+                                key={event.id}
+                                onClick={() => handleEventClick(event)}
+                                className="flex-1 min-w-0 truncate rounded px-1 py-0.5 text-left text-[10px] bg-muted/60 text-muted-foreground transition-opacity hover:opacity-80 cursor-pointer"
+                                style={{ borderLeft: `2px solid ${calColor}` }}
+                                title={[`${row.time}`, event.summary, event.location].filter(Boolean).join(' · ')}
+                              >
+                                <span className="font-medium mr-0.5">{row.time}</span>
+                                {event.summary || 'Untitled'}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
+                    {hiddenItems > 0 && (
+                      <button
+                        onClick={() => {
+                          setSelectedDay(dateKey)
+                          setDayDialogOpen(true)
+                        }}
+                        className="px-1 text-[10px] text-muted-foreground hover:text-foreground cursor-pointer text-left"
+                      >
+                        +{hiddenItems} more
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
-      </div>
-      {sidebar?.(gridHeight)}
-      </div>
-      </div>
+        {sidebar?.(gridHeight)}
+        </div>
+        </div>
+      )}
 
       {/* Non-worktree task modal */}
       {selectedTask && !selectedTask.worktreePath && (
