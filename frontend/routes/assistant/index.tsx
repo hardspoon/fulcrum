@@ -49,6 +49,7 @@ function AssistantView() {
   const [canvasContent, setCanvasContent] = useState<string | null>(null)
   const [editorSaveStatus, setEditorSaveStatus] = useState<EditorSaveStatus>('saved')
   const editorSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const editorDirtyRef = useRef(false)
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
 
@@ -145,11 +146,12 @@ function AssistantView() {
     setEditorContent('') // Clear editor immediately when switching sessions
     setCanvasContent(null) // Clear canvas when switching sessions
     setEditorSaveStatus('saved') // Reset save status
+    editorDirtyRef.current = false
   }, [chatId])
 
   // Load editor content from session once it's loaded
   useEffect(() => {
-    if (selectedSession?.editorContent) {
+    if (selectedSession?.editorContent && !editorDirtyRef.current) {
       setEditorContent(selectedSession.editorContent)
     }
   }, [selectedSession?.id, selectedSession?.editorContent])
@@ -168,6 +170,7 @@ function AssistantView() {
     },
     onSuccess: () => {
       setEditorSaveStatus('saved')
+      editorDirtyRef.current = false
       // Refresh documents list when editor content is saved
       queryClient.invalidateQueries({ queryKey: ['assistant-documents'] })
       queryClient.invalidateQueries({ queryKey: ['assistant-session', chatId] })
@@ -179,6 +182,7 @@ function AssistantView() {
 
   // Debounced save for editor content
   const handleEditorContentChange = useCallback((content: string) => {
+    editorDirtyRef.current = true
     setEditorContent(content)
     setEditorSaveStatus('unsaved')
 
