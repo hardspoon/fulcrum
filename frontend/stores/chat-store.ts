@@ -96,6 +96,8 @@ export const ChatStore = types
     abortController: null as AbortController | null,
     /** Active stream reader for cancellation */
     streamReader: null as ReadableStreamDefaultReader<Uint8Array> | null,
+    /** Generation counter to invalidate stale streaming flows */
+    streamGeneration: 0,
   }))
   .views((self) => ({
     get hasMessages(): boolean {
@@ -265,6 +267,9 @@ export const ChatStore = types
           }
         }
 
+        // Capture current generation to detect if clearMessages() invalidates this flow
+        const generation = self.streamGeneration
+
         // Create abort controller for this request
         self.abortController = new AbortController()
 
@@ -311,8 +316,10 @@ export const ChatStore = types
         self.isStreaming = true
         self.error = null
 
-        // Helper functions to update state
+        // Helper functions to update state — guarded by generation to no-op if
+        // clearMessages() was called while this stream was in flight.
         const updateLastMessage = (content: string) => {
+          if (self.streamGeneration !== generation) return
           const lastMsg = self.messages[self.messages.length - 1]
           if (lastMsg && lastMsg.role === 'assistant') {
             lastMsg.content = content
@@ -320,6 +327,7 @@ export const ChatStore = types
         }
 
         const finishStreaming = () => {
+          if (self.streamGeneration !== generation) return
           const lastMsg = self.messages[self.messages.length - 1]
           if (lastMsg && lastMsg.role === 'assistant') {
             lastMsg.isStreaming = false
@@ -330,6 +338,7 @@ export const ChatStore = types
         }
 
         const handleError = (errorMsg: string) => {
+          if (self.streamGeneration !== generation) return
           log.error('Chat error', { error: errorMsg })
           self.error = errorMsg
           self.isStreaming = false
@@ -469,6 +478,13 @@ export const ChatStore = types
 
       clearMessages() {
         const log = getLog()
+        // Invalidate any in-flight stream so its callbacks no-op
+        if (self.isStreaming) {
+          self.streamGeneration += 1
+          self.isStreaming = false
+          self.streamReader = null
+          self.abortController = null
+        }
         // Clear local state - session persists in DB (for Claude) but we start fresh locally
         self.messages.clear()
         self.sessionId = null // Clear session so a new one is created
