@@ -27,6 +27,8 @@ export default defineConfig([
       'react-hooks/preserve-manual-memoization': 'off',
       // Allow exporting utilities alongside components (common shadcn/ui pattern)
       'react-refresh/only-export-components': 'off',
+      // Allow _-prefixed variables for intentional destructuring omission (e.g. const { x: _, ...rest } = obj)
+      '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_' }],
     },
   },
 ])

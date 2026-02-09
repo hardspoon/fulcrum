@@ -43,6 +43,21 @@ const SUPPORTED_MIME_TYPES = new Set([
 /** Max file size we'll download (10 MB) */
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
+/** Expected magic bytes for binary file types */
+const MAGIC_BYTES: Record<string, (buf: Buffer) => boolean> = {
+  'application/pdf': (buf) => buf.length >= 5 && buf.subarray(0, 5).toString('ascii').startsWith('%PDF-'),
+  'image/png': (buf) => buf.length >= 4 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47,
+  'image/jpeg': (buf) => buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff,
+  'image/gif': (buf) => buf.length >= 4 && buf.subarray(0, 4).toString('ascii') === 'GIF8',
+  'image/webp': (buf) => buf.length >= 12 && buf.subarray(0, 4).toString('ascii') === 'RIFF' && buf.subarray(8, 12).toString('ascii') === 'WEBP',
+}
+
+/** Returns true if the buffer starts with the expected magic bytes for the given MIME type, or if the type has no known signature. */
+function validateMagicBytes(mimeType: string, buffer: Buffer): boolean {
+  const check = MAGIC_BYTES[mimeType]
+  return !check || check(buffer)
+}
+
 export class SlackChannel implements MessagingChannel {
   readonly type = 'slack' as const
   readonly connectionId: string
@@ -367,6 +382,10 @@ export class SlackChannel implements MessagingChannel {
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location')
       if (location) {
+        log.messaging.debug('Following Slack file redirect', {
+          fileName: file.name,
+          from: file.url_private_download?.replace(/token=[^&]+/, 'token=***'),
+        })
         response = await fetch(location)
       }
     }
@@ -375,11 +394,15 @@ export class SlackChannel implements MessagingChannel {
       log.messaging.warn('Failed to download Slack file', {
         fileName: file.name,
         status: response.status,
+        statusText: response.statusText,
       })
       return null
     }
 
-    // Verify content type matches what Slack reported
+    // Verify content type matches what Slack reported.
+    // If Slack returns text/html instead of the expected type, it's almost certainly
+    // an auth error or redirect page — reject immediately to avoid sending garbage
+    // to the AI model.
     const contentType = response.headers.get('content-type')?.split(';')[0]?.trim()
     if (contentType && contentType !== file.mimetype) {
       log.messaging.warn('Slack file content-type mismatch', {
@@ -387,6 +410,12 @@ export class SlackChannel implements MessagingChannel {
         expected: file.mimetype,
         actual: contentType,
       })
+      if (contentType === 'text/html') {
+        log.messaging.warn('Slack file download returned HTML instead of file content (likely auth error)', {
+          fileName: file.name,
+        })
+        return null
+      }
     }
 
     const isText = file.mimetype.startsWith('text/')
@@ -409,16 +438,14 @@ export class SlackChannel implements MessagingChannel {
     const buffer = Buffer.from(await response.arrayBuffer())
 
     // Validate binary files have expected magic bytes
-    if (file.mimetype === 'application/pdf' && buffer.length >= 4) {
-      const header = buffer.subarray(0, 5).toString('ascii')
-      if (!header.startsWith('%PDF-')) {
-        log.messaging.warn('Downloaded file is not a valid PDF', {
-          fileName: file.name,
-          header: buffer.subarray(0, 16).toString('hex'),
-          size: buffer.length,
-        })
-        return null
-      }
+    if (!validateMagicBytes(file.mimetype, buffer)) {
+      log.messaging.warn('Downloaded file has invalid magic bytes', {
+        fileName: file.name,
+        mimeType: file.mimetype,
+        header: buffer.subarray(0, 16).toString('hex'),
+        size: buffer.length,
+      })
+      return null
     }
 
     log.messaging.info('Downloaded Slack file', {

@@ -557,7 +557,6 @@ app.patch('/:id', async (c) => {
     }
 
     // Handle other updates (excluding status to avoid double-update)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { status: _status, ...otherFields } = body
     const updates: Record<string, unknown> = { ...otherFields, updatedAt: now }
     if (body.viewState !== undefined) {

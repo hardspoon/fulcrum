@@ -150,7 +150,6 @@ function toTabInfo(tab: ITab): TabInfo {
  * The `options` parameter is ignored - WebSocket configuration is now
  * handled by StoreProvider in main.tsx.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function useTerminalWS(_options: UseTerminalWSOptions = {}): UseTerminalWSReturn {
   const store = useTerminalStore()
 
