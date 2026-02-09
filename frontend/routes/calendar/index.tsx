@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState, useMemo, useCallback } from 'react'
+import { useMemo, useCallback } from 'react'
 import { TaskCalendar } from '@/components/calendar/task-calendar'
 import type { ViewMode } from '@/components/calendar/task-calendar'
 import { TaskListSidebar } from '@/components/calendar/task-list-sidebar'
@@ -14,6 +14,7 @@ interface CalendarSearch {
   project?: string
   tags?: string
   calView?: 'month' | 'week'
+  task?: string
 }
 
 export const Route = createFileRoute('/calendar/')({
@@ -22,15 +23,16 @@ export const Route = createFileRoute('/calendar/')({
     project: typeof search.project === 'string' ? search.project : undefined,
     tags: typeof search.tags === 'string' ? search.tags : undefined,
     calView: search.calView === 'month' ? 'month' : undefined,
+    task: typeof search.task === 'string' ? search.task : undefined,
   }),
 })
 
 function CalendarView() {
-  const { project: projectFilter, tags: tagsParam, calView: viewParam } = Route.useSearch()
+  const { project: projectFilter, tags: tagsParam, calView: viewParam, task: taskParam } = Route.useSearch()
   const navigate = useNavigate()
   const { data: tasks } = useTasks()
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+
+  const selectedTaskId = taskParam ?? null
 
   const viewMode: ViewMode = viewParam || 'week'
 
@@ -77,17 +79,31 @@ function CalendarView() {
     [navigate]
   )
 
-  const handleSidebarTaskClick = useCallback(
+  const handleTaskClick = useCallback(
     (task: Task) => {
       if (task.worktreePath) {
         navigate({ to: '/tasks/$taskId', params: { taskId: task.id } })
       } else {
-        setSelectedTaskId(task.id)
-        setModalOpen(true)
+        navigate({
+          to: '/calendar',
+          search: (prev) => ({ ...prev, task: task.id }),
+          replace: true,
+        })
       }
     },
     [navigate]
   )
+
+  const handleTaskModalClose = useCallback(() => {
+    navigate({
+      to: '/calendar',
+      search: (prev) => {
+        const { task: _, ...rest } = prev as CalendarSearch
+        return rest
+      },
+      replace: true,
+    })
+  }, [navigate])
 
   return (
     <div className="flex h-full flex-col">
@@ -114,6 +130,7 @@ function CalendarView() {
           tagsFilter={tagsFilter}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          onTaskClick={handleTaskClick}
           sidebar={(gridHeight) => (
             <div
               className="w-48 lg:w-64 xl:w-80 sticky top-0 self-start overflow-hidden"
@@ -122,7 +139,7 @@ function CalendarView() {
               <TaskListSidebar
                 projectFilter={projectFilter ?? null}
                 tagsFilter={tagsFilter}
-                onTaskClick={handleSidebarTaskClick}
+                onTaskClick={handleTaskClick}
               />
             </div>
           )}
@@ -132,10 +149,9 @@ function CalendarView() {
       {selectedTask && !selectedTask.worktreePath && (
         <NonWorktreeTaskModal
           task={selectedTask}
-          open={modalOpen}
+          open={true}
           onOpenChange={(open) => {
-            setModalOpen(open)
-            if (!open) setSelectedTaskId(null)
+            if (!open) handleTaskModalClose()
           }}
         />
       )}

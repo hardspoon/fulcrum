@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowLeft01Icon, ArrowRight01Icon, Calendar03Icon, Location01Icon, Clock01Icon, TextIcon } from '@hugeicons/core-free-icons'
-import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
 import { WeekView } from '@/components/calendar/week-view'
 import {
   Dialog,
@@ -39,20 +38,15 @@ interface TaskCalendarProps {
   sidebar?: (gridHeight: number | undefined) => React.ReactNode
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
+  onTaskClick?: (task: Task) => void
 }
 
-export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, viewMode, onViewModeChange }: TaskCalendarProps) {
+export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, viewMode, onViewModeChange, onTaskClick: onTaskClickProp }: TaskCalendarProps) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { data: tasks = [] } = useTasks()
   const { data: projects = [] } = useProjects()
   const [currentDate, setCurrentDate] = useState(() => new Date())
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const selectedTask = useMemo(
-    () => (selectedTaskId ? tasks.find((t) => t.id === selectedTaskId) ?? null : null),
-    [selectedTaskId, tasks]
-  )
   const [selectedEvent, setSelectedEvent] = useState<CaldavEvent | null>(null)
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
@@ -272,14 +266,13 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, vi
   }
 
   const handleTaskClick = (task: Task) => {
-    if (task.worktreePath) {
+    if (onTaskClickProp) {
+      onTaskClickProp(task)
+    } else if (task.worktreePath) {
       navigate({
         to: '/tasks/$taskId',
         params: { taskId: task.id },
       })
-    } else {
-      setSelectedTaskId(task.id)
-      setModalOpen(true)
     }
   }
 
@@ -560,18 +553,6 @@ export function TaskCalendar({ className, projectFilter, tagsFilter, sidebar, vi
         {sidebar?.(gridHeight)}
         </div>
         </div>
-      )}
-
-      {/* Non-worktree task modal */}
-      {selectedTask && !selectedTask.worktreePath && (
-        <NonWorktreeTaskModal
-          task={selectedTask}
-          open={modalOpen}
-          onOpenChange={(open) => {
-            setModalOpen(open)
-            if (!open) setSelectedTaskId(null)
-          }}
-        />
       )}
 
       {/* Day detail dialog */}
