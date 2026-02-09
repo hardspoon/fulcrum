@@ -495,6 +495,17 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
     return
   }
 
+  // Skip empty content — nothing to observe, and empty messages cause API 400 errors
+  if (!msg.content.trim()) {
+    log.messaging.info('Skipping observe-only message with empty content', {
+      connectionId: msg.connectionId,
+      channelType: msg.channelType,
+      senderId: msg.senderId,
+      subject: msg.metadata?.subject as string | undefined,
+    })
+    return
+  }
+
   // Use a shared session for observe-only messages (they don't need individual tracking)
   const observeSessionKey = `observe-${msg.connectionId}`
   const { session } = getOrCreateSession(

@@ -92,6 +92,33 @@ describe('Message Handler', () => {
       expect(observerOpts.ephemeral).toBe(true)
     })
 
+    test('skips observe-only message with empty content', async () => {
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'email',
+        senderId: 'noreply@google.com',
+        content: '',
+        metadata: { observeOnly: true, subject: 'Report Domain: example.com' },
+      })
+
+      // Should not call any API — empty content is skipped
+      expect(streamMessageCalls).toHaveLength(0)
+      expect(opencodeObserverCalls).toHaveLength(0)
+    })
+
+    test('skips observe-only message with whitespace-only content', async () => {
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'email',
+        senderId: 'noreply@google.com',
+        content: '   \n  ',
+        metadata: { observeOnly: true },
+      })
+
+      expect(streamMessageCalls).toHaveLength(0)
+      expect(opencodeObserverCalls).toHaveLength(0)
+    })
+
     test('observe-only message does not send a response', async () => {
       const sendCalls: string[] = []
       activeChannels.set(connectionId, {
