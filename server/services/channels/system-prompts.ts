@@ -38,7 +38,7 @@ A message has arrived:
 **Channel**: ${context.channel}
 **From**: ${context.sender}${context.senderName ? ` (${context.senderName})` : ''}
 **Content**: ${context.content}
-${context.hasAttachments ? `**Attachments**: ${context.attachmentNames?.join(', ') || 'file(s) attached'}` : ''}
+${context.hasAttachments ? `**Attachments**: ${context.attachmentNames?.join(', ') || 'file(s) attached'}\n**Important**: The attached file(s) have been saved to disk and referenced in the message. You MUST read them with your Read tool before responding — do not ask the user to describe what is in the attachment.` : ''}
 ${context.metadata?.subject ? `**Subject**: ${context.metadata.subject}` : ''}
 ${context.metadata?.threadId ? `**Thread ID**: ${context.metadata.threadId}` : ''}
 

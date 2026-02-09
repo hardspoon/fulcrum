@@ -658,7 +658,7 @@ User message: ${userMessage}`
             const tempPath = join(tempDir, `${attachment.filename || `image.${ext}`}`)
             await writeFile(tempPath, Buffer.from(attachment.data, 'base64'))
             tempFiles.push(tempPath)
-            parts.push(`[Attached image: ${tempPath}]`)
+            parts.push(`[The user attached an image "${attachment.filename || `image.${ext}`}", saved to: ${tempPath} — view this file to see its contents.]`)
             break
           }
           case 'document':
@@ -675,7 +675,7 @@ User message: ${userMessage}`
                 size: docBuffer.length,
                 header: docBuffer.subarray(0, 8).toString('ascii'),
               })
-              parts.push(`[Attached document: ${tempPath}]`)
+              parts.push(`[The user attached "${attachment.filename}" (${attachment.mediaType}), saved to: ${tempPath} — read this file to see its contents.]`)
             }
             break
           case 'text':
