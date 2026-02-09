@@ -368,25 +368,34 @@ export class SlackChannel implements MessagingChannel {
       return null
     }
 
-    // Slack redirects file downloads to a CDN on a different origin.
-    // Per the Fetch spec, Authorization headers are stripped on cross-origin redirects,
-    // so we handle redirects manually to preserve the auth header.
+    // Download from Slack with auth.  Slack may redirect to a CDN on a
+    // different origin; per the Fetch spec, Authorization headers are stripped
+    // on cross-origin redirects.  We try two strategies:
+    //   1. Let fetch follow redirects normally (CDN URL has embedded auth)
+    //   2. If that fails, follow manually and forward the auth header
+    const authHeaders = { Authorization: `Bearer ${this.botToken}` }
+
     let response = await fetch(file.url_private_download, {
-      headers: {
-        Authorization: `Bearer ${this.botToken}`,
-      },
-      redirect: 'manual',
+      headers: authHeaders,
     })
 
-    // Follow redirect — the CDN URL contains auth in the query string, no header needed
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location')
-      if (location) {
-        log.messaging.debug('Following Slack file redirect', {
-          fileName: file.name,
-          from: file.url_private_download?.replace(/token=[^&]+/, 'token=***'),
-        })
-        response = await fetch(location)
+    // Strategy 2: if the response isn't the expected type (e.g. HTML error
+    // page because the CDN needed auth that got stripped), retry with manual
+    // redirect handling and pass the auth header to the CDN too.
+    const ct = response.headers.get('content-type')?.split(';')[0]?.trim()
+    if (response.ok && ct && ct !== file.mimetype && ct === 'text/html') {
+      log.messaging.debug('Slack file download returned HTML, retrying with manual redirect', {
+        fileName: file.name,
+      })
+      response = await fetch(file.url_private_download, {
+        headers: authHeaders,
+        redirect: 'manual',
+      })
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location')
+        if (location) {
+          response = await fetch(location, { headers: authHeaders })
+        }
       }
     }
 
