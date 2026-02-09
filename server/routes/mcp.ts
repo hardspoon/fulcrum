@@ -20,7 +20,7 @@ mcpRoutes.all('/', async (c) => {
   // Create MCP server
   const server = new McpServer({
     name: 'fulcrum',
-    version: '3.6.4',
+    version: '3.6.5',
   })
 
   // Client connects back to this server
