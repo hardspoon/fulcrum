@@ -74,7 +74,22 @@ export function GoogleGmailSettings() {
               }
             />
           </div>
-          {account.lastGmailSyncError && (
+          {account.needsReauth && (
+            <div className="mt-2 flex items-start gap-1.5">
+              <HugeiconsIcon icon={Alert02Icon} className="h-3.5 w-3.5 text-destructive mt-0.5" />
+              <p className="text-xs text-destructive">
+                {t('google.authExpiredGmail', 'Authorization expired.')}{' '}
+                <Link
+                  to="/settings"
+                  search={{ tab: undefined }}
+                  className="text-accent underline underline-offset-2"
+                >
+                  {t('google.reconnectInGeneral', 'Reconnect in General settings')}
+                </Link>
+              </p>
+            </div>
+          )}
+          {account.lastGmailSyncError && !account.needsReauth && (
             <div className="mt-2 flex items-start gap-1.5">
               <HugeiconsIcon icon={Alert02Icon} className="h-3.5 w-3.5 text-destructive mt-0.5" />
               <p className="text-xs text-destructive">

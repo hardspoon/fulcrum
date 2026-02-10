@@ -1,0 +1,1 @@
+ALTER TABLE `google_accounts` ADD `needs_reauth` integer DEFAULT false;

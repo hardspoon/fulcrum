@@ -107,6 +107,17 @@ class GoogleCalendarManager {
     const conn = this.connections.get(accountId)
     if (conn?.isSyncing) return
 
+    // Skip sync if account needs re-authorization
+    const account = db
+      .select()
+      .from(googleAccounts)
+      .where(eq(googleAccounts.id, accountId))
+      .get()
+    if (account?.needsReauth) {
+      logger.warn('Skipping sync — account needs re-authorization', { accountId })
+      return
+    }
+
     if (conn) conn.isSyncing = true
 
     try {

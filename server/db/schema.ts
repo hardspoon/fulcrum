@@ -426,6 +426,7 @@ export const googleAccounts = sqliteTable('google_accounts', {
   lastGmailSyncAt: text('last_gmail_sync_at'),
   lastGmailSyncError: text('last_gmail_sync_error'),
   sendAsEmail: text('send_as_email'), // Selected "From:" address for drafts (from Gmail send-as aliases)
+  needsReauth: integer('needs_reauth', { mode: 'boolean' }).default(false),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Loading03Icon, RefreshIcon } from '@hugeicons/core-free-icons'
+import { Loading03Icon, RefreshIcon, Alert02Icon } from '@hugeicons/core-free-icons'
 import {
   useGoogleAccounts,
   useEnableGoogleCalendar,
@@ -100,7 +100,22 @@ export function GoogleCalendarSettings() {
               />
             </div>
           </div>
-          {account.lastCalendarSyncError && (
+          {account.needsReauth && (
+            <div className="flex items-start gap-1.5">
+              <HugeiconsIcon icon={Alert02Icon} className="h-3.5 w-3.5 text-destructive mt-0.5" />
+              <p className="text-xs text-destructive">
+                {t('google.authExpiredCalendar', 'Authorization expired.')}{' '}
+                <Link
+                  to="/settings"
+                  search={{ tab: undefined }}
+                  className="text-accent underline underline-offset-2"
+                >
+                  {t('google.reconnectInGeneral', 'Reconnect in General settings')}
+                </Link>
+              </p>
+            </div>
+          )}
+          {account.lastCalendarSyncError && !account.needsReauth && (
             <p className="text-xs text-destructive">
               {account.lastCalendarSyncError}
             </p>

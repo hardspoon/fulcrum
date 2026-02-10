@@ -157,6 +157,12 @@ export async function getAuthenticatedClient(accountId: string): Promise<OAuth2C
     throw new Error(`Google account ${accountId} has no tokens. Complete OAuth flow first.`)
   }
 
+  if (account.needsReauth) {
+    throw new Error(
+      `Google account "${account.name}" needs re-authorization. Reconnect the account in Settings.`
+    )
+  }
+
   const client = createOAuth2Client()
   client.setCredentials({
     access_token: account.accessToken,
@@ -186,11 +192,25 @@ export async function getAuthenticatedClient(accountId: string): Promise<OAuth2C
 
       logger.info('Refreshed Google OAuth tokens', { accountId })
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
       logger.error('Failed to refresh Google OAuth tokens', {
         accountId,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMsg,
       })
-      throw new Error(`Failed to refresh Google tokens: ${err instanceof Error ? err.message : String(err)}`)
+
+      // Detect permanent token revocation/expiry
+      if (errorMsg.includes('invalid_grant')) {
+        db.update(googleAccounts)
+          .set({
+            needsReauth: true,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(googleAccounts.id, accountId))
+          .run()
+        logger.warn('Marked Google account as needing re-authorization', { accountId })
+      }
+
+      throw new Error(`Failed to refresh Google tokens: ${errorMsg}`)
     }
   }
 

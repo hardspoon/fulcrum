@@ -23,6 +23,7 @@ export interface GoogleAccount {
   lastGmailSyncAt: string | null
   lastGmailSyncError: string | null
   sendAsEmail: string | null
+  needsReauth: boolean | null
   createdAt: string
   updatedAt: string
 }

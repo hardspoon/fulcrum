@@ -18,6 +18,8 @@ import {
   Delete02Icon,
   ArrowDown01Icon,
   ArrowRight01Icon,
+  Alert02Icon,
+  LinkBackwardIcon,
 } from '@hugeicons/core-free-icons'
 import {
   Collapsible,
@@ -63,6 +65,7 @@ export function GoogleAccountManager({
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
   const [editedName, setEditedName] = useState('')
   const [guideOpen, setGuideOpen] = useState(false)
+  const [reconnectingId, setReconnectingId] = useState<string | null>(null)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const handleAddAccount = async () => {
@@ -136,6 +139,47 @@ export function GoogleAccountManager({
       setEditingAccountId(null)
       toast.success(t('common.saved', 'Saved'))
     } catch (err) {
+      toast.error(String(err))
+    }
+  }
+
+  const handleReconnect = async (accountId: string) => {
+    try {
+      setReconnectingId(accountId)
+
+      const popup = window.open('about:blank', '_blank', 'width=600,height=700')
+
+      try {
+        await onSaveCredentials?.()
+        const result = await getOAuthUrl.mutateAsync({ accountId })
+
+        if (popup && !popup.closed) {
+          popup.location.href = result.authUrl
+        } else {
+          window.location.href = result.authUrl
+        }
+      } catch (err) {
+        popup?.close()
+        throw err
+      }
+
+      // Poll until needsReauth clears
+      const reconnectPoll = setInterval(async () => {
+        const { data } = await refetch()
+        const account = data?.find((a) => a.id === accountId)
+        if (account && !account.needsReauth) {
+          clearInterval(reconnectPoll)
+          setReconnectingId(null)
+          toast.success(t('google.accountReconnected', 'Google account reconnected'))
+        }
+      }, 2000)
+
+      setTimeout(() => {
+        clearInterval(reconnectPoll)
+        setReconnectingId(null)
+      }, 120_000)
+    } catch (err) {
+      setReconnectingId(null)
       toast.error(String(err))
     }
   }
@@ -405,6 +449,34 @@ export function GoogleAccountManager({
               />
             </Button>
           </div>
+          {account.needsReauth && (
+            <div className="mt-3 flex items-start gap-2 rounded-md bg-destructive/10 p-3">
+              <HugeiconsIcon icon={Alert02Icon} className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <p className="text-xs text-destructive">
+                  {t('google.authExpired', 'Authorization expired. Reconnect to resume sync.')}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleReconnect(account.id)}
+                  disabled={reconnectingId === account.id}
+                >
+                  {reconnectingId === account.id ? (
+                    <>
+                      <HugeiconsIcon icon={Loading03Icon} className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      {t('google.reconnecting', 'Reconnecting...')}
+                    </>
+                  ) : (
+                    <>
+                      <HugeiconsIcon icon={LinkBackwardIcon} className="mr-1 h-3.5 w-3.5" />
+                      {t('google.reconnect', 'Reconnect')}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       ))}
     </div>

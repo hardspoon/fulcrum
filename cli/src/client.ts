@@ -151,6 +151,7 @@ export interface GoogleAccount {
   lastCalendarSyncError: string | null
   lastGmailSyncAt: string | null
   lastGmailSyncError: string | null
+  needsReauth: boolean | null
   createdAt: string
   updatedAt: string
 }

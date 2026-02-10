@@ -191,6 +191,9 @@ app.get('/callback', async (c) => {
           tokenExpiry: tokens.expiry,
           scopes: tokens.scopes,
           email: email ?? undefined,
+          needsReauth: false,
+          lastCalendarSyncError: null,
+          lastGmailSyncError: null,
           updatedAt: now,
         })
         .where(eq(googleAccounts.id, state.accountId))
