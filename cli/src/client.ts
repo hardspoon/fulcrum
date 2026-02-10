@@ -43,6 +43,7 @@ export interface CreateTaskInput {
   repositoryId?: string | null
   tags?: string[]
   dueDate?: string | null
+  timeEstimate?: number | null
   recurrenceRule?: string | null
   recurrenceEndDate?: string | null
 }

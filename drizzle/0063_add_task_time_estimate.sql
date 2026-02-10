@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `time_estimate` integer;

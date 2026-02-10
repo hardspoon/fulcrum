@@ -167,6 +167,9 @@ function registerCreateTask(server: Server, client: Client) {
       repositoryId: z.optional(z.string()).describe('Repository ID (alternative to repoPath)'),
       tags: z.optional(z.array(z.string())).describe('Tags to add to the task'),
       dueDate: z.optional(z.string()).describe('Due date in YYYY-MM-DD format'),
+      timeEstimate: z
+        .optional(z.number().int().min(1).max(8))
+        .describe('Time estimate in hours (1-8)'),
       recurrenceRule: z
         .optional(z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']))
         .describe('Recurrence frequency - creates a new TO_DO task when completed'),
@@ -185,6 +188,7 @@ function registerCreateTask(server: Server, client: Client) {
       repositoryId,
       tags,
       dueDate,
+      timeEstimate,
       recurrenceRule,
       recurrenceEndDate,
     }) => {
@@ -204,6 +208,7 @@ function registerCreateTask(server: Server, client: Client) {
           repositoryId: repositoryId ?? null,
           tags,
           dueDate: dueDate ?? null,
+          timeEstimate: timeEstimate ?? null,
           recurrenceRule: recurrenceRule ?? null,
           recurrenceEndDate: recurrenceEndDate ?? null,
         })
@@ -240,6 +245,9 @@ function registerUpdateTask(server: Server, client: Client) {
       id: z.string().describe('Task ID'),
       title: z.optional(z.string()).describe('New title'),
       description: z.optional(z.string()).describe('New description'),
+      timeEstimate: z
+        .optional(z.nullable(z.number().int().min(1).max(8)))
+        .describe('Time estimate in hours (1-8), or null to clear'),
       recurrenceRule: z
         .optional(z.nullable(z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'])))
         .describe('Recurrence frequency, or null to remove'),
@@ -247,11 +255,12 @@ function registerUpdateTask(server: Server, client: Client) {
         .optional(z.nullable(z.string()))
         .describe('Stop recurring after this date (YYYY-MM-DD), or null to remove'),
     },
-    async ({ id, title, description, recurrenceRule, recurrenceEndDate }) => {
+    async ({ id, title, description, timeEstimate, recurrenceRule, recurrenceEndDate }) => {
       try {
-        const updates: Record<string, string | null> = {}
+        const updates: Record<string, string | number | null> = {}
         if (title !== undefined) updates.title = title
         if (description !== undefined) updates.description = description
+        if (timeEstimate !== undefined) updates.timeEstimate = timeEstimate
         if (recurrenceRule !== undefined) updates.recurrenceRule = recurrenceRule
         if (recurrenceEndDate !== undefined) updates.recurrenceEndDate = recurrenceEndDate
 

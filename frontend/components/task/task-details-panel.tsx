@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DescriptionTextarea } from '@/components/ui/description-textarea'
 import { DatePickerPopover } from '@/components/ui/date-picker-popover'
+import { TimeEstimatePicker } from '@/components/task/time-estimate-picker'
 import { LinksManager } from '@/components/task/links-manager'
 import { DependencyManager } from '@/components/task/dependency-manager'
 import { AttachmentsManager } from '@/components/task/attachments-manager'
@@ -63,6 +64,12 @@ export function TaskDetailsPanel({ task }: TaskDetailsPanelProps) {
     })
   }
 
+  const handleTimeEstimateChange = (value: number | null) => {
+    updateTask.mutate({
+      taskId: task.id,
+      updates: { timeEstimate: value },
+    })
+  }
 
   const handleAddTag = () => {
     const trimmed = tagInput.trim()
@@ -246,7 +253,7 @@ export function TaskDetailsPanel({ task }: TaskDetailsPanelProps) {
           )}
         </div>
 
-        {/* Tags and Due Date */}
+        {/* Tags, Due Date, and Estimate */}
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Tags */}
           <div className="rounded-lg border bg-card p-4">
@@ -293,6 +300,14 @@ export function TaskDetailsPanel({ task }: TaskDetailsPanelProps) {
             />
           </div>
 
+          {/* Time Estimate */}
+          <div className="rounded-lg border bg-card p-4 sm:col-span-2">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Estimate</h3>
+            <TimeEstimatePicker
+              value={task.timeEstimate}
+              onChange={handleTimeEstimateChange}
+            />
+          </div>
         </div>
 
         {/* Pull Request URL - only for code tasks */}

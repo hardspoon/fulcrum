@@ -46,6 +46,7 @@ export function useCreateTask() {
       // New generalized task fields
       tags?: string[]
       dueDate?: string | null
+      timeEstimate?: number | null
       notes?: string | null
       projectId?: string | null
       // Recurrence
@@ -100,7 +101,7 @@ export function useUpdateTask() {
       updates,
     }: {
       taskId: string
-      updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'viewState' | 'prUrl' | 'tags' | 'dueDate' | 'repositoryId' | 'agent' | 'aiMode' | 'baseBranch' | 'projectId' | 'recurrenceRule' | 'recurrenceEndDate'>>
+      updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'viewState' | 'prUrl' | 'tags' | 'dueDate' | 'timeEstimate' | 'repositoryId' | 'agent' | 'aiMode' | 'baseBranch' | 'projectId' | 'recurrenceRule' | 'recurrenceEndDate'>>
     }) =>
       fetchJSON<Task>(`${API_BASE}/api/tasks/${taskId}`, {
         method: 'PATCH',

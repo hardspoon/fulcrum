@@ -94,6 +94,7 @@ export function TaskActionsDropdown({
     tags: [],
     startedAt: null,
     dueDate: null,
+    timeEstimate: null,
     recurrenceRule: null,
     recurrenceEndDate: null,
     recurrenceSourceTaskId: null,

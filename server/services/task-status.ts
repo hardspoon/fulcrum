@@ -144,6 +144,7 @@ function createNextRecurrence(completedTask: Task): void {
         projectId: completedTask.projectId,
         notes: completedTask.notes,
         dueDate: nextDueDate,
+        timeEstimate: completedTask.timeEstimate,
         recurrenceRule: completedTask.recurrenceRule,
         recurrenceEndDate: completedTask.recurrenceEndDate,
         recurrenceSourceTaskId: completedTask.id,

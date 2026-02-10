@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DescriptionTextarea } from '@/components/ui/description-textarea'
 import { DatePickerPopover } from '@/components/ui/date-picker-popover'
+import { TimeEstimatePicker } from '@/components/task/time-estimate-picker'
 import { LinksManager } from '@/components/task/links-manager'
 import { DependencyManager } from '@/components/task/dependency-manager'
 import { AttachmentsManager } from '@/components/task/attachments-manager'
@@ -142,6 +143,13 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
     updateTask.mutate({
       taskId: task.id,
       updates: { dueDate: date } as Partial<Task>,
+    })
+  }
+
+  const handleTimeEstimateChange = (value: number | null) => {
+    updateTask.mutate({
+      taskId: task.id,
+      updates: { timeEstimate: value },
     })
   }
 
@@ -376,6 +384,15 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
                 value={task.dueDate}
                 onChange={handleDueDateChange}
                 isOverdue={!!isOverdue}
+              />
+            </div>
+
+            {/* Estimate */}
+            <div className={`rounded-lg border bg-card ${paddingClass}`}>
+              <h2 className={`${headingClass} font-medium text-muted-foreground ${marginClass}`}>Estimate</h2>
+              <TimeEstimatePicker
+                value={task.timeEstimate}
+                onChange={handleTimeEstimateChange}
               />
             </div>
 

@@ -51,6 +51,7 @@ import { DatePickerPopover } from '@/components/ui/date-picker-popover'
 import { ModelPicker } from '@/components/opencode/model-picker'
 import { useUploadAttachment } from '@/hooks/use-task-attachments'
 import { DependencySelector } from '@/components/kanban/dependency-selector'
+import { TimeEstimatePicker } from '@/components/task/time-estimate-picker'
 
 type TaskType = 'worktree' | 'non-worktree'
 
@@ -106,6 +107,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [timeEstimate, setTimeEstimate] = useState<number | null>(null)
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule | ''>('')
   const [notes, setNotes] = useState('')
   const [repoPath, setRepoPath] = useState('')
@@ -370,6 +372,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
         // Generalized task fields
         tags: tags.length > 0 ? tags : undefined,
         dueDate: dueDate || null,
+        timeEstimate: timeEstimate,
         recurrenceRule: recurrenceRule || null,
         notes: notes.trim() || null,
         projectId: isCodeTask ? selectedRepoProject?.id : selectedProjectId,
@@ -429,6 +432,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
     setTags([])
     setTagInput('')
     setDueDate('')
+    setTimeEstimate(null)
     setRecurrenceRule('')
     setNotes('')
     setPendingFiles([])
@@ -897,6 +901,12 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                 </>
               )}
 
+              {/* Estimate */}
+              <Field>
+                <FieldLabel>{t('createModal.fields.estimate')}</FieldLabel>
+                <TimeEstimatePicker value={timeEstimate} onChange={setTimeEstimate} />
+              </Field>
+
               {/* Tags and Due Date row - always at bottom */}
               <div className="flex gap-3">
                 <Field className="flex-1">
@@ -989,7 +999,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                     value={recurrenceRule || 'none'}
                     onValueChange={(value) => setRecurrenceRule(value === 'none' ? '' : value as RecurrenceRule)}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full !h-auto py-2">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
