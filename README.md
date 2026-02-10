@@ -17,7 +17,7 @@ Fulcrum doesn't replace your tools—it gives you leverage over them. You config
 - **Claude Code Ecosystem** — Deep integration with Claude Code. Connect via messaging channels, manage tasks, deploy from one dashboard.
 - **Proactive AI Concierge** — Your assistant monitors messages, stores important observations as memories, creates daily plans, and sends morning/evening briefings automatically.
 - **Work From Anywhere** — Run Fulcrum on a remote server. Close your laptop, agents keep working.
-- **Project Management** — Tasks with dependencies, due dates, recurrence, labels, and attachments. Visual kanban boards.
+- **Project Management** — Tasks with dependencies, due dates, time estimates, recurrence, labels, and attachments. Visual kanban boards.
 - **Production Deployment** — Docker Compose with automatic Traefik routing and Cloudflare DNS/tunnels.
 - **Agent Memory** — Persistent knowledge store with full-text search. Agents remember across sessions.
 - **MCP-First Architecture** — 60+ tools exposed via Model Context Protocol. Agents discover what they need.
@@ -246,7 +246,7 @@ Both plugins include an MCP server with 60+ tools:
 
 | Category | Description |
 |----------|-------------|
-| **Tasks** | Create, update, move tasks; manage links, labels, attachments, due dates, recurrence |
+| **Tasks** | Create, update, move tasks; manage links, labels, attachments, due dates, time estimates, recurrence |
 | **Task Dependencies** | Define prerequisite tasks; visualize with dependency graph |
 | **Projects** | Manage projects with tags, notes, and file attachments |
 | **Repositories** | Add, configure, and link repositories to projects |

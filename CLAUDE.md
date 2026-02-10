@@ -170,7 +170,7 @@ fulcrum notify <title> <message>  # Send notification
 
 | Table | Purpose |
 |-------|---------|
-| `tasks` | Task metadata, git worktree paths, status, PR integration, recurrence (rule, end date, source task) |
+| `tasks` | Task metadata, git worktree paths, status, PR integration, time estimate (1-8h), recurrence (rule, end date, source task) |
 | `repositories` | Git repositories with startupScript, copyFiles, agent, agentOptions |
 | `terminalTabs` | Tab entities for terminal organization |
 | `terminals` | Terminal instances with tmux session backing |
@@ -183,7 +183,7 @@ fulcrum notify <title> <message>  # Send notification
 | `messagingConnections` | Messaging channel runtime state (connection status, display names) |
 | `messagingSessionMappings` | Maps channel users to AI chat sessions |
 | `channelMessages` | Unified storage for all channel messages (WhatsApp, Discord, Telegram, Slack, Email) |
-| `googleAccounts` | Unified Google API accounts (Calendar + Gmail) with OAuth2 tokens and scopes |
+| `googleAccounts` | Unified Google API accounts (Calendar + Gmail) with OAuth2 tokens, scopes, and reauth detection |
 | `gmailDrafts` | Cached Gmail draft metadata (recipients, subject, body) |
 | `caldavAccounts` | CalDAV account credentials and sync state (supports multiple accounts) |
 | `caldavCalendars` | Synced CalDAV calendars with account association |

@@ -37,8 +37,8 @@ export function getDataModel(): string {
 **Tasks** - Units of work you want to track or execute
 - Optional git worktree for isolated development
 - Dependencies (blocks/blocked-by other tasks)
-- Tags, due dates, descriptions
-- Recurrence rules (daily/weekly/biweekly/monthly/quarterly/yearly) — on completion, a new TO_DO task is created with the next due date
+- Tags, due dates, time estimates (1-8 hours), descriptions
+- Recurrence rules (daily/weekly/biweekly/monthly/quarterly/yearly) — on completion, a new TO_DO task is created with the next due date (recurrence only available for non-worktree tasks)
 - File attachments and URL links
 - Agent assignment (Claude Code or OpenCode)
 
@@ -104,8 +104,8 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 **Task Management:**
 - \`list_tasks\` - List tasks with filtering (status, tags, due dates, search)
 - \`get_task\` - Get full task details
-- \`create_task\` - Create tasks (with optional git worktree, recurrence rule, recurrence end date)
-- \`update_task\` - Update task metadata (including recurrence rule and end date)
+- \`create_task\` - Create tasks (with optional git worktree, time estimate, recurrence rule, recurrence end date)
+- \`update_task\` - Update task metadata (including time estimate, recurrence rule, and end date)
 - \`move_task\` - Change task status (TO_DO, IN_PROGRESS, IN_REVIEW, DONE, CANCELED). Moving a repeating task to DONE auto-creates the next occurrence.
 - \`delete_task\` - Delete a task
 - \`add_task_tag\`, \`remove_task_tag\` - Manage task tags
@@ -528,7 +528,7 @@ export function getCondensedKnowledge(): string {
 Fulcrum is your digital concierge - a personal command center where you track everything that matters and use AI to get it done.
 
 **What you can help with:**
-- Organizing life and work: tasks, projects, deadlines, dependencies, recurring tasks
+- Organizing life and work: tasks, projects, deadlines, time estimates, dependencies, recurring tasks
 - Breaking down big goals into trackable pieces
 - Spinning up AI agents to do actual work
 - Scheduling and automation via system commands
