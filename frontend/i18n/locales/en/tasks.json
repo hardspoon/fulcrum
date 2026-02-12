@@ -9,6 +9,11 @@
   "searchProjects": "Search projects...",
   "noProjectsFound": "No projects found",
   "newTask": "New Task",
+  "priority": {
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low"
+  },
   "createModal": {
     "title": "Create New Task",
     "description": "Create a new task with a git worktree for isolated development.",
@@ -39,6 +44,7 @@
       "dueDate": "Due Date",
       "dueDatePlaceholder": "Set date",
       "estimate": "Estimate",
+      "priority": "Priority",
       "repeat": "Repeat",
       "notes": "Notes",
       "notesPlaceholder": "Add notes...",

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJSON } from '@/lib/api'
-import type { Task, TaskStatus, TaskLink, RecurrenceRule } from '@/types'
+import type { Task, TaskStatus, TaskLink, RecurrenceRule, TaskPriority } from '@/types'
 
 // Use relative URLs - works with both Vite dev proxy and production
 const API_BASE = ''
@@ -47,6 +47,7 @@ export function useCreateTask() {
       tags?: string[]
       dueDate?: string | null
       timeEstimate?: number | null
+      priority?: TaskPriority | null
       notes?: string | null
       projectId?: string | null
       // Recurrence
@@ -101,7 +102,7 @@ export function useUpdateTask() {
       updates,
     }: {
       taskId: string
-      updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'viewState' | 'prUrl' | 'tags' | 'dueDate' | 'timeEstimate' | 'repositoryId' | 'agent' | 'aiMode' | 'baseBranch' | 'projectId' | 'recurrenceRule' | 'recurrenceEndDate'>>
+      updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'viewState' | 'prUrl' | 'tags' | 'dueDate' | 'timeEstimate' | 'priority' | 'repositoryId' | 'agent' | 'aiMode' | 'baseBranch' | 'projectId' | 'recurrenceRule' | 'recurrenceEndDate'>>
     }) =>
       fetchJSON<Task>(`${API_BASE}/api/tasks/${taskId}`, {
         method: 'PATCH',

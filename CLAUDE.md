@@ -170,7 +170,7 @@ fulcrum notify <title> <message>  # Send notification
 
 | Table | Purpose |
 |-------|---------|
-| `tasks` | Task metadata, git worktree paths, status, PR integration, time estimate (1-8h), recurrence (rule, end date, source task) |
+| `tasks` | Task metadata, git worktree paths, status, PR integration, time estimate (1-8h), priority (high/medium/low), recurrence (rule, end date, source task) |
 | `repositories` | Git repositories with startupScript, copyFiles, agent, agentOptions |
 | `terminalTabs` | Tab entities for terminal organization |
 | `terminals` | Terminal instances with tmux session backing |

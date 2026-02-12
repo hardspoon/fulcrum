@@ -39,7 +39,8 @@ import { useIsOverdue } from '@/hooks/use-date-utils'
 import { DeleteTaskDialog } from '@/components/delete-task-dialog'
 import { openExternalUrl } from '@/lib/editor-url'
 import { cn } from '@/lib/utils'
-import type { Task, TaskStatus, RecurrenceRule } from '@/types'
+import { PriorityPicker } from '@/components/task/priority-picker'
+import type { Task, TaskStatus, RecurrenceRule, TaskPriority } from '@/types'
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   TO_DO: 'To Do',
@@ -150,6 +151,13 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
     updateTask.mutate({
       taskId: task.id,
       updates: { timeEstimate: value },
+    })
+  }
+
+  const handlePriorityChange = (value: TaskPriority | null) => {
+    updateTask.mutate({
+      taskId: task.id,
+      updates: { priority: value },
     })
   }
 
@@ -393,6 +401,15 @@ export function TaskContent({ task, onDeleted, compact }: TaskContentProps) {
               <TimeEstimatePicker
                 value={task.timeEstimate}
                 onChange={handleTimeEstimateChange}
+              />
+            </div>
+
+            {/* Priority */}
+            <div className={`rounded-lg border bg-card ${paddingClass}`}>
+              <h2 className={`${headingClass} font-medium text-muted-foreground ${marginClass}`}>Priority</h2>
+              <PriorityPicker
+                value={task.priority}
+                onChange={handlePriorityChange}
               />
             </div>
 

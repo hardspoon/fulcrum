@@ -9,6 +9,11 @@
   "searchProjects": "搜索项目...",
   "noProjectsFound": "未找到项目",
   "newTask": "新建任务",
+  "priority": {
+    "high": "高",
+    "medium": "中",
+    "low": "低"
+  },
   "createModal": {
     "title": "创建新任务",
     "description": "创建一个带有 Git 工作树的新任务，用于隔离开发。",
@@ -39,6 +44,7 @@
       "dueDate": "截止日期",
       "dueDatePlaceholder": "设置日期",
       "estimate": "预估时间",
+      "priority": "优先级",
       "notes": "备注",
       "notesPlaceholder": "添加备注...",
       "links": "链接",

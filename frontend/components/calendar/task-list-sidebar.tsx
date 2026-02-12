@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useTasks } from '@/hooks/use-tasks'
 import { useProjects } from '@/hooks/use-projects'
 import { useToday } from '@/hooks/use-date-utils'
-import type { Task, TaskStatus } from '@/types'
+import type { Task, TaskStatus, TaskPriority } from '@/types'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { localDateToDateKey, parseDateKey } from '../../../shared/date-utils'
@@ -14,6 +14,12 @@ const STATUS_ORDER: Record<TaskStatus, number> = {
   TO_DO: 2,
   DONE: 3,
   CANCELED: 4,
+}
+
+const PRIORITY_ORDER: Record<TaskPriority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
 }
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -96,13 +102,17 @@ export function TaskListSidebar({ projectFilter, tagsFilter, onTaskClick }: Task
       if (!aHasDue && bHasDue) return 1
 
       if (aHasDue && bHasDue) {
-        // Both have due dates: sort by date ascending, then status
+        // Both have due dates: sort by date ascending, then priority, then status
         const dateDiff = a.dueDate!.localeCompare(b.dueDate!)
         if (dateDiff !== 0) return dateDiff
+        const priorityDiff = PRIORITY_ORDER[a.priority ?? 'medium'] - PRIORITY_ORDER[b.priority ?? 'medium']
+        if (priorityDiff !== 0) return priorityDiff
         const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
         if (statusDiff !== 0) return statusDiff
       } else {
-        // Neither has due date: sort by status priority
+        // Neither has due date: sort by priority, then status
+        const priorityDiff = PRIORITY_ORDER[a.priority ?? 'medium'] - PRIORITY_ORDER[b.priority ?? 'medium']
+        if (priorityDiff !== 0) return priorityDiff
         const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
         if (statusDiff !== 0) return statusDiff
       }

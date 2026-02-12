@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DescriptionTextarea } from '@/components/ui/description-textarea'
 import { DatePickerPopover } from '@/components/ui/date-picker-popover'
 import { TimeEstimatePicker } from '@/components/task/time-estimate-picker'
+import { PriorityPicker } from '@/components/task/priority-picker'
 import { LinksManager } from '@/components/task/links-manager'
 import { DependencyManager } from '@/components/task/dependency-manager'
 import { AttachmentsManager } from '@/components/task/attachments-manager'
@@ -14,7 +15,7 @@ import { useUpdateTask } from '@/hooks/use-tasks'
 import { useAddTaskTag, useRemoveTaskTag } from '@/hooks/use-tags'
 import { useIsOverdue } from '@/hooks/use-date-utils'
 import { openExternalUrl } from '@/lib/editor-url'
-import type { Task } from '@/types'
+import type { Task, TaskPriority } from '@/types'
 
 interface TaskDetailsPanelProps {
   task: Task
@@ -68,6 +69,13 @@ export function TaskDetailsPanel({ task }: TaskDetailsPanelProps) {
     updateTask.mutate({
       taskId: task.id,
       updates: { timeEstimate: value },
+    })
+  }
+
+  const handlePriorityChange = (value: TaskPriority | null) => {
+    updateTask.mutate({
+      taskId: task.id,
+      updates: { priority: value },
     })
   }
 
@@ -301,11 +309,20 @@ export function TaskDetailsPanel({ task }: TaskDetailsPanelProps) {
           </div>
 
           {/* Time Estimate */}
-          <div className="rounded-lg border bg-card p-4 sm:col-span-2">
+          <div className="rounded-lg border bg-card p-4">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Estimate</h3>
             <TimeEstimatePicker
               value={task.timeEstimate}
               onChange={handleTimeEstimateChange}
+            />
+          </div>
+
+          {/* Priority */}
+          <div className="rounded-lg border bg-card p-4">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Priority</h3>
+            <PriorityPicker
+              value={task.priority}
+              onChange={handlePriorityChange}
             />
           </div>
         </div>

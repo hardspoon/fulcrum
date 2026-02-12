@@ -44,6 +44,7 @@ export interface CreateTaskInput {
   tags?: string[]
   dueDate?: string | null
   timeEstimate?: number | null
+  priority?: string | null
   recurrenceRule?: string | null
   recurrenceEndDate?: string | null
 }

@@ -39,6 +39,8 @@ export type TaskStatus =
 
 export type RecurrenceRule = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
 
+export type TaskPriority = 'high' | 'medium' | 'low'
+
 export interface DiffOptions {
   wrap: boolean
   ignoreWhitespace: boolean
@@ -107,6 +109,7 @@ export interface Task {
   startedAt: string | null // Timestamp when moved out of TO_DO
   dueDate: string | null // YYYY-MM-DD format
   timeEstimate: number | null // Hours (1-8)
+  priority: TaskPriority | null
   recurrenceRule: RecurrenceRule | null
   recurrenceEndDate: string | null
   recurrenceSourceTaskId: string | null

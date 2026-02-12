@@ -13,7 +13,7 @@ import { useSelection } from './selection-context'
 import type { Task } from '@/types'
 import { cn } from '@/lib/utils'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { FolderLibraryIcon, GitPullRequestIcon, Calendar03Icon, AlertDiamondIcon, Alert02Icon, RepeatIcon, Clock01Icon } from '@hugeicons/core-free-icons'
+import { FolderLibraryIcon, GitPullRequestIcon, Calendar03Icon, AlertDiamondIcon, Alert02Icon, RepeatIcon, Clock01Icon, ArrowUp01Icon, ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import { useRepositories } from '@/hooks/use-repositories'
 import { formatDateString } from '../../../shared/date-utils'
 import { useIsOverdue, useIsDueToday } from '@/hooks/use-date-utils'
@@ -287,6 +287,18 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
               </span>
             </>
           )}
+          {/* Priority indicator (only for non-medium) */}
+          {task.priority && task.priority !== 'medium' && (
+            <>
+              {(isCodeTask || task.dueDate || task.timeEstimate != null) && <span className="text-muted-foreground/30">•</span>}
+              <span className={cn(
+                'inline-flex items-center gap-0.5 whitespace-nowrap',
+                task.priority === 'high' ? 'text-destructive' : 'text-muted-foreground/50'
+              )}>
+                <HugeiconsIcon icon={task.priority === 'high' ? ArrowUp01Icon : ArrowDown01Icon} size={12} strokeWidth={2} />
+              </span>
+            </>
+          )}
           {/* Recurrence indicator */}
           {task.recurrenceRule && (
             <>
@@ -297,7 +309,7 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
             </>
           )}
           {/* Fallback for non-code tasks with no metadata */}
-          {!isCodeTask && !isBlocked && !isBlocking && task.tags.length === 0 && !task.dueDate && task.timeEstimate == null && !task.recurrenceRule && (
+          {!isCodeTask && !isBlocked && !isBlocking && task.tags.length === 0 && !task.dueDate && task.timeEstimate == null && (!task.priority || task.priority === 'medium') && !task.recurrenceRule && (
             <span className="italic">Non-code task</span>
           )}
         </div>

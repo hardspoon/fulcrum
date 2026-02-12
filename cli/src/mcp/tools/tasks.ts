@@ -170,6 +170,9 @@ function registerCreateTask(server: Server, client: Client) {
       timeEstimate: z
         .optional(z.number().int().min(1).max(8))
         .describe('Time estimate in hours (1-8)'),
+      priority: z
+        .optional(z.enum(['high', 'medium', 'low']))
+        .describe('Task priority level (default: medium)'),
       recurrenceRule: z
         .optional(z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']))
         .describe('Recurrence frequency - creates a new TO_DO task when completed'),
@@ -189,6 +192,7 @@ function registerCreateTask(server: Server, client: Client) {
       tags,
       dueDate,
       timeEstimate,
+      priority,
       recurrenceRule,
       recurrenceEndDate,
     }) => {
@@ -209,6 +213,7 @@ function registerCreateTask(server: Server, client: Client) {
           tags,
           dueDate: dueDate ?? null,
           timeEstimate: timeEstimate ?? null,
+          priority: priority ?? null,
           recurrenceRule: recurrenceRule ?? null,
           recurrenceEndDate: recurrenceEndDate ?? null,
         })
@@ -248,6 +253,9 @@ function registerUpdateTask(server: Server, client: Client) {
       timeEstimate: z
         .optional(z.nullable(z.number().int().min(1).max(8)))
         .describe('Time estimate in hours (1-8), or null to clear'),
+      priority: z
+        .optional(z.nullable(z.enum(['high', 'medium', 'low'])))
+        .describe('Task priority (high/medium/low), or null to clear'),
       recurrenceRule: z
         .optional(z.nullable(z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'])))
         .describe('Recurrence frequency, or null to remove'),
@@ -255,12 +263,13 @@ function registerUpdateTask(server: Server, client: Client) {
         .optional(z.nullable(z.string()))
         .describe('Stop recurring after this date (YYYY-MM-DD), or null to remove'),
     },
-    async ({ id, title, description, timeEstimate, recurrenceRule, recurrenceEndDate }) => {
+    async ({ id, title, description, timeEstimate, priority, recurrenceRule, recurrenceEndDate }) => {
       try {
         const updates: Record<string, string | number | null> = {}
         if (title !== undefined) updates.title = title
         if (description !== undefined) updates.description = description
         if (timeEstimate !== undefined) updates.timeEstimate = timeEstimate
+        if (priority !== undefined) updates.priority = priority
         if (recurrenceRule !== undefined) updates.recurrenceRule = recurrenceRule
         if (recurrenceEndDate !== undefined) updates.recurrenceEndDate = recurrenceEndDate
 

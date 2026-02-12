@@ -40,7 +40,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Switch } from '@/components/ui/switch'
 import { useCreateTask, useAddTaskLink } from '@/hooks/use-tasks'
 import { useSearchTags } from '@/hooks/use-tags'
-import type { TagWithUsage, RecurrenceRule } from '@shared/types'
+import type { TagWithUsage, RecurrenceRule, TaskPriority } from '@shared/types'
 import { useBranches, checkIsGitRepo } from '@/hooks/use-filesystem'
 import { useWorktreeBasePath, useDefaultGitReposDir, useDefaultAgent, useOpencodeModel, useDefaultTaskType, useStartWorktreeTasksImmediately } from '@/hooks/use-config'
 import { AGENT_DISPLAY_NAMES, type AgentType } from '@/types'
@@ -52,6 +52,7 @@ import { ModelPicker } from '@/components/opencode/model-picker'
 import { useUploadAttachment } from '@/hooks/use-task-attachments'
 import { DependencySelector } from '@/components/kanban/dependency-selector'
 import { TimeEstimatePicker } from '@/components/task/time-estimate-picker'
+import { PriorityPicker } from '@/components/task/priority-picker'
 
 type TaskType = 'worktree' | 'non-worktree'
 
@@ -108,6 +109,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
   const [tagInput, setTagInput] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [timeEstimate, setTimeEstimate] = useState<number | null>(null)
+  const [priority, setPriority] = useState<TaskPriority>('medium')
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule | ''>('')
   const [notes, setNotes] = useState('')
   const [repoPath, setRepoPath] = useState('')
@@ -373,6 +375,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
         tags: tags.length > 0 ? tags : undefined,
         dueDate: dueDate || null,
         timeEstimate: timeEstimate,
+        priority: priority,
         recurrenceRule: recurrenceRule || null,
         notes: notes.trim() || null,
         projectId: isCodeTask ? selectedRepoProject?.id : selectedProjectId,
@@ -433,6 +436,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
     setTagInput('')
     setDueDate('')
     setTimeEstimate(null)
+    setPriority('medium')
     setRecurrenceRule('')
     setNotes('')
     setPendingFiles([])
@@ -905,6 +909,12 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
               <Field>
                 <FieldLabel>{t('createModal.fields.estimate')}</FieldLabel>
                 <TimeEstimatePicker value={timeEstimate} onChange={setTimeEstimate} />
+              </Field>
+
+              {/* Priority */}
+              <Field>
+                <FieldLabel>{t('createModal.fields.priority')}</FieldLabel>
+                <PriorityPicker value={priority} onChange={(v) => setPriority(v ?? 'medium')} />
               </Field>
 
               {/* Tags and Due Date row - always at bottom */}

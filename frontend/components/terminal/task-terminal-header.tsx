@@ -96,6 +96,7 @@ export function TaskTerminalHeader({
     startedAt: null,
     dueDate: null,
     timeEstimate: null,
+    priority: null,
     recurrenceRule: null,
     recurrenceEndDate: null,
     recurrenceSourceTaskId: null,
