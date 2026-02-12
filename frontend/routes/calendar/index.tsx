@@ -8,6 +8,7 @@ import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
 import { TagsFilter } from '@/components/tasks/tags-filter'
 import { ProjectFilter } from '@/components/tasks/project-filter'
 import { useTasks } from '@/hooks/use-tasks'
+import { cn } from '@/lib/utils'
 import type { Task } from '@/types'
 
 interface CalendarSearch {
@@ -133,7 +134,10 @@ function CalendarView() {
           onTaskClick={handleTaskClick}
           sidebar={(gridHeight) => (
             <div
-              className="w-48 lg:w-64 xl:w-80 sticky top-0 self-start overflow-hidden"
+              className={cn(
+                "w-48 lg:w-64 xl:w-80 overflow-hidden",
+                gridHeight ? "sticky top-0 self-start" : "my-4 mr-4"
+              )}
               style={gridHeight ? { height: gridHeight } : undefined}
             >
               <TaskListSidebar
