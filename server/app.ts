@@ -58,6 +58,15 @@ export function createApp() {
   const app = new Hono()
 
   // Middleware
+
+  // Bun automatically adds Transfer-Encoding: chunked for streamed responses,
+  // but Hono's streamSSE also sets it, causing duplicate headers.
+  // Strip it here and let Bun handle it natively.
+  app.use('*', async (c, next) => {
+    await next()
+    c.res.headers.delete('Transfer-Encoding')
+  })
+
   app.use('*', logger())
   app.use(
     '*',
