@@ -61,10 +61,13 @@ export function createApp() {
 
   // Bun automatically adds Transfer-Encoding: chunked for streamed responses,
   // but Hono's streamSSE also sets it, causing duplicate headers.
-  // Strip it here and let Bun handle it natively.
+  // This breaks nginx reverse proxies (duplicate hop-by-hop header → 502).
+  // Only strip it for SSE responses and let Bun handle it natively.
   app.use('*', async (c, next) => {
     await next()
-    c.res.headers.delete('Transfer-Encoding')
+    if (c.res.headers.get('Content-Type')?.includes('text/event-stream')) {
+      c.res.headers.delete('Transfer-Encoding')
+    }
   })
 
   app.use('*', logger())
