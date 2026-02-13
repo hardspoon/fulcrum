@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid'
 import { db, messagingConnections } from '../../db'
 import { activeChannels } from './channel-manager'
 import { handleIncomingMessage, _deps, getCircuitBreaker, resetCircuitBreaker, parseSlackResponse } from './message-handler'
+import { storeChannelMessage } from './message-storage'
 
 // Track mock calls
 let streamMessageCalls: Array<{ sessionId: string; message: string; options?: Record<string, unknown> }> = []
@@ -602,6 +603,132 @@ describe('Message Handler', () => {
 
       // Observe-only should not process commands
       expect(sendCalls).toHaveLength(0)
+    })
+  })
+
+  describe('Channel history injection', () => {
+    test('prepends outgoing channel messages to user message', async () => {
+      // Store an outgoing notification message before the user's message
+      storeChannelMessage({
+        channelType: 'whatsapp',
+        connectionId,
+        direction: 'outgoing',
+        senderId: 'system',
+        senderName: 'Fulcrum',
+        content: 'Build succeeded for my-app',
+        messageTimestamp: new Date().toISOString(),
+      })
+
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'whatsapp',
+        senderId: 'user123',
+        senderName: 'John',
+        content: 'Any more details on that?',
+        metadata: {},
+      })
+
+      expect(streamMessageCalls).toHaveLength(1)
+      const opts = streamMessageCalls[0].options as Record<string, unknown>
+      expect(opts.channelHistory).toBeDefined()
+      const history = opts.channelHistory as Array<{ content: string }>
+      expect(history).toHaveLength(1)
+      expect(history[0].content).toBe('Build succeeded for my-app')
+    })
+
+    test('does not prepend history when no outgoing messages exist', async () => {
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'whatsapp',
+        senderId: 'user123',
+        senderName: 'John',
+        content: 'Hello!',
+        metadata: {},
+      })
+
+      expect(streamMessageCalls).toHaveLength(1)
+      const opts = streamMessageCalls[0].options as Record<string, unknown>
+      expect(opts.channelHistory).toBeUndefined()
+    })
+
+    test('only includes outgoing messages, not incoming', async () => {
+      // Store an incoming message (should be excluded)
+      storeChannelMessage({
+        channelType: 'whatsapp',
+        connectionId,
+        direction: 'incoming',
+        senderId: 'user123',
+        senderName: 'John',
+        content: 'Previous user message',
+        messageTimestamp: new Date(Date.now() - 5000).toISOString(),
+      })
+
+      // Store an outgoing notification (should be included)
+      storeChannelMessage({
+        channelType: 'whatsapp',
+        connectionId,
+        direction: 'outgoing',
+        senderId: 'system',
+        senderName: 'Fulcrum',
+        content: 'Task completed: fix-bug',
+        messageTimestamp: new Date().toISOString(),
+      })
+
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'whatsapp',
+        senderId: 'user123',
+        senderName: 'John',
+        content: 'Tell me about the task',
+        metadata: {},
+      })
+
+      expect(streamMessageCalls).toHaveLength(1)
+      const opts = streamMessageCalls[0].options as Record<string, unknown>
+      expect(opts.channelHistory).toBeDefined()
+      const history = opts.channelHistory as Array<{ content: string; direction: string }>
+      expect(history).toHaveLength(1)
+      expect(history[0].content).toBe('Task completed: fix-bug')
+      expect(history[0].direction).toBe('outgoing')
+    })
+
+    test('does not re-inject history after successful sync', async () => {
+      // Store a notification
+      storeChannelMessage({
+        channelType: 'whatsapp',
+        connectionId,
+        direction: 'outgoing',
+        senderId: 'system',
+        content: 'Notification 1',
+        messageTimestamp: new Date().toISOString(),
+      })
+
+      // First message - should include history
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'whatsapp',
+        senderId: 'user123',
+        senderName: 'John',
+        content: 'First message',
+        metadata: {},
+      })
+
+      expect(streamMessageCalls).toHaveLength(1)
+      expect((streamMessageCalls[0].options as Record<string, unknown>).channelHistory).toBeDefined()
+
+      // Second message - history should not be re-injected (already synced)
+      streamMessageCalls = []
+      await handleIncomingMessage({
+        connectionId,
+        channelType: 'whatsapp',
+        senderId: 'user123',
+        senderName: 'John',
+        content: 'Second message',
+        metadata: {},
+      })
+
+      expect(streamMessageCalls).toHaveLength(1)
+      expect((streamMessageCalls[0].options as Record<string, unknown>).channelHistory).toBeUndefined()
     })
   })
 

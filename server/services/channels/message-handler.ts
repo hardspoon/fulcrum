@@ -8,6 +8,7 @@ import { activeChannels, setMessageHandler } from './channel-manager'
 import { getOrCreateSession, resetSession } from './session-mapper'
 import { getMessagingSystemPrompt, getObserveOnlySystemPrompt, type MessagingContext } from './system-prompts'
 import * as assistantService from '../assistant-service'
+import { getRecentOutgoingMessages } from './message-storage'
 import { streamOpencodeObserverMessage } from '../opencode-channel-service'
 import { getSettings } from '../../lib/settings/core'
 import type { IncomingMessage } from './types'
@@ -167,10 +168,16 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
     }
     const systemPrompt = getMessagingSystemPrompt(msg.channelType, context)
 
+    // Fetch recent outgoing messages (notifications, rituals, MCP sends) that
+    // the SDK session hasn't seen yet, so the AI has context for user replies.
+    const lastSyncAt = assistantService.getLastChannelSyncAt(session.id)
+    const channelHistory = getRecentOutgoingMessages(msg.connectionId, { since: lastSyncAt })
+
     const isSlack = msg.channelType === 'slack'
     const stream = _deps.streamMessage(session.id, content || '(file attached)', {
       systemPromptAdditions: systemPrompt,
       ...(msg.attachments?.length && { attachments: msg.attachments }),
+      ...(channelHistory.length > 0 && { channelHistory }),
     })
 
     // Capture the assistant's response to send it directly
@@ -199,6 +206,11 @@ export async function handleIncomingMessage(msg: IncomingMessage): Promise<void>
     // If we got only errors and no valid response, send a friendly error message
     if (hasError && !responseText.trim()) {
       responseText = "Sorry, I ran into an issue processing that. Could you try again or rephrase your message?"
+    }
+
+    // Mark channel history as synced so we don't re-inject on next message
+    if (channelHistory.length > 0) {
+      assistantService.updateLastChannelSyncAt(session.id)
     }
 
     // Send the response directly (no reliance on the assistant calling a tool)

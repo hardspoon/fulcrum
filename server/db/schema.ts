@@ -344,6 +344,7 @@ export const messagingSessionMappings = sqliteTable('messaging_session_mappings'
   sessionId: text('session_id').notNull(), // FK to chatSessions
   createdAt: text('created_at').notNull(),
   lastMessageAt: text('last_message_at').notNull(),
+  lastChannelSyncAt: text('last_channel_sync_at'), // Last time channel history was synced to this session
 })
 
 // Email authorized threads - tracks email threads that have been authorized

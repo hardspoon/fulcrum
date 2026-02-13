@@ -1,0 +1,1 @@
+ALTER TABLE `messaging_session_mappings` ADD `last_channel_sync_at` text;

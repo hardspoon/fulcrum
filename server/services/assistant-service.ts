@@ -11,6 +11,7 @@ import { getClaudeCodePathForSdk } from '../lib/claude-code-path'
 import { getInstanceContext } from '../lib/settings/paths'
 import { log } from '../lib/logger'
 import type { PageContext, AttachmentData } from '../../shared/types'
+import type { ChannelHistoryMessage } from './channels/message-storage'
 import { saveDocument, readDocument, deleteDocument, renameDocument, generateDocumentFilename } from './document-service'
 import { getFullKnowledge, getCondensedKnowledge } from './assistant-knowledge'
 import { readMemoryFile } from './memory-file-service'
@@ -24,7 +25,60 @@ const MODEL_MAP: Record<ModelId, string> = {
 }
 
 // In-memory session state for Claude Agent SDK resume
-const sessionState = new Map<string, { claudeSessionId?: string }>()
+const sessionState = new Map<string, { claudeSessionId?: string; lastChannelSyncAt?: string }>()
+
+/**
+ * Get the lastChannelSyncAt timestamp for a session.
+ * Checks in-memory cache first, then falls back to DB (survives server restart).
+ * Returns undefined if no sync has occurred yet, meaning all recent messages will be included.
+ */
+export function getLastChannelSyncAt(sessionId: string): string | undefined {
+  // Check in-memory cache first
+  const cached = sessionState.get(sessionId)?.lastChannelSyncAt
+  if (cached) return cached
+
+  // Fall back to DB (survives server restart)
+  const mapping = db
+    .select({ lastChannelSyncAt: messagingSessionMappings.lastChannelSyncAt })
+    .from(messagingSessionMappings)
+    .where(eq(messagingSessionMappings.sessionId, sessionId))
+    .get()
+
+  if (mapping?.lastChannelSyncAt) {
+    // Populate in-memory cache
+    let state = sessionState.get(sessionId)
+    if (!state) {
+      state = {}
+      sessionState.set(sessionId, state)
+    }
+    state.lastChannelSyncAt = mapping.lastChannelSyncAt
+    return mapping.lastChannelSyncAt
+  }
+
+  return undefined
+}
+
+/**
+ * Update the lastChannelSyncAt timestamp for a session after a successful query.
+ * Writes to both in-memory cache and DB for persistence across restarts.
+ */
+export function updateLastChannelSyncAt(sessionId: string): void {
+  const now = new Date().toISOString()
+
+  // Update in-memory cache
+  let state = sessionState.get(sessionId)
+  if (!state) {
+    state = {}
+    sessionState.set(sessionId, state)
+  }
+  state.lastChannelSyncAt = now
+
+  // Persist to DB
+  db.update(messagingSessionMappings)
+    .set({ lastChannelSyncAt: now })
+    .where(eq(messagingSessionMappings.sessionId, sessionId))
+    .run()
+}
 
 /**
  * Create a new chat session
@@ -387,6 +441,8 @@ export interface StreamMessageOptions {
   ephemeral?: boolean
   /** JSON schema for structured output from the agent SDK */
   outputFormat?: { type: 'json_schema'; schema: Record<string, unknown> }
+  /** Recent outgoing channel messages to prepend as context (notifications, rituals, etc.) */
+  channelHistory?: ChannelHistoryMessage[]
 }
 
 /**
@@ -689,6 +745,20 @@ User message: ${userMessage}`
       fullPrompt = parts.join('\n\n')
     } else {
       fullPrompt = textMessage
+    }
+
+    // Prepend channel history context if provided (notifications, rituals, MCP messages)
+    if (options.channelHistory && options.channelHistory.length > 0) {
+      const historyLines = options.channelHistory.map((msg) => {
+        const time = new Date(msg.messageTimestamp).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+        const truncated = msg.content.length > 500 ? msg.content.slice(0, 500) + '...' : msg.content
+        return `[${time}] ${truncated}`
+      })
+      fullPrompt = `[Recent messages sent on this channel since our last conversation:\n${historyLines.join('\n')}]\n\n${fullPrompt}`
     }
 
     // Switch tool access based on security tier
