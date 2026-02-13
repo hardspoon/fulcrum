@@ -277,7 +277,7 @@ app.post('/', async (c) => {
       repositoryId: body.repositoryId || null,
       startedAt,
       dueDate: body.dueDate || null,
-      timeEstimate: body.timeEstimate != null ? (Number.isInteger(body.timeEstimate) && body.timeEstimate >= 1 && body.timeEstimate <= 8 ? body.timeEstimate : null) : null,
+      timeEstimate: body.timeEstimate != null ? (Number.isInteger(body.timeEstimate) && body.timeEstimate >= 1 ? body.timeEstimate : null) : null,
       priority: body.priority && ['high', 'medium', 'low'].includes(body.priority) ? body.priority : 'medium',
       recurrenceRule: body.recurrenceRule || null,
       recurrenceEndDate: body.recurrenceEndDate || null,

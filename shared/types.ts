@@ -108,7 +108,7 @@ export interface Task {
   tags: string[] // Array of tag strings
   startedAt: string | null // Timestamp when moved out of TO_DO
   dueDate: string | null // YYYY-MM-DD format
-  timeEstimate: number | null // Hours (1-8)
+  timeEstimate: number | null // Hours (min 1)
   priority: TaskPriority | null
   recurrenceRule: RecurrenceRule | null
   recurrenceEndDate: string | null

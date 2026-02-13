@@ -37,7 +37,7 @@ export function getDataModel(): string {
 **Tasks** - Units of work you want to track or execute
 - Optional git worktree for isolated development
 - Dependencies (blocks/blocked-by other tasks)
-- Tags, due dates, time estimates (1-8 hours), descriptions
+- Tags, due dates, time estimates (hours), descriptions
 - Recurrence rules (daily/weekly/biweekly/monthly/quarterly/yearly) — on completion, a new TO_DO task is created with the next due date (recurrence only available for non-worktree tasks)
 - File attachments and URL links
 - Agent assignment (Claude Code or OpenCode)

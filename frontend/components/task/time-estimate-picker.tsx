@@ -29,7 +29,7 @@ export function TimeEstimatePicker({ value, onChange, className }: TimeEstimateP
 
   const handleCustomSubmit = () => {
     const num = parseInt(customInput, 10)
-    if (num >= 1 && num <= 8) {
+    if (num >= 1) {
       onChange(num)
       setShowCustom(false)
       setCustomInput('')
@@ -68,7 +68,6 @@ export function TimeEstimatePicker({ value, onChange, className }: TimeEstimateP
         <Input
           type="number"
           min={1}
-          max={8}
           value={customInput}
           onChange={(e) => setCustomInput(e.target.value)}
           onKeyDown={handleCustomKeyDown}
@@ -77,7 +76,7 @@ export function TimeEstimatePicker({ value, onChange, className }: TimeEstimateP
             else setShowCustom(false)
           }}
           placeholder="h"
-          className="w-12 h-7 px-1.5 text-xs text-center"
+          className="w-14 h-7 px-1.5 text-xs text-center"
           autoFocus
         />
       ) : (

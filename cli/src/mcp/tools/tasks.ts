@@ -168,8 +168,8 @@ function registerCreateTask(server: Server, client: Client) {
       tags: z.optional(z.array(z.string())).describe('Tags to add to the task'),
       dueDate: z.optional(z.string()).describe('Due date in YYYY-MM-DD format'),
       timeEstimate: z
-        .optional(z.number().int().min(1).max(8))
-        .describe('Time estimate in hours (1-8)'),
+        .optional(z.number().int().min(1))
+        .describe('Time estimate in hours (minimum 1)'),
       priority: z
         .optional(z.enum(['high', 'medium', 'low']))
         .describe('Task priority level (default: medium)'),
@@ -251,8 +251,8 @@ function registerUpdateTask(server: Server, client: Client) {
       title: z.optional(z.string()).describe('New title'),
       description: z.optional(z.string()).describe('New description'),
       timeEstimate: z
-        .optional(z.nullable(z.number().int().min(1).max(8)))
-        .describe('Time estimate in hours (1-8), or null to clear'),
+        .optional(z.nullable(z.number().int().min(1)))
+        .describe('Time estimate in hours (minimum 1), or null to clear'),
       priority: z
         .optional(z.nullable(z.enum(['high', 'medium', 'low'])))
         .describe('Task priority (high/medium/low), or null to clear'),
