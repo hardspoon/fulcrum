@@ -233,9 +233,9 @@ export class EmailChannel implements MessagingChannel {
             this.credentials?.imap.user.toLowerCase() ?? ''
           )
 
-          // Store ALL non-automated emails locally
+          // Store ALL non-automated emails locally — skip observer if duplicate
           if (headers.messageId) {
-            storeEmail({
+            const isNew = storeEmail({
               connectionId: this.connectionId,
               messageId: headers.messageId,
               threadId: authResult.threadId,
@@ -251,6 +251,8 @@ export class EmailChannel implements MessagingChannel {
               emailDate: headers.date ?? undefined,
               imapUid: message.uid,
             })
+
+            if (!isNew) continue // Already processed — skip observer
           }
 
           const incomingMessage: IncomingMessage = {

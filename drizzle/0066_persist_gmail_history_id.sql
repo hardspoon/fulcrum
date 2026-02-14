@@ -1,0 +1,1 @@
+ALTER TABLE `google_accounts` ADD `last_gmail_history_id` text;

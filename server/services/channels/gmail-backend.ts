@@ -39,6 +39,18 @@ export class GmailBackend {
     try {
       this.updateStatus('connecting')
 
+      // Restore persisted lastHistoryId from DB
+      const account = db.select().from(googleAccounts)
+        .where(eq(googleAccounts.id, this.googleAccountId))
+        .get()
+      if (account?.lastGmailHistoryId) {
+        this.lastHistoryId = account.lastGmailHistoryId
+        log.messaging.info('Restored Gmail historyId from DB', {
+          connectionId: this.connectionId,
+          lastHistoryId: this.lastHistoryId,
+        })
+      }
+
       // Verify we can access Gmail
       await listMessages(this.googleAccountId, { maxResults: 1 })
 
@@ -82,6 +94,12 @@ export class GmailBackend {
       })
 
       this.lastHistoryId = result.latestHistoryId
+
+      // Persist lastHistoryId to DB so it survives restarts
+      db.update(googleAccounts)
+        .set({ lastGmailHistoryId: result.latestHistoryId })
+        .where(eq(googleAccounts.id, this.googleAccountId))
+        .run()
 
       // Get account email to filter self-sent messages
       const account = db.select().from(googleAccounts)
@@ -140,9 +158,9 @@ export class GmailBackend {
           selfEmail
         )
 
-        // Store email
+        // Store email — skip observer if it's a duplicate
         if (msg.messageId) {
-          storeEmail({
+          const isNew = storeEmail({
             connectionId: this.connectionId,
             messageId: msg.messageId,
             threadId: authResult.threadId,
@@ -155,6 +173,8 @@ export class GmailBackend {
             subject: msg.subject ?? undefined,
             textContent: msg.body ?? undefined,
           })
+
+          if (!isNew) continue // Already processed — skip observer
         }
 
         // Emit incoming message

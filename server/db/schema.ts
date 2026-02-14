@@ -428,6 +428,7 @@ export const googleAccounts = sqliteTable('google_accounts', {
   lastCalendarSyncError: text('last_calendar_sync_error'),
   lastGmailSyncAt: text('last_gmail_sync_at'),
   lastGmailSyncError: text('last_gmail_sync_error'),
+  lastGmailHistoryId: text('last_gmail_history_id'), // Persisted Gmail history ID for incremental polling
   sendAsEmail: text('send_as_email'), // Selected "From:" address for drafts (from Gmail send-as aliases)
   needsReauth: integer('needs_reauth', { mode: 'boolean' }).default(false),
   createdAt: text('created_at').notNull(),

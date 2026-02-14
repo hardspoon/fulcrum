@@ -92,8 +92,9 @@ function toStoredEmail(msg: ChannelMessage): StoredEmail {
 
 /**
  * Store an email in the local database.
+ * Returns true if the email was newly stored, false if it already existed (duplicate).
  */
-export function storeEmail(params: StoreEmailParams): void {
+export function storeEmail(params: StoreEmailParams): boolean {
   const now = new Date().toISOString()
 
   // Check if email already exists (by messageId in metadata)
@@ -113,7 +114,7 @@ export function storeEmail(params: StoreEmailParams): void {
       connectionId: params.connectionId,
       messageId: params.messageId,
     })
-    return
+    return false
   }
 
   // Generate snippet from text content
@@ -162,6 +163,8 @@ export function storeEmail(params: StoreEmailParams): void {
     messageId: params.messageId,
     direction: params.direction,
   })
+
+  return true
 }
 
 /**
