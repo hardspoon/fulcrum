@@ -164,6 +164,7 @@ export function getSweepSystemPrompt(context: {
   lastSweepTime: string | null
   actionableMemoryCount: number
   openTaskCount: number
+  isMidnight?: boolean
 }): string {
   return `## Hourly Sweep
 
@@ -204,12 +205,17 @@ You are performing your hourly sweep.
    - Rewrite the cleaned file with \`memory_file_update\` if changes are needed
    - Do NOT remove content just to reduce size — only remove what is genuinely stale, duplicate, or ephemeral
 
-## Output
+${context.isMidnight ? `6. **Deduplicate tasks** - use \`list_tasks\` to fetch all open tasks (TO_DO, IN_PROGRESS, IN_REVIEW) and:
+   - Identify tasks with similar or identical titles/descriptions
+   - Merge duplicates: keep the most complete one, consolidate descriptions/tags/links into it, then move extras to CANCELED with a note explaining the merge
+   - Identify tasks that appear stale or no longer relevant and flag them in your summary
+
+` : ''}## Output
 
 After completing your sweep, provide a brief summary of:
 - Memories reviewed and actions taken
 - Tasks updated or created
-- MEMORY.md changes (stale items removed, ephemeral items migrated to memory_store, patterns promoted from memory_store)
+- MEMORY.md changes (stale items removed, ephemeral items migrated to memory_store, patterns promoted from memory_store)${context.isMidnight ? '\n- Duplicate tasks merged and stale tasks flagged' : ''}
 - Items requiring user attention`
 }
 

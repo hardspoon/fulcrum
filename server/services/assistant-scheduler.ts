@@ -106,11 +106,13 @@ async function runHourlySweep(): Promise<void> {
     // Build the prompt
     const prompt = `Perform your hourly sweep. Last sweep: ${lastSweep?.completedAt ?? 'never'}`
 
-    // Get the system prompt
+    // Get the system prompt (midnight sweeps include task deduplication)
+    const isMidnight = new Date().getHours() === 0
     const systemPrompt = getSweepSystemPrompt({
       lastSweepTime: lastSweep?.completedAt ?? null,
       actionableMemoryCount,
       openTaskCount,
+      isMidnight,
     })
 
     // Invoke assistant
