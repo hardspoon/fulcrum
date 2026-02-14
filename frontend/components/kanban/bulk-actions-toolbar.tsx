@@ -1,6 +1,4 @@
 import { useState, useMemo } from 'react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { PinIcon } from '@hugeicons/core-free-icons'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,17 +24,12 @@ export function BulkActionsToolbar() {
 
   const count = selectedIds.size
 
-  // Count how many selected tasks are pinned vs unpinned with worktrees
-  const { pinnedCount, unpinnedWithWorktreeCount } = useMemo(() => {
+  const hasWorktrees = useMemo(() => {
     const selectedTasks = tasks.filter(t => selectedIds.has(t.id))
-    return {
-      pinnedCount: selectedTasks.filter(t => t.pinned).length,
-      unpinnedWithWorktreeCount: selectedTasks.filter(t => !t.pinned && t.worktreePath).length,
-    }
+    return selectedTasks.some(t => t.worktreePath)
   }, [tasks, selectedIds])
 
-  // Only show checkbox if there are unpinned tasks with worktrees
-  const showWorktreeCheckbox = unpinnedWithWorktreeCount > 0
+  const showWorktreeCheckbox = hasWorktrees
 
   const handleDelete = () => {
     bulkDelete.mutate(
@@ -84,12 +77,6 @@ export function BulkActionsToolbar() {
                 <AlertDialogDescription>
                   This will permanently delete {count} task{count !== 1 ? 's' : ''}. This action cannot be undone.
                 </AlertDialogDescription>
-                {pinnedCount > 0 && (
-                  <p className="flex items-center gap-1.5 text-sm text-primary">
-                    <HugeiconsIcon icon={PinIcon} size={14} strokeWidth={2} />
-                    {pinnedCount} pinned worktree{pinnedCount !== 1 ? 's' : ''} will be preserved
-                  </p>
-                )}
               </AlertDialogHeader>
               {showWorktreeCheckbox && (
                 <div className="flex items-center gap-2 py-2">

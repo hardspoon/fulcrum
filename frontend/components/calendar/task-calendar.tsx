@@ -681,7 +681,7 @@ function DayDetailDialog({
           <DialogTitle>{dateTitle}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto">
-          {tasks.map((task) => {
+          {[...tasks].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)).map((task) => {
             const colors = STATUS_COLORS[task.status]
             const isOverdue =
               dateKey < todayString && task.status !== 'DONE' && task.status !== 'CANCELED'

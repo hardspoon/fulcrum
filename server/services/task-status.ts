@@ -212,12 +212,17 @@ export async function updateTaskStatus(
 
   // Build update object
   const now = new Date().toISOString()
-  const updateData: { status: string; updatedAt: string; position?: number; startedAt?: string; worktreePath?: string; branch?: string; repoPath?: string; repoName?: string; baseBranch?: string } = {
+  const updateData: { status: string; updatedAt: string; position?: number; startedAt?: string; pinned?: boolean; worktreePath?: string; branch?: string; repoPath?: string; repoName?: string; baseBranch?: string } = {
     status: newStatus,
     updatedAt: now,
   }
   if (newPosition !== undefined) {
     updateData.position = newPosition
+  }
+
+  // Auto-unpin when moving to terminal statuses
+  if (statusChanged && (newStatus === 'DONE' || newStatus === 'CANCELED') && existing.pinned) {
+    updateData.pinned = false
   }
 
   // Handle TO_DO -> IN_PROGRESS transition: set startedAt and create worktree if needed

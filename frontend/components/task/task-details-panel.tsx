@@ -379,24 +379,22 @@ export function TaskDetailsPanel({ task }: TaskDetailsPanelProps) {
           </div>
         )}
 
-        {/* Pin Worktree - only for code tasks */}
-        {isWorktreeTask && (
-          <div className="rounded-lg border bg-card p-4">
-            <div className="flex items-center gap-3">
-              <Checkbox
-                id="pin-worktree"
-                checked={task.pinned ?? false}
-                onCheckedChange={handlePinnedChange}
-              />
-              <label htmlFor="pin-worktree" className="text-sm cursor-pointer">
-                Pin worktree (exclude from bulk cleanup)
-              </label>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Pinned worktrees are preserved when deleting multiple completed tasks.
-            </p>
+        {/* Pin Task */}
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id="pin-task"
+              checked={task.pinned ?? false}
+              onCheckedChange={handlePinnedChange}
+            />
+            <label htmlFor="pin-task" className="text-sm cursor-pointer">
+              Pin task (show at top of lists)
+            </label>
           </div>
-        )}
+          <p className="text-xs text-muted-foreground mt-2">
+            Pinned tasks appear first in their kanban column and calendar day list.
+          </p>
+        </div>
 
         {/* Dependencies */}
         <div className="rounded-lg border bg-card p-4">

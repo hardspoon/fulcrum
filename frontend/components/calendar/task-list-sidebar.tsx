@@ -95,7 +95,12 @@ export function TaskListSidebar({ projectFilter, tagsFilter, onTaskClick }: Task
     )
 
     return active.sort((a, b) => {
-      // Primary: tasks with due dates always before tasks without
+      // Pinned tasks always come first
+      const aPinned = a.pinned ? 1 : 0
+      const bPinned = b.pinned ? 1 : 0
+      if (aPinned !== bPinned) return bPinned - aPinned
+
+      // Then: tasks with due dates before tasks without
       const aHasDue = !!a.dueDate
       const bHasDue = !!b.dueDate
       if (aHasDue && !bHasDue) return -1

@@ -437,7 +437,7 @@ describe('Tasks Routes', () => {
       expect(taskC?.position).toBe(1)
     })
 
-    test('returns 400 when trying to delete worktree for a pinned task', async () => {
+    test('allows deleting worktree for a pinned task', async () => {
       const now = new Date().toISOString()
       db.insert(tasks)
         .values({
@@ -461,12 +461,12 @@ describe('Tasks Routes', () => {
       })
       const body = await res.json()
 
-      expect(res.status).toBe(400)
-      expect(body.error).toContain('pinned')
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
 
-      // Task should still exist
+      // Task should be deleted
       const task = db.select().from(tasks).where(eq(tasks.id, 'pinned-task-1')).get()
-      expect(task).toBeDefined()
+      expect(task).toBeUndefined()
     })
 
     test('allows deleting task without worktree deletion when pinned', async () => {
@@ -574,7 +574,7 @@ describe('Tasks Routes', () => {
       expect(body.error).toContain('non-empty array')
     })
 
-    test('skips worktree deletion for pinned tasks but still deletes tasks', async () => {
+    test('deletes worktrees for pinned tasks during bulk delete', async () => {
       const now = new Date().toISOString()
       db.insert(tasks)
         .values([
@@ -609,7 +609,7 @@ describe('Tasks Routes', () => {
 
       const { request } = createTestApp()
       // Delete both with deleteLinkedWorktrees=true
-      // The pinned task's worktree should be skipped, but both tasks should be deleted
+      // Both tasks and their worktrees should be deleted (pinned no longer prevents worktree deletion)
       const res = await request('/api/tasks/bulk', {
         method: 'DELETE',
         body: JSON.stringify({

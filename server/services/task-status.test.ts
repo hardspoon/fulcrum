@@ -157,6 +157,72 @@ describe('Task Status Service', () => {
       expect(result?.status).toBe('CANCELED')
     })
 
+    test('unpins task when status changes to DONE', async () => {
+      const now = new Date().toISOString()
+      db.insert(tasks)
+        .values({
+          id: 'unpin-done-1',
+          title: 'Pinned Done Test',
+          status: 'IN_PROGRESS',
+          position: 0,
+          pinned: true,
+          repoPath: repo.path,
+          repoName: 'test-repo',
+          baseBranch: repo.defaultBranch,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run()
+
+      const result = await updateTaskStatus('unpin-done-1', 'DONE')
+      expect(result?.status).toBe('DONE')
+      expect(result?.pinned).toBe(false)
+    })
+
+    test('unpins task when status changes to CANCELED', async () => {
+      const now = new Date().toISOString()
+      db.insert(tasks)
+        .values({
+          id: 'unpin-cancel-1',
+          title: 'Pinned Cancel Test',
+          status: 'IN_PROGRESS',
+          position: 0,
+          pinned: true,
+          repoPath: repo.path,
+          repoName: 'test-repo',
+          baseBranch: repo.defaultBranch,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run()
+
+      const result = await updateTaskStatus('unpin-cancel-1', 'CANCELED')
+      expect(result?.status).toBe('CANCELED')
+      expect(result?.pinned).toBe(false)
+    })
+
+    test('does not unpin task when status changes to IN_REVIEW', async () => {
+      const now = new Date().toISOString()
+      db.insert(tasks)
+        .values({
+          id: 'keep-pin-1',
+          title: 'Pinned Review Test',
+          status: 'IN_PROGRESS',
+          position: 0,
+          pinned: true,
+          repoPath: repo.path,
+          repoName: 'test-repo',
+          baseBranch: repo.defaultBranch,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run()
+
+      const result = await updateTaskStatus('keep-pin-1', 'IN_REVIEW')
+      expect(result?.status).toBe('IN_REVIEW')
+      expect(result?.pinned).toBe(true)
+    })
+
     test('same status update still updates timestamp', async () => {
       const oldTime = '2024-01-01T00:00:00.000Z'
       db.insert(tasks)

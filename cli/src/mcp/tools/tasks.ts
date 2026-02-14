@@ -256,6 +256,9 @@ function registerUpdateTask(server: Server, client: Client) {
       priority: z
         .optional(z.nullable(z.enum(['high', 'medium', 'low'])))
         .describe('Task priority (high/medium/low), or null to clear'),
+      pinned: z
+        .optional(z.boolean())
+        .describe('Pin task to show at top of kanban column and calendar list'),
       recurrenceRule: z
         .optional(z.nullable(z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'])))
         .describe('Recurrence frequency, or null to remove'),
@@ -263,13 +266,14 @@ function registerUpdateTask(server: Server, client: Client) {
         .optional(z.nullable(z.string()))
         .describe('Stop recurring after this date (YYYY-MM-DD), or null to remove'),
     },
-    async ({ id, title, description, timeEstimate, priority, recurrenceRule, recurrenceEndDate }) => {
+    async ({ id, title, description, timeEstimate, priority, pinned, recurrenceRule, recurrenceEndDate }) => {
       try {
-        const updates: Record<string, string | number | null> = {}
+        const updates: Record<string, string | number | boolean | null> = {}
         if (title !== undefined) updates.title = title
         if (description !== undefined) updates.description = description
         if (timeEstimate !== undefined) updates.timeEstimate = timeEstimate
         if (priority !== undefined) updates.priority = priority
+        if (pinned !== undefined) updates.pinned = pinned
         if (recurrenceRule !== undefined) updates.recurrenceRule = recurrenceRule
         if (recurrenceEndDate !== undefined) updates.recurrenceEndDate = recurrenceEndDate
 

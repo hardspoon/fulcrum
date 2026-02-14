@@ -27,8 +27,13 @@ export function KanbanColumn({ status, tasks, isMobile, blockedTaskIds, blocking
   const ref = useRef<HTMLDivElement>(null)
   const [isOver, setIsOver] = useState(false)
 
-  // Sort by due date first (soonest first), then by most recently updated
+  // Sort: pinned first, then by due date (soonest first), then by most recently updated
   const sortedTasks = [...tasks].sort((a, b) => {
+    // Pinned tasks always come first
+    const aPinned = a.pinned ? 1 : 0
+    const bPinned = b.pinned ? 1 : 0
+    if (aPinned !== bPinned) return bPinned - aPinned
+
     const aDue = a.dueDate ? new Date(a.dueDate).getTime() : null
     const bDue = b.dueDate ? new Date(b.dueDate).getTime() : null
 

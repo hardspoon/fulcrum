@@ -410,8 +410,8 @@ app.delete('/bulk', async (c) => {
         // Always destroy terminals for the worktree
         destroyTerminalsForWorktree(existing.worktreePath)
 
-        // Only delete the worktree if flag is true AND task is not pinned
-        if (body.deleteLinkedWorktrees && existing.repoPath && !existing.pinned) {
+        // Only delete the worktree if flag is true
+        if (body.deleteLinkedWorktrees && existing.repoPath) {
           deleteGitWorktree(existing.repoPath, existing.worktreePath)
         }
       }
@@ -624,11 +624,6 @@ app.delete('/:id', (c) => {
   const existing = db.select().from(tasks).where(eq(tasks.id, id)).get()
   if (!existing) {
     return c.json({ error: 'Task not found' }, 404)
-  }
-
-  // Block worktree deletion for pinned tasks
-  if (deleteLinkedWorktree && existing.pinned) {
-    return c.json({ error: 'Cannot delete worktree for a pinned task. Unpin it first.' }, 400)
   }
 
   // Handle linked worktree based on deleteLinkedWorktree flag

@@ -13,8 +13,9 @@ import { useSelection } from './selection-context'
 import type { Task } from '@/types'
 import { cn } from '@/lib/utils'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { FolderLibraryIcon, GitPullRequestIcon, Calendar03Icon, AlertDiamondIcon, Alert02Icon, RepeatIcon, Clock01Icon, ArrowUp01Icon, ArrowDown01Icon } from '@hugeicons/core-free-icons'
+import { FolderLibraryIcon, GitPullRequestIcon, Calendar03Icon, AlertDiamondIcon, Alert02Icon, RepeatIcon, Clock01Icon, ArrowUp01Icon, ArrowDown01Icon, PinIcon, PinOffIcon } from '@hugeicons/core-free-icons'
 import { useRepositories } from '@/hooks/use-repositories'
+import { usePinTask } from '@/hooks/use-tasks'
 import { formatDateString } from '../../../shared/date-utils'
 import { useIsOverdue, useIsDueToday } from '@/hooks/use-date-utils'
 
@@ -29,6 +30,7 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
   const { setActiveTask } = useDrag()
   const { isSelected, toggleSelection } = useSelection()
   const navigate = useNavigate()
+  const pinTask = usePinTask()
   const { data: repositories } = useRepositories()
   const selected = isSelected(task.id)
 
@@ -164,6 +166,29 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
             onCheckedChange={() => toggleSelection(task.id)}
           />
         </div>
+      )}
+      {/* Pin toggle button - appears on hover */}
+      {!isDragPreview && (
+        <button
+          type="button"
+          className={cn(
+            'absolute right-2 top-2 z-20 p-0.5 rounded transition-opacity duration-150 hover:bg-muted',
+            task.pinned ? 'opacity-100' : 'opacity-0 group-hover/card:opacity-100'
+          )}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            pinTask.mutate({ taskId: task.id, pinned: !task.pinned })
+          }}
+          title={task.pinned ? 'Unpin task' : 'Pin task to top'}
+        >
+          <HugeiconsIcon
+            icon={task.pinned ? PinOffIcon : PinIcon}
+            size={14}
+            strokeWidth={2}
+            className={task.pinned ? 'text-primary' : 'text-muted-foreground'}
+          />
+        </button>
       )}
 
       <Card

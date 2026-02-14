@@ -173,15 +173,19 @@ export function MobileCalendarList({ className, projectFilter, tagsFilter }: Mob
       }
     }
 
-    // Sort overdue by date descending (most recent first), then status
+    // Sort overdue by pinned first, then date descending (most recent first), then status
     overdue.sort((a, b) => {
+      const pinDiff = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
+      if (pinDiff !== 0) return pinDiff
       const dateDiff = b.dueDate!.localeCompare(a.dueDate!)
       if (dateDiff !== 0) return dateDiff
       return STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
     })
 
-    // Sort no-due-date by status priority, then updated
+    // Sort no-due-date by pinned first, then status priority, then updated
     noDueDate.sort((a, b) => {
+      const pinDiff = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
+      if (pinDiff !== 0) return pinDiff
       const statusDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
       if (statusDiff !== 0) return statusDiff
       return b.updatedAt.localeCompare(a.updatedAt)
@@ -197,8 +201,10 @@ export function MobileCalendarList({ className, projectFilter, tagsFilter }: Mob
         // Tasks before events
         if (a.type === 'task' && b.type === 'event') return -1
         if (a.type === 'event' && b.type === 'task') return 1
-        // Tasks: sort by status
+        // Tasks: pinned first, then by status
         if (a.type === 'task' && b.type === 'task') {
+          const pinDiff = (b.task.pinned ? 1 : 0) - (a.task.pinned ? 1 : 0)
+          if (pinDiff !== 0) return pinDiff
           return STATUS_ORDER[a.task.status] - STATUS_ORDER[b.task.status]
         }
         // Events: sort by time
