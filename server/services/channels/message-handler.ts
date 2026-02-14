@@ -8,7 +8,7 @@ import { activeChannels, setMessageHandler } from './channel-manager'
 import { getOrCreateSession, resetSession } from './session-mapper'
 import { getMessagingSystemPrompt, getObserveOnlySystemPrompt, type MessagingContext } from './system-prompts'
 import * as assistantService from '../assistant-service'
-import { getRecentOutgoingMessages } from './message-storage'
+import { getRecentOutgoingMessages, getRecentChannelMessages } from './message-storage'
 import { streamOpencodeObserverMessage } from '../opencode-channel-service'
 import { getSettings } from '../../lib/settings/core'
 import type { IncomingMessage } from './types'
@@ -518,6 +518,14 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
     return
   }
 
+  // Fetch recent channel messages for context (skip email — too noisy/threaded)
+  const channelHistory = msg.channelType !== 'email'
+    ? getRecentChannelMessages(msg.connectionId, {
+        before: (msg.timestamp ?? new Date()).toISOString(),
+        limit: 5,
+      })
+    : []
+
   // Use a shared session for observe-only messages (they don't need individual tracking)
   const observeSessionKey = `observe-${msg.connectionId}`
   const { session } = getOrCreateSession(
@@ -541,6 +549,7 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
         channelType: msg.channelType,
         senderId: msg.senderId,
         senderName: msg.senderName,
+        channelHistory,
       })
 
       for await (const event of stream) {
@@ -586,6 +595,7 @@ async function processObserveOnlyMessage(msg: IncomingMessage): Promise<void> {
       modelId: observerModelId,
       securityTier: 'observer',
       ephemeral: true,
+      ...(channelHistory.length > 0 && { channelHistory }),
     })
 
     // Consume stream

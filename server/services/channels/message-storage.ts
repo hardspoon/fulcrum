@@ -3,7 +3,7 @@
  * Stores ALL channel messages (WhatsApp, Discord, Telegram, Slack, Email) in a single table.
  */
 
-import { eq, desc, like, or, and, gt, sql } from 'drizzle-orm'
+import { eq, desc, like, or, and, gt, lt, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db, channelMessages } from '../../db'
 import type { ChannelMessageMetadata } from '../../db/schema'
@@ -143,6 +143,41 @@ export interface ChannelHistoryMessage {
   senderName: string | null
   content: string
   messageTimestamp: string
+}
+
+/**
+ * Get recent channel messages (both incoming and outgoing) for a connection.
+ * Used to give the observer context about recent conversation history.
+ */
+export function getRecentChannelMessages(
+  connectionId: string,
+  options: { before?: string; limit?: number } = {}
+): ChannelHistoryMessage[] {
+  const { before, limit = 5 } = options
+
+  const conditions = [
+    eq(channelMessages.connectionId, connectionId),
+  ]
+
+  if (before) {
+    conditions.push(lt(channelMessages.messageTimestamp, before))
+  }
+
+  const results = db
+    .select({
+      direction: channelMessages.direction,
+      senderName: channelMessages.senderName,
+      content: channelMessages.content,
+      messageTimestamp: channelMessages.messageTimestamp,
+    })
+    .from(channelMessages)
+    .where(and(...conditions))
+    .orderBy(desc(channelMessages.messageTimestamp))
+    .limit(limit)
+    .all()
+
+  // Reverse to chronological order (query returns newest first)
+  return results.reverse()
 }
 
 /**

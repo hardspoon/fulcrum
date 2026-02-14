@@ -12,6 +12,7 @@ import { createOpencode, createOpencodeClient, type OpencodeClient } from '@open
 import { log } from '../lib/logger'
 import { getSettings } from '../lib/settings'
 import { storeMemory } from './memory-service'
+import type { ChannelHistoryMessage } from './channels/message-storage'
 
 // Default OpenCode server port
 const OPENCODE_DEFAULT_PORT = 4096
@@ -134,6 +135,7 @@ export async function* streamOpencodeObserverMessage(
     senderId: string
     senderName?: string
     model?: string
+    channelHistory?: ChannelHistoryMessage[]
   }
 ): AsyncGenerator<{ type: string; data: unknown }> {
   try {
@@ -144,7 +146,24 @@ export async function* streamOpencodeObserverMessage(
     const model = options.model || settings.assistant.observerOpencodeModel || settings.agent.opencodeModel
 
     // Build the prompt with context
-    const contextualMessage = `[${options.channelType.toUpperCase()} message from ${options.senderName || options.senderId}]
+    let contextualMessage = ''
+
+    // Prepend channel history if available
+    if (options.channelHistory && options.channelHistory.length > 0) {
+      const historyLines = options.channelHistory.map((msg) => {
+        const time = new Date(msg.messageTimestamp).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+        const label = msg.direction === 'outgoing' ? 'You' : (msg.senderName || 'Unknown')
+        const truncated = msg.content.length > 500 ? msg.content.slice(0, 500) + '...' : msg.content
+        return `[${time}] ${label}: ${truncated}`
+      })
+      contextualMessage += `[Recent messages on this channel:\n${historyLines.join('\n')}]\n\n`
+    }
+
+    contextualMessage += `[${options.channelType.toUpperCase()} message from ${options.senderName || options.senderId}]
 
 ${userMessage}`
 
