@@ -301,7 +301,7 @@ function JobDetailView() {
     try {
       await deleteJob.mutateAsync(job.name)
       toast.success('Job deleted')
-      navigate({ to: '/monitoring', search: { tab: 'jobs' } })
+      navigate({ to: '/jobs' })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete')
     }
@@ -321,7 +321,7 @@ function JobDetailView() {
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <HugeiconsIcon icon={Alert02Icon} size={48} strokeWidth={1.5} className="text-destructive opacity-50" />
         <p className="text-muted-foreground">{error?.message || 'Job not found'}</p>
-        <Link to="/monitoring" search={{ tab: 'jobs' }}>
+        <Link to="/jobs">
           <Button variant="outline">
             <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} data-slot="icon" />
             {t('title')}
@@ -337,7 +337,7 @@ function JobDetailView() {
       <div className="film-grain relative shrink-0 border-b border-border px-4 py-3" style={{ background: 'var(--gradient-header)' }}>
         {/* Top row: Back button, title, badges */}
         <div className="flex items-center gap-3">
-          <Link to="/monitoring" search={{ tab: 'jobs' }} className="shrink-0 text-muted-foreground hover:text-foreground">
+          <Link to="/jobs" className="shrink-0 text-muted-foreground hover:text-foreground">
             <HugeiconsIcon icon={ArrowLeft01Icon} size={20} strokeWidth={2} />
           </Link>
 

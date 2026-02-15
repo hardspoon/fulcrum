@@ -10,7 +10,8 @@
     "usage": "Usage Limits",
     "assistant": "Assistant",
     "messages": "Messages",
-    "memory": "Memory"
+    "memory": "Memory",
+    "review": "Review"
   },
   "claude": {
     "showAllInstances": "Show all instances",

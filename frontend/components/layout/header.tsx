@@ -18,11 +18,11 @@ import {
   ComputerTerminal01Icon,
   Settings01Icon,
   PackageIcon,
-  GitPullRequestIcon,
   BrowserIcon,
   Chart02Icon,
   More03Icon,
   Calendar03Icon,
+  GridViewIcon,
 } from '@hugeicons/core-free-icons'
 import { CreateTaskModal } from '@/components/kanban/create-task-modal'
 import { useChat } from '@/hooks/use-chat'
@@ -39,7 +39,7 @@ const NAV_ITEMS = [
   { to: '/terminals', icon: ComputerTerminal01Icon, labelKey: 'header.terminals', matchPrefix: false },
   { to: '/assistant', icon: null, lucideIcon: Bot, labelKey: 'header.assistant', matchPrefix: true },
   { to: '/projects', icon: PackageIcon, labelKey: 'header.projects', matchPrefix: true },
-  { to: '/review', icon: GitPullRequestIcon, labelKey: 'header.review', matchPrefix: true },
+  { to: '/jobs', icon: GridViewIcon, labelKey: 'header.jobs', matchPrefix: true },
   { to: '/monitoring', icon: Chart02Icon, labelKey: 'header.monitoring', matchPrefix: true },
 ] as const
 
@@ -161,7 +161,7 @@ export function Header({ onNewTaskRef, onOpenCommandPalette }: HeaderProps) {
           size="icon-sm"
           onClick={onOpenCommandPalette}
           title={t('header.commandPalette', { shortcut: '⌘K' })}
-          className="hidden sm:inline-flex"
+          className="hidden cursor-pointer sm:inline-flex"
         >
           <HugeiconsIcon icon={BrowserIcon} size={16} strokeWidth={2} />
         </Button>

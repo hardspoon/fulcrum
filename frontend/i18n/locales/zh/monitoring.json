@@ -9,7 +9,9 @@
     "jobs": "作业",
     "usage": "使用限额",
     "assistant": "助手",
-    "messages": "消息"
+    "messages": "消息",
+    "memory": "记忆",
+    "review": "审核"
   },
   "claude": {
     "showAllInstances": "显示所有实例",

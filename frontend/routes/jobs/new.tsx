@@ -28,7 +28,7 @@ function NewJobView() {
   // Redirect if job creation not supported on this platform
   useEffect(() => {
     if (!isLoadingAvailable && !jobsInfo?.canCreate) {
-      navigate({ to: '/monitoring', search: { tab: 'jobs' } })
+      navigate({ to: '/jobs' })
     }
   }, [isLoadingAvailable, jobsInfo, navigate])
 
@@ -82,7 +82,7 @@ function NewJobView() {
       })
 
       toast.success('Job created successfully')
-      navigate({ to: '/monitoring', search: { tab: 'jobs' } })
+      navigate({ to: '/jobs' })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create job')
     }
@@ -101,7 +101,7 @@ function NewJobView() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="film-grain relative flex shrink-0 items-center gap-4 border-b border-border px-4 py-3" style={{ background: 'var(--gradient-header)' }}>
-        <Link to="/monitoring" search={{ tab: 'jobs' }} className="text-muted-foreground hover:text-foreground">
+        <Link to="/jobs" className="text-muted-foreground hover:text-foreground">
           <HugeiconsIcon icon={ArrowLeft01Icon} size={20} strokeWidth={2} />
         </Link>
         <div className="flex items-center gap-2">
@@ -239,7 +239,7 @@ function NewJobView() {
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-2 pt-4">
-            <Link to="/monitoring" search={{ tab: 'jobs' }}>
+            <Link to="/jobs">
               <Button type="button" variant="outline">
                 {t('create.cancel')}
               </Button>

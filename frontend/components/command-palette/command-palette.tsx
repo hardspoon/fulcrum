@@ -19,7 +19,6 @@ import {
   Settings01Icon,
   PlusSignIcon,
   HelpCircleIcon,
-  GitPullRequestIcon,
   ChartLineData01Icon,
   CodeIcon,
   AiChat02Icon,
@@ -109,14 +108,14 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
         },
       },
       {
-        id: 'goto-review',
-        label: t('commandPalette.commands.goToReview'),
+        id: 'goto-jobs',
+        label: t('commandPalette.commands.goToJobs'),
         shortcut: 'meta+6',
-        keywords: ['pr', 'pull request', 'issues', 'github'],
+        keywords: ['jobs', 'timers', 'systemd', 'cron', 'scheduled'],
         category: 'navigation',
-        icon: <HugeiconsIcon icon={GitPullRequestIcon} size={16} strokeWidth={2} />,
+        icon: <HugeiconsIcon icon={GridViewIcon} size={16} strokeWidth={2} />,
         action: () => {
-          navigate({ to: '/review' })
+          navigate({ to: '/jobs' })
           setOpen(false)
         },
       },
@@ -261,7 +260,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
   useHotkeys('meta+i', () => {
     navigate({ to: '/terminals', search: (prev) => ({ ...prev, tab: 'all-repos' }) })
   }, { allowInInput: true, allowInTerminal: true })
-  useHotkeys('meta+6', () => navigate({ to: '/review' }), { allowInInput: true, allowInTerminal: true })
+  useHotkeys('meta+6', () => navigate({ to: '/jobs' }), { allowInInput: true, allowInTerminal: true })
   useHotkeys('meta+7', () => navigate({ to: '/monitoring' }), { allowInInput: true, allowInTerminal: true })
   useHotkeys('meta+,', () => navigate({ to: '/settings' }), { allowInInput: true, allowInTerminal: true })
 
@@ -342,7 +341,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange, onNewTask, 
           break
         case '6':
           e.preventDefault()
-          navigate({ to: '/review' })
+          navigate({ to: '/jobs' })
           setOpen(false)
           break
         case '7':
