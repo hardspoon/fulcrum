@@ -113,53 +113,132 @@ export {
   fetchAndStoreEmails,
 } from './api/email'
 
+// Maps session-based channels to their connection IDs for recipient lookup
+const SESSION_CHANNEL_IDS: Record<string, string> = {
+  slack: SLACK_CONNECTION_ID,
+  discord: DISCORD_CONNECTION_ID,
+  telegram: TELEGRAM_CONNECTION_ID,
+}
+
 /**
  * Resolve the recipient identifier for a channel by looking up stored state.
  * WhatsApp: user's own phone number from connection displayName (self-chat).
  * Slack/Discord/Telegram: most recent inbound user from session mappings.
  */
 export function resolveRecipient(channel: string): string | null {
-  switch (channel) {
-    case 'whatsapp': {
-      const row = db
-        .select({ displayName: messagingConnections.displayName })
-        .from(messagingConnections)
-        .where(eq(messagingConnections.channelType, 'whatsapp'))
-        .get()
-      return row?.displayName || null
+  if (channel === 'whatsapp') {
+    const row = db
+      .select({ displayName: messagingConnections.displayName })
+      .from(messagingConnections)
+      .where(eq(messagingConnections.channelType, 'whatsapp'))
+      .get()
+    return row?.displayName || null
+  }
+
+  const connectionId = SESSION_CHANNEL_IDS[channel]
+  if (!connectionId) return null
+
+  const row = db
+    .select({ channelUserId: messagingSessionMappings.channelUserId })
+    .from(messagingSessionMappings)
+    .where(eq(messagingSessionMappings.connectionId, connectionId))
+    .orderBy(desc(messagingSessionMappings.lastMessageAt))
+    .limit(1)
+    .get()
+  return row?.channelUserId || null
+}
+
+// Connection IDs for active-channel-based messaging
+const ACTIVE_CHANNEL_CONFIG: Record<string, {
+  connectionId: string
+  getStatus: () => { enabled?: boolean; status?: string; displayName?: string | null } | null
+}> = {
+  discord: { connectionId: DISCORD_CONNECTION_ID, getStatus: getDiscordStatus },
+  telegram: { connectionId: TELEGRAM_CONNECTION_ID, getStatus: getTelegramStatus },
+  slack: { connectionId: SLACK_CONNECTION_ID, getStatus: getSlackStatus },
+}
+
+// Shared send logic for discord, telegram, and slack (all use activeChannels pattern)
+async function sendViaActiveChannel(
+  channelType: string,
+  resolvedTo: string,
+  body: string,
+  metadata?: Record<string, unknown>,
+): Promise<{ success: boolean; error?: string }> {
+  const config = ACTIVE_CHANNEL_CONFIG[channelType]
+  if (!config) return { success: false, error: `Unknown active channel: ${channelType}` }
+
+  const status = config.getStatus()
+  if (!status?.enabled || status.status !== 'connected') {
+    return { success: false, error: `${channelType.charAt(0).toUpperCase() + channelType.slice(1)} channel not connected` }
+  }
+
+  const channel = Array.from(activeChannels.values()).find((ch) => ch.type === channelType)
+  if (!channel) {
+    return { success: false, error: `${channelType.charAt(0).toUpperCase() + channelType.slice(1)} channel not active` }
+  }
+
+  try {
+    const success = await channel.sendMessage(resolvedTo, body, metadata)
+    if (!success) {
+      return { success: false, error: `Failed to send ${channelType.charAt(0).toUpperCase() + channelType.slice(1)} message` }
     }
-    case 'slack': {
-      const row = db
-        .select({ channelUserId: messagingSessionMappings.channelUserId })
-        .from(messagingSessionMappings)
-        .where(eq(messagingSessionMappings.connectionId, SLACK_CONNECTION_ID))
-        .orderBy(desc(messagingSessionMappings.lastMessageAt))
-        .limit(1)
-        .get()
-      return row?.channelUserId || null
-    }
-    case 'discord': {
-      const row = db
-        .select({ channelUserId: messagingSessionMappings.channelUserId })
-        .from(messagingSessionMappings)
-        .where(eq(messagingSessionMappings.connectionId, DISCORD_CONNECTION_ID))
-        .orderBy(desc(messagingSessionMappings.lastMessageAt))
-        .limit(1)
-        .get()
-      return row?.channelUserId || null
-    }
-    case 'telegram': {
-      const row = db
-        .select({ channelUserId: messagingSessionMappings.channelUserId })
-        .from(messagingSessionMappings)
-        .where(eq(messagingSessionMappings.connectionId, TELEGRAM_CONNECTION_ID))
-        .orderBy(desc(messagingSessionMappings.lastMessageAt))
-        .limit(1)
-        .get()
-      return row?.channelUserId || null
-    }
-    default:
-      return null
+
+    log.messaging.info(`Sent ${channelType} message`, { to: resolvedTo })
+    storeChannelMessage({
+      channelType,
+      connectionId: config.connectionId,
+      direction: 'outgoing',
+      senderId: status.displayName || 'bot',
+      recipientId: resolvedTo,
+      content: body,
+      metadata,
+      messageTimestamp: new Date(),
+    })
+    return { success: true }
+  } catch (err) {
+    log.messaging.error(`Failed to send ${channelType} message`, { to: resolvedTo, error: String(err) })
+    return { success: false, error: String(err) }
+  }
+}
+
+// Send via WhatsApp's direct API (not activeChannels pattern)
+async function sendViaWhatsApp(
+  resolvedTo: string,
+  body: string,
+): Promise<{ success: boolean; error?: string }> {
+  const waStatus = getWhatsAppStatus()
+  if (!waStatus?.enabled || waStatus.status !== 'connected') {
+    return { success: false, error: 'WhatsApp channel not connected' }
+  }
+
+  try {
+    await sendWhatsAppMessage(resolvedTo, body)
+    log.messaging.info('Sent WhatsApp message', { to: resolvedTo })
+    storeChannelMessage({
+      channelType: 'whatsapp',
+      connectionId: waStatus.id,
+      direction: 'outgoing',
+      senderId: waStatus.displayName || 'self',
+      recipientId: resolvedTo,
+      content: body,
+      messageTimestamp: new Date(),
+    })
+    return { success: true }
+  } catch (err) {
+    log.messaging.error('Failed to send WhatsApp message', { to: resolvedTo, error: String(err) })
+    return { success: false, error: String(err) }
+  }
+}
+
+// Build Slack-specific metadata from options
+function buildSlackMetadata(
+  options?: { slackBlocks?: Array<Record<string, unknown>>; filePath?: string },
+): Record<string, unknown> | undefined {
+  if (!options?.slackBlocks && !options?.filePath) return undefined
+  return {
+    ...(options.slackBlocks && { blocks: options.slackBlocks }),
+    ...(options.filePath && { filePath: options.filePath }),
   }
 }
 
@@ -191,165 +270,19 @@ export async function sendMessageToChannel(
   log.messaging.debug('Auto-resolved recipient', { channel, to: resolvedTo })
 
   switch (channel) {
-    case 'email': {
+    case 'email':
       return { success: false, error: 'Email sending disabled. Use Gmail drafts instead.' }
-    }
 
-    case 'whatsapp': {
-      const waStatus = getWhatsAppStatus()
-      if (!waStatus?.enabled || waStatus.status !== 'connected') {
-        return { success: false, error: 'WhatsApp channel not connected' }
-      }
+    case 'whatsapp':
+      return sendViaWhatsApp(resolvedTo, body)
 
-      try {
-        await sendWhatsAppMessage(resolvedTo, body)
-        log.messaging.info('Sent WhatsApp message', { to: resolvedTo })
-
-        // Store outgoing message
-        storeChannelMessage({
-          channelType: 'whatsapp',
-          connectionId: waStatus.id,
-          direction: 'outgoing',
-          senderId: waStatus.displayName || 'self',
-          recipientId: resolvedTo,
-          content: body,
-          messageTimestamp: new Date(),
-        })
-
-        return { success: true }
-      } catch (err) {
-        log.messaging.error('Failed to send WhatsApp message', { to: resolvedTo, error: String(err) })
-        return { success: false, error: String(err) }
-      }
-    }
-
-    case 'discord': {
-      const discordStatus = getDiscordStatus()
-      if (!discordStatus?.enabled || discordStatus.status !== 'connected') {
-        return { success: false, error: 'Discord channel not connected' }
-      }
-
-      // Find the active Discord channel
-      const discordChannel = Array.from(activeChannels.values()).find(
-        (ch) => ch.type === 'discord'
-      )
-      if (!discordChannel) {
-        return { success: false, error: 'Discord channel not active' }
-      }
-
-      try {
-        const success = await discordChannel.sendMessage(resolvedTo, body)
-        if (success) {
-          log.messaging.info('Sent Discord message', { to: resolvedTo })
-
-          // Store outgoing message
-          storeChannelMessage({
-            channelType: 'discord',
-            connectionId: DISCORD_CONNECTION_ID,
-            direction: 'outgoing',
-            senderId: discordStatus.displayName || 'bot',
-            recipientId: resolvedTo,
-            content: body,
-            messageTimestamp: new Date(),
-          })
-
-          return { success: true }
-        } else {
-          return { success: false, error: 'Failed to send Discord message' }
-        }
-      } catch (err) {
-        log.messaging.error('Failed to send Discord message', { to: resolvedTo, error: String(err) })
-        return { success: false, error: String(err) }
-      }
-    }
-
-    case 'telegram': {
-      const telegramStatus = getTelegramStatus()
-      if (!telegramStatus?.enabled || telegramStatus.status !== 'connected') {
-        return { success: false, error: 'Telegram channel not connected' }
-      }
-
-      // Find the active Telegram channel
-      const telegramChannel = Array.from(activeChannels.values()).find(
-        (ch) => ch.type === 'telegram'
-      )
-      if (!telegramChannel) {
-        return { success: false, error: 'Telegram channel not active' }
-      }
-
-      try {
-        const success = await telegramChannel.sendMessage(resolvedTo, body)
-        if (success) {
-          log.messaging.info('Sent Telegram message', { to: resolvedTo })
-
-          // Store outgoing message
-          storeChannelMessage({
-            channelType: 'telegram',
-            connectionId: TELEGRAM_CONNECTION_ID,
-            direction: 'outgoing',
-            senderId: telegramStatus.displayName || 'bot',
-            recipientId: resolvedTo,
-            content: body,
-            messageTimestamp: new Date(),
-          })
-
-          return { success: true }
-        } else {
-          return { success: false, error: 'Failed to send Telegram message' }
-        }
-      } catch (err) {
-        log.messaging.error('Failed to send Telegram message', { to: resolvedTo, error: String(err) })
-        return { success: false, error: String(err) }
-      }
-    }
+    case 'discord':
+    case 'telegram':
+      return sendViaActiveChannel(channel, resolvedTo, body)
 
     case 'slack': {
-      const slackStatus = getSlackStatus()
-      if (!slackStatus?.enabled || slackStatus.status !== 'connected') {
-        return { success: false, error: 'Slack channel not connected' }
-      }
-
-      // Find the active Slack channel
-      const slackChannel = Array.from(activeChannels.values()).find(
-        (ch) => ch.type === 'slack'
-      )
-      if (!slackChannel) {
-        return { success: false, error: 'Slack channel not active' }
-      }
-
-      try {
-        // Pass blocks and filePath metadata for Block Kit formatting and file uploads
-        const msgMetadata: Record<string, unknown> | undefined =
-          (options?.slackBlocks || options?.filePath)
-            ? {
-                ...(options.slackBlocks && { blocks: options.slackBlocks }),
-                ...(options.filePath && { filePath: options.filePath }),
-              }
-            : undefined
-        const success = await slackChannel.sendMessage(resolvedTo, body, msgMetadata)
-        if (success) {
-          log.messaging.info('Sent Slack message', { to: resolvedTo, hasBlocks: !!options?.slackBlocks })
-
-          // Store outgoing message
-          storeChannelMessage({
-            channelType: 'slack',
-            connectionId: SLACK_CONNECTION_ID,
-            direction: 'outgoing',
-            senderId: slackStatus.displayName || 'bot',
-            recipientId: resolvedTo,
-            content: body,
-            metadata: msgMetadata,
-            messageTimestamp: new Date(),
-          })
-
-          return { success: true }
-        } else {
-          return { success: false, error: 'Failed to send Slack message' }
-        }
-      } catch (err) {
-        log.messaging.error('Failed to send Slack message', { to: resolvedTo, error: String(err) })
-        return { success: false, error: String(err) }
-      }
+      const msgMetadata = buildSlackMetadata(options)
+      return sendViaActiveChannel(channel, resolvedTo, body, msgMetadata)
     }
 
     default:

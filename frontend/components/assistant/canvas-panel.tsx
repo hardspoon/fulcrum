@@ -232,6 +232,7 @@ function EditorTab({ content, onChange, documentPath, onRenameDocument, onSave, 
       const dotIndex = editedFilename.lastIndexOf('.')
       renameInputRef.current.setSelectionRange(0, dotIndex > 0 ? dotIndex : editedFilename.length)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on rename start, not on every keystroke
   }, [isRenaming])
 
   const handleSaveRename = () => {

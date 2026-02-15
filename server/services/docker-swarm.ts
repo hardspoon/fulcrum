@@ -333,6 +333,115 @@ function extractPortInfo(
   return null
 }
 
+// Fields not supported by Docker Swarm that would cause errors or be silently ignored
+const UNSUPPORTED_SWARM_FIELDS = [
+  'container_name',  // Swarm names containers: stack_service.slot.id
+  'links',           // Deprecated, use networks instead
+  'network_mode',    // Use networks with driver options
+  'devices',         // Not supported in Swarm
+  'tmpfs',           // Use mounts with type: tmpfs in deploy
+  'userns_mode',     // Not supported
+  'sysctls',         // Not supported
+  'security_opt',    // Not supported (use no_new_privileges in deploy)
+  'cpu_count',       // Use deploy.resources.limits.cpus
+  'cpu_percent',     // Use deploy.resources
+  'cpus',            // Use deploy.resources.limits.cpus
+  'mem_limit',       // Use deploy.resources.limits.memory
+  'memswap_limit',   // Use deploy.resources
+  'mem_reservation', // Use deploy.resources.reservations.memory
+]
+
+// Remove fields not supported by Docker Swarm from a service config
+function removeUnsupportedFields(serviceConfig: Record<string, unknown>, serviceName: string): void {
+  const removedFields: string[] = []
+  for (const field of UNSUPPORTED_SWARM_FIELDS) {
+    if (field in serviceConfig) {
+      removedFields.push(field)
+      delete serviceConfig[field]
+    }
+  }
+  if (removedFields.length > 0) {
+    log.deploy.warn('Removed unsupported Swarm fields', { service: serviceName, fields: removedFields })
+  }
+}
+
+// Add an external network to a service's networks config
+function addExternalNetworkToService(serviceConfig: Record<string, unknown>, networkName: string): void {
+  const existingNetworks = serviceConfig.networks as string[] | Record<string, unknown> | undefined
+
+  if (Array.isArray(existingNetworks)) {
+    if (!existingNetworks.includes(networkName)) {
+      existingNetworks.push(networkName)
+    }
+  } else if (existingNetworks && typeof existingNetworks === 'object') {
+    if (!(networkName in existingNetworks)) {
+      existingNetworks[networkName] = {}
+    }
+  } else {
+    serviceConfig.networks = ['default', networkName]
+  }
+}
+
+// Apply all Swarm-required transformations to a single service
+function transformServiceForSwarm(
+  serviceName: string,
+  serviceConfig: Record<string, unknown>,
+  projectName: string,
+  cwd: string,
+  env?: Record<string, string>,
+  externalNetwork?: string,
+): boolean {
+  let modified = false
+
+  // Add image field for services with build but no image
+  if (serviceConfig.build && !serviceConfig.image) {
+    const imageName = `${projectName}-${serviceName}`
+    serviceConfig.image = imageName
+    modified = true
+    log.deploy.warn('Added image field for Swarm (Swarm cannot build inline)', {
+      service: serviceName, image: imageName,
+    })
+  }
+
+  // Remove restart (Swarm uses deploy.restart_policy)
+  if (serviceConfig.restart) {
+    log.deploy.warn('Removed restart field (use deploy.restart_policy for Swarm)', {
+      service: serviceName, restart: serviceConfig.restart,
+    })
+    delete serviceConfig.restart
+  }
+
+  // Convert depends_on from object format to list format (Swarm only supports list)
+  if (serviceConfig.depends_on && typeof serviceConfig.depends_on === 'object' && !Array.isArray(serviceConfig.depends_on)) {
+    const conditions = Object.entries(serviceConfig.depends_on as Record<string, { condition?: string }>)
+      .map(([svc, cfg]) => cfg.condition ? `${svc}:${cfg.condition}` : svc)
+      .join(', ')
+    log.deploy.warn('Converting depends_on to list format (conditions ignored by Swarm)', {
+      service: serviceName, original: conditions,
+    })
+    serviceConfig.depends_on = Object.keys(serviceConfig.depends_on)
+  }
+
+  // Resolve relative volume paths to absolute paths
+  if (Array.isArray(serviceConfig.volumes)) {
+    serviceConfig.volumes = serviceConfig.volumes.map((vol: unknown) => resolveVolumeEntry(vol, cwd, env))
+  }
+
+  // Convert ports to host mode to bypass ingress routing mesh
+  if (Array.isArray(serviceConfig.ports)) {
+    serviceConfig.ports = serviceConfig.ports.map((port: unknown) => convertPortToHostMode(port, env))
+    log.deploy.debug('Converted ports to host mode', { service: serviceName, ports: serviceConfig.ports })
+  }
+
+  removeUnsupportedFields(serviceConfig, serviceName)
+
+  if (externalNetwork) {
+    addExternalNetworkToService(serviceConfig, externalNetwork)
+  }
+
+  return modified
+}
+
 /**
  * Generate a Swarm-compatible compose file
  *
@@ -350,19 +459,17 @@ export async function generateSwarmComposeFile(
   cwd: string,
   composeFile: string,
   projectName: string,
-  externalNetwork: string | undefined, // Optional external network for ingress (e.g., dokploy-network)
-  outputDir: string, // Directory to write the swarm compose file (e.g., FULCRUM_DIR/apps/{appId})
-  env?: Record<string, string> // Environment variables for variable expansion (e.g., PORT=3005)
+  externalNetwork: string | undefined,
+  outputDir: string,
+  env?: Record<string, string>
 ): Promise<{ success: boolean; swarmFile: string; error?: string }> {
   const swarmFileName = 'swarm-compose.yml'
   const originalPath = join(cwd, composeFile)
   const swarmPath = join(outputDir, swarmFileName)
 
   try {
-    // Ensure output directory exists
     await mkdir(outputDir, { recursive: true })
 
-    // Read and parse the original compose file
     const content = await readFile(originalPath, 'utf-8')
     const parsed = parseYaml(content) as Record<string, unknown>
 
@@ -375,118 +482,11 @@ export async function generateSwarmComposeFile(
       return { success: false, swarmFile: swarmPath, error: 'No services found in compose file' }
     }
 
-    // Track which services were modified
     const modified: string[] = []
 
-    // Process each service
     for (const [serviceName, serviceConfig] of Object.entries(services)) {
-      // If service has build but no image, add image field
-      // docker compose build creates images as: {projectName}-{serviceName}
-      if (serviceConfig.build && !serviceConfig.image) {
-        const imageName = `${projectName}-${serviceName}`
-        serviceConfig.image = imageName
+      if (transformServiceForSwarm(serviceName, serviceConfig, projectName, cwd, env, externalNetwork)) {
         modified.push(serviceName)
-        log.deploy.warn('Added image field for Swarm (Swarm cannot build inline)', {
-          service: serviceName,
-          image: imageName,
-        })
-      }
-
-      // Remove restart (Swarm uses deploy.restart_policy)
-      if (serviceConfig.restart) {
-        log.deploy.warn('Removed restart field (use deploy.restart_policy for Swarm)', {
-          service: serviceName,
-          restart: serviceConfig.restart,
-        })
-        delete serviceConfig.restart
-      }
-
-      // Convert depends_on from object format to list format
-      // Docker Swarm only supports list format: depends_on: [service1, service2]
-      // It does NOT support object format: depends_on: { db: { condition: service_healthy } }
-      if (serviceConfig.depends_on && typeof serviceConfig.depends_on === 'object' && !Array.isArray(serviceConfig.depends_on)) {
-        const conditions = Object.entries(serviceConfig.depends_on as Record<string, { condition?: string }>)
-          .map(([svc, cfg]) => cfg.condition ? `${svc}:${cfg.condition}` : svc)
-          .join(', ')
-        log.deploy.warn('Converting depends_on to list format (conditions ignored by Swarm)', {
-          service: serviceName,
-          original: conditions,
-        })
-        serviceConfig.depends_on = Object.keys(serviceConfig.depends_on)
-      }
-
-      // Resolve relative volume paths to absolute paths
-      // When the swarm compose file is written to FULCRUM_DIR, relative paths
-      // like ".:/app" would resolve to that directory instead of the repo
-      if (Array.isArray(serviceConfig.volumes)) {
-        serviceConfig.volumes = serviceConfig.volumes.map((vol: unknown) =>
-          resolveVolumeEntry(vol, cwd, env)
-        )
-      }
-
-      // Convert ports to host mode to bypass ingress routing mesh
-      // The Docker Swarm ingress network can become corrupted after service updates,
-      // causing connections to hang. Host mode binds directly to the node.
-      if (Array.isArray(serviceConfig.ports)) {
-        serviceConfig.ports = serviceConfig.ports.map((port: unknown) =>
-          convertPortToHostMode(port, env)
-        )
-        log.deploy.debug('Converted ports to host mode', {
-          service: serviceName,
-          ports: serviceConfig.ports,
-        })
-      }
-
-      // Remove fields not supported by Docker Swarm
-      // These would cause "unsupported" errors or be silently ignored
-      const unsupportedFields = [
-        'container_name',  // Swarm names containers: stack_service.slot.id
-        'links',           // Deprecated, use networks instead
-        'network_mode',    // Use networks with driver options
-        'devices',         // Not supported in Swarm
-        'tmpfs',           // Use mounts with type: tmpfs in deploy
-        'userns_mode',     // Not supported
-        'sysctls',         // Not supported
-        'security_opt',    // Not supported (use no_new_privileges in deploy)
-        'cpu_count',       // Use deploy.resources.limits.cpus
-        'cpu_percent',     // Use deploy.resources
-        'cpus',            // Use deploy.resources.limits.cpus
-        'mem_limit',       // Use deploy.resources.limits.memory
-        'memswap_limit',   // Use deploy.resources
-        'mem_reservation', // Use deploy.resources.reservations.memory
-      ]
-      const removedFields: string[] = []
-      for (const field of unsupportedFields) {
-        if (field in serviceConfig) {
-          removedFields.push(field)
-          delete serviceConfig[field]
-        }
-      }
-      if (removedFields.length > 0) {
-        log.deploy.warn('Removed unsupported Swarm fields', {
-          service: serviceName,
-          fields: removedFields,
-        })
-      }
-
-      // Add external network to service if specified
-      if (externalNetwork) {
-        const existingNetworks = serviceConfig.networks as string[] | Record<string, unknown> | undefined
-
-        if (Array.isArray(existingNetworks)) {
-          // Array format: ["default", "other"]
-          if (!existingNetworks.includes(externalNetwork)) {
-            existingNetworks.push(externalNetwork)
-          }
-        } else if (existingNetworks && typeof existingNetworks === 'object') {
-          // Object format: { default: {}, other: {} }
-          if (!(externalNetwork in existingNetworks)) {
-            existingNetworks[externalNetwork] = {}
-          }
-        } else {
-          // No networks defined, create array with default and external
-          serviceConfig.networks = ['default', externalNetwork]
-        }
       }
     }
 
@@ -497,7 +497,6 @@ export async function generateSwarmComposeFile(
       parsed.networks = networks
     }
 
-    // Write the modified compose file
     const swarmContent = stringifyYaml(parsed)
     await writeFile(swarmPath, swarmContent, 'utf-8')
 

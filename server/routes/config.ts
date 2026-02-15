@@ -17,8 +17,6 @@ import {
   CLAUDE_CODE_THEMES,
   type NotificationSettings,
   type ZAiSettings,
-  type EditorApp,
-  type ClaudeCodeTheme,
 } from '../lib/settings'
 import { spawn } from 'child_process'
 import { testNotificationChannel, sendNotification, type NotificationPayload } from '../services/notification-service'
@@ -298,6 +296,124 @@ app.get('/:key', (c) => {
   return c.json({ key, value: value ?? defaultValue, isDefault })
 })
 
+// Validator result: either a validated value or an error string
+type ValidatorResult = { value: unknown } | { error: string }
+
+// Validator factory: enum field that must be one of the valid values
+function enumValidator(validValues: readonly string[], label: string) {
+  return (value: unknown): ValidatorResult => {
+    if (!validValues.includes(value as string)) {
+      return { error: `${label} must be one of: ${validValues.join(', ')}` }
+    }
+    return { value }
+  }
+}
+
+// Validator factory: boolean field
+function booleanValidator(label: string) {
+  return (value: unknown): ValidatorResult => {
+    if (typeof value !== 'boolean') {
+      return { error: `${label} must be a boolean` }
+    }
+    return { value }
+  }
+}
+
+// Validator factory: nullable string field (empty string → null)
+function nullableStringValidator(label: string) {
+  return (value: unknown): ValidatorResult => {
+    if (value !== null && typeof value !== 'string') {
+      return { error: `${label} must be a string or null` }
+    }
+    return { value: value === '' ? null : value }
+  }
+}
+
+// Validator: port number (1-65535)
+function portValidator(value: unknown): ValidatorResult {
+  const port = typeof value === 'number' ? value : parseInt(value as string, 10)
+  if (isNaN(port) || port < 1 || port > 65535) {
+    return { error: 'Port must be a number between 1 and 65535' }
+  }
+  return { value: port }
+}
+
+// Validator: non-empty trimmed string
+function nonEmptyStringValidator(label: string) {
+  return (value: unknown): ValidatorResult => {
+    if (typeof value !== 'string' || value.trim() === '') {
+      return { error: `${label} must be a non-empty string` }
+    }
+    return { value: (value as string).trim() }
+  }
+}
+
+// Fields where empty string should be coerced to null in the catch-all
+const NULLABLE_ON_EMPTY = new Set([
+  CONFIG_KEYS.GITHUB_PAT,
+  CONFIG_KEYS.REMOTE_HOST,
+  CONFIG_KEYS.EDITOR_HOST,
+])
+
+// Config key → validator function
+const CONFIG_VALIDATORS: Record<string, (value: unknown) => ValidatorResult> = {
+  [CONFIG_KEYS.PORT]: portValidator,
+  [CONFIG_KEYS.REMOTE_PORT]: portValidator,
+  [CONFIG_KEYS.EDITOR_SSH_PORT]: portValidator,
+  [CONFIG_KEYS.LANGUAGE]: (value) => {
+    if (value !== null && value !== '' && value !== 'en' && value !== 'zh') {
+      return { error: 'Language must be "en", "zh", or null' }
+    }
+    return { value: value === '' ? null : value }
+  },
+  [CONFIG_KEYS.THEME]: (value) => {
+    if (value !== null && value !== '' && value !== 'system' && value !== 'light' && value !== 'dark') {
+      return { error: 'Theme must be "system", "light", "dark", or null' }
+    }
+    return { value: value === '' || value === 'system' ? null : value }
+  },
+  [CONFIG_KEYS.TIMEZONE]: (value) => {
+    if (value !== null && value !== '') {
+      try {
+        Intl.DateTimeFormat(undefined, { timeZone: value as string })
+      } catch {
+        return { error: 'Invalid timezone' }
+      }
+    }
+    return { value: value === '' ? null : value }
+  },
+  [CONFIG_KEYS.SYNC_CLAUDE_CODE_THEME]: booleanValidator('Sync setting'),
+  [CONFIG_KEYS.CLAUDE_CODE_LIGHT_THEME]: enumValidator(CLAUDE_CODE_THEMES, 'Claude Code theme'),
+  [CONFIG_KEYS.CLAUDE_CODE_DARK_THEME]: enumValidator(CLAUDE_CODE_THEMES, 'Claude Code theme'),
+  [CONFIG_KEYS.EDITOR_APP]: enumValidator(['vscode', 'cursor', 'windsurf', 'zed', 'antigravity'] as const, 'Editor app'),
+  [CONFIG_KEYS.DEFAULT_AGENT]: enumValidator(['claude', 'opencode'] as const, 'Default agent'),
+  [CONFIG_KEYS.OPENCODE_MODEL]: nullableStringValidator('OpenCode model'),
+  [CONFIG_KEYS.OPENCODE_DEFAULT_AGENT]: nonEmptyStringValidator('OpenCode agent name'),
+  [CONFIG_KEYS.OPENCODE_PLAN_AGENT]: nonEmptyStringValidator('OpenCode agent name'),
+  [CONFIG_KEYS.AGENT_AUTO_SCROLL_TO_BOTTOM]: booleanValidator('Auto-scroll to bottom'),
+  [CONFIG_KEYS.CLAUDE_CODE_PATH]: nullableStringValidator('Claude Code path'),
+  [CONFIG_KEYS.DEFAULT_TASK_TYPE]: enumValidator(['worktree', 'manual', 'scratch'] as const, 'Default task type'),
+  [CONFIG_KEYS.START_WORKTREE_TASKS_IMMEDIATELY]: booleanValidator('Start worktree tasks immediately'),
+  [CONFIG_KEYS.ASSISTANT_PROVIDER]: enumValidator(['claude', 'opencode'] as const, 'Assistant provider'),
+  [CONFIG_KEYS.ASSISTANT_MODEL]: enumValidator(['opus', 'sonnet', 'haiku'] as const, 'Assistant model'),
+  [CONFIG_KEYS.ASSISTANT_OBSERVER_MODEL]: enumValidator(['opus', 'sonnet', 'haiku'] as const, 'Assistant model'),
+  [CONFIG_KEYS.ASSISTANT_OBSERVER_PROVIDER]: (value) => {
+    if (value !== null && value !== 'claude' && value !== 'opencode') {
+      return { error: 'Observer provider must be "claude", "opencode", or null' }
+    }
+    return { value }
+  },
+  [CONFIG_KEYS.ASSISTANT_OBSERVER_OPENCODE_MODEL]: nullableStringValidator('Observer OpenCode model'),
+  [CONFIG_KEYS.ASSISTANT_CUSTOM_INSTRUCTIONS]: nullableStringValidator('Custom instructions'),
+  [CONFIG_KEYS.EMAIL_POLL_INTERVAL]: (value) => {
+    const num = typeof value === 'string' ? parseInt(value, 10) : value
+    if (typeof num !== 'number' || isNaN(num) || num < 5 || num > 3600) {
+      return { error: 'Poll interval must be a number between 5 and 3600 seconds' }
+    }
+    return { value: num }
+  },
+}
+
 // PUT /api/config/:key - Set config value
 app.put('/:key', async (c) => {
   const key = c.req.param('key')
@@ -312,136 +428,15 @@ app.put('/:key', async (c) => {
     const body = await c.req.json<{ value: string | number | boolean | string[] | null }>()
     let { value } = body
 
-    // Validate based on the setting type
-    if (path === CONFIG_KEYS.PORT || path === CONFIG_KEYS.REMOTE_PORT || path === CONFIG_KEYS.EDITOR_SSH_PORT) {
-      const port = typeof value === 'number' ? value : parseInt(value as string, 10)
-      if (isNaN(port) || port < 1 || port > 65535) {
-        return c.json({ error: 'Port must be a number between 1 and 65535' }, 400)
+    const validator = CONFIG_VALIDATORS[path]
+    if (validator) {
+      const result = validator(value)
+      if ('error' in result) {
+        return c.json({ error: result.error }, 400)
       }
-      value = port
-    } else if (path === CONFIG_KEYS.LANGUAGE) {
-      if (value !== null && value !== '' && value !== 'en' && value !== 'zh') {
-        return c.json({ error: 'Language must be "en", "zh", or null' }, 400)
-      }
-      value = value === '' ? null : value
-    } else if (path === CONFIG_KEYS.THEME) {
-      if (value !== null && value !== '' && value !== 'system' && value !== 'light' && value !== 'dark') {
-        return c.json({ error: 'Theme must be "system", "light", "dark", or null' }, 400)
-      }
-      value = value === '' || value === 'system' ? null : value
-    } else if (path === CONFIG_KEYS.TIMEZONE) {
-      // Validate timezone is a valid IANA timezone
-      if (value !== null && value !== '') {
-        try {
-          Intl.DateTimeFormat(undefined, { timeZone: value as string })
-        } catch {
-          return c.json({ error: 'Invalid timezone' }, 400)
-        }
-      }
-      value = value === '' ? null : value
-    } else if (path === CONFIG_KEYS.SYNC_CLAUDE_CODE_THEME) {
-      if (typeof value !== 'boolean') {
-        return c.json({ error: 'Sync setting must be a boolean' }, 400)
-      }
-    } else if (path === CONFIG_KEYS.CLAUDE_CODE_LIGHT_THEME || path === CONFIG_KEYS.CLAUDE_CODE_DARK_THEME) {
-      if (!CLAUDE_CODE_THEMES.includes(value as ClaudeCodeTheme)) {
-        return c.json({ error: `Claude Code theme must be one of: ${CLAUDE_CODE_THEMES.join(', ')}` }, 400)
-      }
-    } else if (path === CONFIG_KEYS.EDITOR_APP) {
-      const validApps: EditorApp[] = ['vscode', 'cursor', 'windsurf', 'zed', 'antigravity']
-      if (!validApps.includes(value as EditorApp)) {
-        return c.json({ error: `Editor app must be one of: ${validApps.join(', ')}` }, 400)
-      }
-    } else if (path === CONFIG_KEYS.DEFAULT_AGENT) {
-      const validAgents = ['claude', 'opencode']
-      if (!validAgents.includes(value as string)) {
-        return c.json({ error: `Default agent must be one of: ${validAgents.join(', ')}` }, 400)
-      }
-    } else if (path === CONFIG_KEYS.OPENCODE_MODEL) {
-      // OpenCode model can be null or a string like "anthropic/claude-opus-4-5"
-      if (value !== null && typeof value !== 'string') {
-        return c.json({ error: 'OpenCode model must be a string or null' }, 400)
-      }
-      // Convert empty string to null
-      if (value === '') {
-        value = null
-      }
-    } else if (path === CONFIG_KEYS.OPENCODE_DEFAULT_AGENT || path === CONFIG_KEYS.OPENCODE_PLAN_AGENT) {
-      // OpenCode agent names must be non-empty strings
-      if (typeof value !== 'string' || value.trim() === '') {
-        return c.json({ error: 'OpenCode agent name must be a non-empty string' }, 400)
-      }
-      value = value.trim()
-    } else if (path === CONFIG_KEYS.AGENT_AUTO_SCROLL_TO_BOTTOM) {
-      if (typeof value !== 'boolean') {
-        return c.json({ error: 'Auto-scroll to bottom must be a boolean' }, 400)
-      }
-    } else if (path === CONFIG_KEYS.CLAUDE_CODE_PATH) {
-      // Claude Code path can be null or a string
-      if (value !== null && typeof value !== 'string') {
-        return c.json({ error: 'Claude Code path must be a string or null' }, 400)
-      }
-      // Convert empty string to null
-      if (value === '') {
-        value = null
-      }
-    } else if (path === CONFIG_KEYS.DEFAULT_TASK_TYPE) {
-      const validTaskTypes = ['worktree', 'manual', 'scratch']
-      if (!validTaskTypes.includes(value as string)) {
-        return c.json({ error: `Default task type must be one of: ${validTaskTypes.join(', ')}` }, 400)
-      }
-    } else if (path === CONFIG_KEYS.START_WORKTREE_TASKS_IMMEDIATELY) {
-      if (typeof value !== 'boolean') {
-        return c.json({ error: 'Start worktree tasks immediately must be a boolean' }, 400)
-      }
-    } else if (path === CONFIG_KEYS.ASSISTANT_PROVIDER) {
-      const validProviders = ['claude', 'opencode']
-      if (!validProviders.includes(value as string)) {
-        return c.json({ error: `Assistant provider must be one of: ${validProviders.join(', ')}` }, 400)
-      }
-    } else if (path === CONFIG_KEYS.ASSISTANT_MODEL || path === CONFIG_KEYS.ASSISTANT_OBSERVER_MODEL) {
-      const validModels = ['opus', 'sonnet', 'haiku']
-      if (!validModels.includes(value as string)) {
-        return c.json({ error: `Assistant model must be one of: ${validModels.join(', ')}` }, 400)
-      }
-    } else if (path === CONFIG_KEYS.ASSISTANT_OBSERVER_PROVIDER) {
-      // Observer provider can be null (use main provider), 'claude', or 'opencode'
-      if (value !== null && value !== 'claude' && value !== 'opencode') {
-        return c.json({ error: 'Observer provider must be "claude", "opencode", or null' }, 400)
-      }
-      // Convert empty string to null
-      if (value === '') {
-        value = null
-      }
-    } else if (path === CONFIG_KEYS.ASSISTANT_OBSERVER_OPENCODE_MODEL) {
-      // Observer OpenCode model can be null or a string
-      if (value !== null && typeof value !== 'string') {
-        return c.json({ error: 'Observer OpenCode model must be a string or null' }, 400)
-      }
-      if (value === '') {
-        value = null
-      }
-    } else if (path === CONFIG_KEYS.ASSISTANT_CUSTOM_INSTRUCTIONS) {
-      // Custom instructions can be null or a string
-      if (value !== null && typeof value !== 'string') {
-        return c.json({ error: 'Custom instructions must be a string or null' }, 400)
-      }
-      // Convert empty string to null
-      if (value === '') {
-        value = null
-      }
-    } else if (path === CONFIG_KEYS.EMAIL_POLL_INTERVAL) {
-      const num = typeof value === 'string' ? parseInt(value, 10) : value
-      if (typeof num !== 'number' || isNaN(num) || num < 5 || num > 3600) {
-        return c.json({ error: 'Poll interval must be a number between 5 and 3600 seconds' }, 400)
-      }
-      value = num
-    } else if (typeof value === 'string' && value === '') {
-      // Convert empty strings to null for nullable fields
-      if (path === CONFIG_KEYS.GITHUB_PAT ||
-          path === CONFIG_KEYS.REMOTE_HOST || path === CONFIG_KEYS.EDITOR_HOST) {
-        value = null
-      }
+      value = result.value as typeof value
+    } else if (typeof value === 'string' && value === '' && NULLABLE_ON_EMPTY.has(path)) {
+      value = null
     }
 
     updateSettingByPath(path, value)

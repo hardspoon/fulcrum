@@ -14,6 +14,24 @@ import { broadcast } from '../websocket/terminal-ws'
 
 const app = new Hono()
 
+// Convert a repository row to ProjectRepositoryDetails
+function toRepoDetails(repo: typeof repositories.$inferSelect, isPrimary: boolean): ProjectRepositoryDetails {
+  return {
+    id: repo.id,
+    path: repo.path,
+    displayName: repo.displayName,
+    startupScript: repo.startupScript,
+    copyFiles: repo.copyFiles,
+    defaultAgent: repo.defaultAgent as 'claude' | 'opencode' | null,
+    claudeOptions: repo.claudeOptions ? JSON.parse(repo.claudeOptions) : null,
+    opencodeOptions: repo.opencodeOptions ? JSON.parse(repo.opencodeOptions) : null,
+    opencodeModel: repo.opencodeModel,
+    remoteUrl: repo.remoteUrl,
+    isCopierTemplate: repo.isCopierTemplate ?? false,
+    isPrimary,
+  }
+}
+
 // Helper to get repositories for a project (from join table and legacy repositoryId)
 function getProjectRepositories(projectId: string, legacyRepoId: string | null): ProjectRepositoryDetails[] {
   // Get repositories from the join table
@@ -28,20 +46,7 @@ function getProjectRepositories(projectId: string, legacyRepoId: string | null):
   for (const jr of joinedRepos) {
     const repo = db.select().from(repositories).where(eq(repositories.id, jr.repositoryId)).get()
     if (repo) {
-      result.push({
-        id: repo.id,
-        path: repo.path,
-        displayName: repo.displayName,
-        startupScript: repo.startupScript,
-        copyFiles: repo.copyFiles,
-        defaultAgent: repo.defaultAgent as 'claude' | 'opencode' | null,
-        claudeOptions: repo.claudeOptions ? JSON.parse(repo.claudeOptions) : null,
-        opencodeOptions: repo.opencodeOptions ? JSON.parse(repo.opencodeOptions) : null,
-        opencodeModel: repo.opencodeModel,
-        remoteUrl: repo.remoteUrl,
-        isCopierTemplate: repo.isCopierTemplate ?? false,
-        isPrimary: jr.isPrimary ?? false,
-      })
+      result.push(toRepoDetails(repo, jr.isPrimary ?? false))
     }
   }
 
@@ -49,20 +54,7 @@ function getProjectRepositories(projectId: string, legacyRepoId: string | null):
   if (result.length === 0 && legacyRepoId) {
     const repo = db.select().from(repositories).where(eq(repositories.id, legacyRepoId)).get()
     if (repo) {
-      result.push({
-        id: repo.id,
-        path: repo.path,
-        displayName: repo.displayName,
-        startupScript: repo.startupScript,
-        copyFiles: repo.copyFiles,
-        defaultAgent: repo.defaultAgent as 'claude' | 'opencode' | null,
-        claudeOptions: repo.claudeOptions ? JSON.parse(repo.claudeOptions) : null,
-        opencodeOptions: repo.opencodeOptions ? JSON.parse(repo.opencodeOptions) : null,
-        opencodeModel: repo.opencodeModel,
-        remoteUrl: repo.remoteUrl,
-        isCopierTemplate: repo.isCopierTemplate ?? false,
-        isPrimary: true, // Legacy single repo is primary by default
-      })
+      result.push(toRepoDetails(repo, true))
     }
   }
 
@@ -659,6 +651,49 @@ app.post('/', async (c) => {
   }
 })
 
+// Build update data from PATCH body using a field→transform map
+const PATCH_FIELDS: Record<string, (v: unknown) => unknown> = {
+  name: (v) => v,
+  description: (v) => v,
+  notes: (v) => v,
+  status: (v) => v,
+  defaultAgent: (v) => v,
+  claudeOptions: (v) => v ? JSON.stringify(v) : null,
+  opencodeOptions: (v) => v ? JSON.stringify(v) : null,
+  opencodeModel: (v) => v,
+}
+
+function buildProjectUpdateData(body: Record<string, unknown>, now: string): Record<string, unknown> {
+  const updateData: Record<string, unknown> = { updatedAt: now }
+  for (const [field, transform] of Object.entries(PATCH_FIELDS)) {
+    if (body[field] !== undefined) {
+      updateData[field] = transform(body[field])
+    }
+  }
+  return updateData
+}
+
+// Fetch optional relations for a project row
+function fetchProjectRelations(project: typeof projects.$inferSelect) {
+  const repo = project.repositoryId
+    ? db.select().from(repositories).where(eq(repositories.id, project.repositoryId)).get() ?? null
+    : null
+
+  const appRow = project.appId
+    ? db.select().from(apps).where(eq(apps.id, project.appId)).get() ?? null
+    : null
+
+  const services = appRow
+    ? db.select().from(appServices).where(eq(appServices.appId, appRow.id)).all()
+    : []
+
+  const tab = project.terminalTabId
+    ? db.select().from(terminalTabs).where(eq(terminalTabs.id, project.terminalTabId)).get() ?? null
+    : null
+
+  return { repo, appRow, services, tab }
+}
+
 // PATCH /api/projects/:id - Update project metadata
 app.patch('/:id', async (c) => {
   const id = c.req.param('id')
@@ -674,7 +709,6 @@ app.patch('/:id', async (c) => {
       description?: string | null
       notes?: string | null
       status?: 'active' | 'archived'
-      // Agent configuration
       defaultAgent?: 'claude' | 'opencode' | null
       claudeOptions?: Record<string, string> | null
       opencodeOptions?: Record<string, string> | null
@@ -682,44 +716,13 @@ app.patch('/:id', async (c) => {
     }>()
 
     const now = new Date().toISOString()
-
-    const updateData: Record<string, unknown> = { updatedAt: now }
-    if (body.name !== undefined) updateData.name = body.name
-    if (body.description !== undefined) updateData.description = body.description
-    if (body.notes !== undefined) updateData.notes = body.notes
-    if (body.status !== undefined) updateData.status = body.status
-    // Agent configuration updates
-    if (body.defaultAgent !== undefined) updateData.defaultAgent = body.defaultAgent
-    if (body.claudeOptions !== undefined) {
-      updateData.claudeOptions = body.claudeOptions ? JSON.stringify(body.claudeOptions) : null
-    }
-    if (body.opencodeOptions !== undefined) {
-      updateData.opencodeOptions = body.opencodeOptions ? JSON.stringify(body.opencodeOptions) : null
-    }
-    if (body.opencodeModel !== undefined) updateData.opencodeModel = body.opencodeModel
-
+    const updateData = buildProjectUpdateData(body as Record<string, unknown>, now)
     db.update(projects).set(updateData).where(eq(projects.id, id)).run()
 
-    // Fetch and return updated project
     const project = db.select().from(projects).where(eq(projects.id, id)).get()!
+    const { repo, appRow, services, tab } = fetchProjectRelations(project)
 
-    const repo = project.repositoryId
-      ? db.select().from(repositories).where(eq(repositories.id, project.repositoryId)).get()
-      : null
-
-    const appRow = project.appId
-      ? db.select().from(apps).where(eq(apps.id, project.appId)).get()
-      : null
-
-    const services = appRow
-      ? db.select().from(appServices).where(eq(appServices.appId, appRow.id)).all()
-      : []
-
-    const tab = project.terminalTabId
-      ? db.select().from(terminalTabs).where(eq(terminalTabs.id, project.terminalTabId)).get()
-      : null
-
-    return c.json(buildProjectWithDetails(project, repo ?? null, appRow ?? null, services, tab ?? null))
+    return c.json(buildProjectWithDetails(project, repo, appRow, services, tab))
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to update project' }, 400)
   }
@@ -1086,6 +1089,46 @@ app.post('/scan', async (c) => {
   }
 })
 
+// Find or create a repository from a path, returning null if it should be skipped
+function ensureRepository(
+  repoInput: { path: string; displayName?: string },
+  now: string,
+  expandPath: (p: string) => string,
+): { repo: typeof repositories.$inferSelect; linkedApp: typeof apps.$inferSelect | null } | null {
+  const repoPath = expandPath(repoInput.path)
+
+  if (!existsSync(repoPath)) return null
+
+  let repo = db.select().from(repositories).where(eq(repositories.path, repoPath)).get()
+
+  if (!repo) {
+    const displayName = repoInput.displayName || repoPath.split('/').pop() || 'repo'
+    const repoId = nanoid()
+    db.insert(repositories)
+      .values({
+        id: repoId,
+        path: repoPath,
+        displayName,
+        startupScript: null,
+        copyFiles: null,
+        isCopierTemplate: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run()
+    repo = db.select().from(repositories).where(eq(repositories.id, repoId)).get()
+  }
+
+  if (!repo) return null
+
+  // Skip if project already exists for this repository
+  const existingProject = db.select().from(projects).where(eq(projects.repositoryId, repo.id)).get()
+  if (existingProject) return null
+
+  const linkedApp = db.select().from(apps).where(eq(apps.repositoryId, repo.id)).get() ?? null
+  return { repo, linkedApp }
+}
+
 // POST /api/projects/bulk - Bulk create projects from repository paths
 // Creates repositories if they don't exist, then creates projects for each
 app.post('/bulk', async (c) => {
@@ -1098,7 +1141,6 @@ app.post('/bulk', async (c) => {
       return c.json({ error: 'repositories array is required' }, 400)
     }
 
-    const { existsSync } = await import('node:fs')
     const { expandPath } = await import('../lib/settings')
 
     const now = new Date().toISOString()
@@ -1106,54 +1148,10 @@ app.post('/bulk', async (c) => {
     let skipped = 0
 
     for (const repoInput of body.repositories) {
-      const repoPath = expandPath(repoInput.path)
+      const result = ensureRepository(repoInput, now, expandPath)
+      if (!result) { skipped++; continue }
 
-      // Check if repo path exists on disk
-      if (!existsSync(repoPath)) {
-        skipped++
-        continue
-      }
-
-      // Check if repository already exists
-      let repo = db.select().from(repositories).where(eq(repositories.path, repoPath)).get()
-
-      // Create repository if it doesn't exist
-      if (!repo) {
-        const displayName = repoInput.displayName || repoPath.split('/').pop() || 'repo'
-        const repoId = nanoid()
-
-        db.insert(repositories)
-          .values({
-            id: repoId,
-            path: repoPath,
-            displayName,
-            startupScript: null,
-            copyFiles: null,
-            isCopierTemplate: false,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .run()
-
-        repo = db.select().from(repositories).where(eq(repositories.id, repoId)).get()
-      }
-
-      if (!repo) {
-        skipped++
-        continue
-      }
-
-      // Check if project already exists for this repository
-      const existingProject = db.select().from(projects).where(eq(projects.repositoryId, repo.id)).get()
-      if (existingProject) {
-        skipped++
-        continue
-      }
-
-      // Check if there's an app linked to this repository
-      const linkedApp = db.select().from(apps).where(eq(apps.repositoryId, repo.id)).get()
-
-      // Create project
+      const { repo, linkedApp } = result
       const projectId = nanoid()
       db.insert(projects)
         .values({
@@ -1170,15 +1168,13 @@ app.post('/bulk', async (c) => {
         })
         .run()
 
-      // Fetch the created project
       const project = db.select().from(projects).where(eq(projects.id, projectId)).get()
       if (project) {
         const services = linkedApp
           ? db.select().from(appServices).where(eq(appServices.appId, linkedApp.id)).all()
           : []
-
         createdProjects.push(
-          buildProjectWithDetails(project, repo, linkedApp ?? null, services, null)
+          buildProjectWithDetails(project, repo, linkedApp, services, null)
         )
       }
     }

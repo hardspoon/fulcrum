@@ -65,6 +65,57 @@ function parsePortValue(value: string): number | null {
   return port
 }
 
+// Parse a string port spec like "8080:80/tcp" or "${PORT:-8080}" into a ComposePort
+function parseStringPort(port: string): ComposePort | null {
+  // Remove protocol suffix if present
+  let protocol: 'tcp' | 'udp' | undefined
+  let portStr = port
+  if (port.endsWith('/tcp')) {
+    protocol = 'tcp'
+    portStr = port.slice(0, -4)
+  } else if (port.endsWith('/udp')) {
+    protocol = 'udp'
+    portStr = port.slice(0, -4)
+  }
+
+  const parts = splitRespectingEnvVars(portStr)
+
+  if (parts.length >= 2) {
+    // Format: host:container or IP:host:container
+    const containerPort = parsePortValue(parts[parts.length - 1])
+    const hostPort = parsePortValue(parts[parts.length - 2])
+
+    if (containerPort !== null) {
+      return { container: containerPort, host: hostPort ?? undefined, protocol }
+    }
+    log.deploy.warn('Could not parse port with env var reference', { port: portStr })
+    return null
+  }
+
+  // Single port value
+  const containerPort = parsePortValue(portStr)
+  if (containerPort !== null) {
+    return { container: containerPort, protocol }
+  }
+  log.deploy.warn('Could not parse port value', { port: portStr })
+  return null
+}
+
+// Parse a long-syntax port object like { target: 80, published: 8080 }
+function parseObjectPort(portObj: Record<string, unknown>): ComposePort | null {
+  const target = portObj.target ?? portObj.container_port
+  if (typeof target !== 'number') return null
+  if (target <= 0 || target > 65535) {
+    log.deploy.warn('Invalid port number in long syntax', { target })
+    return null
+  }
+  return {
+    container: target,
+    host: typeof portObj.published === 'number' ? portObj.published : undefined,
+    protocol: portObj.protocol === 'udp' ? 'udp' : 'tcp',
+  }
+}
+
 /**
  * Parse a port specification from docker-compose
  * Handles formats:
@@ -84,59 +135,11 @@ function parsePort(port: unknown): ComposePort | null {
   }
 
   if (typeof port === 'string') {
-    // Remove protocol suffix if present
-    let protocol: 'tcp' | 'udp' | undefined
-    let portStr = port
-    if (port.endsWith('/tcp')) {
-      protocol = 'tcp'
-      portStr = port.slice(0, -4)
-    } else if (port.endsWith('/udp')) {
-      protocol = 'udp'
-      portStr = port.slice(0, -4)
-    }
-
-    // Split respecting env var syntax
-    const parts = splitRespectingEnvVars(portStr)
-
-    if (parts.length >= 2) {
-      // Format: host:container or IP:host:container
-      const containerPort = parsePortValue(parts[parts.length - 1])
-      const hostPort = parsePortValue(parts[parts.length - 2])
-
-      if (containerPort !== null) {
-        return {
-          container: containerPort,
-          host: hostPort ?? undefined,
-          protocol,
-        }
-      }
-      // If container port has unresolvable env var, log warning
-      log.deploy.warn('Could not parse port with env var reference', { port: portStr })
-    } else {
-      // Single port value
-      const containerPort = parsePortValue(portStr)
-      if (containerPort !== null) {
-        return { container: containerPort, protocol }
-      }
-      log.deploy.warn('Could not parse port value', { port: portStr })
-    }
+    return parseStringPort(port)
   }
 
-  // Long syntax object format
   if (typeof port === 'object' && port !== null) {
-    const portObj = port as Record<string, unknown>
-    const target = portObj.target ?? portObj.container_port
-    if (typeof target === 'number') {
-      if (target <= 0 || target > 65535) {
-        log.deploy.warn('Invalid port number in long syntax', { target })
-        return null
-      }
-      return {
-        container: target,
-        host: typeof portObj.published === 'number' ? portObj.published : undefined,
-        protocol: portObj.protocol === 'udp' ? 'udp' : 'tcp',
-      }
-    }
+    return parseObjectPort(port as Record<string, unknown>)
   }
 
   return null

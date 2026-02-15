@@ -156,6 +156,58 @@ function isGitRepo(dirPath: string): boolean {
   }
 }
 
+// Check for uncommitted/untracked changes in a worktree.
+// Returns null if clean, or an error response body if dirty.
+function checkUncommittedChanges(worktreePath: string): {
+  error: string
+  hasUncommittedChanges: true
+  uncommittedFiles?: string[]
+  untrackedFiles?: string[]
+} | null {
+  try {
+    const status = gitExec(worktreePath, 'status --porcelain')
+    if (!status.trim()) return null
+
+    const lines = status.trim().split('\n').filter(l => l)
+    const untracked: string[] = []
+    const uncommitted: string[] = []
+
+    for (const line of lines) {
+      const statusCode = line.substring(0, 2)
+      const filename = line.substring(3)
+      if (statusCode === '??') {
+        untracked.push(filename)
+      } else {
+        uncommitted.push(filename)
+      }
+    }
+
+    const messages: string[] = []
+    if (uncommitted.length > 0) messages.push(`${uncommitted.length} uncommitted change(s)`)
+    if (untracked.length > 0) messages.push(`${untracked.length} untracked file(s)`)
+
+    return {
+      error: `Worktree has ${messages.join(' and ')}. Please commit or stash changes before merging.`,
+      hasUncommittedChanges: true,
+      uncommittedFiles: uncommitted.length > 0 ? uncommitted : undefined,
+      untrackedFiles: untracked.length > 0 ? untracked : undefined,
+    }
+  } catch {
+    return null // If status check fails, treat as clean and let downstream fail naturally
+  }
+}
+
+// Restore the original branch in a repo if it differs from the current branch.
+function restoreOriginalBranch(repoPath: string, originalBranch: string, defaultBranch: string): void {
+  if (originalBranch !== defaultBranch) {
+    try {
+      gitExec(repoPath, `checkout ${originalBranch}`)
+    } catch {
+      // Ignore checkout errors during cleanup
+    }
+  }
+}
+
 const app = new Hono()
 
 // GET /api/git/branches?repo=/path/to/repo
@@ -596,41 +648,9 @@ app.post('/merge-to-main', async (c) => {
     }
 
     // Check for uncommitted or untracked changes in the worktree
-    try {
-      const worktreeStatus = gitExec(worktreePath, 'status --porcelain')
-      if (worktreeStatus.trim()) {
-        // Parse the status output to categorize changes
-        const lines = worktreeStatus.trim().split('\n').filter(l => l)
-        const untracked: string[] = []
-        const uncommitted: string[] = []
-
-        for (const line of lines) {
-          const statusCode = line.substring(0, 2)
-          const filename = line.substring(3)
-          if (statusCode === '??') {
-            untracked.push(filename)
-          } else {
-            uncommitted.push(filename)
-          }
-        }
-
-        const messages: string[] = []
-        if (uncommitted.length > 0) {
-          messages.push(`${uncommitted.length} uncommitted change(s)`)
-        }
-        if (untracked.length > 0) {
-          messages.push(`${untracked.length} untracked file(s)`)
-        }
-
-        return c.json({
-          error: `Worktree has ${messages.join(' and ')}. Please commit or stash changes before merging.`,
-          hasUncommittedChanges: true,
-          uncommittedFiles: uncommitted,
-          untrackedFiles: untracked,
-        }, 409)
-      }
-    } catch {
-      // If status check fails, continue with merge and let it fail naturally
+    const dirtyCheck = checkUncommittedChanges(worktreePath)
+    if (dirtyCheck) {
+      return c.json(dirtyCheck, 409)
     }
 
     // Detect default branch
@@ -687,7 +707,6 @@ app.post('/merge-to-main', async (c) => {
         try {
           const mergeStatus = gitExec(repoPath, 'status')
           if (mergeStatus.includes('Unmerged paths') || mergeStatus.includes('fix conflicts')) {
-            // Get list of conflicting files
             let conflictFiles: string[] = []
             try {
               const conflictOutput = gitExec(repoPath, 'diff --name-only --diff-filter=U')
@@ -696,17 +715,8 @@ app.post('/merge-to-main', async (c) => {
               // Ignore if we can't get conflict files
             }
 
-            // Abort the merge
             gitExec(repoPath, 'merge --abort')
-
-            // Restore original branch if needed
-            if (originalBranch !== defaultBranch) {
-              try {
-                gitExec(repoPath, `checkout ${originalBranch}`)
-              } catch {
-                // Ignore checkout errors
-              }
-            }
+            restoreOriginalBranch(repoPath, originalBranch, defaultBranch)
 
             return c.json({
               error: 'Merge conflict detected. Merge has been aborted.',
@@ -718,28 +728,14 @@ app.post('/merge-to-main', async (c) => {
           // Ignore status check errors
         }
 
-        // Restore original branch if needed
-        if (originalBranch !== defaultBranch) {
-          try {
-            gitExec(repoPath, `checkout ${originalBranch}`)
-          } catch {
-            // Ignore checkout errors
-          }
-        }
+        restoreOriginalBranch(repoPath, originalBranch, defaultBranch)
 
         return c.json({
           error: mergeErr instanceof Error ? mergeErr.message : 'Failed to merge',
         }, 500)
       }
 
-      // Restore original branch if it was different
-      if (originalBranch !== defaultBranch) {
-        try {
-          gitExec(repoPath, `checkout ${originalBranch}`)
-        } catch {
-          // Ignore checkout errors
-        }
-      }
+      restoreOriginalBranch(repoPath, originalBranch, defaultBranch)
 
       return c.json({
         success: true,
@@ -747,14 +743,7 @@ app.post('/merge-to-main', async (c) => {
         mergedBranch: worktreeBranch,
       })
     } catch (err) {
-      // Restore original branch on any error
-      if (originalBranch !== defaultBranch) {
-        try {
-          gitExec(repoPath, `checkout ${originalBranch}`)
-        } catch {
-          // Ignore checkout errors
-        }
-      }
+      restoreOriginalBranch(repoPath, originalBranch, defaultBranch)
 
       return c.json({
         error: err instanceof Error ? err.message : 'Failed to merge',
@@ -792,16 +781,12 @@ app.post('/push', async (c) => {
     }
 
     // Check for uncommitted changes
-    try {
-      const status = gitExec(worktreePath, 'status --porcelain')
-      if (status.trim()) {
-        return c.json({
-          error: 'Worktree has uncommitted changes. Please commit or stash changes before pushing.',
-          hasUncommittedChanges: true,
-        }, 409)
-      }
-    } catch {
-      // Continue with push
+    const pushDirtyCheck = checkUncommittedChanges(worktreePath)
+    if (pushDirtyCheck) {
+      return c.json({
+        error: 'Worktree has uncommitted changes. Please commit or stash changes before pushing.',
+        hasUncommittedChanges: true,
+      }, 409)
     }
 
     // Push to origin
@@ -888,16 +873,8 @@ app.post('/sync-parent', async (c) => {
       try {
         gitExec(repoPath, `pull --ff-only origin ${defaultBranch}`)
       } catch (pullErr) {
-        // Restore original branch if we switched
-        if (originalBranch !== defaultBranch) {
-          try {
-            gitExec(repoPath, `checkout ${originalBranch}`)
-          } catch {
-            // Ignore checkout errors
-          }
-        }
+        restoreOriginalBranch(repoPath, originalBranch, defaultBranch)
 
-        // Check if it's a divergence issue
         const errorMsg = pullErr instanceof Error ? pullErr.message : 'Unknown error'
         if (errorMsg.includes('diverged') || errorMsg.includes('non-fast-forward')) {
           return c.json({
@@ -911,14 +888,7 @@ app.post('/sync-parent', async (c) => {
         }, 500)
       }
 
-      // Restore original branch if we switched
-      if (originalBranch !== defaultBranch) {
-        try {
-          gitExec(repoPath, `checkout ${originalBranch}`)
-        } catch {
-          // Ignore checkout errors
-        }
-      }
+      restoreOriginalBranch(repoPath, originalBranch, defaultBranch)
 
       return c.json({
         success: true,
@@ -926,14 +896,7 @@ app.post('/sync-parent', async (c) => {
         originalBranch,
       })
     } catch (err) {
-      // Restore original branch on any error
-      if (originalBranch !== defaultBranch) {
-        try {
-          gitExec(repoPath, `checkout ${originalBranch}`)
-        } catch {
-          // Ignore checkout errors
-        }
-      }
+      restoreOriginalBranch(repoPath, originalBranch, defaultBranch)
 
       return c.json({
         error: err instanceof Error ? err.message : 'Failed to sync parent',
@@ -943,6 +906,55 @@ app.post('/sync-parent', async (c) => {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to sync parent' }, 500)
   }
 })
+
+// Classify a gh pr create error into a typed response
+function classifyPrError(
+  stderr: string,
+  errorMsg: string,
+  worktreePath: string,
+): { body: Record<string, unknown>; status: number } {
+  if (stderr.includes('already exists') || errorMsg.includes('already exists')) {
+    let existingPrUrl: string | undefined
+    try {
+      existingPrUrl = execSync('gh pr view --json url -q .url', {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+        timeout: 10_000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim()
+    } catch {
+      // Could not fetch existing PR URL
+    }
+    return {
+      body: {
+        error: 'A pull request already exists for this branch',
+        prAlreadyExists: true,
+        ...(existingPrUrl && { existingPrUrl }),
+      },
+      status: 409,
+    }
+  }
+
+  if (stderr.includes('not pushed') || errorMsg.includes('not pushed') ||
+      stderr.includes('no upstream') || errorMsg.includes('no upstream')) {
+    return {
+      body: { error: 'Branch has not been pushed to remote. Please push first.', branchNotPushed: true },
+      status: 409,
+    }
+  }
+
+  if (stderr.includes('gh auth login') || errorMsg.includes('gh auth login')) {
+    return {
+      body: { error: 'GitHub CLI not authenticated. Run `gh auth login` first.', notAuthenticated: true },
+      status: 401,
+    }
+  }
+
+  return {
+    body: { error: stderr || errorMsg || 'Failed to create PR' },
+    status: 500,
+  }
+}
 
 // POST /api/git/create-pr - Create a pull request using gh CLI
 app.post('/create-pr', async (c) => {
@@ -965,16 +977,12 @@ app.post('/create-pr', async (c) => {
     }
 
     // Check for uncommitted changes
-    try {
-      const status = gitExec(worktreePath, 'status --porcelain')
-      if (status.trim()) {
-        return c.json({
-          error: 'Worktree has uncommitted changes. Please commit changes before creating a PR.',
-          hasUncommittedChanges: true,
-        }, 409)
-      }
-    } catch {
-      // Continue with PR creation
+    const prDirtyCheck = checkUncommittedChanges(worktreePath)
+    if (prDirtyCheck) {
+      return c.json({
+        error: 'Worktree has uncommitted changes. Please commit changes before creating a PR.',
+        hasUncommittedChanges: true,
+      }, 409)
     }
 
     // Get current branch
@@ -986,7 +994,6 @@ app.post('/create-pr', async (c) => {
     }
 
     // Build gh pr create command
-    // Use --fill to auto-fill body from commits, title from task
     const args = ['gh', 'pr', 'create', '--title', JSON.stringify(title), '--fill']
     if (baseBranch) {
       args.push('--base', baseBranch)
@@ -999,7 +1006,6 @@ app.post('/create-pr', async (c) => {
         timeout: 30_000,
         stdio: ['pipe', 'pipe', 'pipe'],
       })
-      // gh pr create outputs the PR URL on success
       const prUrl = output.trim()
 
       return c.json({
@@ -1013,48 +1019,8 @@ app.post('/create-pr', async (c) => {
         ? String(err.stderr).trim()
         : ''
 
-      // Parse common errors
-      if (stderr.includes('already exists') || errorMsg.includes('already exists')) {
-        // Try to get the existing PR URL
-        try {
-          const prViewOutput = execSync('gh pr view --json url -q .url', {
-            cwd: worktreePath,
-            encoding: 'utf-8',
-            timeout: 10_000,
-            stdio: ['pipe', 'pipe', 'pipe'],
-          })
-          const existingPrUrl = prViewOutput.trim()
-          return c.json({
-            error: 'A pull request already exists for this branch',
-            prAlreadyExists: true,
-            existingPrUrl,
-          }, 409)
-        } catch {
-          return c.json({
-            error: 'A pull request already exists for this branch',
-            prAlreadyExists: true,
-          }, 409)
-        }
-      }
-
-      if (stderr.includes('not pushed') || errorMsg.includes('not pushed') ||
-          stderr.includes('no upstream') || errorMsg.includes('no upstream')) {
-        return c.json({
-          error: 'Branch has not been pushed to remote. Please push first.',
-          branchNotPushed: true,
-        }, 409)
-      }
-
-      if (stderr.includes('gh auth login') || errorMsg.includes('gh auth login')) {
-        return c.json({
-          error: 'GitHub CLI not authenticated. Run `gh auth login` first.',
-          notAuthenticated: true,
-        }, 401)
-      }
-
-      return c.json({
-        error: stderr || errorMsg || 'Failed to create PR',
-      }, 500)
+      const classified = classifyPrError(stderr, errorMsg, worktreePath)
+      return c.json(classified.body, classified.status as 409 | 401 | 500)
     }
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to create PR' }, 500)

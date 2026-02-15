@@ -236,6 +236,54 @@ function broadcastUINotification(
   })
 }
 
+// Build list of enabled channel dispatchers from current settings
+function getChannelDispatchers(
+  settings: NotificationSettings,
+  payload: NotificationPayload
+): Array<{ channel: string; send: () => Promise<NotificationResult> }> {
+  const dispatchers: Array<{ channel: string; send: () => Promise<NotificationResult> }> = []
+
+  if (settings.sound?.enabled) {
+    dispatchers.push({ channel: 'sound', send: () => sendSoundNotification() })
+  }
+
+  if (settings.slack?.enabled) {
+    dispatchers.push({
+      channel: 'slack',
+      send: () => settings.slack!.useMessagingChannel
+        ? sendViaMessagingChannel('slack', payload)
+        : sendSlackNotification(settings.slack!, payload),
+    })
+  }
+
+  if (settings.discord?.enabled) {
+    dispatchers.push({
+      channel: 'discord',
+      send: () => settings.discord!.useMessagingChannel
+        ? sendViaMessagingChannel('discord', payload)
+        : sendDiscordNotification(settings.discord!, payload),
+    })
+  }
+
+  if (settings.pushover?.enabled) {
+    dispatchers.push({ channel: 'pushover', send: () => sendPushoverNotification(settings.pushover!, payload) })
+  }
+
+  if (settings.whatsapp?.enabled) {
+    dispatchers.push({ channel: 'whatsapp', send: () => sendViaMessagingChannel('whatsapp', payload) })
+  }
+
+  if (settings.telegram?.enabled) {
+    dispatchers.push({ channel: 'telegram', send: () => sendViaMessagingChannel('telegram', payload) })
+  }
+
+  if (settings.gmail?.enabled) {
+    dispatchers.push({ channel: 'gmail', send: () => sendGmailNotification(settings.gmail!, payload) })
+  }
+
+  return dispatchers
+}
+
 // Send notification to all enabled channels
 export async function sendNotification(payload: NotificationPayload): Promise<NotificationResult[]> {
   const settings = getNotificationSettings()
@@ -244,100 +292,25 @@ export async function sendNotification(payload: NotificationPayload): Promise<No
     return []
   }
 
-  const results: NotificationResult[] = []
-  const promises: Promise<void>[] = []
-
-  // Determine notification options from settings
-  const showToast = settings.toast?.enabled ?? true
-  const showDesktop = settings.desktop?.enabled ?? true
-  const playSound = settings.sound?.enabled ?? false
-  const isCustomSound = !!settings.sound?.customSoundFile
-
   // Always broadcast to UI (frontend will respect showToast/showDesktop flags)
-  broadcastUINotification(payload, { showToast, showDesktop, playSound, isCustomSound })
+  broadcastUINotification(payload, {
+    showToast: settings.toast?.enabled ?? true,
+    showDesktop: settings.desktop?.enabled ?? true,
+    playSound: settings.sound?.enabled ?? false,
+    isCustomSound: !!settings.sound?.customSoundFile,
+  })
 
-  // Sound (macOS only)
-  if (settings.sound?.enabled) {
-    promises.push(
-      sendSoundNotification()
+  const results: NotificationResult[] = []
+  const dispatchers = getChannelDispatchers(settings, payload)
+
+  await Promise.allSettled(
+    dispatchers.map((d) =>
+      d.send()
         .then((r) => results.push(r))
-        .catch((e) => results.push({ channel: 'sound', success: false, error: e.message }))
+        .catch((e) => results.push({ channel: d.channel, success: false, error: e.message }))
     )
-  }
+  )
 
-  // Slack (webhook or messaging channel)
-  if (settings.slack?.enabled) {
-    if (settings.slack.useMessagingChannel) {
-      promises.push(
-        sendViaMessagingChannel('slack', payload)
-          .then((r) => results.push(r))
-          .catch((e) => results.push({ channel: 'slack', success: false, error: e.message }))
-      )
-    } else {
-      promises.push(
-        sendSlackNotification(settings.slack, payload)
-          .then((r) => results.push(r))
-          .catch((e) => results.push({ channel: 'slack', success: false, error: e.message }))
-      )
-    }
-  }
-
-  // Discord (webhook or messaging channel)
-  if (settings.discord?.enabled) {
-    if (settings.discord.useMessagingChannel) {
-      promises.push(
-        sendViaMessagingChannel('discord', payload)
-          .then((r) => results.push(r))
-          .catch((e) => results.push({ channel: 'discord', success: false, error: e.message }))
-      )
-    } else {
-      promises.push(
-        sendDiscordNotification(settings.discord, payload)
-          .then((r) => results.push(r))
-          .catch((e) => results.push({ channel: 'discord', success: false, error: e.message }))
-      )
-    }
-  }
-
-  // Pushover
-  if (settings.pushover?.enabled) {
-    promises.push(
-      sendPushoverNotification(settings.pushover, payload)
-        .then((r) => results.push(r))
-        .catch((e) => results.push({ channel: 'pushover', success: false, error: e.message }))
-    )
-  }
-
-  // WhatsApp (via messaging channel)
-  if (settings.whatsapp?.enabled) {
-    promises.push(
-      sendViaMessagingChannel('whatsapp', payload)
-        .then((r) => results.push(r))
-        .catch((e) => results.push({ channel: 'whatsapp', success: false, error: e.message }))
-    )
-  }
-
-  // Telegram (via messaging channel)
-  if (settings.telegram?.enabled) {
-    promises.push(
-      sendViaMessagingChannel('telegram', payload)
-        .then((r) => results.push(r))
-        .catch((e) => results.push({ channel: 'telegram', success: false, error: e.message }))
-    )
-  }
-
-  // Gmail (via Gmail API)
-  if (settings.gmail?.enabled) {
-    promises.push(
-      sendGmailNotification(settings.gmail, payload)
-        .then((r) => results.push(r))
-        .catch((e) => results.push({ channel: 'gmail', success: false, error: e.message }))
-    )
-  }
-
-  await Promise.allSettled(promises)
-
-  // Log failures
   for (const result of results) {
     if (!result.success) {
       log.notification.warn('Notification failed', { channel: result.channel, error: result.error })

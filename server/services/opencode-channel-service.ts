@@ -124,6 +124,181 @@ Do NOT create a task:
 Before creating a task, ask: "Is the user being asked to DO something specific, or would they miss a commitment without this?" If no, do nothing.`
 }
 
+// Extract JSON from a response that may be wrapped in markdown code blocks
+function extractJsonFromResponse(text: string): unknown | null {
+  let jsonText = text.trim()
+  const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (jsonMatch) {
+    jsonText = jsonMatch[1].trim()
+  }
+  try {
+    return JSON.parse(jsonText)
+  } catch {
+    return null
+  }
+}
+
+interface ObserverAction {
+  type: string
+  content?: string
+  tags?: string[]
+  source?: string
+  title?: string
+  description?: string
+  dueDate?: string
+}
+
+// Execute a create_task action via the Fulcrum API
+async function executeCreateTask(
+  action: ObserverAction,
+  options: { channelType: string },
+  sessionId: string,
+  fulcrumPort: number,
+): Promise<void> {
+  try {
+    const resp = await fetch(`http://localhost:${fulcrumPort}/api/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: action.title,
+        description: action.description || null,
+        status: 'TO_DO',
+        tags: action.tags,
+        dueDate: action.dueDate || null,
+      }),
+    })
+    if (!resp.ok) {
+      log.messaging.warn('Observer failed to create task via OpenCode', {
+        sessionId, status: resp.status, title: action.title,
+      })
+      return
+    }
+    log.messaging.info('Observer created task via OpenCode', { sessionId, title: action.title })
+    // Best-effort notification
+    try {
+      await fetch(`http://localhost:${fulcrumPort}/api/config/notifications/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: `New task from ${options.channelType}`, message: action.title }),
+      })
+    } catch {
+      // Don't fail the flow
+    }
+  } catch (err) {
+    log.messaging.warn('Observer task creation error via OpenCode', {
+      sessionId, error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+// Execute a store_memory action
+async function executeStoreMemory(
+  action: ObserverAction,
+  options: { channelType: string },
+  sessionId: string,
+): Promise<void> {
+  const source = action.source || `channel:${options.channelType}`
+  await storeMemory({ content: action.content!, tags: action.tags, source })
+  log.messaging.info('Observer stored memory via OpenCode', {
+    sessionId, source, contentPreview: action.content!.slice(0, 100),
+  })
+}
+
+// Execute all observer actions from parsed response
+async function executeObserverActions(
+  actions: ObserverAction[],
+  options: { channelType: string },
+  sessionId: string,
+  fulcrumPort: number,
+): Promise<void> {
+  for (const action of actions) {
+    if (action.type === 'create_task' && action.title) {
+      await executeCreateTask(action, options, sessionId, fulcrumPort)
+    } else if (action.type === 'store_memory' && action.content) {
+      await executeStoreMemory(action, options, sessionId)
+    }
+  }
+}
+
+// --- Event loop helpers ---
+
+type OpenCodeEvent = {
+  type?: string
+  properties?: {
+    part?: { type?: string; text?: string; messageID?: string; sessionID?: string; id?: string }
+    info?: { role?: string; sessionID?: string; id?: string; error?: { name?: string; data?: { message?: string } } }
+    sessionID?: string
+    error?: { name?: string; data?: { message?: string } } | string
+    message?: string
+  }
+}
+
+interface EventLoopState {
+  userMessageId: string | null
+  responseText: string
+  partTextCache: Map<string, string>
+}
+
+function isRelevantEvent(evt: OpenCodeEvent, opencodeSessionId: string): boolean {
+  const eventSessionId = evt.properties?.sessionID ||
+    evt.properties?.part?.sessionID ||
+    evt.properties?.info?.sessionID
+  return evt.type === 'server.connected' || !eventSessionId || eventSessionId === opencodeSessionId
+}
+
+function handleMessageUpdated(evt: OpenCodeEvent, state: EventLoopState): void {
+  const info = evt.properties?.info
+  if (info?.role === 'user' && info?.id) {
+    state.userMessageId = info.id
+  }
+  if (info?.role === 'assistant' && info?.error) {
+    const errorMsg = info.error.data?.message || info.error.name || 'Unknown OpenCode error'
+    throw new Error(errorMsg)
+  }
+}
+
+function handlePartUpdated(evt: OpenCodeEvent, state: EventLoopState): void {
+  const part = evt.properties?.part
+  if (part?.type !== 'text' || !part?.text || !part?.id) return
+  if (part.messageID === state.userMessageId) return
+
+  const prevText = state.partTextCache.get(part.id) || ''
+  const fullText = part.text
+  const delta = fullText.slice(prevText.length)
+
+  if (delta) {
+    state.partTextCache.set(part.id, fullText)
+    state.responseText = fullText
+  }
+}
+
+function extractSessionError(evt: OpenCodeEvent): string {
+  const rawError = evt.properties?.error
+  return evt.properties?.message
+    || (typeof rawError === 'object' && rawError !== null
+      ? (rawError.data?.message || rawError.name || JSON.stringify(rawError))
+      : rawError as string | undefined)
+    || 'OpenCode session error'
+}
+
+async function parseAndExecuteResponse(
+  responseText: string,
+  options: { channelType: string },
+  sessionId: string,
+): Promise<void> {
+  if (!responseText) return
+
+  const parsed = extractJsonFromResponse(responseText) as { actions?: ObserverAction[] } | null
+  if (parsed?.actions && Array.isArray(parsed.actions)) {
+    const fulcrumPort = getSettings().server?.port ?? 7777
+    await executeObserverActions(parsed.actions, options, sessionId, fulcrumPort)
+  } else if (parsed === null) {
+    log.messaging.debug('Observer response was not valid JSON, skipping', {
+      sessionId, responsePreview: responseText.slice(0, 200),
+    })
+  }
+}
+
 /**
  * Process an observe-only channel message via OpenCode without direct tool access.
  */
@@ -148,13 +323,10 @@ export async function* streamOpencodeObserverMessage(
     // Build the prompt with context
     let contextualMessage = ''
 
-    // Prepend channel history if available
     if (options.channelHistory && options.channelHistory.length > 0) {
       const historyLines = options.channelHistory.map((msg) => {
         const time = new Date(msg.messageTimestamp).toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
+          hour: '2-digit', minute: '2-digit', hour12: false,
         })
         const label = msg.direction === 'outgoing' ? 'You' : (msg.senderName || 'Unknown')
         const truncated = msg.content.length > 500 ? msg.content.slice(0, 500) + '...' : msg.content
@@ -186,9 +358,7 @@ ${contextualMessage}`
     }
 
     const newSession = await client.session.create({
-      body: {
-        ...(modelConfig && { model: modelConfig }),
-      },
+      body: { ...(modelConfig && { model: modelConfig }) },
     })
 
     if (newSession.error) {
@@ -200,10 +370,8 @@ ${contextualMessage}`
       throw new Error('Failed to get OpenCode session ID')
     }
 
-    // Subscribe to events before sending the prompt
     const eventResult = await client.event.subscribe()
 
-    // Send the prompt
     const promptPromise = client.session.prompt({
       path: { id: opencodeSessionId },
       body: {
@@ -212,12 +380,9 @@ ${contextualMessage}`
       },
     })
 
-    // Collect response
-    let responseText = ''
-    const timeout = 60000 // 1 minute timeout for observer
+    const timeout = 60000
     const startTime = Date.now()
-    const partTextCache = new Map<string, string>()
-    let userMessageId: string | null = null
+    const state: EventLoopState = { userMessageId: null, responseText: '', partTextCache: new Map() }
 
     for await (const event of eventResult.stream) {
       if (Date.now() - startTime > timeout) {
@@ -225,164 +390,21 @@ ${contextualMessage}`
         break
       }
 
-      const evt = event as {
-        type?: string
-        properties?: {
-          part?: { type?: string; text?: string; messageID?: string; sessionID?: string; id?: string }
-          info?: { role?: string; sessionID?: string; id?: string; error?: { name?: string; data?: { message?: string } } }
-          sessionID?: string
-          error?: { name?: string; data?: { message?: string } } | string
-          message?: string
-        }
-      }
+      const evt = event as OpenCodeEvent
 
-      const eventSessionId = evt.properties?.sessionID ||
-        evt.properties?.part?.sessionID ||
-        evt.properties?.info?.sessionID
+      if (!isRelevantEvent(evt, opencodeSessionId)) continue
 
-      if (evt.type !== 'server.connected' && eventSessionId && eventSessionId !== opencodeSessionId) {
-        continue
-      }
+      if (evt.type === 'message.updated') handleMessageUpdated(evt, state)
+      if (evt.type === 'message.part.updated') handlePartUpdated(evt, state)
 
-      if (evt.type === 'message.updated') {
-        const info = evt.properties?.info
-        if (info?.role === 'user' && info?.id) {
-          userMessageId = info.id
-        }
-        if (info?.role === 'assistant' && info?.error) {
-          const errorMsg = info.error.data?.message || info.error.name || 'Unknown OpenCode error'
-          throw new Error(errorMsg)
-        }
-      }
-
-      if (evt.type === 'message.part.updated') {
-        const part = evt.properties?.part
-        if (part?.type === 'text' && part?.text && part?.id) {
-          if (part.messageID === userMessageId) continue
-
-          const prevText = partTextCache.get(part.id) || ''
-          const fullText = part.text
-          const delta = fullText.slice(prevText.length)
-
-          if (delta) {
-            partTextCache.set(part.id, fullText)
-            responseText = fullText
-          }
-        }
-      }
-
-      if (evt.type === 'session.idle' && evt.properties?.sessionID === opencodeSessionId) {
-        break
-      }
-
+      if (evt.type === 'session.idle' && evt.properties?.sessionID === opencodeSessionId) break
       if (evt.type === 'session.error' && evt.properties?.sessionID === opencodeSessionId) {
-        const rawError = evt.properties?.error
-        const errorMsg = evt.properties?.message
-          || (typeof rawError === 'object' && rawError !== null
-            ? (rawError.data?.message || rawError.name || JSON.stringify(rawError))
-            : rawError)
-          || 'OpenCode session error'
-        throw new Error(errorMsg)
+        throw new Error(extractSessionError(evt))
       }
     }
 
-    // Wait for prompt to complete
     await promptPromise
-
-    // Parse and execute actions from the response
-    if (responseText) {
-      try {
-        // Extract JSON from the response (handle markdown code blocks)
-        let jsonText = responseText.trim()
-        const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/)
-        if (jsonMatch) {
-          jsonText = jsonMatch[1].trim()
-        }
-
-        const parsed = JSON.parse(jsonText) as {
-          actions?: Array<{
-            type: string
-            content?: string
-            tags?: string[]
-            source?: string
-            title?: string
-            description?: string
-            dueDate?: string
-          }>
-        }
-
-        if (parsed.actions && Array.isArray(parsed.actions)) {
-          const settings = getSettings()
-          const fulcrumPort = settings.server?.port ?? 7777
-
-          for (const action of parsed.actions) {
-            if (action.type === 'create_task' && action.title) {
-              try {
-                const resp = await fetch(`http://localhost:${fulcrumPort}/api/tasks`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    title: action.title,
-                    description: action.description || null,
-                    status: 'TO_DO',
-                    tags: action.tags,
-                    dueDate: action.dueDate || null,
-                  }),
-                })
-                if (!resp.ok) {
-                  log.messaging.warn('Observer failed to create task via OpenCode', {
-                    sessionId,
-                    status: resp.status,
-                    title: action.title,
-                  })
-                } else {
-                  log.messaging.info('Observer created task via OpenCode', {
-                    sessionId,
-                    title: action.title,
-                  })
-                  // Notify the user about the new task
-                  try {
-                    await fetch(`http://localhost:${fulcrumPort}/api/config/notifications/send`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        title: `New task from ${options.channelType}`,
-                        message: action.title,
-                      }),
-                    })
-                  } catch {
-                    // Best-effort notification, don't fail the flow
-                  }
-                }
-              } catch (err) {
-                log.messaging.warn('Observer task creation error via OpenCode', {
-                  sessionId,
-                  error: err instanceof Error ? err.message : String(err),
-                })
-              }
-            } else if (action.type === 'store_memory' && action.content) {
-              const source = action.source || `channel:${options.channelType}`
-              await storeMemory({
-                content: action.content,
-                tags: action.tags,
-                source,
-              })
-              log.messaging.info('Observer stored memory via OpenCode', {
-                sessionId,
-                source,
-                contentPreview: action.content.slice(0, 100),
-              })
-            }
-          }
-        }
-      } catch {
-        // If parsing fails, that's okay — the observer just didn't find anything worth storing
-        log.messaging.debug('Observer response was not valid JSON, skipping', {
-          sessionId,
-          responsePreview: responseText.slice(0, 200),
-        })
-      }
-    }
+    await parseAndExecuteResponse(state.responseText, options, sessionId)
 
     yield { type: 'done', data: {} }
   } catch (err) {
