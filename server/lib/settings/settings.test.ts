@@ -734,7 +734,7 @@ describe('Settings', () => {
         JSON.stringify({
           _schemaVersion: 1,
           tasks: {
-            defaultTaskType: 'non-worktree',
+            defaultTaskType: 'manual',
             startWorktreeTasksImmediately: false,
           },
         })
@@ -743,11 +743,11 @@ describe('Settings', () => {
       const { getSettings } = await import('./')
       const settings = getSettings()
 
-      expect(settings.tasks.defaultTaskType).toBe('non-worktree')
+      expect(settings.tasks.defaultTaskType).toBe('manual')
       expect(settings.tasks.startWorktreeTasksImmediately).toBe(false)
     })
 
-    test('migrates old code/non-code terminology to worktree/non-worktree', async () => {
+    test('migrates old code/non-code/non-worktree/standalone terminology', async () => {
       const settingsPath = join(tempDir, 'settings.json')
       writeFileSync(
         settingsPath,
@@ -764,7 +764,7 @@ describe('Settings', () => {
       const settings = getSettings()
 
       // Old values should be migrated
-      expect(settings.tasks.defaultTaskType).toBe('non-worktree')
+      expect(settings.tasks.defaultTaskType).toBe('manual')
       expect(settings.tasks.startWorktreeTasksImmediately).toBe(false)
     })
 
@@ -783,9 +783,9 @@ describe('Settings', () => {
 
       const { updateSettingByPath, getSettings } = await import('./')
 
-      updateSettingByPath('tasks.defaultTaskType', 'non-worktree')
+      updateSettingByPath('tasks.defaultTaskType', 'manual')
       let settings = getSettings()
-      expect(settings.tasks.defaultTaskType).toBe('non-worktree')
+      expect(settings.tasks.defaultTaskType).toBe('manual')
 
       updateSettingByPath('tasks.startWorktreeTasksImmediately', false)
       settings = getSettings()
@@ -793,7 +793,7 @@ describe('Settings', () => {
 
       // Verify persistence
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
-      expect(file.tasks.defaultTaskType).toBe('non-worktree')
+      expect(file.tasks.defaultTaskType).toBe('manual')
       expect(file.tasks.startWorktreeTasksImmediately).toBe(false)
     })
 
@@ -828,7 +828,7 @@ describe('Settings', () => {
           _schemaVersion: 1,
           server: { port: 7777 },
           tasks: {
-            defaultTaskType: 'non-worktree',
+            defaultTaskType: 'manual',
             // Missing startWorktreeTasksImmediately
           },
         })
@@ -841,7 +841,7 @@ describe('Settings', () => {
       const file = JSON.parse(readFileSync(settingsPath, 'utf-8'))
 
       // User value preserved
-      expect(file.tasks.defaultTaskType).toBe('non-worktree')
+      expect(file.tasks.defaultTaskType).toBe('manual')
       // Missing key added with default
       expect(file.tasks.startWorktreeTasksImmediately).toBe(true)
     })

@@ -4,7 +4,7 @@ import { TaskCalendar } from '@/components/calendar/task-calendar'
 import type { ViewMode } from '@/components/calendar/task-calendar'
 import { TaskListSidebar } from '@/components/calendar/task-list-sidebar'
 import { MobileCalendarList } from '@/components/calendar/mobile-calendar-list'
-import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
+import { ManualTaskModal } from '@/components/task/manual-task-modal'
 import { TagsFilter } from '@/components/tasks/tags-filter'
 import { ProjectFilter } from '@/components/tasks/project-filter'
 import { useTasks } from '@/hooks/use-tasks'
@@ -151,7 +151,7 @@ function CalendarView() {
       </div>
 
       {selectedTask && !selectedTask.worktreePath && (
-        <NonWorktreeTaskModal
+        <ManualTaskModal
           task={selectedTask}
           open={true}
           onOpenChange={(open) => {

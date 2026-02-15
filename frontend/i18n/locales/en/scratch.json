@@ -1,0 +1,36 @@
+{
+  "title": "Scratch Directories",
+  "summary": {
+    "total": "{{count}} total",
+    "orphaned": "{{count}} orphaned"
+  },
+  "cleanup": {
+    "button": "Clean up ({{count}})",
+    "title": "Delete Completed Scratch Directories",
+    "description": "This will permanently delete {{count}} scratch directory/directories.",
+    "linkedTasksWillBeDeleted": "Their linked tasks will also be deleted.",
+    "alsoDeleteLinkedTasks": "Also delete linked tasks",
+    "cannotUndo": "This action cannot be undone.",
+    "pinnedSkipped": "{{count}} pinned directory/directories will be skipped"
+  },
+  "delete": {
+    "title": "Delete Scratch Directory",
+    "description": "This will permanently delete the scratch directory at",
+    "linkedTaskWillBeDeleted": "The linked task \"{{title}}\" will also be deleted.",
+    "alsoDeleteLinkedTask": "Also delete linked task \"{{title}}\"",
+    "cannotUndo": "This action cannot be undone.",
+    "button": "Delete {{count}}",
+    "unpinFirst": "Unpin directory before deleting"
+  },
+  "pin": {
+    "pin": "Pin directory",
+    "unpin": "Unpin directory"
+  },
+  "empty": {
+    "noMatch": "No scratch directories match the selected filters.",
+    "noDirs": "No scratch directories found. Scratch directories are created when you create scratch tasks."
+  },
+  "error": {
+    "failedToLoad": "Failed to load scratch directories: {{message}}"
+  }
+}

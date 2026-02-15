@@ -8,11 +8,36 @@ import {
   GitBranchIcon,
   Delete02Icon,
 } from '@hugeicons/core-free-icons'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '@/components/ui/dropdown-menu'
 import { GitActionsButtons } from './git-actions-buttons'
 import { TaskActionsDropdown } from './task-actions-dropdown'
 import { GitStatusBadge } from '@/components/viewer/git-status-badge'
 import { DeleteTaskDialog } from '@/components/delete-task-dialog'
-import type { Task } from '@/types'
+import { useUpdateTaskStatus } from '@/hooks/use-tasks'
+import { useTasks } from '@/hooks/use-tasks'
+import type { Task, TaskStatus } from '@/types'
+
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  TO_DO: 'To Do',
+  IN_PROGRESS: 'In Progress',
+  IN_REVIEW: 'In Review',
+  DONE: 'Done',
+  CANCELED: 'Canceled',
+}
+
+const STATUS_COLORS: Record<TaskStatus, string> = {
+  TO_DO: 'bg-status-todo/20 text-status-todo',
+  IN_PROGRESS: 'bg-status-in-progress/20 text-status-in-progress',
+  IN_REVIEW: 'bg-status-in-review/20 text-status-in-review',
+  DONE: 'bg-status-done/20 text-status-done',
+  CANCELED: 'bg-status-canceled/20 text-status-canceled',
+}
 
 interface TaskInfo {
   taskId: string
@@ -49,6 +74,10 @@ export function TaskTerminalHeader({
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState<number>(Infinity)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const { data: tasks } = useTasks()
+  const updateTaskStatus = useUpdateTaskStatus()
+  const currentTask = tasks?.find((t) => t.id === taskInfo.taskId)
+  const taskStatus: TaskStatus = currentTask?.status ?? 'IN_PROGRESS'
 
   // Use ResizeObserver to track container width
   useEffect(() => {
@@ -65,9 +94,10 @@ export function TaskTerminalHeader({
     return () => resizeObserver.disconnect()
   }, [])
 
-  const showProjectAndCwd = containerWidth >= FULL_THRESHOLD
-  const showGitButtonsInline = containerWidth >= MEDIUM_THRESHOLD && !isMobile
-  const showBadge = containerWidth >= HIDE_BADGE_THRESHOLD
+  const isStandalone = !taskInfo.repoPath
+  const showProjectAndCwd = containerWidth >= FULL_THRESHOLD && !isStandalone
+  const showGitButtonsInline = containerWidth >= MEDIUM_THRESHOLD && !isMobile && !isStandalone
+  const showBadge = containerWidth >= HIDE_BADGE_THRESHOLD && !isStandalone
 
   // Build a partial Task object for DeleteTaskDialog
   const taskForDialog: Task = {
@@ -77,7 +107,7 @@ export function TaskTerminalHeader({
     pinned: taskInfo.pinned ?? false,
     // Required fields that aren't used by DeleteTaskDialog
     description: null,
-    status: 'IN_PROGRESS',
+    status: taskStatus,
     position: 0,
     repoPath: taskInfo.repoPath,
     repoName: taskInfo.repoName,
@@ -90,6 +120,7 @@ export function TaskTerminalHeader({
     aiMode: null,
     agentOptions: null,
     opencodeModel: null,
+    type: isStandalone ? 'scratch' : null,
     projectId: null,
     repositoryId: null,
     tags: [],
@@ -153,8 +184,56 @@ export function TaskTerminalHeader({
           {/* Git status badge - visible until very narrow */}
           {showBadge && <GitStatusBadge worktreePath={taskInfo.worktreePath} />}
 
-          {/* Git actions: inline buttons at medium+ width, dropdown when narrower */}
-          {showGitButtonsInline ? (
+          {/* Actions: status badge + delete for scratch, git buttons for worktree */}
+          {isStandalone ? (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLORS[taskStatus]}`}
+                    />
+                  }
+                >
+                  {STATUS_LABELS[taskStatus]}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuRadioGroup
+                    value={taskStatus}
+                    onValueChange={(newStatus) => {
+                      const statusTasks = tasks?.filter((t) => t.status === newStatus) ?? []
+                      updateTaskStatus.mutate({
+                        taskId: taskInfo.taskId,
+                        status: newStatus as TaskStatus,
+                        position: statusTasks.length,
+                      })
+                    }}
+                  >
+                    {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                      <DropdownMenuRadioItem key={value} value={value}>
+                        {label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                title="Delete task"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <HugeiconsIcon icon={Delete02Icon} size={12} strokeWidth={2} />
+              </Button>
+              <DeleteTaskDialog
+                task={taskForDialog}
+                open={deleteDialogOpen}
+                onOpenChange={setDeleteDialogOpen}
+              />
+            </>
+          ) : showGitButtonsInline ? (
             <>
               <GitActionsButtons
                 repoPath={taskInfo.repoPath}

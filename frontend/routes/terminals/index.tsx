@@ -258,8 +258,8 @@ const TerminalsView = observer(function TerminalsView() {
       pinned: boolean
     }>()
     for (const task of tasks) {
-      // Only include tasks with worktree that have required repo info
       if (task.worktreePath && task.repoPath && task.repoName && task.baseBranch) {
+        // Worktree task with full repo info
         map.set(task.worktreePath, {
           taskId: task.id,
           repoId: repoIdByPath.get(task.repoPath),
@@ -269,6 +269,20 @@ const TerminalsView = observer(function TerminalsView() {
           worktreePath: task.worktreePath,
           baseBranch: task.baseBranch,
           branch: task.branch,
+          prUrl: task.prUrl,
+          pinned: task.pinned,
+        })
+      } else if (task.worktreePath && task.type === 'scratch') {
+        // Scratch task — no git info
+        map.set(task.worktreePath, {
+          taskId: task.id,
+          repoId: undefined,
+          repoName: '',
+          title: task.title,
+          repoPath: '',
+          worktreePath: task.worktreePath,
+          baseBranch: '',
+          branch: null,
           prUrl: task.prUrl,
           pinned: task.pinned,
         })

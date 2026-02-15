@@ -19,7 +19,7 @@ import { useProjects } from '@/hooks/use-projects'
 import { useIsOverdue, useIsDueToday } from '@/hooks/use-date-utils'
 import type { TaskStatus } from '@/types'
 import { parseDateKey } from '../../../shared/date-utils'
-import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
+import { ManualTaskModal } from '@/components/task/manual-task-modal'
 import 'reactflow/dist/style.css'
 
 const STATUS_COLORS: Record<TaskStatus, { bg: string; border: string; text: string }> = {
@@ -479,7 +479,7 @@ export function TaskDependencyGraph({ className, projectFilter, tagsFilter }: Ta
 
       {/* Non-worktree task modal */}
       {selectedTask && !selectedTask.worktreePath && (
-        <NonWorktreeTaskModal
+        <ManualTaskModal
           task={selectedTask}
           open={modalOpen}
           onOpenChange={(open) => {

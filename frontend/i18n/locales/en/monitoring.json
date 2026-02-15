@@ -6,6 +6,7 @@
     "processes": "Processes",
     "fulcrum": "Fulcrum Servers",
     "worktrees": "Worktrees",
+    "scratch": "Scratch",
     "jobs": "Jobs",
     "usage": "Usage Limits",
     "assistant": "Assistant",

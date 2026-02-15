@@ -39,6 +39,7 @@ import googleRoutes from './routes/google'
 import memoryRoutes from './routes/memory'
 import memoryFileRoutes from './routes/memory-file'
 import searchRoutes from './routes/search'
+import scratchDirsRoutes from './routes/scratch-dirs'
 import { writeEntry } from './lib/logger'
 import type { LogEntry } from '../shared/logger'
 
@@ -89,6 +90,7 @@ export function createApp() {
   app.route('/api/config', configRoutes)
   app.route('/api/uploads', uploadsRoutes)
   app.route('/api/worktrees', worktreesRoutes)
+  app.route('/api/scratch-dirs', scratchDirsRoutes)
   app.route('/api/terminal-view-state', terminalViewStateRoutes)
   app.route('/api/repositories', repositoriesRoutes)
   app.route('/api/copier', copierRoutes)

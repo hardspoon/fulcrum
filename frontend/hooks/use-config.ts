@@ -45,6 +45,16 @@ export function useWorktreeBasePath() {
   }
 }
 
+// Read-only: derived from FULCRUM_DIR on server
+export function useScratchBasePath() {
+  const query = useConfig(CONFIG_KEYS.SCRATCH_BASE_PATH)
+
+  return {
+    ...query,
+    data: (query.data?.value as string) ?? '',
+  }
+}
+
 // Read-only: system home directory for tilde expansion
 export function useHomeDir() {
   const query = useConfig(CONFIG_KEYS.HOME_DIR)
@@ -259,7 +269,7 @@ export function useClaudeCodeDarkTheme() {
 }
 
 // Task defaults
-export type TaskType = 'worktree' | 'non-worktree'
+export type TaskType = 'worktree' | 'manual' | 'scratch'
 
 export function useDefaultTaskType() {
   const query = useConfig(CONFIG_KEYS.DEFAULT_TASK_TYPE)

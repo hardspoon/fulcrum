@@ -248,13 +248,13 @@ describe('Config Routes', () => {
       const res1 = await put('/api/config/tasks.defaultTaskType', { value: 'worktree' })
       expect(res1.status).toBe(200)
 
-      const res2 = await put('/api/config/tasks.defaultTaskType', { value: 'non-worktree' })
+      const res2 = await put('/api/config/tasks.defaultTaskType', { value: 'manual' })
       expect(res2.status).toBe(200)
 
       // Verify persistence
       const checkRes = await get('/api/config/tasks.defaultTaskType')
       const checkBody = await checkRes.json()
-      expect(checkBody.value).toBe('non-worktree')
+      expect(checkBody.value).toBe('manual')
 
       // Invalid task type (old values are no longer valid)
       const res3 = await put('/api/config/tasks.defaultTaskType', { value: 'code' })

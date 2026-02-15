@@ -240,6 +240,7 @@ app.post('/', async (c) => {
         opencodeModel?: string | null
         tags?: string[]
         blockedByTaskIds?: string[]
+        type?: 'worktree' | 'scratch' | null
       }
     >()
 
@@ -272,6 +273,7 @@ app.post('/', async (c) => {
       aiMode: body.aiMode || null,
       agentOptions: body.agentOptions ? JSON.stringify(body.agentOptions) : null,
       opencodeModel: body.opencodeModel || null,
+      type: body.type || null,
       // New generalized task fields
       projectId: body.projectId || null,
       repositoryId: body.repositoryId || null,
@@ -301,6 +303,15 @@ app.post('/', async (c) => {
           log.api.error('Failed to copy files', { error: String(err) })
           // Non-fatal: continue with task creation
         }
+      }
+    }
+
+    // Create scratch directory if type is scratch and worktreePath is provided
+    if (body.type === 'scratch' && body.worktreePath) {
+      try {
+        fs.mkdirSync(body.worktreePath, { recursive: true })
+      } catch (err) {
+        return c.json({ error: `Failed to create scratch directory: ${err instanceof Error ? err.message : String(err)}` }, 500)
       }
     }
 
@@ -405,14 +416,22 @@ app.delete('/bulk', async (c) => {
       const existing = db.select().from(tasks).where(eq(tasks.id, id)).get()
       if (!existing) continue
 
-      // Handle linked worktree based on deleteLinkedWorktrees flag
+      // Handle linked worktree/directory based on deleteLinkedWorktrees flag
       if (existing.worktreePath) {
-        // Always destroy terminals for the worktree
+        // Always destroy terminals for the worktree/scratch dir
         destroyTerminalsForWorktree(existing.worktreePath)
 
-        // Only delete the worktree if flag is true
-        if (body.deleteLinkedWorktrees && existing.repoPath) {
-          deleteGitWorktree(existing.repoPath, existing.worktreePath)
+        // Only delete the worktree/directory if flag is true
+        if (body.deleteLinkedWorktrees) {
+          if (existing.repoPath) {
+            deleteGitWorktree(existing.repoPath, existing.worktreePath)
+          } else if (existing.type === 'scratch') {
+            try {
+              fs.rmSync(existing.worktreePath, { recursive: true, force: true })
+            } catch (err) {
+              log.api.error('Failed to delete scratch directory', { path: existing.worktreePath, error: String(err) })
+            }
+          }
         }
       }
 
@@ -455,7 +474,7 @@ app.get('/:id', (c) => {
   return c.json(toApiResponse(task, true))
 })
 
-// POST /api/tasks/:id/initialize-worktree - Initialize a non-worktree task as a worktree task
+// POST /api/tasks/:id/initialize-worktree - Initialize a manual task as a worktree task
 app.post('/:id/initialize-worktree', async (c) => {
   const id = c.req.param('id')
 
@@ -626,14 +645,23 @@ app.delete('/:id', (c) => {
     return c.json({ error: 'Task not found' }, 404)
   }
 
-  // Handle linked worktree based on deleteLinkedWorktree flag
+  // Handle linked worktree/directory based on deleteLinkedWorktree flag
   if (existing.worktreePath) {
-    // Always destroy terminals for the worktree
+    // Always destroy terminals for the worktree/scratch dir
     destroyTerminalsForWorktree(existing.worktreePath)
 
-    // Only delete the worktree if flag is true
-    if (deleteLinkedWorktree && existing.repoPath) {
-      deleteGitWorktree(existing.repoPath, existing.worktreePath)
+    if (deleteLinkedWorktree) {
+      if (existing.repoPath) {
+        // Git worktree: use git worktree remove
+        deleteGitWorktree(existing.repoPath, existing.worktreePath)
+      } else if (existing.type === 'scratch') {
+        // Standalone directory: simple fs remove
+        try {
+          fs.rmSync(existing.worktreePath, { recursive: true, force: true })
+        } catch (err) {
+          log.api.error('Failed to delete scratch directory', { path: existing.worktreePath, error: String(err) })
+        }
+      }
     }
   }
 

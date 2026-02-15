@@ -12,6 +12,7 @@ import {
   MessageMultiple01Icon,
   Database01Icon,
   GitPullRequestIcon,
+  Folder01Icon,
 } from '@hugeicons/core-free-icons'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
@@ -25,11 +26,12 @@ import {
   MessagesTab,
   MemoryTab,
   ReviewTab,
+  ScratchDirsTab,
 } from '@/components/monitoring/tabs'
 
-type MonitoringTab = 'system' | 'processes' | 'claude' | 'fulcrum' | 'worktrees' | 'usage' | 'assistant' | 'messages' | 'memory' | 'review'
+type MonitoringTab = 'system' | 'processes' | 'claude' | 'fulcrum' | 'worktrees' | 'scratch' | 'usage' | 'assistant' | 'messages' | 'memory' | 'review'
 
-const VALID_TABS: MonitoringTab[] = ['system', 'processes', 'claude', 'fulcrum', 'worktrees', 'usage', 'assistant', 'messages', 'memory', 'review']
+const VALID_TABS: MonitoringTab[] = ['system', 'processes', 'claude', 'fulcrum', 'worktrees', 'scratch', 'usage', 'assistant', 'messages', 'memory', 'review']
 
 export const Route = createFileRoute('/monitoring/')({
   component: MonitoringPage,
@@ -79,6 +81,10 @@ function MonitoringPage() {
               <HugeiconsIcon icon={GitBranchIcon} size={14} strokeWidth={2} />
               <span className="max-sm:hidden">{t('tabs.worktrees')}</span>
             </TabsTrigger>
+            <TabsTrigger value="scratch" className="gap-1.5 data-[state=active]:bg-muted">
+              <HugeiconsIcon icon={Folder01Icon} size={14} strokeWidth={2} />
+              <span className="max-sm:hidden">{t('tabs.scratch')}</span>
+            </TabsTrigger>
             <TabsTrigger value="review" className="gap-1.5 data-[state=active]:bg-muted">
               <HugeiconsIcon icon={GitPullRequestIcon} size={14} strokeWidth={2} />
               <span className="max-sm:hidden">{t('tabs.review')}</span>
@@ -121,6 +127,10 @@ function MonitoringPage() {
 
             <TabsContent value="worktrees" className="m-0">
               <WorktreesTab />
+            </TabsContent>
+
+            <TabsContent value="scratch" className="m-0">
+              <ScratchDirsTab />
             </TabsContent>
 
             <TabsContent value="review" className="m-0">

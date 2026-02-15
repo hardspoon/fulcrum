@@ -147,12 +147,15 @@ function registerListTasks(server: Server, client: Client) {
 function registerCreateTask(server: Server, client: Client) {
   server.tool(
     'create_task',
-    'Create a new task. For worktree tasks, provide repoPath to create a git worktree. For non-worktree tasks, omit repoPath. When tags are provided, returns all existing tags for reference.',
+    'Create a new task. For worktree tasks, provide repoPath to create a git worktree. For scratch tasks, set type to "scratch" to create an isolated directory without git. For manual tasks, omit both repoPath and type. When tags are provided, returns all existing tags for reference.',
     {
       title: z.string().describe('Task title'),
+      type: z
+        .optional(z.enum(['worktree', 'scratch']))
+        .describe('Task type: "worktree" for git worktree tasks (default when repoPath provided), "scratch" for isolated directory without git'),
       repoPath: z
         .optional(z.string())
-        .describe('Absolute path to the git repository (optional for non-worktree tasks)'),
+        .describe('Absolute path to the git repository (optional for manual tasks)'),
       baseBranch: z.optional(z.string()).describe('Base branch for the worktree (default: main)'),
       branch: z
         .optional(z.string())
@@ -182,6 +185,7 @@ function registerCreateTask(server: Server, client: Client) {
     },
     async ({
       title,
+      type,
       repoPath,
       baseBranch,
       branch,
@@ -201,6 +205,7 @@ function registerCreateTask(server: Server, client: Client) {
         const effectiveBaseBranch = baseBranch ?? 'main'
         const task = await client.createTask({
           title,
+          type: type ?? null,
           repoPath: repoPath ?? null,
           repoName,
           baseBranch: repoPath ? effectiveBaseBranch : null,

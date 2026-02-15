@@ -21,7 +21,7 @@ Fulcrum isn't just a task manager or an AI wrapper. It's the hub where you organ
 
 **Key capabilities:**
 - Create and organize tasks with dependencies, tags, due dates, and attachments
-- Spin up AI agents to work on tasks (in isolated git worktrees for code work)
+- Spin up AI agents to work on tasks (Git worktrees for code, Scratch directories for non-git work)
 - Deploy Docker apps with automatic tunnels for public access
 - Execute any command on the system - scheduling, automation, integrations
 - Get notified via Slack, Discord, Pushover, WhatsApp, Telegram, Gmail, or desktop alerts
@@ -35,10 +35,10 @@ export function getDataModel(): string {
   return `## Fulcrum Data Model
 
 **Tasks** - Units of work you want to track or execute
-- Optional git worktree for isolated development
+- Three types: Git (isolated worktree), Scratch (isolated directory, no git), Manual (no agent/directory)
 - Dependencies (blocks/blocked-by other tasks)
-- Tags, due dates, time estimates (hours), descriptions
-- Recurrence rules (daily/weekly/biweekly/monthly/quarterly/yearly) — on completion, a new TO_DO task is created with the next due date (recurrence only available for non-worktree tasks)
+- Tags, due dates, time estimates (hours), priority (high/medium/low), descriptions
+- Recurrence rules (daily/weekly/biweekly/monthly/quarterly/yearly) — on completion, a new TO_DO task is created with the next due date (recurrence only available for manual tasks)
 - File attachments and URL links
 - Agent assignment (Claude Code or OpenCode)
 
@@ -104,7 +104,7 @@ You have access to Fulcrum's MCP tools. Use them proactively to help users.
 **Task Management:**
 - \`list_tasks\` - List tasks with filtering (status, tags, due dates, search)
 - \`get_task\` - Get full task details
-- \`create_task\` - Create tasks (with optional git worktree, time estimate, recurrence rule, recurrence end date)
+- \`create_task\` - Create tasks (type: worktree/scratch/manual, with optional time estimate, recurrence rule, recurrence end date)
 - \`update_task\` - Update task metadata (including time estimate, recurrence rule, and end date)
 - \`move_task\` - Change task status (TO_DO, IN_PROGRESS, IN_REVIEW, DONE, CANCELED). Moving a repeating task to DONE auto-creates the next occurrence.
 - \`delete_task\` - Delete a task
@@ -334,14 +334,19 @@ export function getProblemSolvingPatterns(): string {
 ### Development Workflows
 
 **"Start a new feature":**
-1. Create a task with worktree from the repo
+1. Create a Git task with worktree from the repo
 2. Task creates an isolated branch
 3. Work in the worktree (agent or manual)
 4. When done, create PR and link to task
 5. Move task to IN_REVIEW
 
+**"Run a one-off script or analysis":**
+1. Create a Scratch task (isolated directory, no git)
+2. AI agent works in a clean directory
+3. Great for experiments, data analysis, prototyping
+
 **"Fix a bug":**
-1. Create a task describing the bug
+1. Create a Git task describing the bug
 2. Attach relevant logs, screenshots, links
 3. Create worktree for isolated fix
 4. Test in isolation before merging
@@ -390,7 +395,7 @@ You can read and modify all Fulcrum settings using the settings MCP tools. Setti
 - \`agent.claudeCodePath\` - Custom path to Claude Code binary
 
 **tasks** - Task defaults
-- \`tasks.defaultTaskType\` - Default task type: 'worktree' or 'non-worktree'
+- \`tasks.defaultTaskType\` - Default task type: 'worktree', 'manual', or 'scratch'
 - \`tasks.startWorktreeTasksImmediately\` - Auto-start worktree tasks (default: true)
 
 **appearance** - UI customization
@@ -528,7 +533,7 @@ export function getCondensedKnowledge(): string {
 Fulcrum is your digital concierge - a personal command center where you track everything that matters and use AI to get it done.
 
 **What you can help with:**
-- Organizing life and work: tasks, projects, deadlines, time estimates, dependencies, recurring tasks
+- Organizing life and work: tasks (Git/Scratch/Manual), projects, deadlines, time estimates, priority, dependencies, recurring tasks
 - Breaking down big goals into trackable pieces
 - Spinning up AI agents to do actual work
 - Scheduling and automation via system commands

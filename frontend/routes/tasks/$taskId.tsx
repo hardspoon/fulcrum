@@ -27,7 +27,7 @@ import { DiffViewer } from '@/components/viewer/diff-viewer'
 import { BrowserPreview } from '@/components/viewer/browser-preview'
 import { FilesViewer } from '@/components/viewer/files-viewer'
 import { GitStatusBadge } from '@/components/viewer/git-status-badge'
-import { NonWorktreeTaskView } from '@/components/task/non-worktree-task-view'
+import { ManualTaskView } from '@/components/task/manual-task-view'
 import { TaskDetailsPanel } from '@/components/task/task-details-panel'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
@@ -166,11 +166,17 @@ function TaskView() {
   const titleInputRef = useRef<HTMLInputElement>(null)
   const titleTextRef = useRef<HTMLHeadingElement>(null)
 
-  // Determine if this is a worktree task (has worktree path)
-  const isWorktreeTask = !!task?.worktreePath
+  // Determine task type for rendering decisions
+  const isWorktreeTask = !!task?.worktreePath && task?.type !== 'scratch'
+  const isScratchTask = task?.type === 'scratch'
+  const hasTerminal = isWorktreeTask || isScratchTask
 
   // Determine the active tab - URL takes precedence, then database state
-  const activeTab = searchParams.tab ?? viewState.activeTab
+  // For scratch tasks, default to 'files' instead of 'diff' (no git diff available)
+  const defaultTab = isScratchTask ? 'files' : viewState.activeTab
+  const resolvedTab = searchParams.tab ?? defaultTab
+  // If scratch task has 'diff' persisted/in URL, fall back to 'files'
+  const activeTab = isScratchTask && resolvedTab === 'diff' ? 'files' : resolvedTab
   const activeFile = searchParams.file ?? viewState.filesViewState.selectedFile
 
   // Track if we've synced the URL for this task
@@ -528,9 +534,9 @@ function TaskView() {
     )
   }
 
-  // Non-worktree task view
-  if (!isWorktreeTask) {
-    return <NonWorktreeTaskView task={task} />
+  // Manual task view (not worktree, not scratch)
+  if (!hasTerminal) {
+    return <ManualTaskView task={task} />
   }
 
   return (
@@ -595,36 +601,40 @@ function TaskView() {
                 <HugeiconsIcon icon={More03Icon} size={16} strokeWidth={2} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleSync} disabled={gitSync.isPending || !task.worktreePath}>
-                  <HugeiconsIcon icon={ArrowRight03Icon} size={14} strokeWidth={2} />
-                  Pull from {task.baseBranch}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleMergeToMain} disabled={gitMerge.isPending || !task.worktreePath}>
-                  <HugeiconsIcon icon={ArrowLeft03Icon} size={14} strokeWidth={2} />
-                  Merge to {task.baseBranch}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handlePush} disabled={gitPush.isPending || !task.worktreePath}>
-                  <HugeiconsIcon icon={ArrowUp03Icon} size={14} strokeWidth={2} />
-                  Push to origin
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSyncParent} disabled={gitSyncParent.isPending || !task.repoPath}>
-                  <HugeiconsIcon icon={Orbit01Icon} size={14} strokeWidth={2} />
-                  Sync parent
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleCommit} disabled={!taskTerminal}>
-                  <HugeiconsIcon icon={GitCommitIcon} size={14} strokeWidth={2} />
-                  Commit
-                </DropdownMenuItem>
-                {!task.prUrl && (
-                  <DropdownMenuItem onClick={handleCreatePR} disabled={gitCreatePR.isPending}>
-                    <HugeiconsIcon
-                      icon={GitPullRequestIcon}
-                      size={14}
-                      strokeWidth={2}
-                      className={gitCreatePR.isPending ? 'animate-pulse' : ''}
-                    />
-                    Create PR
-                  </DropdownMenuItem>
+                {!isScratchTask && (
+                  <>
+                    <DropdownMenuItem onClick={handleSync} disabled={gitSync.isPending || !task.worktreePath}>
+                      <HugeiconsIcon icon={ArrowRight03Icon} size={14} strokeWidth={2} />
+                      Pull from {task.baseBranch}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleMergeToMain} disabled={gitMerge.isPending || !task.worktreePath}>
+                      <HugeiconsIcon icon={ArrowLeft03Icon} size={14} strokeWidth={2} />
+                      Merge to {task.baseBranch}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handlePush} disabled={gitPush.isPending || !task.worktreePath}>
+                      <HugeiconsIcon icon={ArrowUp03Icon} size={14} strokeWidth={2} />
+                      Push to origin
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleSyncParent} disabled={gitSyncParent.isPending || !task.repoPath}>
+                      <HugeiconsIcon icon={Orbit01Icon} size={14} strokeWidth={2} />
+                      Sync parent
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleCommit} disabled={!taskTerminal}>
+                      <HugeiconsIcon icon={GitCommitIcon} size={14} strokeWidth={2} />
+                      Commit
+                    </DropdownMenuItem>
+                    {!task.prUrl && (
+                      <DropdownMenuItem onClick={handleCreatePR} disabled={gitCreatePR.isPending}>
+                        <HugeiconsIcon
+                          icon={GitPullRequestIcon}
+                          size={14}
+                          strokeWidth={2}
+                          className={gitCreatePR.isPending ? 'animate-pulse' : ''}
+                        />
+                        Create PR
+                      </DropdownMenuItem>
+                    )}
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -647,24 +657,28 @@ function TaskView() {
             >
               <HugeiconsIcon icon={ReloadIcon} size={14} strokeWidth={2} />
             </button>
-            {repository ? (
-              <Link
-                to="/repositories/$repoId"
-                params={{ repoId: repository.id }}
-                className="flex items-center gap-1 hover:text-primary"
-              >
-                <HugeiconsIcon icon={FolderLibraryIcon} size={12} strokeWidth={2} />
-                <span className="hover:underline">{task.repoName}</span>
-              </Link>
-            ) : (
-              <span className="flex items-center gap-1">
-                <HugeiconsIcon icon={FolderLibraryIcon} size={12} strokeWidth={2} />
-                {task.repoName}
-              </span>
+            {!isScratchTask && (
+              <>
+                {repository ? (
+                  <Link
+                    to="/repositories/$repoId"
+                    params={{ repoId: repository.id }}
+                    className="flex items-center gap-1 hover:text-primary"
+                  >
+                    <HugeiconsIcon icon={FolderLibraryIcon} size={12} strokeWidth={2} />
+                    <span className="hover:underline">{task.repoName}</span>
+                  </Link>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <HugeiconsIcon icon={FolderLibraryIcon} size={12} strokeWidth={2} />
+                    {task.repoName}
+                  </span>
+                )}
+                <div className="ml-auto">
+                  <GitStatusBadge worktreePath={task.worktreePath} />
+                </div>
+              </>
             )}
-            <div className="ml-auto">
-              <GitStatusBadge worktreePath={task.worktreePath} />
-            </div>
           </div>
         </div>
 
@@ -728,40 +742,42 @@ function TaskView() {
                 </DropdownMenu>
               )}
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {repository ? (
-                <Link
-                  to="/repositories/$repoId"
-                  params={{ repoId: repository.id }}
-                  className="flex items-center gap-1 hover:text-primary"
-                >
-                  <HugeiconsIcon icon={FolderLibraryIcon} size={12} strokeWidth={2} />
-                  <span className="hover:underline">{task.repoName}</span>
-                </Link>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <HugeiconsIcon icon={FolderLibraryIcon} size={12} strokeWidth={2} />
-                  {task.repoName}
-                </span>
-              )}
-              <HugeiconsIcon icon={GitBranchIcon} size={12} strokeWidth={2} />
-              <span className="font-mono">{task.branch}</span>
-              {task.prUrl && (
-                <>
-                  <span className="text-muted-foreground/50">•</span>
-                  <a
-                    href={task.prUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-foreground hover:text-primary font-medium"
-                    onClick={(e) => e.stopPropagation()}
+            {!isScratchTask && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {repository ? (
+                  <Link
+                    to="/repositories/$repoId"
+                    params={{ repoId: repository.id }}
+                    className="flex items-center gap-1 hover:text-primary"
                   >
-                    <HugeiconsIcon icon={GitPullRequestIcon} size={14} strokeWidth={2} />
-                    <span>#{task.prUrl.match(/\/pull\/(\d+)/)?.[1] ?? 'PR'}</span>
-                  </a>
-                </>
-              )}
-            </div>
+                    <HugeiconsIcon icon={FolderLibraryIcon} size={12} strokeWidth={2} />
+                    <span className="hover:underline">{task.repoName}</span>
+                  </Link>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <HugeiconsIcon icon={FolderLibraryIcon} size={12} strokeWidth={2} />
+                    {task.repoName}
+                  </span>
+                )}
+                <HugeiconsIcon icon={GitBranchIcon} size={12} strokeWidth={2} />
+                <span className="font-mono">{task.branch}</span>
+                {task.prUrl && (
+                  <>
+                    <span className="text-muted-foreground/50">•</span>
+                    <a
+                      href={task.prUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-foreground hover:text-primary font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <HugeiconsIcon icon={GitPullRequestIcon} size={14} strokeWidth={2} />
+                      <span>#{task.prUrl.match(/\/pull\/(\d+)/)?.[1] ?? 'PR'}</span>
+                    </a>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Task status dropdown */}
@@ -790,109 +806,113 @@ function TaskView() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Desktop: Individual git operation buttons */}
+          {/* Desktop: Individual operation buttons */}
           <div className="flex items-center gap-0">
-          {/* Pull from Base Branch Button */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={handleSync}
-            disabled={gitSync.isPending || !task.worktreePath}
-            className="text-muted-foreground hover:text-foreground"
-            title={`Pull from ${task.baseBranch}`}
-          >
-            <HugeiconsIcon
-              icon={ArrowRight03Icon}
-              size={16}
-              strokeWidth={2}
-              className={gitSync.isPending ? 'animate-spin' : ''}
-            />
-          </Button>
+          {!isScratchTask && (
+            <>
+              {/* Pull from Base Branch Button */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleSync}
+                disabled={gitSync.isPending || !task.worktreePath}
+                className="text-muted-foreground hover:text-foreground"
+                title={`Pull from ${task.baseBranch}`}
+              >
+                <HugeiconsIcon
+                  icon={ArrowRight03Icon}
+                  size={16}
+                  strokeWidth={2}
+                  className={gitSync.isPending ? 'animate-spin' : ''}
+                />
+              </Button>
 
-          {/* Merge to Base Branch Button */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={handleMergeToMain}
-            disabled={gitMerge.isPending || !task.worktreePath}
-            className="text-muted-foreground hover:text-foreground"
-            title={`Merge to ${task.baseBranch}`}
-          >
-            <HugeiconsIcon
-              icon={ArrowLeft03Icon}
-              size={16}
-              strokeWidth={2}
-              className={gitMerge.isPending ? 'animate-pulse' : ''}
-            />
-          </Button>
+              {/* Merge to Base Branch Button */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleMergeToMain}
+                disabled={gitMerge.isPending || !task.worktreePath}
+                className="text-muted-foreground hover:text-foreground"
+                title={`Merge to ${task.baseBranch}`}
+              >
+                <HugeiconsIcon
+                  icon={ArrowLeft03Icon}
+                  size={16}
+                  strokeWidth={2}
+                  className={gitMerge.isPending ? 'animate-pulse' : ''}
+                />
+              </Button>
 
-          {/* Push to Origin Button */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={handlePush}
-            disabled={gitPush.isPending || !task.worktreePath}
-            className="text-muted-foreground hover:text-foreground"
-            title="Push to origin"
-          >
-            <HugeiconsIcon
-              icon={ArrowUp03Icon}
-              size={16}
-              strokeWidth={2}
-              className={gitPush.isPending ? 'animate-pulse' : ''}
-            />
-          </Button>
+              {/* Push to Origin Button */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handlePush}
+                disabled={gitPush.isPending || !task.worktreePath}
+                className="text-muted-foreground hover:text-foreground"
+                title="Push to origin"
+              >
+                <HugeiconsIcon
+                  icon={ArrowUp03Icon}
+                  size={16}
+                  strokeWidth={2}
+                  className={gitPush.isPending ? 'animate-pulse' : ''}
+                />
+              </Button>
 
-          {/* Sync Parent with Origin Button */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={handleSyncParent}
-            disabled={gitSyncParent.isPending || !task.repoPath}
-            className="text-muted-foreground hover:text-foreground"
-            title="Sync parent with origin"
-          >
-            <HugeiconsIcon
-              icon={Orbit01Icon}
-              size={16}
-              strokeWidth={2}
-              className={gitSyncParent.isPending ? 'animate-spin' : ''}
-            />
-          </Button>
+              {/* Sync Parent with Origin Button */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleSyncParent}
+                disabled={gitSyncParent.isPending || !task.repoPath}
+                className="text-muted-foreground hover:text-foreground"
+                title="Sync parent with origin"
+              >
+                <HugeiconsIcon
+                  icon={Orbit01Icon}
+                  size={16}
+                  strokeWidth={2}
+                  className={gitSyncParent.isPending ? 'animate-spin' : ''}
+                />
+              </Button>
 
-          {/* Commit Button */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={handleCommit}
-            disabled={!taskTerminal}
-            className="text-muted-foreground hover:text-foreground"
-            title="Commit"
-          >
-            <HugeiconsIcon
-              icon={GitCommitIcon}
-              size={16}
-              strokeWidth={2}
-            />
-          </Button>
+              {/* Commit Button */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleCommit}
+                disabled={!taskTerminal}
+                className="text-muted-foreground hover:text-foreground"
+                title="Commit"
+              >
+                <HugeiconsIcon
+                  icon={GitCommitIcon}
+                  size={16}
+                  strokeWidth={2}
+                />
+              </Button>
 
-          {/* Create PR Button */}
-          {!task.prUrl && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={handleCreatePR}
-              disabled={gitCreatePR.isPending}
-              className="text-muted-foreground hover:text-foreground"
-              title="Create Pull Request"
-            >
-              <HugeiconsIcon
-                icon={GitPullRequestIcon}
-                size={16}
-                strokeWidth={2}
-                className={gitCreatePR.isPending ? 'animate-pulse' : ''}
-              />
-            </Button>
+              {/* Create PR Button */}
+              {!task.prUrl && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleCreatePR}
+                  disabled={gitCreatePR.isPending}
+                  className="text-muted-foreground hover:text-foreground"
+                  title="Create Pull Request"
+                >
+                  <HugeiconsIcon
+                    icon={GitPullRequestIcon}
+                    size={16}
+                    strokeWidth={2}
+                    className={gitCreatePR.isPending ? 'animate-pulse' : ''}
+                  />
+                </Button>
+              )}
+            </>
           )}
 
           {/* Editor Button */}
@@ -954,10 +974,12 @@ function TaskView() {
             <Tabs value={activeTab} onValueChange={handleTabChange} className="flex h-full flex-col">
               <div className="film-grain relative flex items-center justify-between shrink-0 border-b border-border px-2 py-1" style={{ background: 'var(--gradient-header)' }}>
                 <TabsList variant="line">
-                  <TabsTrigger value="diff">
-                    <HugeiconsIcon icon={CodeIcon} size={14} strokeWidth={2} data-slot="icon" />
-                    Diff
-                  </TabsTrigger>
+                  {!isScratchTask && (
+                    <TabsTrigger value="diff">
+                      <HugeiconsIcon icon={CodeIcon} size={14} strokeWidth={2} data-slot="icon" />
+                      Diff
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="browser">
                     <HugeiconsIcon icon={BrowserIcon} size={14} strokeWidth={2} data-slot="icon" />
                     Browser
@@ -971,12 +993,14 @@ function TaskView() {
                     Details
                   </TabsTrigger>
                 </TabsList>
-                <GitStatusBadge worktreePath={task.worktreePath} />
+                {!isScratchTask && <GitStatusBadge worktreePath={task.worktreePath} />}
               </div>
 
-              <TabsContent value="diff" className="flex-1 overflow-hidden">
-                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch ?? undefined} />
-              </TabsContent>
+              {!isScratchTask && (
+                <TabsContent value="diff" className="flex-1 overflow-hidden">
+                  <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch ?? undefined} />
+                </TabsContent>
+              )}
 
               <TabsContent value="browser" className="flex-1 overflow-hidden">
                 <BrowserPreview taskId={task.id} />
@@ -1023,15 +1047,17 @@ function TaskView() {
             <Tabs value={activeTab} onValueChange={handleTabChange} className="flex h-full flex-col">
               <div className="film-grain relative flex items-center justify-between shrink-0 border-b border-border px-2 py-1" style={{ background: 'var(--gradient-header)' }}>
                 <TabsList variant="line">
-                  <TabsTrigger value="diff">
-                    <HugeiconsIcon
-                      icon={CodeIcon}
-                      size={14}
-                      strokeWidth={2}
-                      data-slot="icon"
-                    />
-                    Diff
-                  </TabsTrigger>
+                  {!isScratchTask && (
+                    <TabsTrigger value="diff">
+                      <HugeiconsIcon
+                        icon={CodeIcon}
+                        size={14}
+                        strokeWidth={2}
+                        data-slot="icon"
+                      />
+                      Diff
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="browser">
                     <HugeiconsIcon
                       icon={BrowserIcon}
@@ -1060,12 +1086,14 @@ function TaskView() {
                     Details
                   </TabsTrigger>
                 </TabsList>
-                <GitStatusBadge worktreePath={task.worktreePath} />
+                {!isScratchTask && <GitStatusBadge worktreePath={task.worktreePath} />}
               </div>
 
-              <TabsContent value="diff" className="flex-1 overflow-hidden">
-                <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch ?? undefined} />
-              </TabsContent>
+              {!isScratchTask && (
+                <TabsContent value="diff" className="flex-1 overflow-hidden">
+                  <DiffViewer taskId={task.id} worktreePath={task.worktreePath} baseBranch={task.baseBranch ?? undefined} />
+                </TabsContent>
+              )}
 
               <TabsContent value="browser" className="flex-1 overflow-hidden">
                 <BrowserPreview taskId={task.id} />

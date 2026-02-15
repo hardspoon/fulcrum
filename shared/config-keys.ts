@@ -3,6 +3,7 @@
 export const CONFIG_KEYS = {
   PORT: 'server.port',
   WORKTREE_BASE_PATH: 'worktree_base_path', // Read-only, derived from FULCRUM_DIR
+  SCRATCH_BASE_PATH: 'scratch_base_path', // Read-only, derived from FULCRUM_DIR
   HOME_DIR: 'home_dir', // Read-only, system home directory
   DEFAULT_GIT_REPOS_DIR: 'paths.defaultGitReposDir',
   REMOTE_HOST: 'remoteFulcrum.host',

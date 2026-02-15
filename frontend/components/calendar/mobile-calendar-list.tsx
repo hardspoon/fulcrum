@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowLeft01Icon, ArrowRight01Icon, Calendar03Icon } from '@hugeicons/core-free-icons'
-import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
+import { ManualTaskModal } from '@/components/task/manual-task-modal'
 
 const STATUS_ORDER: Record<TaskStatus, number> = {
   IN_REVIEW: 0,
@@ -346,7 +346,7 @@ export function MobileCalendarList({ className, projectFilter, tagsFilter }: Mob
 
       {/* Task modal */}
       {selectedTask && !selectedTask.worktreePath && (
-        <NonWorktreeTaskModal
+        <ManualTaskModal
           task={selectedTask}
           open={modalOpen}
           onOpenChange={(open) => {

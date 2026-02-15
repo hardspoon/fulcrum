@@ -101,7 +101,7 @@ export function getSettings(): Settings {
       claudeCodePath: ((parsed.agent as Record<string, unknown>)?.claudeCodePath as string | null) ?? DEFAULT_SETTINGS.agent.claudeCodePath,
     },
     tasks: {
-      // Migrate old 'code'/'non-code' values to 'worktree'/'non-worktree'
+      // Migrate old 'code'/'non-code'/'non-worktree'/'standalone' values
       defaultTaskType: migrateTaskType((parsed.tasks as Record<string, unknown>)?.defaultTaskType as string) ?? DEFAULT_SETTINGS.tasks.defaultTaskType,
       startWorktreeTasksImmediately: ((parsed.tasks as Record<string, unknown>)?.startWorktreeTasksImmediately as boolean) ?? ((parsed.tasks as Record<string, unknown>)?.startCodeTasksImmediately as boolean) ?? DEFAULT_SETTINGS.tasks.startWorktreeTasksImmediately,
     },

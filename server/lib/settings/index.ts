@@ -37,8 +37,10 @@ export {
   getFulcrumDir,
   getDatabasePath,
   getWorktreeBasePath,
+  getScratchBasePath,
   ensureFulcrumDir,
   ensureWorktreesDir,
+  ensureScratchDir,
   getSettingsPath,
 } from './paths'
 

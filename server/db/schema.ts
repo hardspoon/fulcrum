@@ -6,9 +6,9 @@ export const tasks = sqliteTable('tasks', {
   description: text('description'),
   status: text('status').notNull().default('TO_DO'),
   position: integer('position').notNull(),
-  repoPath: text('repo_path'), // Now nullable for non-worktree tasks
-  repoName: text('repo_name'), // Now nullable for non-worktree tasks
-  baseBranch: text('base_branch'), // Now nullable for non-worktree tasks
+  repoPath: text('repo_path'), // Now nullable for manual tasks
+  repoName: text('repo_name'), // Now nullable for manual tasks
+  baseBranch: text('base_branch'), // Now nullable for manual tasks
   branch: text('branch'),
   worktreePath: text('worktree_path'),
   viewState: text('view_state'), // JSON: { activeTab, browserUrl, diffOptions }
@@ -30,6 +30,7 @@ export const tasks = sqliteTable('tasks', {
   recurrenceRule: text('recurrence_rule'), // 'daily'|'weekly'|'biweekly'|'monthly'|'quarterly'|'yearly'|null
   recurrenceEndDate: text('recurrence_end_date'), // YYYY-MM-DD or null = forever
   recurrenceSourceTaskId: text('recurrence_source_task_id'), // FK to parent task (lineage chain)
+  type: text('type'), // 'worktree' | 'scratch' | null (null = manual/legacy)
   notes: text('notes'), // Free-form notes/comments
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),

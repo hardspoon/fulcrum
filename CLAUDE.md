@@ -4,7 +4,7 @@ Fulcrum is the Vibe Engineer's Cockpit. A terminal-first tool for orchestrating 
 
 **Philosophy**:
 - Terminal-first AI agent orchestration. Agents (Claude Code, OpenCode, etc.) run in terminals as-is—no abstraction layer, no wrapper APIs.
-- Currently tasks create isolated git worktrees, but the architecture supports evolution toward more general task types.
+- Three task types: **Git** (isolated worktrees), **Scratch** (isolated directories, no git), **Manual** (no agent/directory).
 - Persistent terminals organized in tabs for work that doesn't fit neatly into task worktrees.
 - App deployment via Docker Compose with automatic DNS/tunnel routing.
 - System monitoring for Claude instances and resource usage.
@@ -137,6 +137,7 @@ fulcrum notify <title> <message>  # Send notification
 
 ### Key Routes (`server/routes/`)
 - `/api/tasks/*` - Task CRUD
+- `/api/scratch-dirs` - Scratch directory listing and management
 - `/api/apps/*` - App deployment management
 - `/api/monitoring/*` - System and Claude instance monitoring, channel messages
 - `/api/deployments/*` - Deployment history
@@ -156,8 +157,9 @@ fulcrum notify <title> <message>  # Send notification
 ### Frontend Pages
 - `/tasks`, `/tasks/$taskId` - Task management
 - `/calendar` - Calendar view with month/week views, project/tag filters (Cmd+7)
+- `/jobs` - Systemd/launchd timer management (Cmd+6)
 - `/apps`, `/apps/new`, `/apps/$appId` - App deployment
-- `/monitoring` - System metrics dashboard
+- `/monitoring` - System metrics dashboard (includes Review tab)
 - `/repositories`, `/repositories/$repoId` - Repository management
 - `/terminals` - Persistent terminal tabs
 
@@ -170,7 +172,7 @@ fulcrum notify <title> <message>  # Send notification
 
 | Table | Purpose |
 |-------|---------|
-| `tasks` | Task metadata, git worktree paths, status, PR integration, time estimate (1-8h), priority (high/medium/low), recurrence (rule, end date, source task) |
+| `tasks` | Task metadata, git worktree paths, status, PR integration, type (worktree/scratch/null=manual), time estimate (hours), priority (high/medium/low), recurrence (rule, end date, source task) |
 | `repositories` | Git repositories with startupScript, copyFiles, agent, agentOptions |
 | `terminalTabs` | Tab entities for terminal organization |
 | `terminals` | Terminal instances with tmux session backing |

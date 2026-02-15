@@ -4,6 +4,7 @@ import {
   getSettings,
   updateSettingByPath,
   getWorktreeBasePath,
+  getScratchBasePath,
   getNotificationSettings,
   updateNotificationSettings,
   getZAiSettings,
@@ -277,6 +278,9 @@ app.get('/:key', (c) => {
   if (key === 'worktree_base_path') {
     return c.json({ key, value: getWorktreeBasePath(), isDefault: true })
   }
+  if (key === 'scratch_base_path') {
+    return c.json({ key, value: getScratchBasePath(), isDefault: true })
+  }
   if (key === 'home_dir') {
     return c.json({ key, value: os.homedir(), isDefault: true })
   }
@@ -382,7 +386,7 @@ app.put('/:key', async (c) => {
         value = null
       }
     } else if (path === CONFIG_KEYS.DEFAULT_TASK_TYPE) {
-      const validTaskTypes = ['worktree', 'non-worktree']
+      const validTaskTypes = ['worktree', 'manual', 'scratch']
       if (!validTaskTypes.includes(value as string)) {
         return c.json({ error: `Default task type must be one of: ${validTaskTypes.join(', ')}` }, 400)
       }

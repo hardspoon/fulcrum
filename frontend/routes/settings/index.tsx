@@ -1575,7 +1575,8 @@ function SettingsPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="worktree">{t('fields.tasks.defaultType.options.worktree')}</SelectItem>
-                          <SelectItem value="non-worktree">{t('fields.tasks.defaultType.options.nonWorktree')}</SelectItem>
+                          <SelectItem value="manual">{t('fields.tasks.defaultType.options.manual')}</SelectItem>
+                          <SelectItem value="scratch">{t('fields.tasks.defaultType.options.scratch')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

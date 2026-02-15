@@ -26,11 +26,12 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: (data: {
       title: string
+      type?: string | null
       description?: string
       agent?: string
       aiMode?: 'default' | 'plan'
       status?: TaskStatus
-      // Git-related fields - optional for non-worktree tasks
+      // Git-related fields - optional for manual tasks
       repoPath?: string | null
       repoName?: string | null
       baseBranch?: string | null

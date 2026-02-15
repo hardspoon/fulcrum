@@ -41,6 +41,22 @@ export type RecurrenceRule = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quar
 
 export type TaskPriority = 'high' | 'medium' | 'low'
 
+// Task type discriminator
+export type TaskType = 'worktree' | 'scratch' | 'manual'
+
+/**
+ * Determine the task type from a task object.
+ * Handles both explicit `type` field and legacy inference.
+ */
+export function getTaskType(task: { type?: string | null; worktreePath?: string | null; repoPath?: string | null; repositoryId?: string | null } | null | undefined): TaskType {
+  if (!task) return 'manual'
+  if (task.type === 'scratch') return 'scratch'
+  if (task.type === 'worktree') return 'worktree'
+  // Legacy inference: if it has git-related fields, it's a worktree task
+  if (task.worktreePath || task.repoPath || task.repositoryId) return 'worktree'
+  return 'manual'
+}
+
 export interface DiffOptions {
   wrap: boolean
   ignoreWhitespace: boolean
@@ -89,9 +105,9 @@ export interface Task {
   description: string | null
   status: TaskStatus
   position: number
-  repoPath: string | null // Nullable for non-worktree tasks
-  repoName: string | null // Nullable for non-worktree tasks
-  baseBranch: string | null // Nullable for non-worktree tasks
+  repoPath: string | null // Nullable for manual tasks
+  repoName: string | null // Nullable for manual tasks
+  baseBranch: string | null // Nullable for manual tasks
   branch: string | null
   worktreePath: string | null
   viewState: ViewState | null
@@ -101,6 +117,7 @@ export interface Task {
   aiMode: 'default' | 'plan' | null
   agentOptions: Record<string, string> | null
   opencodeModel: string | null
+  type: string | null // 'worktree' | 'scratch' | null (null = manual/legacy)
   pinned: boolean
   // Generalized task management fields
   projectId: string | null // FK to project (null = orphan/inbox)
@@ -257,6 +274,44 @@ export interface WorktreeDetails {
 }
 
 export interface WorktreesSummary {
+  total: number
+  orphaned: number
+  totalSize: number
+  totalSizeFormatted: string
+}
+
+// Scratch directory types (parallel to Worktree types, but without git fields)
+export interface ScratchDir {
+  path: string
+  name: string
+  size: number
+  sizeFormatted: string
+  lastModified: string
+  isOrphaned: boolean
+  taskId?: string
+  taskTitle?: string
+  taskStatus?: TaskStatus
+  pinned?: boolean
+}
+
+export interface ScratchDirBasic {
+  path: string
+  name: string
+  lastModified: string
+  isOrphaned: boolean
+  taskId?: string
+  taskTitle?: string
+  taskStatus?: TaskStatus
+  pinned?: boolean
+}
+
+export interface ScratchDirDetails {
+  path: string
+  size: number
+  sizeFormatted: string
+}
+
+export interface ScratchDirsSummary {
   total: number
   orphaned: number
   totalSize: number

@@ -14,7 +14,7 @@ export type ClaudeCodeTheme = 'light' | 'light-ansi' | 'light-daltonized' | 'dar
 export const CLAUDE_CODE_THEMES: ClaudeCodeTheme[] = ['light', 'light-ansi', 'light-daltonized', 'dark', 'dark-ansi', 'dark-daltonized']
 
 // Task type for defaults
-export type TaskType = 'worktree' | 'non-worktree'
+export type TaskType = 'worktree' | 'manual' | 'scratch'
 
 // Assistant provider and model types
 export type AssistantProvider = 'claude' | 'opencode'

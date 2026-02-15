@@ -16,7 +16,7 @@ interface TasksSearch {
   project?: string // 'inbox' for tasks without project, or project ID
   tags?: string // comma-separated tag names
   view?: ViewMode
-  task?: string // task ID for non-worktree task modal
+  task?: string // task ID for manual task modal
 }
 
 export const Route = createFileRoute('/tasks/')({

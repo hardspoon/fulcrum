@@ -186,8 +186,9 @@
         "label": "Default Type",
         "description": "Type to select by default when creating new tasks",
         "options": {
-          "worktree": "Worktree Task",
-          "nonWorktree": "Non-Worktree Task"
+          "worktree": "Git",
+          "manual": "Manual",
+          "scratch": "Scratch"
         }
       },
       "startImmediately": {

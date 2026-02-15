@@ -8,7 +8,7 @@
 
 Fulcrum is your AI-powered command center for shipping software. Built for technical solopreneurs and CTOs who need to multiply their leverage—not just chase the latest coding trend.
 
-Run Claude Code across multiple tasks in parallel. Stay connected to your agents via WhatsApp, Email, Discord, Telegram, or Slack. Let your AI assistant monitor messages, filter signal from noise, and send daily briefings—all while you focus on what matters.
+Run Claude Code across multiple tasks in parallel. Choose Git worktrees for isolated code work, Scratch directories for non-git AI agent sessions, or Manual tasks for anything else. Stay connected to your agents via WhatsApp, Email, Discord, Telegram, or Slack. Let your AI assistant monitor messages, filter signal from noise, and send daily briefings—all while you focus on what matters.
 
 Fulcrum doesn't replace your tools—it gives you leverage over them. You configure Claude Code with the integrations you need (Notion, Linear, Stripe, whatever). Fulcrum is your window into Claude Code and a literal fulcrum: a small input that moves mountains.
 
@@ -17,7 +17,7 @@ Fulcrum doesn't replace your tools—it gives you leverage over them. You config
 - **Claude Code Ecosystem** — Deep integration with Claude Code. Connect via messaging channels, manage tasks, deploy from one dashboard.
 - **Proactive AI Concierge** — Your assistant monitors messages, stores important observations as memories, creates daily plans, and sends morning/evening briefings automatically.
 - **Work From Anywhere** — Run Fulcrum on a remote server. Close your laptop, agents keep working.
-- **Project Management** — Tasks with dependencies, due dates, time estimates, recurrence, labels, and attachments. Visual kanban boards.
+- **Project Management** — Tasks with dependencies, due dates, time estimates, priority levels, recurrence, labels, and attachments. Visual kanban boards.
 - **Production Deployment** — Docker Compose with automatic Traefik routing and Cloudflare DNS/tunnels.
 - **Agent Memory** — Persistent knowledge store with full-text search. Agents remember across sessions.
 - **MCP-First Architecture** — 60+ tools exposed via Model Context Protocol. Agents discover what they need.
@@ -120,13 +120,23 @@ claude plugin install fulcrum@fulcrum --scope user
 
 ### Kanban Board & AI Assistant
 
-Track tasks from planning to done. Set up recurring tasks that auto-create the next occurrence when completed. The built-in AI assistant has full context of everything you're tracking—tasks, projects, apps—and can help with planning, documentation, or running MCP tools.
+Track tasks from planning to done. Set priority levels (high/medium/low), pin important tasks to the top of lists, and set up recurring tasks that auto-create the next occurrence when completed. The built-in AI assistant has full context of everything you're tracking—tasks, projects, apps—and can help with planning, documentation, or running MCP tools.
 
 ![Kanban Board with AI Assistant](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/kanban-with-assistant-dark.png)
 
+### Task Types
+
+Three task types for different workflows:
+
+| Type | Description |
+|------|-------------|
+| **Git** | Isolated git worktree with AI agent — for code changes with branch isolation |
+| **Scratch** | Isolated directory with AI agent — for non-git work (scripts, analysis, experiments) |
+| **Manual** | No agent, no directory — for tracking work done outside Fulcrum |
+
 ### Parallel Agent Orchestration
 
-Run multiple AI coding agents simultaneously across different tasks. Each task gets an isolated git worktree. Monitor and interact with all sessions from one screen.
+Run multiple AI coding agents simultaneously across different tasks. Git tasks get isolated worktrees, Scratch tasks get isolated directories. Monitor and interact with all sessions from one screen.
 
 ![Parallel Agent Terminals](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/parallel-agent-terminals-dark.png)
 
@@ -206,7 +216,7 @@ A two-tier memory system gives agents both always-on context and on-demand recal
 
 ### System Monitoring
 
-Track CPU, memory, and disk usage while your agents work. The Jobs tab manages systemd (Linux) or launchd (macOS) timers. The Messages tab shows all channel messages (WhatsApp, Discord, Telegram, Slack, Email) with filtering by channel and direction.
+Track CPU, memory, and disk usage while your agents work. Jobs is a top-level page (`/jobs`, Cmd+6) for managing systemd (Linux) or launchd (macOS) timers. The Messages tab under Monitoring shows all channel messages (WhatsApp, Discord, Telegram, Slack, Email) with filtering by channel and direction.
 
 ![System Monitoring](https://raw.githubusercontent.com/knowsuchagency/fulcrum/main/screenshots/system-monitoring-dark.png)
 
@@ -246,7 +256,7 @@ Both plugins include an MCP server with 60+ tools:
 
 | Category | Description |
 |----------|-------------|
-| **Tasks** | Create, update, move tasks; manage links, labels, attachments, due dates, time estimates, recurrence |
+| **Tasks** | Create, update, move tasks; manage links, labels, attachments, due dates, time estimates, priority, recurrence |
 | **Task Dependencies** | Define prerequisite tasks; visualize with dependency graph |
 | **Projects** | Manage projects with tags, notes, and file attachments |
 | **Repositories** | Add, configure, and link repositories to projects |

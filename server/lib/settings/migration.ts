@@ -131,11 +131,12 @@ export function migrateSettings(parsed: Record<string, unknown>): MigrationResul
   return result
 }
 
-// Migrate old task type values ('code' -> 'worktree', 'non-code' -> 'non-worktree')
+// Migrate old task type values ('code' -> 'worktree', 'non-code'/'non-worktree' -> 'manual', 'standalone' -> 'scratch')
 export function migrateTaskType(value: string | undefined): TaskType | undefined {
   if (!value) return undefined
   if (value === 'code') return 'worktree'
-  if (value === 'non-code') return 'non-worktree'
+  if (value === 'non-code' || value === 'non-worktree') return 'manual'
+  if (value === 'standalone') return 'scratch'
   return value as TaskType
 }
 

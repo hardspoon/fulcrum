@@ -180,8 +180,9 @@
         "label": "默认类型",
         "description": "创建新任务时默认选择的类型",
         "options": {
-          "worktree": "工作树任务",
-          "nonWorktree": "非工作树任务"
+          "worktree": "Git",
+          "manual": "手动",
+          "scratch": "临时"
         }
       },
       "startImmediately": {

@@ -8,7 +8,7 @@ import { KanbanColumn } from './kanban-column'
 import { DragProvider, useDrag } from './drag-context'
 import { SelectionProvider, useSelection } from './selection-context'
 import { BulkActionsToolbar } from './bulk-actions-toolbar'
-import { NonWorktreeTaskModal } from '@/components/task/non-worktree-task-modal'
+import { ManualTaskModal } from '@/components/task/manual-task-modal'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTasks, useUpdateTaskStatus, useTaskDependencyGraph } from '@/hooks/use-tasks'
 import { useProjects } from '@/hooks/use-projects'
@@ -63,7 +63,7 @@ interface KanbanBoardProps {
   projectFilter?: string | null // 'inbox' for tasks without project, or project ID
   searchQuery?: string
   tagsFilter?: string[]
-  selectedTaskId?: string // task ID for non-worktree task modal (from URL param)
+  selectedTaskId?: string // task ID for manual task modal (from URL param)
 }
 
 function KanbanBoardInner({ projectFilter, searchQuery, tagsFilter, selectedTaskId }: KanbanBoardProps) {
@@ -83,8 +83,9 @@ function KanbanBoardInner({ projectFilter, searchQuery, tagsFilter, selectedTask
     return allTasks.find((t) => t.id === selectedTaskId) ?? null
   }, [selectedTaskId, allTasks])
 
-  // Check if the selected task is a non-worktree task (should show modal)
-  const showTaskModal = selectedTask && !selectedTask.worktreePath
+  // Check if the selected task is a manual task (should show modal)
+  // Scratch tasks navigate to detail page even without worktreePath
+  const showTaskModal = selectedTask && !selectedTask.worktreePath && selectedTask.type !== 'scratch'
 
   // Callback to close the modal by removing the task param from URL
   const handleTaskModalClose = useCallback(
@@ -396,7 +397,7 @@ function KanbanBoardInner({ projectFilter, searchQuery, tagsFilter, selectedTask
 
       {/* Non-worktree task modal - controlled by URL param */}
       {showTaskModal && selectedTask && (
-        <NonWorktreeTaskModal
+        <ManualTaskModal
           task={selectedTask}
           open={true}
           onOpenChange={handleTaskModalClose}

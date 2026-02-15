@@ -14,6 +14,7 @@ import enRepositories from './locales/en/repositories.json'
 import enJobs from './locales/en/jobs.json'
 import enProjects from './locales/en/projects.json'
 import enAssistant from './locales/en/assistant.json'
+import enScratch from './locales/en/scratch.json'
 
 // Import Chinese translations
 import zhCommon from './locales/zh/common.json'
@@ -27,6 +28,7 @@ import zhTerminals from './locales/zh/terminals.json'
 import zhRepositories from './locales/zh/repositories.json'
 import zhProjects from './locales/zh/projects.json'
 import zhAssistant from './locales/zh/assistant.json'
+import zhScratch from './locales/zh/scratch.json'
 
 export const defaultNS = 'common'
 export const supportedLanguages = ['en', 'zh'] as const
@@ -46,6 +48,7 @@ export const resources = {
     jobs: enJobs,
     projects: enProjects,
     assistant: enAssistant,
+    scratch: enScratch,
   },
   zh: {
     common: zhCommon,
@@ -60,6 +63,7 @@ export const resources = {
     jobs: enJobs, // TODO: Add Chinese translations
     projects: zhProjects,
     assistant: zhAssistant,
+    scratch: zhScratch,
   },
 } as const
 
@@ -84,7 +88,7 @@ i18n.use(initReactI18next).init({
   lng: getInitialLanguage(),
   fallbackLng: 'en',
   defaultNS,
-  ns: ['common', 'navigation', 'tasks', 'settings', 'review', 'worktrees', 'monitoring', 'terminals', 'repositories', 'jobs', 'projects', 'assistant'],
+  ns: ['common', 'navigation', 'tasks', 'settings', 'review', 'worktrees', 'monitoring', 'terminals', 'repositories', 'jobs', 'projects', 'assistant', 'scratch'],
   interpolation: {
     escapeValue: false, // React already escapes
   },

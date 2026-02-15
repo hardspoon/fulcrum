@@ -57,7 +57,7 @@ export function DeleteTaskDialog({
           <AlertDialogTitle>Delete Task</AlertDialogTitle>
           <AlertDialogDescription>
             This will permanently delete "{task.title}" and close its terminal.
-            {deleteLinkedWorktree && task.worktreePath && ' The linked worktree will also be removed.'}
+            {deleteLinkedWorktree && task.worktreePath && (task.type === 'scratch' ? ' The scratch directory will also be removed.' : ' The linked worktree will also be removed.')}
             {' '}This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -68,7 +68,7 @@ export function DeleteTaskDialog({
               onCheckedChange={(checked) => setDeleteLinkedWorktree(checked === true)}
               disabled={deleteTask.isPending}
             />
-            Also delete linked worktree
+            {task.type === 'scratch' ? 'Also delete scratch directory' : 'Also delete linked worktree'}
           </label>
         )}
         <AlertDialogFooter>

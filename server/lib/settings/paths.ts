@@ -113,6 +113,11 @@ export function getWorktreeBasePath(): string {
   return path.join(getFulcrumDir(), 'worktrees')
 }
 
+// Get scratch directory base path (always derived from fulcrumDir)
+export function getScratchBasePath(): string {
+  return path.join(getFulcrumDir(), 'scratch')
+}
+
 // Get the settings file path
 export function getSettingsPath(): string {
   return path.join(getFulcrumDir(), 'settings.json')
@@ -134,11 +139,20 @@ export function ensureWorktreesDir(): void {
   }
 }
 
+// Ensure the scratch directory exists
+export function ensureScratchDir(): void {
+  const scratchDir = getScratchBasePath()
+  if (!fs.existsSync(scratchDir)) {
+    fs.mkdirSync(scratchDir, { recursive: true })
+  }
+}
+
 // Initialize all required directories and files
 // Note: ensureSettingsFile is called from core.ts to avoid circular deps
 export function initializeFulcrumDirectories(): void {
   ensureFulcrumDir()
   ensureWorktreesDir()
+  ensureScratchDir()
 }
 
 /**

@@ -5,7 +5,7 @@ import { broadcast } from '../websocket/terminal-ws'
 import { sendNotification } from './notification-service'
 import { killClaudeInTerminalsForWorktree } from '../terminal/pty-instance'
 import { log } from '../lib/logger'
-import { getWorktreeBasePath } from '../lib/settings'
+import { getWorktreeBasePath, getScratchBasePath } from '../lib/settings'
 import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -93,6 +93,23 @@ function generateWorktreeInfo(
   const worktreePath = path.join(worktreesDir, repoName, worktreeName)
 
   return { worktreePath, branch }
+}
+
+// Generate scratch directory path for a task
+function generateScratchDirInfo(taskTitle: string): { dirPath: string } {
+  const scratchDir = getScratchBasePath()
+
+  const slugifiedTitle = taskTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 50)
+
+  const suffix = Math.random().toString(36).slice(2, 6)
+  const dirName = `${slugifiedTitle}-${suffix}`
+  const dirPath = path.join(scratchDir, dirName)
+
+  return { dirPath }
 }
 
 /**
@@ -266,6 +283,17 @@ export async function updateTaskStatus(
         } else {
           log.api.error('Failed to create worktree during status transition', { error: result.error })
         }
+      }
+    }
+
+    // If task is scratch type but no worktreePath, create scratch directory now
+    if (existing.type === 'scratch' && !existing.worktreePath) {
+      const { dirPath } = generateScratchDirInfo(existing.title)
+      try {
+        fs.mkdirSync(dirPath, { recursive: true })
+        updateData.worktreePath = dirPath
+      } catch (err) {
+        log.api.error('Failed to create scratch directory during status transition', { error: String(err) })
       }
     }
   }

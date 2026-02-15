@@ -32,6 +32,7 @@ import type {
 
 export interface CreateTaskInput {
   title: string
+  type?: string | null
   description?: string
   status?: TaskStatus
   repoPath?: string | null

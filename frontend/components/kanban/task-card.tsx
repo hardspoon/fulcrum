@@ -39,8 +39,8 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null)
   const [previewContainer, setPreviewContainer] = useState<HTMLElement | null>(null)
 
-  // Determine if this is a code task (has worktree or is configured with a repository)
-  const isCodeTask = !!(task.worktreePath || task.repositoryId)
+  // Determine if this is a code task (has worktree, repository, or is scratch)
+  const isCodeTask = !!(task.worktreePath || task.repositoryId || task.type === 'scratch')
   const isActiveWorktreeTask = !!task.worktreePath
   const isPendingCodeTask = !task.worktreePath && !!task.repositoryId
 
