@@ -37,6 +37,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { TaskAdd01Icon, Folder01Icon, Cancel01Icon, Attachment01Icon, Link01Icon, Add01Icon, Tick01Icon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { getTaskTypeCssVar } from '@/lib/task-type-colors'
 import { Switch } from '@/components/ui/switch'
 import { useCreateTask, useAddTaskLink } from '@/hooks/use-tasks'
 import { useSearchTags } from '@/hooks/use-tags'
@@ -591,9 +592,16 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                 className="h-7 mx-auto"
                 variant="outline"
               >
-                <ToggleGroupItem value="worktree" className="h-7 rounded-full px-3 text-xs font-medium">{t('createModal.taskTypes.worktree')}</ToggleGroupItem>
-                <ToggleGroupItem value="scratch" className="h-7 rounded-full px-3 text-xs font-medium">{t('createModal.taskTypes.scratch')}</ToggleGroupItem>
-                <ToggleGroupItem value="manual" className="h-7 rounded-full px-3 text-xs font-medium">{t('createModal.taskTypes.manual')}</ToggleGroupItem>
+                {(['worktree', 'scratch', 'manual'] as const).map((type) => (
+                  <ToggleGroupItem
+                    key={type}
+                    value={type}
+                    className="h-7 rounded-full px-3 text-xs font-medium"
+                    style={taskType === type ? { backgroundColor: getTaskTypeCssVar({ type }), color: 'white' } : undefined}
+                  >
+                    {t(`createModal.taskTypes.${type}`)}
+                  </ToggleGroupItem>
+                ))}
               </ToggleGroup>
               <DialogDescription className="mt-2 text-center">
                 {taskType === 'worktree'

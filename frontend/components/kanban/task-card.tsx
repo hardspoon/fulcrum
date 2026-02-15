@@ -18,6 +18,9 @@ import { useRepositories } from '@/hooks/use-repositories'
 import { usePinTask } from '@/hooks/use-tasks'
 import { formatDateString } from '../../../shared/date-utils'
 import { useIsOverdue, useIsDueToday } from '@/hooks/use-date-utils'
+import { getTaskTypeCssVar } from '@/lib/task-type-colors'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { getTaskType } from '../../../shared/types'
 
 interface TaskCardProps {
   task: Task
@@ -203,6 +206,17 @@ export function TaskCard({ task, isDragPreview, isBlocked, isBlocking }: TaskCar
           selected && 'ring-2 ring-primary bg-primary/5'
         )}
       >
+        {/* Task type indicator dot */}
+        <Tooltip>
+          <TooltipTrigger
+            className="absolute bottom-2 right-2 h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: getTaskTypeCssVar(task) }}
+          />
+          <TooltipContent side="right">
+            {getTaskType(task) === 'worktree' ? 'Git' : getTaskType(task) === 'scratch' ? 'Scratch' : 'Manual'}
+          </TooltipContent>
+        </Tooltip>
+
         {/* Drop indicator line */}
         {closestEdge && (
           <div

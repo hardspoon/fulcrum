@@ -7,7 +7,7 @@ import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 import { glob } from 'glob'
-import { getFulcrumDir } from '../lib/settings'
+import { getFulcrumDir, getScratchBasePath } from '../lib/settings'
 import {
   getPTYManager,
   destroyTerminalAndBroadcast,
@@ -556,6 +556,66 @@ app.post('/:id/initialize-worktree', async (c) => {
     return c.json(updated ? toApiResponse(updated, true) : null)
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Failed to initialize worktree task' }, 400)
+  }
+})
+
+// POST /api/tasks/:id/initialize-scratch - Initialize a manual task as a scratch task
+app.post('/:id/initialize-scratch', async (c) => {
+  const id = c.req.param('id')
+
+  try {
+    const existing = db.select().from(tasks).where(eq(tasks.id, id)).get()
+    if (!existing) {
+      return c.json({ error: 'Task not found' }, 404)
+    }
+
+    if (existing.worktreePath) {
+      return c.json({ error: 'Task already has a directory' }, 400)
+    }
+
+    const body = await c.req.json<{
+      agent?: string
+      aiMode?: 'default' | 'plan'
+    }>().catch(() => ({} as { agent?: string; aiMode?: 'default' | 'plan' }))
+
+    // Generate scratch directory path
+    const scratchBase = getScratchBasePath()
+    const slugifiedTitle = existing.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 50)
+    const suffix = Math.random().toString(36).slice(2, 6)
+    const dirName = slugifiedTitle ? `${slugifiedTitle}-${suffix}` : suffix
+    const dirPath = path.join(scratchBase, dirName)
+
+    // Create scratch directory
+    try {
+      fs.mkdirSync(dirPath, { recursive: true })
+    } catch (err) {
+      return c.json({ error: `Failed to create scratch directory: ${err instanceof Error ? err.message : String(err)}` }, 500)
+    }
+
+    const now = new Date().toISOString()
+
+    db.update(tasks)
+      .set({
+        type: 'scratch',
+        worktreePath: dirPath,
+        agent: body.agent || existing.agent || 'claude',
+        aiMode: body.aiMode || null,
+        status: 'IN_PROGRESS',
+        startedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(tasks.id, id))
+      .run()
+
+    const updated = db.select().from(tasks).where(eq(tasks.id, id)).get()
+    broadcast({ type: 'task:updated', payload: { taskId: id } })
+    return c.json(updated ? toApiResponse(updated, true) : null)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Failed to initialize scratch task' }, 400)
   }
 })
 

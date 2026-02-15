@@ -187,6 +187,30 @@ export function usePinTask() {
   })
 }
 
+export function useInitializeScratchTask() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      agent,
+      aiMode,
+    }: {
+      taskId: string
+      agent?: string
+      aiMode?: 'default' | 'plan'
+    }) =>
+      fetchJSON<Task>(`${API_BASE}/api/tasks/${taskId}/initialize-scratch`, {
+        method: 'POST',
+        body: JSON.stringify({ agent, aiMode }),
+      }),
+    onSuccess: (_, { taskId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks', taskId] })
+    },
+  })
+}
+
 export function useAddTaskLink() {
   const queryClient = useQueryClient()
 

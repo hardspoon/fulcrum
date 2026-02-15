@@ -80,6 +80,11 @@
     --gradient-header: var(--background);
     --gradient-glow: oklch(0.4800 0.2200 260.0000);
 
+    /* Task type accent colors */
+    --type-worktree: oklch(0.4800 0.2000 285);
+    --type-scratch: oklch(0.5500 0.1200 185);
+    --type-manual: oklch(0.6000 0.1400 75);
+
     /* Diff viewer colors - high contrast on white/light gray */
     --diff-add-bg: oklch(0.95 0.05 145);
     --diff-add-fg: oklch(0.35 0.15 145);
@@ -140,6 +145,11 @@
     --status-todo: oklch(0.4000 0 0);
     --status-in-progress: oklch(0.6500 0.2100 260.0000);
     --gradient-glow: oklch(0.6000 0.2700 25.0000);
+
+    /* Task type accent colors */
+    --type-worktree: oklch(0.5500 0.2000 285);
+    --type-scratch: oklch(0.6000 0.1200 185);
+    --type-manual: oklch(0.6500 0.1400 75);
 
     /* Diff viewer colors - high contrast on black/dark gray */
     --diff-add-bg: oklch(0.25 0.08 145);

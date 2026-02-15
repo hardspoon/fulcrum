@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import {
@@ -17,7 +18,7 @@ import {
 } from '@/components/ui/select'
 import { useRepositories } from '@/hooks/use-repositories'
 import { useBranches } from '@/hooks/use-filesystem'
-import { useUpdateTask } from '@/hooks/use-tasks'
+import { useUpdateTask, useInitializeScratchTask } from '@/hooks/use-tasks'
 import { useDefaultAgent } from '@/hooks/use-config'
 import { AGENT_DISPLAY_NAMES, type AgentType, type Task } from '@/types'
 import { InitializeWorktreeTaskModal } from './initialize-worktree-task-modal'
@@ -28,9 +29,11 @@ interface WorktreeTaskSettingsProps {
 }
 
 export function WorktreeTaskSettings({ task, compact }: WorktreeTaskSettingsProps) {
+  const navigate = useNavigate()
   const { data: repositories } = useRepositories()
   const { data: defaultAgent } = useDefaultAgent()
   const updateTask = useUpdateTask()
+  const initializeScratch = useInitializeScratchTask()
 
   // Local state for the toggle
   const [isWorktreeTask, setIsWorktreeTask] = useState(!!task.repositoryId)
@@ -131,12 +134,27 @@ export function WorktreeTaskSettings({ task, compact }: WorktreeTaskSettingsProp
     })
   }
 
+  // Handle scratch task initialization
+  const handleInitializeScratch = () => {
+    initializeScratch.mutate(
+      { taskId: task.id, agent: agent || defaultAgent || 'claude' },
+      {
+        onSuccess: (data) => {
+          if (data) {
+            navigate({ to: '/tasks/$taskId', params: { taskId: task.id } })
+          }
+        },
+      }
+    )
+  }
+
   const paddingClass = compact ? 'p-3' : 'p-4'
   const marginClass = compact ? 'mb-2' : 'mb-3'
   const headingClass = compact ? 'text-xs' : 'text-sm'
 
   return (
     <div className={`rounded-lg border bg-card ${paddingClass}`}>
+      {/* Worktree section */}
       <div className={`flex items-center justify-between ${marginClass}`}>
         <h2 className={`${headingClass} font-medium text-muted-foreground`}>Worktree Task</h2>
         <label className="flex items-center gap-2 cursor-pointer">
@@ -266,6 +284,29 @@ export function WorktreeTaskSettings({ task, compact }: WorktreeTaskSettingsProp
         <p className={`text-muted-foreground italic ${compact ? 'text-xs' : 'text-sm'}`}>
           Enable to associate a repository and create a worktree when work starts.
         </p>
+      )}
+
+      {/* Scratch task section - separator + button (hide if already a scratch or worktree type) */}
+      {!isWorktreeTask && task.type !== 'scratch' && task.type !== 'worktree' && (
+        <>
+          <div className="my-3 flex items-center gap-2">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleInitializeScratch}
+            disabled={initializeScratch.isPending}
+            className="w-full"
+            size={compact ? 'sm' : 'default'}
+          >
+            {initializeScratch.isPending ? 'Creating...' : 'Initialize as Scratch Task'}
+          </Button>
+          <p className={`text-muted-foreground italic mt-2 ${compact ? 'text-xs' : 'text-sm'}`}>
+            Creates an isolated directory without git for quick experiments.
+          </p>
+        </>
       )}
 
       <InitializeWorktreeTaskModal
