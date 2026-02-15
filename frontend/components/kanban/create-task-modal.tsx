@@ -583,7 +583,10 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                 value={[taskType]}
                 onValueChange={(value) => {
                   const selected = Array.isArray(value) ? value[0] : value
-                  if (selected) setTaskType(selected as TaskType)
+                  if (selected) {
+                    setTaskType(selected as TaskType)
+                    if (selected !== 'manual') setRecurrenceRule('')
+                  }
                 }}
                 className="h-7 mx-auto"
                 variant="outline"
@@ -1024,6 +1027,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                   />
                 </Field>
 
+                {taskType === 'manual' && (
                 <Field className="w-32">
                   <FieldLabel>{t('createModal.fields.repeat')}</FieldLabel>
                   <Select
@@ -1044,6 +1048,7 @@ export function CreateTaskModal({ open: controlledOpen, onOpenChange, defaultRep
                     </SelectContent>
                   </Select>
                 </Field>
+                )}
               </div>
 
               {/* Notes */}
